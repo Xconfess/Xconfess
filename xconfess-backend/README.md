@@ -80,6 +80,15 @@ Examples:
 | Notification (outbox/DLQ replay) | `src/notification/` | Active notification queue, replay, and retention cleanup |
 | Notifications (Bull queue APIs) | `src/notifications/` | Additional notification endpoints and DLQ admin queue tooling |
 
+## Background Job Requirements
+
+Redis-backed Bull queues are required for background-job features. In particular:
+
+- `src/notifications/notifications.module.ts` explicitly owns `notifications` and `notifications-dlq`
+- `src/data-export/data-export.module.ts` explicitly owns `export-queue`
+
+If Redis-backed background jobs are enabled, the backend must be able to bootstrap those queue tokens or the related processors and services will fail to initialize.
+
 ## Project Setup
 
 ```bash

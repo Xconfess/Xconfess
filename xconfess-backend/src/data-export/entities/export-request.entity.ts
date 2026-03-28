@@ -9,62 +9,62 @@ import {
 @Entity('export_requests')
 export class ExportRequest {
   @PrimaryGeneratedColumn('uuid')
-  id: string;
+  id!: string;
 
   @Column()
-  userId: string;
+  userId!: string;
 
   @Column({ default: 'PENDING' })
-  status: string;
+  status!: string;
 
   // Storing the actual ZIP file in the DB (fallback for small exports)
   @Column({ type: 'bytea', nullable: true, select: false })
-  fileData: Buffer | null;
+  fileData!: Buffer | null;
 
   @Column({ default: false })
-  isChunked: boolean;
+  isChunked!: boolean;
 
   @Column({ default: 0 })
-  chunkCount: number;
+  chunkCount!: number;
 
   @Column({ type: 'bigint', default: 0 })
-  totalSize: string; // Stored as string to handle bigint safely in JS
+  totalSize!: string; // Stored as string to handle bigint safely in JS
 
   @Column({ nullable: true })
-  combinedChecksum: string; // SHA-256 of the concatenated chunks
+  combinedChecksum!: string; // SHA-256 of the concatenated chunks
 
   @CreateDateColumn()
-  createdAt: Date;
+  createdAt!: Date;
 
   // ── Lifecycle timestamps ──────────────────────────────────────────────────
 
   /** Set when the export job is enqueued in Bull. */
   @Column({ type: 'timestamp', nullable: true })
-  queuedAt: Date | null;
+  queuedAt!: Date | null;
 
   /** Set when the processor picks up the job. */
   @Column({ type: 'timestamp', nullable: true })
-  processingAt: Date | null;
+  processingAt!: Date | null;
 
   /** Set when the export reaches READY status. */
   @Column({ type: 'timestamp', nullable: true })
-  completedAt: Date | null;
+  completedAt!: Date | null;
 
   /** Updated every time the processor fails (supports retries). */
   @Column({ type: 'timestamp', nullable: true })
-  failedAt: Date | null;
+  failedAt!: Date | null;
 
   /** Set when the 24-hour download window elapses. */
   @Column({ type: 'timestamp', nullable: true })
-  expiredAt: Date | null;
+  expiredAt!: Date | null;
 
   // ── Retry / failure metadata ──────────────────────────────────────────────
 
   /** Number of times the processor has attempted (and failed) this job. */
   @Column({ default: 0 })
-  retryCount: number;
+  retryCount!: number;
 
   /** The error message from the most recent processor failure. */
   @Column({ type: 'text', nullable: true })
-  lastFailureReason: string | null;
+  lastFailureReason!: string | null;
 }

@@ -8,6 +8,7 @@ import { DataExportService } from './data-export.service';
 import { ExportRequest } from './entities/export-request.entity';
 import { ExportChunk } from './entities/export-chunk.entity';
 import { AuditLogService } from '../audit-log/audit-log.service';
+import { EXPORT_QUEUE_NAME } from './data-export.constants';
 
 describe('DataExportService', () => {
   let service: DataExportService;
@@ -55,7 +56,7 @@ describe('DataExportService', () => {
           useValue: mockChunkRepository,
         },
         {
-          provide: getQueueToken('export-queue'),
+          provide: getQueueToken(EXPORT_QUEUE_NAME),
           useValue: mockExportQueue,
         },
         {
@@ -237,7 +238,7 @@ describe('DataExportService', () => {
         expect.objectContaining({
           action: 'generation_completed',
           actorType: 'system',
-          actorId: 'export-queue',
+          actorId: EXPORT_QUEUE_NAME,
           requestId: 'req-5',
           exportId: 'req-5',
           metadata: expect.objectContaining({

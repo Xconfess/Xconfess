@@ -12,25 +12,25 @@ import { ExportRequest } from './export-request.entity';
 @Entity('export_chunks')
 export class ExportChunk {
   @PrimaryGeneratedColumn('uuid')
-  id: string;
+  id!: string;
 
   @ManyToOne(() => ExportRequest, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'export_request_id' })
   @Index()
-  exportRequest: ExportRequest;
+  exportRequest!: ExportRequest;
 
   @Column({ name: 'export_request_id' })
-  exportRequestId: string;
+  exportRequestId!: string;
 
   @Column()
-  chunkIndex: number;
+  chunkIndex!: number;
 
   @Column({ type: 'bytea' })
-  fileData: Buffer;
+  fileData!: Buffer;
 
   @Column()
-  chunkSize: number;
+  chunkSize!: number;
 
   @Column()
-  checksum: string; // SHA-256 of this chunk
+  checksum!: string; // SHA-256 of this chunk
 }

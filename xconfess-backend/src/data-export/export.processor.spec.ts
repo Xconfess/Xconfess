@@ -29,6 +29,8 @@ describe('ExportProcessor', () => {
     dataExportService = {
       compileUserData: jest.fn(),
       convertToCsv: jest.fn(() => 'test,csv'),
+      markExportFailed: jest.fn(),
+      markExportProcessing: jest.fn(),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -87,6 +89,9 @@ describe('ExportProcessor', () => {
       await processor.handleExport(mockJob);
 
       expect(dataExportService.compileUserData).toHaveBeenCalled();
+      expect(dataExportService.markExportProcessing).toHaveBeenCalledWith(
+        'req-1',
+      );
       expect(exportRepo.update).toHaveBeenCalledWith(
         'req-1',
         expect.objectContaining({
@@ -108,9 +113,13 @@ describe('ExportProcessor', () => {
 
       await processor.handleExport(mockJob);
 
-      expect(exportRepo.update).toHaveBeenCalledWith('req-1', {
-        status: 'FAILED',
-      });
+      expect(dataExportService.markExportProcessing).toHaveBeenCalledWith(
+        'req-1',
+      );
+      expect(dataExportService.markExportFailed).toHaveBeenCalledWith(
+        'req-1',
+        'Test error',
+      );
     });
   });
 });

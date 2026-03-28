@@ -30,44 +30,44 @@ export interface PrivacySettings {
 @Unique(['emailHash'])
 export class User {
   @PrimaryGeneratedColumn()
-  id: number;
+  id!: number;
 
   @Column()
-  username: string;
+  username!: string;
 
   @Column()
-  password: string;
+  password!: string;
 
   @Column({ name: 'email_encrypted', type: 'text' })
-  emailEncrypted: string;
+  emailEncrypted!: string;
 
   @Column({ name: 'email_iv', type: 'varchar', length: 32 })
-  emailIv: string;
+  emailIv!: string;
 
   @Column({ name: 'email_tag', type: 'varchar', length: 32 })
-  emailTag: string;
+  emailTag!: string;
 
   @Column({ name: 'email_hash', type: 'varchar', length: 64, unique: true })
-  emailHash: string;
+  emailHash!: string;
 
   @Column({ type: 'enum', enum: UserRole, default: UserRole.USER })
-  role: UserRole;
+  role!: UserRole;
 
   @Column({ default: true })
-  is_active: boolean;
+  is_active!: boolean;
 
   @Column({ type: 'varchar', length: 255, nullable: true })
-  resetPasswordToken: string | null;
+  resetPasswordToken!: string | null;
 
   @Column({ type: 'timestamp', nullable: true })
-  resetPasswordExpires: Date | null;
+  resetPasswordExpires!: Date | null;
 
   @Column({
     name: 'notification_preferences',
     type: 'jsonb',
     default: () => "'{}'",
   })
-  notificationPreferences: Partial<Record<NotificationCategory, boolean>>;
+  notificationPreferences!: Partial<Record<NotificationCategory, boolean>>;
 
   @Column({
     name: 'privacy_settings',
@@ -75,7 +75,7 @@ export class User {
     default: () =>
       '\'{"isDiscoverable": true, "canReceiveReplies": true, "showReactions": true}\'',
   })
-  privacySettings: PrivacySettings;
+  privacySettings!: PrivacySettings;
 
   isNotificationEnabled(category: NotificationCategory): boolean {
     if (!this.notificationPreferences) return true;
@@ -100,10 +100,10 @@ export class User {
   }
 
   @CreateDateColumn()
-  createdAt: Date;
+  createdAt!: Date;
 
   @UpdateDateColumn()
-  updatedAt: Date;
+  updatedAt!: Date;
 
   getEmail(): string {
     if (!this.emailEncrypted || !this.emailIv || !this.emailTag) return '';

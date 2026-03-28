@@ -16,6 +16,7 @@ import { Queue } from 'bull';
 import { ExportRequest } from './entities/export-request.entity';
 import { ExportChunk } from './entities/export-chunk.entity';
 import { AuditLogService } from '../audit-log/audit-log.service';
+import { EXPORT_QUEUE_NAME } from './data-export.constants';
 
 export type ExportHistoryStatus =
   | 'PENDING'
@@ -62,7 +63,7 @@ export class DataExportService {
     private exportRepository: Repository<ExportRequest>,
     @InjectRepository(ExportChunk)
     private chunkRepository: Repository<ExportChunk>,
-    @InjectQueue('export-queue') private exportQueue: Queue,
+    @InjectQueue(EXPORT_QUEUE_NAME) private exportQueue: Queue,
     private readonly configService: ConfigService,
     @Optional() private readonly auditLogService?: AuditLogService,
   ) {}
@@ -259,7 +260,7 @@ export class DataExportService {
     await this.auditLogService?.logExportLifecycleEvent({
       action: 'generation_completed',
       actorType: 'system',
-      actorId: 'export-queue',
+      actorId: EXPORT_QUEUE_NAME,
       requestId,
       exportId: requestId,
       metadata: {
