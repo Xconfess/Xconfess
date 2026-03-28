@@ -5,7 +5,11 @@ import { ConfigService } from '@nestjs/config';
 import { AppLogger } from '../../logger/logger.service';
 import { AuditLogService } from '../../audit-log/audit-log.service';
 import { AuditActionType } from '../../audit-log/audit-log.entity';
-import { NOTIFICATION_QUEUE, NOTIFICATION_DLQ, NotificationJobData } from '../processors/notification.processor';
+import {
+  NOTIFICATION_QUEUE,
+  NOTIFICATION_DLQ,
+  NotificationJobData,
+} from '../processors/notification.processor';
 
 export interface DlqJobFilter {
   failedAfter?: string;
@@ -32,17 +36,33 @@ export class JobManagementService {
     const end = start + limit - 1;
 
     const [jobs, total] = await Promise.all([
-      this.dlq.getJobs(['failed', 'completed', 'waiting', 'active', 'delayed'], start, end),
+      this.dlq.getJobs(
+        ['failed', 'completed', 'waiting', 'active', 'delayed'],
+        start,
+        end,
+      ),
       this.dlq.count(),
     ]);
 
     // Apply filtering if provided (Bull's getJobs doesn't filter by payload/reason out of the box easily)
     let filteredJobs = jobs;
     if (filter) {
-      filteredJobs = jobs.filter(job => {
-        const failedAt = job.data._meta?.failedAt ? new Date(job.data._meta.failedAt) : null;
-        if (filter.failedAfter && failedAt && failedAt < new Date(filter.failedAfter)) return false;
-        if (filter.failedBefore && failedAt && failedAt > new Date(filter.failedBefore)) return false;
+      filteredJobs = jobs.filter((job) => {
+        const failedAt = job.data._meta?.failedAt
+          ? new Date(job.data._meta.failedAt)
+          : null;
+        if (
+          filter.failedAfter &&
+          failedAt &&
+          failedAt < new Date(filter.failedAfter)
+        )
+          return false;
+        if (
+          filter.failedBefore &&
+          failedAt &&
+          failedAt > new Date(filter.failedBefore)
+        )
+          return false;
         if (filter.search) {
           const search = filter.search.toLowerCase();
           const content = JSON.stringify(job.data).toLowerCase();
@@ -53,7 +73,7 @@ export class JobManagementService {
     }
 
     return {
-      jobs: filteredJobs.map(job => ({
+      jobs: filteredJobs.map((job) => ({
         id: job.id,
         userId: job.data.userId,
         type: job.data.type,
@@ -89,7 +109,14 @@ export class JobManagementService {
   }
 
   async replayDlqJobsBulk(actorId: string, options: any) {
-    const jobs = await this.dlq.getJobs(['failed', 'completed', 'waiting', 'active', 'delayed']);
+    const jobs = await this.dlq.getJobs([
+      'failed',
+      'completed',
+      'waiting',
+      'active',
+      'delayed',
+    ]);
+    const attempted = jobs.length;
     // Simplified bulk replay for space
     let count = 0;
     for (const job of jobs) {
@@ -102,7 +129,11 @@ export class JobManagementService {
     await this.auditLogService.logNotificationDlqReplay(actorId, {
       replayType: 'bulk',
       queue: NOTIFICATION_QUEUE,
-      count,
+      summary: {
+        attempted,
+        replayed: count,
+        failed: Math.max(0, attempted - count),
+      },
       replayedAt: new Date().toISOString(),
     });
 

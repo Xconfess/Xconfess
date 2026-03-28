@@ -1,4 +1,8 @@
-import { HealthIndicator, HealthIndicatorResult, HealthCheckError } from '@nestjs/terminus';
+import {
+  HealthIndicator,
+  HealthIndicatorResult,
+  HealthCheckError,
+} from '@nestjs/terminus';
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Redis from 'ioredis';
@@ -33,7 +37,7 @@ export class RedisHealthIndicator extends HealthIndicator {
       await client.connect();
       const result = await client.ping();
       const isHealthy = result === 'PONG';
-      
+
       return this.getStatus(key, isHealthy, {
         host: redisHost,
         port: redisPort,

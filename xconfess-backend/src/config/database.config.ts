@@ -33,8 +33,6 @@ export const getTypeOrmConfig = (
     database: configService.get<string>('DB_NAME'),
     entities: [__dirname + '/../**/*.entity{.ts,.js}'],
 
-    migrations: [__dirname + '/../../migrations/*{.ts,.js}'],
-    migrationsRun: true,
     migrations: [process.cwd() + '/migrations/*.{ts,js}'],
     migrationsRun: !['test', 'ci'].includes(nodeEnv),
 

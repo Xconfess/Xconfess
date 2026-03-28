@@ -8,10 +8,13 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { User, UserRole, PrivacySettings } from './entities/user.entity';
+import { User, UserRole } from './entities/user.entity';
 import * as bcrypt from 'bcryptjs';
 import { UpdateUserProfileDto } from './dto/updateProfile.dto';
-import { UpdatePrivacySettingsDto } from './dto/update-privacy-settings.dto';
+import {
+  PrivacySettingsResponseDto,
+  UpdatePrivacySettingsDto,
+} from './dto/update-privacy-settings.dto';
 import { EmailService } from '../email/email.service';
 import { CryptoUtil } from '../common/crypto.util';
 import { maskUserId } from '../utils/mask-user-id';
@@ -199,24 +202,28 @@ export class UserService {
   // 🔐 PRIVACY SETTINGS (FIXED)
   // =========================
 
-  async getPrivacySettings(userId: number): Promise<PrivacySettings> {
+  async getPrivacySettings(
+    userId: number,
+  ): Promise<PrivacySettingsResponseDto> {
     const user = await this.findById(userId);
 
     if (!user) {
       throw new NotFoundException('User not found');
     }
 
+    const ps = user.privacySettings;
     return {
       isDiscoverable: user.isDiscoverable(),
       canReceiveReplies: user.canReceiveReplies(),
       showReactions: user.shouldShowReactions(),
+      dataProcessingConsent: ps?.dataProcessingConsent !== false,
     };
   }
 
   async updatePrivacySettings(
     userId: number,
     dto: UpdatePrivacySettingsDto,
-  ): Promise<PrivacySettings> {
+  ): Promise<PrivacySettingsResponseDto> {
     const user = await this.findById(userId);
 
     if (!user) {
@@ -235,13 +242,22 @@ export class UserService {
       canReceiveReplies: dto.canReceiveReplies ?? current.canReceiveReplies,
 
       showReactions: dto.showReactions ?? current.showReactions,
+
+      dataProcessingConsent:
+        dto.dataProcessingConsent ?? current.dataProcessingConsent ?? true,
     };
 
     await this.userRepository.save(user);
 
     await this.enforcePrivacyPolicies(user);
 
-    return user.privacySettings;
+    return {
+      isDiscoverable: user.isDiscoverable(),
+      canReceiveReplies: user.canReceiveReplies(),
+      showReactions: user.shouldShowReactions(),
+      dataProcessingConsent:
+        user.privacySettings?.dataProcessingConsent !== false,
+    };
   }
 
   private async enforcePrivacyPolicies(user: User): Promise<void> {

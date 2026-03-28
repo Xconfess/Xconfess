@@ -72,7 +72,9 @@ export class TransactionBuilderService {
           `Failed to build transaction on attempt ${attempt}: ${error.message}`,
         );
         if (attempt >= maxRetries) {
-          throw new Error(`Transaction build failed after ${attempt} attempts: ${error.message}`);
+          throw new Error(
+            `Transaction build failed after ${attempt} attempts: ${error.message}`,
+          );
         }
         await new Promise((res) => setTimeout(res, feeBackoffMs));
       }

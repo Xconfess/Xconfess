@@ -2,14 +2,21 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { getQueueToken } from '@nestjs/bull';
 import { NotificationService } from './notification.service';
-import { Notification, NotificationType } from '../entities/notification.entity';
+import {
+  Notification,
+  NotificationType,
+} from '../entities/notification.entity';
 import { NotificationPreference } from '../entities/notification-preference.entity';
 import { NOTIFICATION_QUEUE } from '../processors/notification.processor';
 
 describe('NotificationService', () => {
   let service: NotificationService;
   let queueMock: { add: jest.Mock };
-  let preferenceRepoMock: { findOne: jest.Mock; create: jest.Mock; save: jest.Mock };
+  let preferenceRepoMock: {
+    findOne: jest.Mock;
+    create: jest.Mock;
+    save: jest.Mock;
+  };
   let notificationRepoMock: { create: jest.Mock; save: jest.Mock };
 
   beforeEach(async () => {

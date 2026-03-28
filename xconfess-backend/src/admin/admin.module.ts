@@ -45,4 +45,3 @@ import { Reflector } from '@nestjs/core';
   exports: [AdminService, ModerationService, ModerationTemplateService],
 })
 export class AdminModule {}
-

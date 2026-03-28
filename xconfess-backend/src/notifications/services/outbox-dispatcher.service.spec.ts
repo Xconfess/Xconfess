@@ -1,7 +1,10 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { OutboxDispatcherService } from './outbox-dispatcher.service';
-import { OutboxEvent, OutboxStatus } from '../../common/entities/outbox-event.entity';
+import {
+  OutboxEvent,
+  OutboxStatus,
+} from '../../common/entities/outbox-event.entity';
 import { NotificationService } from './notification.service';
 import { Repository } from 'typeorm';
 
@@ -41,7 +44,9 @@ describe('OutboxDispatcherService', () => {
     }).compile();
 
     service = module.get<OutboxDispatcherService>(OutboxDispatcherService);
-    outboxRepo = module.get<Repository<OutboxEvent>>(getRepositoryToken(OutboxEvent));
+    outboxRepo = module.get<Repository<OutboxEvent>>(
+      getRepositoryToken(OutboxEvent),
+    );
     notificationService = module.get<NotificationService>(NotificationService);
   });
 
@@ -60,24 +65,30 @@ describe('OutboxDispatcherService', () => {
       execute: jest.fn().mockResolvedValue({}),
     };
 
-    (outboxRepo.manager.transaction as jest.Mock).mockImplementation(async (cb) => {
-      return await cb(transactionManagerMock);
-    });
+    (outboxRepo.manager.transaction as jest.Mock).mockImplementation(
+      async (cb) => {
+        return await cb(transactionManagerMock);
+      },
+    );
 
     // Manually trigger handleOutbox (it's normally cron-triggered)
     // We need to bypass the isProcessing check if we run it multiple times, but here it's first run.
     await service.handleOutbox();
 
     expect(outboxRepo.manager.transaction).toHaveBeenCalled();
-    expect(transactionManagerMock.setLock).toHaveBeenCalledWith('pessimistic_write');
-    expect(transactionManagerMock.setOnLocked).toHaveBeenCalledWith('skip_locked');
-    
+    expect(transactionManagerMock.setLock).toHaveBeenCalledWith(
+      'pessimistic_write',
+    );
+    expect(transactionManagerMock.setOnLocked).toHaveBeenCalledWith(
+      'skip_locked',
+    );
+
     expect(notificationService.enqueueNotification).toHaveBeenCalledWith(
       mockOutboxEvent.type,
       mockOutboxEvent.payload,
       mockOutboxEvent.id,
     );
-    
+
     expect(outboxRepo.save).toHaveBeenCalled();
   });
 });

@@ -5,9 +5,9 @@ import {
   NotificationProcessor,
   NOTIFICATION_DLQ,
   NotificationJobData,
-} from './notification.processor';
-import { EmailNotificationService } from '../services/email-notification.service';
-import { NotificationType } from '../entities/notification.entity';
+} from './processors/notification.processor';
+import { EmailNotificationService } from './services/email-notification.service';
+import { NotificationType } from './entities/notification.entity';
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 

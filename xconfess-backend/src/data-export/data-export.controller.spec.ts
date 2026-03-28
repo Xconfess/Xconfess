@@ -380,7 +380,11 @@ describe('DataExportController', () => {
     it('should create a new export job and return 201', async () => {
       const userId = 'user-1';
       const mockUser = { id: userId };
-      const mockResult = { requestId: 'req-new', status: 'PENDING', queuedAt: new Date() };
+      const mockResult = {
+        requestId: 'req-new',
+        status: 'PENDING',
+        queuedAt: new Date(),
+      };
 
       mockExportService.requestExport.mockResolvedValue(mockResult as any);
 
@@ -396,7 +400,9 @@ describe('DataExportController', () => {
       const mockUser = { id: userId };
 
       mockExportService.requestExport.mockRejectedValue(
-        new ConflictException('An export is already in progress. Please wait for it to complete.'),
+        new ConflictException(
+          'An export is already in progress. Please wait for it to complete.',
+        ),
       );
 
       await expect(
@@ -424,13 +430,19 @@ describe('DataExportController', () => {
     it('should not create a second job when called twice concurrently for the same user', async () => {
       const userId = 'user-4';
       const mockUser = { id: userId };
-      const mockResult = { requestId: 'req-first', status: 'PENDING', queuedAt: new Date() };
+      const mockResult = {
+        requestId: 'req-first',
+        status: 'PENDING',
+        queuedAt: new Date(),
+      };
 
       // First call succeeds; second call raises ConflictException as if an active job exists.
       mockExportService.requestExport
         .mockResolvedValueOnce(mockResult as any)
         .mockRejectedValueOnce(
-          new ConflictException('An export is already in progress. Please wait for it to complete.'),
+          new ConflictException(
+            'An export is already in progress. Please wait for it to complete.',
+          ),
         );
 
       const first = controller.requestExport({ user: mockUser } as any);

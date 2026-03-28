@@ -22,7 +22,6 @@ import {
   ReplyMessageDto,
 } from './dto/message.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { NotificationQueue } from '../notification/notification.queue';
 import { GetUser } from '../auth/get-user.decorator';
 import { User } from '../user/entities/user.entity';
 
@@ -30,10 +29,7 @@ import { User } from '../user/entities/user.entity';
 @ApiBearerAuth()
 @Controller('messages')
 export class MessagesController {
-  constructor(
-    private readonly messagesService: MessagesService,
-    private readonly notificationQueue: NotificationQueue,
-  ) {}
+  constructor(private readonly messagesService: MessagesService) {}
 
   @UseGuards(JwtAuthGuard)
   @Post()

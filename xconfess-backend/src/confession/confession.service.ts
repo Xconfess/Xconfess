@@ -372,10 +372,7 @@ export class ConfessionService {
    * stays bounded under high traffic.
    */
   private shouldSampleSearch(): boolean {
-    const rate = this.configService.get<number>(
-      'app.searchSampleRate',
-      0.1,
-    );
+    const rate = this.configService.get<number>('app.searchSampleRate', 0.1);
     return Math.random() < rate;
   }
 

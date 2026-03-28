@@ -2,7 +2,11 @@ import { Injectable, Inject, Logger } from '@nestjs/common';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { Cache } from 'cache-manager';
 import { CacheDiagnosticsService } from './cache-diagnostics.service';
-import { CacheKeyBuilder, CacheNamespace, AnalyticsEntityType } from './cache-namespace';
+import {
+  CacheKeyBuilder,
+  CacheNamespace,
+  AnalyticsEntityType,
+} from './cache-namespace';
 
 @Injectable()
 export class CacheService {
@@ -98,12 +102,17 @@ export class CacheService {
           this.logger.log(
             `Cache segment invalidated: prefix="${prefix}*", evicted=${keys.length}, reason="${reason}", elapsed=${elapsedMs}ms`,
           );
-          
+
           // Record diagnostics if enabled
           if (this.diagnosticsEnabled && this.diagnosticsService) {
-            this.diagnosticsService.recordInvalidation(prefix, keys.length, reason, elapsedMs);
+            this.diagnosticsService.recordInvalidation(
+              prefix,
+              keys.length,
+              reason,
+              elapsedMs,
+            );
           }
-          
+
           return keys.length;
         }
         this.logger.debug(

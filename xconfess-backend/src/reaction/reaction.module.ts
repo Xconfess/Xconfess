@@ -26,4 +26,3 @@ import { WebSocketLogger } from '../websocket/websocket.logger';
   exports: [ReactionService],
 })
 export class ReactionModule {}
-

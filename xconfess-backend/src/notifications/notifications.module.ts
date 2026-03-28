@@ -7,7 +7,11 @@ import { NotificationPreference } from './entities/notification-preference.entit
 import { NotificationService } from './services/notification.service';
 import { EmailNotificationService } from './services/email-notification.service';
 import { NotificationController } from './notifications.controller';
-import { NotificationProcessor, NOTIFICATION_QUEUE, NOTIFICATION_DLQ } from './processors/notification.processor';
+import {
+  NotificationProcessor,
+  NOTIFICATION_QUEUE,
+  NOTIFICATION_DLQ,
+} from './processors/notification.processor';
 import { NotificationGateway } from './gateways/notification.gateway';
 import { DlqAdminController } from './dlq-admin.controller';
 import { WebSocketLogger } from '../websocket/websocket.logger';
@@ -22,7 +26,12 @@ import { EmailModule } from '../email/email.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Notification, NotificationPreference, OutboxEvent, User]),
+    TypeOrmModule.forFeature([
+      Notification,
+      NotificationPreference,
+      OutboxEvent,
+      User,
+    ]),
     BullModule.registerQueue({
       name: NOTIFICATION_QUEUE,
       defaultJobOptions: {

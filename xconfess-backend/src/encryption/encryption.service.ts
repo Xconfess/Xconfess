@@ -13,15 +13,12 @@ export class EncryptionService {
     const keyString = this.configService.get<string>(
       'CONFESSION_ENCRYPTION_KEY',
     );
-15: 
     if (!keyString) {
       throw new Error(
         'CONFESSION_ENCRYPTION_KEY must be set in environment variables',
       );
     }
-19: 
     this.key = Buffer.from(keyString, 'hex');
-21: 
     if (this.key.length !== 32) {
       throw new Error(
         'CONFESSION_ENCRYPTION_KEY must be 32 bytes (64 hex characters)',

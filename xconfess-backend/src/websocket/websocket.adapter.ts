@@ -74,7 +74,7 @@ export class WebSocketAdapter extends IoAdapter {
 
       const hasToken = Boolean(
         socket.handshake?.auth?.token ||
-          socket.handshake?.headers?.authorization,
+        socket.handshake?.headers?.authorization,
       );
 
       logger.log({
@@ -89,7 +89,10 @@ export class WebSocketAdapter extends IoAdapter {
       // For sensitive namespaces we log a warning when there's no token so
       // that ops can spot unauthenticated probes without blocking at this layer.
       const sensitiveNamespaces = ['/notifications', '/admin'];
-      if (sensitiveNamespaces.some((ns) => namespace.startsWith(ns)) && !hasToken) {
+      if (
+        sensitiveNamespaces.some((ns) => namespace.startsWith(ns)) &&
+        !hasToken
+      ) {
         logger.warn({
           event: 'WS_CONNECT_NO_TOKEN',
           reason: 'UNAUTHENTICATED_PROBE',
@@ -106,4 +109,3 @@ export class WebSocketAdapter extends IoAdapter {
     return server;
   }
 }
-

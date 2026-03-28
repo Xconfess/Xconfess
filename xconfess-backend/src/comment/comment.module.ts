@@ -5,14 +5,12 @@ import { CommentService } from './comment.service';
 import { Comment } from './entities/comment.entity';
 import { AnonymousContextMiddleware } from '../middleware/anonymous-context.middleware';
 import { ModerationComment } from './entities/moderation-comment.entity';
-import { NotificationModule } from '../notification/notification.module';
 import { OutboxEvent } from '../common/entities/outbox-event.entity';
 import { AnalyticsModule } from '../analytics/analytics.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Comment, ModerationComment, OutboxEvent]),
-    NotificationModule,
     AnalyticsModule,
   ],
   controllers: [CommentController],

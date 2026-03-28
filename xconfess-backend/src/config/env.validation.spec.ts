@@ -12,7 +12,8 @@ describe('Environment Validation', () => {
     JWT_SECRET: 'testsecret123',
   };
 
-  const validKey = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
+  const validKey =
+    '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
 
   it('should validate a correct configuration', () => {
     const config = {
@@ -38,7 +39,9 @@ describe('Environment Validation', () => {
     };
     const { error } = envValidationSchema.validate(config);
     expect(error).toBeDefined();
-    expect(error.message).toContain('CONFESSION_ENCRYPTION_KEY must be exactly 64 characters');
+    expect(error.message).toContain(
+      'CONFESSION_ENCRYPTION_KEY must be exactly 64 characters',
+    );
   });
 
   it('should fail if CONFESSION_ENCRYPTION_KEY is not hex', () => {
@@ -48,6 +51,8 @@ describe('Environment Validation', () => {
     };
     const { error } = envValidationSchema.validate(config);
     expect(error).toBeDefined();
-    expect(error.message).toContain('CONFESSION_ENCRYPTION_KEY must be a valid hexadecimal string');
+    expect(error.message).toContain(
+      'CONFESSION_ENCRYPTION_KEY must be a valid hexadecimal string',
+    );
   });
 });

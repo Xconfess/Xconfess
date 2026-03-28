@@ -9,7 +9,11 @@ const mockWsLogger = () => ({
 
 describe('AdminGateway', () => {
   it('emitNewReport broadcasts to admin:events room only', () => {
-    const gateway = new AdminGateway({} as any, {} as any, mockWsLogger() as any);
+    const gateway = new AdminGateway(
+      {} as any,
+      {} as any,
+      mockWsLogger() as any,
+    );
     const mockTo = jest.fn().mockReturnValue({ emit: jest.fn() });
     (gateway as any).server = { to: mockTo, emit: jest.fn() };
 
@@ -134,4 +138,3 @@ describe('AdminGateway', () => {
     );
   });
 });
-

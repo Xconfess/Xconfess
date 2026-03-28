@@ -61,7 +61,7 @@ import { BullModule } from '@nestjs/bull';
       useFactory: (config: ConfigService) => {
         const redisHost = config.get<string>('REDIS_HOST');
         const redisPort = config.get<number>('REDIS_PORT');
-        
+
         if (config.get<string>('ENABLE_BACKGROUND_JOBS') === 'true') {
           if (!redisHost || !redisPort) {
             throw new Error(
@@ -69,7 +69,7 @@ import { BullModule } from '@nestjs/bull';
             );
           }
         }
-        
+
         return {
           redis: {
             host: redisHost || 'localhost',

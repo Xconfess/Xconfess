@@ -44,7 +44,9 @@ describe('ContractService', () => {
       jest
         .spyOn(txBuilderService, 'buildTransaction')
         .mockResolvedValue({} as any);
-      jest.spyOn(txBuilderService, 'signTransaction').mockReturnValue({} as any);
+      jest
+        .spyOn(txBuilderService, 'signTransaction')
+        .mockReturnValue({} as any);
       jest
         .spyOn(txBuilderService, 'submitTransaction')
         .mockRejectedValue(new Error('Transaction timeout'));
@@ -67,7 +69,9 @@ describe('ContractService', () => {
       jest
         .spyOn(txBuilderService, 'buildTransaction')
         .mockResolvedValue({} as any);
-      jest.spyOn(txBuilderService, 'signTransaction').mockReturnValue({} as any);
+      jest
+        .spyOn(txBuilderService, 'signTransaction')
+        .mockReturnValue({} as any);
 
       const badSeqError = {
         response: {

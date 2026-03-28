@@ -65,11 +65,11 @@ export class DataExportController {
   @Get('download/:id')
   async download(
     @Param('id') id: string,
+    @Res() res: Response,
     @Query('userId') userId: string,
     @Query('expires') expires: string,
     @Query('signature') signature: string,
     @Query('chunk') chunk?: string,
-    @Res() res?: Response,
   ) {
     // 1. Check Expiration
     if (Date.now() > parseInt(expires)) {
@@ -132,12 +132,17 @@ export class DataExportController {
     }
 
     // 4. Stream to User (Single file)
+    const fileData = exportReq.fileData;
+    if (!fileData) {
+      throw new BadRequestException('File not found or expired.');
+    }
+
     res.set({
       'Content-Type': 'application/zip',
       'Content-Disposition': `attachment; filename="xconfess-data-${userId}.zip"`,
-      'Content-Length': exportReq.fileData.length,
+      'Content-Length': fileData.length,
     });
 
-    res.send(exportReq.fileData);
+    res.send(fileData);
   }
 }

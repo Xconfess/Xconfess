@@ -353,12 +353,16 @@ export class AuditLogService {
           record.actorType === 'user' || record.actorType === 'admin'
             ? record.actorId || record.context?.userId || null
             : null,
-        actor: this.createActor(record.actorType, record.actorId || record.action, {
-          userId:
-            record.actorType === 'user' || record.actorType === 'admin'
-              ? record.actorId || record.context?.userId || null
-              : null,
-        }),
+        actor: this.createActor(
+          record.actorType,
+          record.actorId || record.action,
+          {
+            userId:
+              record.actorType === 'user' || record.actorType === 'admin'
+                ? record.actorId || record.context?.userId || null
+                : null,
+          },
+        ),
       },
     });
   }
@@ -562,7 +566,8 @@ export class AuditLogService {
         templateVersion: failedVersion,
         changeType: 'fallback_activation',
         actorId: context?.actor?.id || context?.userId || 'template-fallback',
-        actorType: context?.actor?.type || (context?.userId ? 'admin' : 'system'),
+        actorType:
+          context?.actor?.type || (context?.userId ? 'admin' : 'system'),
         before: { activeVersion: failedVersion },
         after: { activeVersion: fallbackVersion },
         source: {
@@ -997,7 +1002,9 @@ export class AuditLogService {
       return dto.context.actor;
     }
 
-    const metadataActorType = dto.metadata?.actorType as AuditActorType | undefined;
+    const metadataActorType = dto.metadata?.actorType as
+      | AuditActorType
+      | undefined;
     const metadataActorId = dto.metadata?.actorId
       ? String(dto.metadata.actorId)
       : undefined;

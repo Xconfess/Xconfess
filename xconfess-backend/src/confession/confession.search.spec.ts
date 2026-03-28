@@ -402,4 +402,3 @@ describe('ConfessionService - Search Functionality', () => {
     });
   });
 });
-

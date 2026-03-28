@@ -45,8 +45,11 @@ export class CacheDiagnosticsService {
   private readonly maxInvalidationEvents = 100;
 
   constructor(private readonly configService: ConfigService) {
-    this.enabled = this.configService.get<boolean>('CACHE_DIAGNOSTICS_ENABLED', false);
-    
+    this.enabled = this.configService.get<boolean>(
+      'CACHE_DIAGNOSTICS_ENABLED',
+      false,
+    );
+
     if (this.enabled) {
       this.logger.log('Cache diagnostics enabled');
     }
@@ -64,7 +67,7 @@ export class CacheDiagnosticsService {
    */
   recordHit(namespace: string): void {
     if (!this.enabled) return;
-    
+
     const metrics = this.getOrCreateMetrics(namespace);
     metrics.hits++;
     this.metrics.set(namespace, metrics);
@@ -75,7 +78,7 @@ export class CacheDiagnosticsService {
    */
   recordMiss(namespace: string): void {
     if (!this.enabled) return;
-    
+
     const metrics = this.getOrCreateMetrics(namespace);
     metrics.misses++;
     this.metrics.set(namespace, metrics);
@@ -86,7 +89,7 @@ export class CacheDiagnosticsService {
    */
   recordSet(namespace: string): void {
     if (!this.enabled) return;
-    
+
     const metrics = this.getOrCreateMetrics(namespace);
     metrics.sets++;
     this.metrics.set(namespace, metrics);
@@ -97,7 +100,7 @@ export class CacheDiagnosticsService {
    */
   recordDelete(namespace: string): void {
     if (!this.enabled) return;
-    
+
     const metrics = this.getOrCreateMetrics(namespace);
     metrics.deletes++;
     this.metrics.set(namespace, metrics);
@@ -106,7 +109,12 @@ export class CacheDiagnosticsService {
   /**
    * Record a cache invalidation event
    */
-  recordInvalidation(prefix: string, keysEvicted: number, reason: string, elapsedMs: number): void {
+  recordInvalidation(
+    prefix: string,
+    keysEvicted: number,
+    reason: string,
+    elapsedMs: number,
+  ): void {
     if (!this.enabled) return;
 
     const event: InvalidationEvent = {
@@ -118,7 +126,7 @@ export class CacheDiagnosticsService {
     };
 
     this.invalidationEvents.push(event);
-    
+
     // Keep only the last N events
     if (this.invalidationEvents.length > this.maxInvalidationEvents) {
       this.invalidationEvents.shift();
@@ -207,11 +215,12 @@ export class CacheDiagnosticsService {
     }
 
     lines.push('--- Metrics by Namespace ---');
-    
+
     this.metrics.forEach((metrics, namespace) => {
       const total = metrics.hits + metrics.misses;
-      const hitRate = total > 0 ? ((metrics.hits / total) * 100).toFixed(2) : '0.00';
-      
+      const hitRate =
+        total > 0 ? ((metrics.hits / total) * 100).toFixed(2) : '0.00';
+
       lines.push(
         `${namespace}:`,
         `  Hits: ${metrics.hits}, Misses: ${metrics.misses}, Hit Rate: ${hitRate}%`,

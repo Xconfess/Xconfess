@@ -38,10 +38,12 @@ export class OutboxDispatcherService {
 
   private async processEvents() {
     const claimedEvents = await this.claimBatch(50);
-    
+
     if (claimedEvents.length === 0) return;
 
-    this.logger.log(`Claimed ${claimedEvents.length} outbox events (Worker: ${this.instanceId})`);
+    this.logger.log(
+      `Claimed ${claimedEvents.length} outbox events (Worker: ${this.instanceId})`,
+    );
 
     for (const event of claimedEvents) {
       await this.processEvent(event);
@@ -49,61 +51,75 @@ export class OutboxDispatcherService {
   }
 
   private async claimBatch(limit: number): Promise<OutboxEvent[]> {
-    return await this.outboxRepo.manager.transaction(async (transactionalEntityManager) => {
-      const now = new Date();
-      const lockTimeoutDate = new Date(now.getTime() - this.LOCK_TIMEOUT_MS);
+    return await this.outboxRepo.manager.transaction(
+      async (transactionalEntityManager) => {
+        const now = new Date();
+        const lockTimeoutDate = new Date(now.getTime() - this.LOCK_TIMEOUT_MS);
 
-      // 1. Selection query using SKIP LOCKED (Postgres-specific but common)
-      const events = await transactionalEntityManager
-        .createQueryBuilder(OutboxEvent, 'event')
-        .setLock('pessimistic_write')
-        .setOnLocked('skip_locked')
-        .where(
-          new Brackets((qb) => {
-            qb.where('event.status = :pending', { pending: OutboxStatus.PENDING })
-              .orWhere(
-                new Brackets((sqb) => {
-                  sqb.where('event.status = :failed', { failed: OutboxStatus.FAILED })
-                    .andWhere('event.retryCount < :maxRetries', { maxRetries: 5 });
-                }),
-              )
-              .orWhere(
-                new Brackets((sqb) => {
-                  sqb.where('event.status = :processing', { processing: OutboxStatus.PROCESSING })
-                    .andWhere('event.claimedAt < :timeout', { timeout: lockTimeoutDate });
-                }),
-              );
-          }),
-        )
-        .orderBy('event.createdAt', 'ASC')
-        .limit(limit)
-        .getMany();
+        // 1. Selection query using SKIP LOCKED (Postgres-specific but common)
+        const events = await transactionalEntityManager
+          .createQueryBuilder(OutboxEvent, 'event')
+          .setLock('pessimistic_write')
+          .setOnLocked('skip_locked')
+          .where(
+            new Brackets((qb) => {
+              qb.where('event.status = :pending', {
+                pending: OutboxStatus.PENDING,
+              })
+                .orWhere(
+                  new Brackets((sqb) => {
+                    sqb
+                      .where('event.status = :failed', {
+                        failed: OutboxStatus.FAILED,
+                      })
+                      .andWhere('event.retryCount < :maxRetries', {
+                        maxRetries: 5,
+                      });
+                  }),
+                )
+                .orWhere(
+                  new Brackets((sqb) => {
+                    sqb
+                      .where('event.status = :processing', {
+                        processing: OutboxStatus.PROCESSING,
+                      })
+                      .andWhere('event.claimedAt < :timeout', {
+                        timeout: lockTimeoutDate,
+                      });
+                  }),
+                );
+            }),
+          )
+          .orderBy('event.createdAt', 'ASC')
+          .limit(limit)
+          .getMany();
 
-      if (events.length > 0) {
-        const eventIds = events.map(e => e.id);
-        
-        // 2. Mark as processing within the same transaction to claim ownership
-        await transactionalEntityManager
-          .createQueryBuilder()
-          .update(OutboxEvent)
-          .set({
-            status: OutboxStatus.PROCESSING,
-            claimedBy: this.instanceId,
-            claimedAt: now,
-          })
-          .whereInIds(eventIds)
-          .execute();
-          
-        // Update objects in memory for immediately availability in the processing loop
-        events.forEach(e => {
-          e.status = OutboxStatus.PROCESSING;
-          e.claimedBy = this.instanceId;
-          e.claimedAt = now;
-        });
-      }
+        if (events.length > 0) {
+          const eventIds = events.map((e) => e.id);
 
-      return events;
-    });
+          // 2. Mark as processing within the same transaction to claim ownership
+          await transactionalEntityManager
+            .createQueryBuilder()
+            .update(OutboxEvent)
+            .set({
+              status: OutboxStatus.PROCESSING,
+              claimedBy: this.instanceId,
+              claimedAt: now,
+            })
+            .whereInIds(eventIds)
+            .execute();
+
+          // Update objects in memory for immediately availability in the processing loop
+          events.forEach((e) => {
+            e.status = OutboxStatus.PROCESSING;
+            e.claimedBy = this.instanceId;
+            e.claimedAt = now;
+          });
+        }
+
+        return events;
+      },
+    );
   }
 
   private async processEvent(event: OutboxEvent) {
@@ -116,7 +132,11 @@ export class OutboxDispatcherService {
         case 'reaction_notification':
         case 'reaction_update':
         case 'report_notification':
-          await this.notificationService.enqueueNotification(event.type, event.payload, event.id);
+          await this.notificationService.enqueueNotification(
+            event.type,
+            event.payload,
+            event.id,
+          );
           break;
         default:
           this.logger.warn(`Unknown outbox event type: ${event.type}`);

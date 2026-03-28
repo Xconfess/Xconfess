@@ -313,8 +313,7 @@ export class AnonymousConfessionRepository extends Repository<AnonymousConfessio
       now.getUTCMonth(),
       now.getUTCDate(),
     );
-    const resolvedStartAt =
-      startAt ?? new Date(todayUTC - 24 * 60 * 60 * 1000);
+    const resolvedStartAt = startAt ?? new Date(todayUTC - 24 * 60 * 60 * 1000);
     const resolvedEndAt = endAt ?? new Date(todayUTC + 24 * 60 * 60 * 1000);
 
     return this.createQueryBuilder('confession')
@@ -329,7 +328,9 @@ export class AnonymousConfessionRepository extends Repository<AnonymousConfessio
         'trending_score',
       )
       .where('confession.created_at IS NOT NULL')
-      .andWhere('confession.created_at >= :startAt', { startAt: resolvedStartAt })
+      .andWhere('confession.created_at >= :startAt', {
+        startAt: resolvedStartAt,
+      })
       .andWhere('confession.created_at < :endAt', { endAt: resolvedEndAt })
       .andWhere('confession.isDeleted = false')
       .andWhere(

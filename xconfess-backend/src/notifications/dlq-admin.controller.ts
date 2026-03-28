@@ -10,7 +10,7 @@ import {
 } from '@nestjs/common';
 import { JobManagementService } from './services/job-management.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { AdminGuard } from '../admin/admin.guard';
+import { AdminGuard } from '../admin/guards/admin.guard';
 
 @Controller('admin/dlq')
 @UseGuards(JwtAuthGuard, AdminGuard)

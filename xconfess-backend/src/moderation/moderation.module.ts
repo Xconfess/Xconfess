@@ -10,7 +10,7 @@ import { ModerationEventsListener } from './moderation-events.listener';
 import { User } from '../user/entities/user.entity';
 import { ModerationLog } from './entities/moderation-log.entity';
 import { AnonymousConfession } from '../confession/entities/confession.entity';
-import { NotificationModule as InAppNotificationModule } from '../notifications/notifications.module';
+import { NotificationsModule as InAppNotificationModule } from '../notifications/notifications.module';
 import { AuditLogModule } from '../audit-log/audit-log.module';
 
 @Module({

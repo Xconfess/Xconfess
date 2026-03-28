@@ -43,7 +43,7 @@ describe('RedisHealthIndicator', () => {
 
     indicator = module.get<RedisHealthIndicator>(RedisHealthIndicator);
     configService = module.get<ConfigService>(ConfigService);
-    
+
     // Reset shared mocks
     mockConnect.mockReset();
     mockPing.mockReset();
@@ -72,14 +72,18 @@ describe('RedisHealthIndicator', () => {
     mockConnect.mockResolvedValue(undefined);
     mockPing.mockRejectedValue(new Error('Connection lost'));
 
-    await expect(indicator.isHealthy('redis')).rejects.toThrow(HealthCheckError);
+    await expect(indicator.isHealthy('redis')).rejects.toThrow(
+      HealthCheckError,
+    );
     expect(mockDisconnect).toHaveBeenCalled();
   });
 
   it('should throw HealthCheckError if Redis connection fails', async () => {
     mockConnect.mockRejectedValue(new Error('ECONNREFUSED'));
 
-    await expect(indicator.isHealthy('redis')).rejects.toThrow(HealthCheckError);
+    await expect(indicator.isHealthy('redis')).rejects.toThrow(
+      HealthCheckError,
+    );
     expect(mockDisconnect).toHaveBeenCalled();
   });
 });

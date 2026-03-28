@@ -55,7 +55,7 @@ export class ModerationRepositoryService {
     });
 
     const existingWebhookHash = existing?.metadata?.webhook?.deliveryHash;
-    if (existingWebhookHash === params.deliveryHash) {
+    if (existing && existingWebhookHash === params.deliveryHash) {
       return { log: existing, isIdempotent: true };
     }
 
@@ -67,7 +67,7 @@ export class ModerationRepositoryService {
         content: params.content.substring(0, 5000),
       });
 
-    log.userId = params.userId;
+    log.userId = params.userId ?? '';
     log.content = params.content.substring(0, 5000);
     log.moderationScore = params.result.score;
     log.moderationFlags = params.result.flags;

@@ -9,7 +9,9 @@ export class DailyGrowthDto {
 }
 
 export class NumericDeltaDto {
-  @ApiProperty({ description: 'Absolute difference between current and previous windows' })
+  @ApiProperty({
+    description: 'Absolute difference between current and previous windows',
+  })
   absoluteChange: number;
 
   @ApiProperty({
@@ -31,10 +33,14 @@ export class ComparisonWindowDto {
   @ApiProperty({ description: 'Requested logical window size in days' })
   requestedDays: number;
 
-  @ApiProperty({ description: 'Bucket granularity used to aggregate the metrics' })
+  @ApiProperty({
+    description: 'Bucket granularity used to aggregate the metrics',
+  })
   bucketUnit: 'day';
 
-  @ApiProperty({ description: 'Number of buckets included in each returned window' })
+  @ApiProperty({
+    description: 'Number of buckets included in each returned window',
+  })
   bucketCount: number;
 
   @ApiProperty({ type: WindowRangeDto })

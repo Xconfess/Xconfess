@@ -26,10 +26,10 @@ export class TippingController {
 
   @Post('verify')
   @UsePipes(new ValidationPipe({ whitelist: true }))
-  verifyTip(
+  async verifyTip(
     @Param('id') confessionId: string,
     @Body() dto: VerifyTipDto,
-  ): TipVerificationResult {
+  ): Promise<TipVerificationResult> {
     return this.tippingService.verifyAndRecordTip(confessionId, dto);
   }
 }

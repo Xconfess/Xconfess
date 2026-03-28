@@ -60,7 +60,8 @@ export class NotificationGateway
       this.wsLogger.logSubscriptionRejected({
         socketId: client.id,
         channel: `${USER_ROOM_PREFIX}<unknown>`,
-        reason: 'No authenticated userId on socket — WsJwtGuard may have been bypassed',
+        reason:
+          'No authenticated userId on socket — WsJwtGuard may have been bypassed',
       });
       client.disconnect();
       return;
@@ -161,9 +162,7 @@ export class NotificationGateway
    * The client leaves their private room but the WS connection stays open.
    */
   @SubscribeMessage('unsubscribe:user-notifications')
-  async handleUnsubscribeUserNotifications(
-    @ConnectedSocket() client: Socket,
-  ) {
+  async handleUnsubscribeUserNotifications(@ConnectedSocket() client: Socket) {
     const userId = String(client.data.userId);
     const userRoom = `${USER_ROOM_PREFIX}${userId}`;
     await client.leave(userRoom);

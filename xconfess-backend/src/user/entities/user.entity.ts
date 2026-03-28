@@ -23,6 +23,8 @@ export interface PrivacySettings {
   isDiscoverable: boolean;
   canReceiveReplies: boolean;
   showReactions: boolean;
+  /** GDPR-style flag; defaults true when absent in stored JSON */
+  dataProcessingConsent?: boolean;
 }
 
 @Entity()

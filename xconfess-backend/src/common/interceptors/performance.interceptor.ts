@@ -5,20 +5,20 @@ import {
   CallHandler,
   Logger,
 } from '@nestjs/common';
-import { Observable } from 'rxjs';
-import { tap } from 'rxjs/operators';
+import { tap } from 'rxjs';
 
 @Injectable()
 export class PerformanceInterceptor implements NestInterceptor {
   private readonly logger = new Logger('Performance');
   private metrics: Map<string, number[]> = new Map();
 
-  intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
+  /** Return type is `any` so declaration emit stays valid when root and workspace resolve different rxjs copies. */
+  intercept(context: ExecutionContext, next: CallHandler): any {
     const req = context.switchToHttp().getRequest();
     const { method, url } = req;
     const start = Date.now();
 
-    return next.handle().pipe(
+    return (next.handle() as any).pipe(
       tap(() => {
         const duration = Date.now() - start;
 

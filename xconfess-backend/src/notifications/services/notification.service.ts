@@ -25,7 +25,11 @@ export class NotificationService {
     private notificationQueue: Queue,
   ) {}
 
-  async enqueueNotification(type: string, payload: any, jobId?: string): Promise<void> {
+  async enqueueNotification(
+    type: string,
+    payload: any,
+    jobId?: string,
+  ): Promise<void> {
     await this.notificationQueue.add(
       'send-notification',
       {

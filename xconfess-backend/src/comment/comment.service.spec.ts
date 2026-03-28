@@ -5,20 +5,23 @@ import { DataSource, Repository, UpdateResult } from 'typeorm';
 import { AnalyticsService } from '../analytics/analytics.service';
 import { OutboxEvent } from '../common/entities/outbox-event.entity';
 import { AnonymousConfession } from '../confession/entities/confession.entity';
-import { NotificationQueue } from '../notification/notification.queue';
 import { CommentService } from './comment.service';
 import { Comment } from './entities/comment.entity';
 import {
   ModerationComment,
   ModerationStatus,
 } from './entities/moderation-comment.entity';
+import {
+  CommentSortField,
+  GetCommentsQueryDto,
+  SortOrder,
+} from './dto/get-comments-query.dto';
 
 describe('CommentService (soft‑delete)', () => {
   let service: CommentService;
   let commentRepo: jest.Mocked<Repository<Comment>>;
   let confessionRepo: jest.Mocked<Repository<AnonymousConfession>>;
   let moderationRepo: jest.Mocked<Repository<ModerationComment>>;
-  let queue: jest.Mocked<NotificationQueue>;
 
   beforeEach(async () => {
     // Pre-create mocks so the DataSource transaction mock can delegate to them.
@@ -58,10 +61,6 @@ describe('CommentService (soft‑delete)', () => {
           useValue: moderationRepoMock,
         },
         {
-          provide: NotificationQueue,
-          useValue: { enqueueCommentNotification: jest.fn() },
-        },
-        {
           provide: getRepositoryToken(OutboxEvent),
           useValue: outboxRepoMock,
         },
@@ -93,7 +92,6 @@ describe('CommentService (soft‑delete)', () => {
     commentRepo = module.get(getRepositoryToken(Comment));
     confessionRepo = module.get(getRepositoryToken(AnonymousConfession));
     moderationRepo = module.get(getRepositoryToken(ModerationComment));
-    queue = module.get(NotificationQueue);
   });
 
   describe(`findByConfessionId()`, () => {
@@ -105,13 +103,20 @@ describe('CommentService (soft‑delete)', () => {
         where: jest.fn().mockReturnThis(),
         andWhere: jest.fn().mockReturnThis(),
         orderBy: jest.fn().mockReturnThis(),
+        take: jest.fn().mockReturnThis(),
+        skip: jest.fn().mockReturnThis(),
         getMany: jest.fn().mockResolvedValue([]),
       };
       (commentRepo as any).createQueryBuilder = jest
         .fn()
         .mockReturnValue(fakeQB);
-      const res = await service.findByConfessionId('conf1');
-      expect(res).toEqual([]);
+      const queryDto: GetCommentsQueryDto = {
+        sortField: CommentSortField.CREATED_AT,
+        sortOrder: SortOrder.DESC,
+        limit: 20,
+      };
+      const res = await service.findByConfessionId('conf1', queryDto);
+      expect(res.comments).toEqual([]);
       expect((commentRepo as any).createQueryBuilder).toHaveBeenCalledWith(
         'comment',
       );
@@ -218,7 +223,6 @@ describe('CommentService (moderation)', () => {
   let moderationRepo: jest.Mocked<Repository<ModerationComment>>;
   let commentRepo: jest.Mocked<Repository<Comment>>;
   let confessionRepo: jest.Mocked<Repository<AnonymousConfession>>;
-  let queue: jest.Mocked<NotificationQueue>;
 
   beforeEach(async () => {
     const commentRepoMock = {
@@ -255,10 +259,6 @@ describe('CommentService (moderation)', () => {
           useValue: moderationRepoMock,
         },
         {
-          provide: NotificationQueue,
-          useValue: { enqueueCommentNotification: jest.fn() },
-        },
-        {
           provide: getRepositoryToken(OutboxEvent),
           useValue: outboxRepoMock,
         },
@@ -290,7 +290,6 @@ describe('CommentService (moderation)', () => {
     moderationRepo = module.get(getRepositoryToken(ModerationComment));
     commentRepo = module.get(getRepositoryToken(Comment));
     confessionRepo = module.get(getRepositoryToken(AnonymousConfession));
-    queue = module.get(NotificationQueue);
   });
 
   describe('moderateComment()', () => {
@@ -433,10 +432,6 @@ describe('CommentService – analytics cache invalidation', () => {
       useValue: { create: jest.fn(), save: jest.fn(), findOne: jest.fn() },
     },
     {
-      provide: NotificationQueue,
-      useValue: { enqueueCommentNotification: jest.fn() },
-    },
-    {
       provide: DataSource,
       useValue: dataSourceValue ?? {
         transaction: jest.fn().mockImplementation((cb: any) =>
@@ -509,10 +504,6 @@ describe('CommentService – analytics cache invalidation', () => {
             provide: getRepositoryToken(OutboxEvent),
             useValue: { create: jest.fn(), save: jest.fn() },
           },
-          {
-            provide: NotificationQueue,
-            useValue: { enqueueCommentNotification: jest.fn() },
-          },
           { provide: DataSource, useValue: { transaction: jest.fn() } },
           { provide: AnalyticsService, useValue: analyticsService },
         ],
@@ -562,10 +553,6 @@ describe('CommentService – analytics cache invalidation', () => {
             provide: getRepositoryToken(OutboxEvent),
             useValue: { create: jest.fn(), save: jest.fn() },
           },
-          {
-            provide: NotificationQueue,
-            useValue: { enqueueCommentNotification: jest.fn() },
-          },
           { provide: DataSource, useValue: { transaction: jest.fn() } },
           { provide: AnalyticsService, useValue: analyticsService },
         ],
@@ -614,10 +601,6 @@ describe('CommentService – analytics cache invalidation', () => {
             provide: getRepositoryToken(OutboxEvent),
             useValue: { create: jest.fn(), save: jest.fn() },
           },
-          {
-            provide: NotificationQueue,
-            useValue: { enqueueCommentNotification: jest.fn() },
-          },
           { provide: DataSource, useValue: { transaction: jest.fn() } },
           { provide: AnalyticsService, useValue: analyticsService },
         ],
@@ -655,10 +638,6 @@ describe('CommentService – analytics cache invalidation', () => {
           {
             provide: getRepositoryToken(OutboxEvent),
             useValue: { create: jest.fn(), save: jest.fn() },
-          },
-          {
-            provide: NotificationQueue,
-            useValue: { enqueueCommentNotification: jest.fn() },
           },
           { provide: DataSource, useValue: { transaction: jest.fn() } },
           { provide: AnalyticsService, useValue: analyticsService },
@@ -716,10 +695,6 @@ describe('CommentService (cursor pagination)', () => {
         {
           provide: getRepositoryToken(ModerationComment),
           useValue: moderationRepoMock,
-        },
-        {
-          provide: NotificationQueue,
-          useValue: { enqueueCommentNotification: jest.fn() },
         },
         {
           provide: getRepositoryToken(OutboxEvent),
@@ -859,10 +834,10 @@ describe('CommentService (cursor pagination)', () => {
 
       await service.findByConfessionId('conf1', queryDto);
 
-      // Should filter out orphaned replies
-      expect(fakeQB.andWhere).toHaveBeenCalledWith(
+      // Should filter out orphaned replies (third andWhere after base filters)
+      expect(fakeQB.andWhere).toHaveBeenNthCalledWith(
+        3,
         '(comment.parent IS NULL OR comment.parent.isDeleted = false)',
-        {},
       );
     });
   });

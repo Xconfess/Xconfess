@@ -37,7 +37,10 @@ export class ReactionsGateway
   // Track connections per IP for basic DDoS prevention
   private connectionsPerIP = new Map<string, number>();
 
-  constructor(private configService: ConfigService, private readonly wsLogger: WebSocketLogger) {}
+  constructor(
+    private configService: ConfigService,
+    private readonly wsLogger: WebSocketLogger,
+  ) {}
 
   afterInit(server: Server) {
     // Configure CORS dynamically from ConfigService
@@ -117,7 +120,11 @@ export class ReactionsGateway
 
     const { confessionId } = data;
 
-    if (!confessionId || typeof confessionId !== 'string' || !confessionId.trim()) {
+    if (
+      !confessionId ||
+      typeof confessionId !== 'string' ||
+      !confessionId.trim()
+    ) {
       this.wsLogger.logSubscriptionRejected({
         socketId: client.id,
         userId: client.data?.userId,
@@ -155,7 +162,11 @@ export class ReactionsGateway
 
     const { confessionId } = data;
 
-    if (!confessionId || typeof confessionId !== 'string' || !confessionId.trim()) {
+    if (
+      !confessionId ||
+      typeof confessionId !== 'string' ||
+      !confessionId.trim()
+    ) {
       this.wsLogger.logSubscriptionRejected({
         socketId: client.id,
         userId: client.data?.userId,

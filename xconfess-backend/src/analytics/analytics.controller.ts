@@ -50,7 +50,9 @@ export class AnalyticsController {
   async getTrending(
     @Query('days', new ParseIntPipe({ optional: true })) days: number = 7,
   ) {
-    return this.analyticsService.getTrendingConfessions(this.normalizeDays(days));
+    return this.analyticsService.getTrendingConfessions(
+      this.normalizeDays(days),
+    );
   }
 
   @Get('reactions')
@@ -81,12 +83,16 @@ export class AnalyticsController {
   async getReactions(
     @Query('days', new ParseIntPipe({ optional: true })) days: number = 7,
   ) {
-    return this.analyticsService.getReactionDistribution(this.normalizeDays(days));
+    return this.analyticsService.getReactionDistribution(
+      this.normalizeDays(days),
+    );
   }
 
   @Get('reactions/comparison')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Get reaction distribution with prior-window comparison' })
+  @ApiOperation({
+    summary: 'Get reaction distribution with prior-window comparison',
+  })
   @ApiQuery({
     name: 'days',
     required: false,
@@ -134,7 +140,9 @@ export class AnalyticsController {
 
   @Get('users/comparison')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Get daily active users with prior-window comparison' })
+  @ApiOperation({
+    summary: 'Get daily active users with prior-window comparison',
+  })
   @ApiQuery({
     name: 'days',
     required: false,
@@ -207,7 +215,9 @@ export class AnalyticsController {
 
   @Get('growth/comparison')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Get confession growth with prior-window comparison' })
+  @ApiOperation({
+    summary: 'Get confession growth with prior-window comparison',
+  })
   @ApiQuery({
     name: 'days',
     required: false,

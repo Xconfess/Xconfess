@@ -5,10 +5,7 @@ import { Reaction } from '../reaction/entities/reaction.entity';
 import { User } from '../user/entities/user.entity';
 import { AnonymousConfession } from '../confession/entities/confession.entity';
 import { CacheService } from '../cache/cache.service';
-import {
-  toWindowBoundaries,
-  TrendingWindow,
-} from '../types/analytics.types';
+import { toWindowBoundaries, TrendingWindow } from '../types/analytics.types';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -418,6 +415,8 @@ describe('toWindowBoundaries()', () => {
     // endAt should be UTC midnight of tomorrow, so it must be in the future
     expect(endAt.getTime()).toBeGreaterThan(before);
     // and no more than 2 days out from `after`
-    expect(endAt.getTime()).toBeLessThanOrEqual(after + 2 * 24 * 60 * 60 * 1000);
+    expect(endAt.getTime()).toBeLessThanOrEqual(
+      after + 2 * 24 * 60 * 60 * 1000,
+    );
   });
 });

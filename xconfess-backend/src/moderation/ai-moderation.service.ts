@@ -160,7 +160,9 @@ export class AiModerationService {
         details.sexual = result.category_scores.sexual;
       }
 
-      const scores = Object.values(result.category_scores);
+      const scores = Object.values(result.category_scores).map((v) =>
+        typeof v === 'number' ? v : Number(v),
+      );
       const maxScore = scores.length > 0 ? Math.max(...scores) : 0;
 
       return {
