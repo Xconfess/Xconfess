@@ -38,11 +38,12 @@ export class RedisHealthIndicator extends HealthIndicator {
         host: redisHost,
         port: redisPort,
       });
-    } catch (error) {
-      this.logger.error(`Redis health check failed: ${error.message}`);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.error(`Redis health check failed: ${message}`);
       throw new HealthCheckError(
         'Redis check failed',
-        this.getStatus(key, false, { message: error.message }),
+        this.getStatus(key, false, { message }),
       );
     } finally {
       client.disconnect();

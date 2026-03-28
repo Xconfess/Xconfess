@@ -29,8 +29,9 @@ export class OutboxDispatcherService {
 
     try {
       await this.processEvents();
-    } catch (error) {
-      this.logger.error(`Error processing outbox: ${error.message}`);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.error(`Error processing outbox: ${message}`);
     } finally {
       this.isProcessing = false;
     }
@@ -130,13 +131,14 @@ export class OutboxDispatcherService {
       event.status = OutboxStatus.COMPLETED;
       event.processedAt = new Date();
       await this.outboxRepo.save(event);
-    } catch (error) {
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
       this.logger.error(
-        `Failed to dispatch event ${event.id}: ${error.message}`,
+        `Failed to dispatch event ${event.id}: ${message}`,
       );
       event.status = OutboxStatus.FAILED;
       event.retryCount += 1;
-      event.lastError = error.message;
+      event.lastError = message;
       // Clear claiming info so it can be picked up later if timeout expires or immediately if retry logic allows
       // Actually, standard retry logic will wait for the next cron.
       await this.outboxRepo.save(event);

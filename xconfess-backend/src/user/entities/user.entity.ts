@@ -23,6 +23,8 @@ export interface PrivacySettings {
   isDiscoverable: boolean;
   canReceiveReplies: boolean;
   showReactions: boolean;
+  /** GDPR-style consent flag stored in `privacy_settings` JSONB. */
+  dataProcessingConsent: boolean;
 }
 
 @Entity()
@@ -73,7 +75,7 @@ export class User {
     name: 'privacy_settings',
     type: 'jsonb',
     default: () =>
-      '\'{"isDiscoverable": true, "canReceiveReplies": true, "showReactions": true}\'',
+      '\'{"isDiscoverable":true,"canReceiveReplies":true,"showReactions":true,"dataProcessingConsent":true}\'',
   })
   privacySettings: PrivacySettings;
 

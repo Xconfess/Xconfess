@@ -31,7 +31,7 @@ interface CommentCursor {
   createdAt: string;
 }
 
-interface PaginatedCommentsResult {
+export interface PaginatedCommentsResult {
   comments: Comment[];
   nextCursor?: string;
   hasMore: boolean;

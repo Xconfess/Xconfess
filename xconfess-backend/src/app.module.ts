@@ -16,6 +16,7 @@ import { TerminusModule } from '@nestjs/terminus';
 import { APP_GUARD } from '@nestjs/core';
 import throttleConfig from './config/throttle.config';
 import { RedisHealthIndicator } from './health/redis.health';
+import { SchemaReadinessHealthIndicator } from './health/schema-readiness.health';
 import { MessagesModule } from './messages/messages.module';
 import { AdminModule } from './admin/admin.module';
 import { EventEmitterModule } from '@nestjs/event-emitter';
@@ -129,6 +130,7 @@ import { BullModule } from '@nestjs/bullmq';
   providers: [
     AppService,
     RedisHealthIndicator,
+    SchemaReadinessHealthIndicator,
     {
       provide: APP_GUARD,
       useClass: ThrottlerGuard,

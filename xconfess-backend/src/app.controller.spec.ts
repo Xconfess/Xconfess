@@ -10,6 +10,7 @@ describe('AppController', () => {
       { check: jest.fn() } as any,
       { pingCheck: jest.fn() } as any,
       { isHealthy: jest.fn() } as any,
+      { isHealthy: jest.fn() } as any,
       { getDiagnostics: jest.fn() } as any,
     );
   });

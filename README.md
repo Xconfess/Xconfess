@@ -81,7 +81,7 @@ xconfess/
 ├── PERFORMANCE_BASELINE.md      # Performance baselines
 ├── PERFORMANCE_GUIDELINES.md    # Performance guidelines
 │
-├── xconfess-backend/            # NestJS backend
+├── xconfess-backend/            # NestJS backend (HTTP API is module/controllers only; no Express router tree)
 │   ├── src/
 │   │   ├── main.ts              # App bootstrap
 │   │   ├── app.module.ts        # Root module

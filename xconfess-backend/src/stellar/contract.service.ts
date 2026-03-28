@@ -48,8 +48,9 @@ export class ContractService {
         success: result.successful,
         result: decodedResult,
       };
-    } catch (error) {
-      this.logger.error(`Contract invocation failed: ${error.message}`);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.error(`Contract invocation failed: ${message}`);
       throw handleStellarError(error);
     }
   }
@@ -113,8 +114,9 @@ export class ContractService {
       );
       const resultValue = xdr.result().value();
       return StellarSDK.scValToNative(resultValue as any);
-    } catch (error) {
-      this.logger.warn(`Could not decode contract result: ${error.message}`);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.warn(`Could not decode contract result: ${message}`);
       return null;
     }
   }

@@ -106,37 +106,6 @@ async function bootstrap() {
     SwaggerModule.setup('api/api-docs', app, document);
   }
 
-  if (process.env.NODE_ENV !== 'test') {
-    const { DataSource } = await import('typeorm');
-    try {
-      const dataSource = app.get(DataSource);
-      const result = await dataSource.query(`
-        SELECT column_name
-        FROM information_schema.columns
-        WHERE table_schema = 'public'
-          AND table_name   = 'anonymous_confessions'
-          AND column_name IN ('view_count', 'search_vector');
-      `);
-
-      const columns = result.map((r: any) => r.column_name);
-      if (
-        !columns.includes('view_count') ||
-        !columns.includes('search_vector')
-      ) {
-        console.warn(
-          '⚠️  Database schema may be out of sync. Missing view_count or search_vector columns.',
-        );
-      } else {
-        console.log('✅ Database schema verified.');
-      }
-    } catch (error) {
-      console.error(
-        '❌ Failed to verify database schema during startup:',
-        error.message,
-      );
-    }
-  }
-
   const port = configService.get<number>('app.port', 3000);
   await app.listen(port);
 }

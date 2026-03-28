@@ -67,12 +67,15 @@ export class TransactionBuilderService {
         }
 
         return txBuilder.build();
-      } catch (error) {
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : String(error);
         this.logger.error(
-          `Failed to build transaction on attempt ${attempt}: ${error.message}`,
+          `Failed to build transaction on attempt ${attempt}: ${message}`,
         );
         if (attempt >= maxRetries) {
-          throw new Error(`Transaction build failed after ${attempt} attempts: ${error.message}`);
+          throw new Error(
+            `Transaction build failed after ${attempt} attempts: ${message}`,
+          );
         }
         await new Promise((res) => setTimeout(res, feeBackoffMs));
       }
@@ -106,9 +109,10 @@ export class TransactionBuilderService {
       const keypair = StellarSDK.Keypair.fromSecret(secretKey);
       transaction.sign(keypair);
       return transaction;
-    } catch (error) {
-      this.logger.error(`Failed to sign transaction: ${error.message}`);
-      throw new Error(`Transaction signing failed: ${error.message}`);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.error(`Failed to sign transaction: ${message}`);
+      throw new Error(`Transaction signing failed: ${message}`);
     }
   }
 
@@ -121,7 +125,7 @@ export class TransactionBuilderService {
       const feeStats = await server.feeStats();
       const baseFee = (feeStats as any).fee_charged.mode || StellarSDK.BASE_FEE;
       return (parseInt(baseFee) * operationsCount).toString();
-    } catch (error) {
+    } catch {
       return (parseInt(StellarSDK.BASE_FEE) * operationsCount).toString();
     }
   }
@@ -135,13 +139,17 @@ export class TransactionBuilderService {
       const result = await server.submitTransaction(transaction);
       this.logger.log(`Transaction submitted: ${result.hash}`);
       return result;
-    } catch (error) {
-      this.logger.error(`Transaction submission failed: ${error.message}`);
-      if (error.response?.data?.extras?.result_codes) {
-        const codes = error.response.data.extras.result_codes;
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.error(`Transaction submission failed: ${message}`);
+      const withResponse = error as {
+        response?: { data?: { extras?: { result_codes?: unknown } } };
+      };
+      if (withResponse.response?.data?.extras?.result_codes) {
+        const codes = withResponse.response.data.extras.result_codes;
         throw new Error(`Transaction failed: ${JSON.stringify(codes)}`);
       }
-      throw new Error(`Transaction submission failed: ${error.message}`);
+      throw new Error(`Transaction submission failed: ${message}`);
     }
   }
 }

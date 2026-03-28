@@ -193,6 +193,17 @@ or
 }
 ```
 
+## Health (`GET /api/health`)
+
+Terminus health bundle used for operations and load balancers:
+
+- **`app`**: process up.
+- **`database`**: TypeORM ping to PostgreSQL.
+- **`redis`**: Redis `PING`.
+- **`schema`**: migration readiness for `anonymous_confessions` — required columns `search_vector`, `view_count` and indexes `idx_confession_search_vector`, `idx_confession_created_at`. If anything is missing or the check query fails, the **`schema`** indicator is **down** and the overall response is **HTTP 503** with details under `error.schema` / `info` per Terminus.
+
+Startup also logs schema outcome once (Nest `MigrationVerificationService` on module init): **warn** when drift is detected, **error** when the verification query throws. There is no duplicate raw SQL in `main.ts`.
+
 ## Exact route inventory (active controllers)
 
 The following list matches active `@Controller(...)` + method decorators.

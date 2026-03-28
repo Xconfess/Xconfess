@@ -19,7 +19,8 @@ interface AnalyticsWindowRange {
   endAt: Date;
 }
 
-interface ComparisonWindowMetadata {
+/** Exported for controller / declaration emit (TS4053). */
+export interface ComparisonWindowMetadata {
   requestedDays: number;
   bucketUnit: 'day';
   bucketCount: number;
@@ -33,12 +34,12 @@ interface ComparisonWindowMetadata {
   };
 }
 
-interface DailyGrowthPoint {
+export interface DailyGrowthPoint {
   date: string;
   count: number;
 }
 
-interface GrowthMetrics {
+export interface GrowthMetrics {
   period: string;
   totalConfessions: number;
   averagePerDay: number;
@@ -51,18 +52,18 @@ interface BucketCountRow extends Record<string, string | number> {
   count: string | number;
 }
 
-interface DailyActivityPoint {
+export interface DailyActivityPoint {
   date: string;
   activeUsers: number;
 }
 
-interface UserActivityMetrics {
+export interface UserActivityMetrics {
   period: string;
   dailyActivity: DailyActivityPoint[];
   averageDAU: number;
 }
 
-interface ReactionDistributionMetrics {
+export interface ReactionDistributionMetrics {
   total: number;
   distribution: Array<{
     type: string;

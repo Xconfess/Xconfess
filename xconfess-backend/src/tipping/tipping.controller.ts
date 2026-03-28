@@ -29,7 +29,7 @@ export class TippingController {
   verifyTip(
     @Param('id') confessionId: string,
     @Body() dto: VerifyTipDto,
-  ): TipVerificationResult {
+  ): Promise<TipVerificationResult> {
     return this.tippingService.verifyAndRecordTip(confessionId, dto);
   }
 }

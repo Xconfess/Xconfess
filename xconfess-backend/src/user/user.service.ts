@@ -206,10 +206,15 @@ export class UserService {
       throw new NotFoundException('User not found');
     }
 
+    const ps = user.privacySettings;
+    const dataProcessingConsent =
+      ps?.dataProcessingConsent === undefined ? true : ps.dataProcessingConsent;
+
     return {
       isDiscoverable: user.isDiscoverable(),
       canReceiveReplies: user.canReceiveReplies(),
       showReactions: user.shouldShowReactions(),
+      dataProcessingConsent,
     };
   }
 
@@ -227,14 +232,15 @@ export class UserService {
       isDiscoverable: true,
       canReceiveReplies: true,
       showReactions: true,
+      dataProcessingConsent: true,
     };
 
     user.privacySettings = {
       isDiscoverable: dto.isDiscoverable ?? current.isDiscoverable,
-
       canReceiveReplies: dto.canReceiveReplies ?? current.canReceiveReplies,
-
       showReactions: dto.showReactions ?? current.showReactions,
+      dataProcessingConsent:
+        dto.dataProcessingConsent ?? current.dataProcessingConsent ?? true,
     };
 
     await this.userRepository.save(user);

@@ -8,6 +8,7 @@ import {
   TypeOrmHealthIndicator,
 } from '@nestjs/terminus';
 import { RedisHealthIndicator } from './health/redis.health';
+import { SchemaReadinessHealthIndicator } from './health/schema-readiness.health';
 import { JwtAuthGuard } from './auth/jwt-auth.guard';
 import { AdminGuard } from './auth/admin.guard';
 import { JobManagementService } from './notifications/services/job-management.service';
@@ -20,6 +21,7 @@ export class AppController {
     private health: HealthCheckService,
     private db: TypeOrmHealthIndicator,
     private redis: RedisHealthIndicator,
+    private readonly schemaReadiness: SchemaReadinessHealthIndicator,
     private readonly jobManagementService: JobManagementService,
   ) {}
 
@@ -38,16 +40,26 @@ export class AppController {
   // ✅ HEALTH ENDPOINT
   @Get('health')
   @HealthCheck()
-  @ApiOperation({ summary: 'Application health check endpoint' })
+  @ApiOperation({
+    summary: 'Application health check',
+    description:
+      'Liveness-style bundle: process, database ping, Redis, and confession-table schema readiness (required columns and FTS indexes on `anonymous_confessions`). Schema drift or failed verification makes the overall check fail (HTTP 503) with details under the `schema` key.',
+  })
   @ApiResponse({
     status: 200,
-    description: 'Returns application health status',
+    description: 'All checks passed',
+  })
+  @ApiResponse({
+    status: 503,
+    description:
+      'One or more checks failed (e.g. schema drift, DB unreachable, Redis down)',
   })
   check() {
     return this.health.check([
       () => ({ app: { status: 'up' } }),
       async () => this.db.pingCheck('database'),
       async () => this.redis.isHealthy('redis'),
+      async () => this.schemaReadiness.isHealthy('schema'),
     ]);
   }
 

@@ -55,9 +55,10 @@ export class StellarService {
           balance: b.balance,
         }));
       return { native, assets };
-    } catch (error) {
-      this.logger.error(`Failed to get account balance: ${error.message}`);
-      throw new Error(`Account not found or network error: ${error.message}`);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.error(`Failed to get account balance: ${message}`);
+      throw new Error(`Account not found or network error: ${message}`);
     }
   }
 
@@ -76,9 +77,10 @@ export class StellarService {
         envelope: tx.envelope_xdr,
         result: tx.result_xdr,
       };
-    } catch (error) {
-      this.logger.error(`Transaction verification failed: ${error.message}`);
-      throw new Error(`Transaction not found: ${error.message}`);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.error(`Transaction verification failed: ${message}`);
+      throw new Error(`Transaction not found: ${message}`);
     }
   }
 
@@ -90,7 +92,7 @@ export class StellarService {
       const server = this.stellarConfig.getServer();
       await server.loadAccount(publicKey);
       return true;
-    } catch (error) {
+    } catch {
       return false;
     }
   }
@@ -135,8 +137,9 @@ export class StellarService {
         hash: result.hash,
         success: result.successful,
       };
-    } catch (error) {
-      this.logger.error(`Payment failed: ${error.message}`);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.error(`Payment failed: ${message}`);
       throw error;
     }
   }
@@ -194,8 +197,9 @@ export class StellarService {
 
       const data = await response.json();
       return data.successful === true;
-    } catch (error) {
-      this.logger.error('Error verifying Stellar transaction:', error);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.error(`Error verifying Stellar transaction: ${message}`);
       return false;
     }
   }

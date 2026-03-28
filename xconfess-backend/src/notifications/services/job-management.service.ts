@@ -102,7 +102,11 @@ export class JobManagementService {
     await this.auditLogService.logNotificationDlqReplay(actorId, {
       replayType: 'bulk',
       queue: NOTIFICATION_QUEUE,
-      count,
+      summary: {
+        attempted: count,
+        replayed: count,
+        failed: 0,
+      },
       replayedAt: new Date().toISOString(),
     });
 

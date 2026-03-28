@@ -40,6 +40,12 @@ For operational details on managing email templates and rollouts, see the [Templ
 
 > NestJS-based backend for the xConfess anonymous confession platform.
 
+## Runtime architecture
+
+HTTP APIs are served only through NestJS: `main.ts` bootstraps `AppModule`, and every route is declared on Nest controllers inside feature modules (global prefix `api`). There is no parallel Express router tree; do not add handlers under orphaned `routes/` or `controllers/` folders.
+
+Shared cross-cutting middleware used at bootstrap lives under `src/middleware/` (for example `RequestIdMiddleware`). Feature code belongs in the module directories listed below.
+
 ## Auth Endpoint Split (`/users/*` vs `/auth/*`)
 
 Both route groups are active in this codebase:
@@ -77,8 +83,7 @@ Examples:
 | Analytics     | `src/analytics/`     | View counts, trending                                  |
 | Data Export   | `src/data-export/`   | GDPR data export                                       |
 | WebSocket     | `src/websocket/`     | Real-time event gateway                                |
-| Notification (outbox/DLQ replay) | `src/notification/` | Active notification queue, replay, and retention cleanup |
-| Notifications (Bull queue APIs) | `src/notifications/` | Additional notification endpoints and DLQ admin queue tooling |
+| Notifications | `src/notifications/` | Outbox, email, Bull queues, DLQ admin                  |
 
 ## Project Setup
 
@@ -156,7 +161,7 @@ npm run migration:revert
 
 When running locally, Swagger docs are available at `/api/api-docs`.
 
-For the exact controller-derived route list and DTO-accurate payload examples, see [API_DOCUMENTATION.md](./API_DOCUMENTATION.md).
+For route inventory, DTO examples, and the **`GET /api/health`** contract (including schema readiness for `anonymous_confessions`), see [API_DOCUMENTATION.md](./API_DOCUMENTATION.md).
 
 ## 📄 License
 

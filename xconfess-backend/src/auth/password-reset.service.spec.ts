@@ -29,6 +29,7 @@ describe('PasswordResetService', () => {
       isDiscoverable: true,
       canReceiveReplies: true,
       showReactions: true,
+      dataProcessingConsent: true,
     },
     createdAt: new Date(),
     updatedAt: new Date(),
