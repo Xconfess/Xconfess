@@ -671,6 +671,7 @@ export class DataExportService {
    */
   private redactCommentForExport(comment: any, user: any): any {
     const isDeleted = comment.isDeleted;
+    const isModerated = comment.moderationStatus === 'rejected';
     const isUserDeactivated = !user.is_active;
 
     if (isDeleted) {
@@ -679,6 +680,17 @@ export class DataExportService {
         content: '[REDACTED: Comment was deleted]',
         _redacted: true,
         _reason: 'deleted',
+        createdAt: comment.createdAt,
+        confessionId: comment.confession?.id,
+      };
+    }
+
+    if (isModerated) {
+      return {
+        id: comment.id,
+        content: '[REDACTED: Comment was removed by moderation]',
+        _redacted: true,
+        _reason: 'moderated',
         createdAt: comment.createdAt,
         confessionId: comment.confession?.id,
       };
@@ -709,7 +721,20 @@ export class DataExportService {
    * Issue #428: Redact message content for deactivated users
    */
   private redactMessageForExport(message: any, user: any): any {
+    const isDeleted = message.isDeleted;
     const isUserDeactivated = !user.is_active;
+
+    if (isDeleted) {
+      return {
+        id: message.id,
+        content: '[REDACTED: Message was deleted]',
+        replyContent: message.replyContent ? '[REDACTED: Message was deleted]' : null,
+        _redacted: true,
+        _reason: 'deleted',
+        createdAt: message.createdAt,
+        confessionId: message.confession?.id,
+      };
+    }
 
     if (isUserDeactivated) {
       return {

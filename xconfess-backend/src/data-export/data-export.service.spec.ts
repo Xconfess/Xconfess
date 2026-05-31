@@ -9,6 +9,10 @@ import { ExportRequest } from './entities/export-request.entity';
 import { ExportChunk } from './entities/export-chunk.entity';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { EXPORT_QUEUE_NAME } from './data-export.constants';
+import { User } from '../user/entities/user.entity';
+import { AnonymousConfession } from '../anonymous-confession/entities/anonymous-confession.entity';
+import { Comment } from '../comment/entities/comment.entity';
+import { Message } from '../message/entities/message.entity';
 
 describe('DataExportService', () => {
   let service: DataExportService;
@@ -23,6 +27,22 @@ describe('DataExportService', () => {
 
   const mockChunkRepository = {
     findOne: jest.fn(),
+  };
+
+  const mockUserRepository = {
+    findOne: jest.fn(),
+  };
+
+  const mockConfessionRepository = {
+    createQueryBuilder: jest.fn(),
+  };
+
+  const mockCommentRepository = {
+    createQueryBuilder: jest.fn(),
+  };
+
+  const mockMessageRepository = {
+    createQueryBuilder: jest.fn(),
   };
 
   const mockExportQueue = {
@@ -52,6 +72,10 @@ describe('DataExportService', () => {
     mockExportQueue.add.mockReset();
     mockAuditLogService.logExportLifecycleEvent.mockReset();
     mockAuditLogService.logExportLifecycleEvent.mockResolvedValue(undefined);
+    mockUserRepository.findOne.mockReset();
+    mockConfessionRepository.createQueryBuilder.mockReset();
+    mockCommentRepository.createQueryBuilder.mockReset();
+    mockMessageRepository.createQueryBuilder.mockReset();
     mockConfigService.get.mockImplementation((key: string, fallback?: string) => {
       if (key === 'app.appSecret') return 'test-secret';
       if (key === 'app.backendUrl') return 'https://backend.example.com';
@@ -68,6 +92,22 @@ describe('DataExportService', () => {
         {
           provide: getRepositoryToken(ExportChunk),
           useValue: mockChunkRepository,
+        },
+        {
+          provide: getRepositoryToken(User),
+          useValue: mockUserRepository,
+        },
+        {
+          provide: getRepositoryToken(AnonymousConfession),
+          useValue: mockConfessionRepository,
+        },
+        {
+          provide: getRepositoryToken(Comment),
+          useValue: mockCommentRepository,
+        },
+        {
+          provide: getRepositoryToken(Message),
+          useValue: mockMessageRepository,
         },
         {
           provide: getQueueToken(EXPORT_QUEUE_NAME),
