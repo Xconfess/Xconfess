@@ -10,30 +10,14 @@ import ErrorState from "@/app/components/common/ErrorState";
 import { useDebounce } from "@/app/lib/hooks/useDebounce";
 import { useSearch } from "@/app/lib/hooks/useSearch";
 import { useAuth } from "@/app/lib/hooks/useAuth"; // Added to handle authenticated saved searches
-import { Card } from "@/app/components/ui/card"; // Reusing your UI package system
 import { Button } from "@/app/components/ui/button";
 import { DEFAULT_FILTERS, type SearchFilters } from "@/app/lib/types/search";
 import type { FilterChipKey } from "@/app/components/search/FilterChips";
-import {
-  Filter,
-  X,
-  HelpCircle,
-  Save,
-  HelpCircle as TooltipIcon,
-} from "lucide-react";
+import { Filter, X, HelpCircle, Save } from "lucide-react";
 import { cn } from "@/app/lib/utils/cn";
 import { useFocusTrap } from "@/app/lib/hooks/useFocusTrap";
 
 const DEBOUNCE_MS = 300;
-
-// Example clickable query seeds requested by Wave 5 criteria
-const EXAMPLE_SUGGESTIONS = [
-  "crypto",
-  "stellar",
-  "secret",
-  "developer",
-  "node",
-];
 
 function parseFiltersFromParams(params: URLSearchParams): SearchFilters {
   const sort = params.get("sort");
@@ -307,6 +291,7 @@ export default function SearchPage() {
                 type="button"
                 size="sm"
                 variant={user ? "default" : "outline"} //  "outline" matches your component rules
+                onClick={handleSaveSearch}
                 disabled={!user || !query.trim()}
                 className={cn(
                   "gap-2 transition-all duration-200",
@@ -436,57 +421,6 @@ export default function SearchPage() {
                       onPrimaryAction={handleClearAll}
                     />
                   </div>
-                )}
-
-                {/* ========================================================= */}
-                {/* CRITERIA 1: EXPLICIT ACTIONABLE EMPTY RESULT FALLBACK       */}
-                {/* ========================================================= */}
-                {isEmpty && (
-                  <Card className="p-6 md:p-8 text-center border border-zinc-800 bg-zinc-900/50 mb-6 max-w-2xl mx-auto">
-                    <div className="mx-auto w-12 h-12 rounded-full bg-zinc-800 flex items-center justify-center mb-4">
-                      <HelpCircle className="h-6 w-6 text-zinc-400" />
-                    </div>
-                    <h3 className="text-lg font-medium text-zinc-200 mb-2">
-                      No matches found
-                    </h3>
-                    <p className="text-sm text-zinc-400 mb-6">
-                      Your current selection filters may be too narrow or the
-                      sequence doesn't exist. Try expanding your parameters or
-                      running an example query suggestion.
-                    </p>
-
-                    {/* Action Hub – Reset and interactive quick tokens */}
-                    <div className="flex flex-col items-center justify-center gap-4">
-                      {hasActiveFilterValues && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={handleClearAll}
-                          className="border-zinc-700 hover:bg-zinc-800 text-zinc-300"
-                        >
-                          Clear Active Search Filters
-                        </Button>
-                      )}
-
-                      <div className="w-full pt-4 border-t border-zinc-800/60">
-                        <span className="text-xs text-zinc-500 uppercase tracking-wider block mb-2.5">
-                          Try searching popular trends:
-                        </span>
-                        <div className="flex flex-wrap justify-center gap-2">
-                          {EXAMPLE_SUGGESTIONS.map((tag) => (
-                            <button
-                              key={tag}
-                              type="button"
-                              onClick={() => handleSuggestion(tag)}
-                              className="px-2.5 py-1 text-xs font-medium rounded-full bg-zinc-800 text-zinc-300 hover:bg-zinc-700 hover:text-white transition-colors border border-zinc-700/50"
-                            >
-                              #{tag}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                  </Card>
                 )}
 
                 <SearchResults

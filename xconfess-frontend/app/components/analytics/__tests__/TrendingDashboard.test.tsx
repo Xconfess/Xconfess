@@ -107,7 +107,7 @@ jest.mock('../TrendingConfessionCard', () => ({
     rank: number;
   }) => (
     <div data-testid={`confession-card-${rank}`}>
-      {rank}. {(confession.content || confession.message || '').substring(0, 30)}
+      {rank}. {confession.content || confession.message || ''}
     </div>
   ),
 }));

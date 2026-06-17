@@ -1,13 +1,117 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { AnalyticsData } from "@/app/lib/types/analytics.types";
+import {
+  AnalyticsData,
+  DailyActivity,
+  ReactionDistribution,
+  TrendingConfession,
+} from "@/app/lib/types/analytics.types";
 import { TrendingConfessionCard } from "./TrendingConfessionCard";
 import { ReactionChart } from "./ReactionChart";
 import { ActivityChart } from "./ActivityChart";
 import { MetricsOverview } from "./MetricsOverview";
 import { AnalyticsLoadingSkeleton } from "./LoadingState";
 import { TrendingUp, Calendar } from "lucide-react";
+
+type AnalyticsApiResponse = Partial<AnalyticsData> & {
+  generatedAt?: string;
+};
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function asNumber(value: unknown, fallback = 0): number {
+  return typeof value === "number" && Number.isFinite(value) ? value : fallback;
+}
+
+function normalizeTrending(value: unknown): TrendingConfession[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .filter(isRecord)
+    .map((item, index) => {
+      const reactions = isRecord(item.reactions) ? item.reactions : {};
+      const like = asNumber(reactions.like);
+      const love = asNumber(reactions.love);
+      const reactionCount = asNumber(item.reactionCount, like + love);
+      const content =
+        typeof item.content === "string"
+          ? item.content
+          : typeof item.message === "string"
+            ? item.message
+            : "Untitled confession";
+
+      return {
+        id: typeof item.id === "string" ? item.id : `trending-${index}`,
+        content,
+        createdAt:
+          typeof item.createdAt === "string"
+            ? item.createdAt
+            : new Date(0).toISOString(),
+        reactionCount,
+        reactions: { like, love },
+      };
+    });
+}
+
+function normalizeReactionDistribution(value: unknown): ReactionDistribution[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.filter(isRecord).map((item) => ({
+    type: typeof item.type === "string" ? item.type : "unknown",
+    count: asNumber(item.count),
+    percentage: asNumber(item.percentage),
+  }));
+}
+
+function normalizeDailyActivity(value: unknown): DailyActivity[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.filter(isRecord).map((item) => ({
+    date: typeof item.date === "string" ? item.date : "",
+    confessions: asNumber(item.confessions),
+    reactions: asNumber(item.reactions),
+    activeUsers: asNumber(item.activeUsers),
+  }));
+}
+
+function normalizeAnalyticsData(
+  payload: unknown,
+  fallbackPeriod: "7days" | "30days",
+): AnalyticsData {
+  const source: AnalyticsApiResponse = isRecord(payload) ? payload : {};
+  const trending = normalizeTrending(source.trending);
+  const reactionDistribution = normalizeReactionDistribution(
+    source.reactionDistribution,
+  );
+  const dailyActivity = normalizeDailyActivity(source.dailyActivity);
+  const metrics = isRecord(source.totalMetrics) ? source.totalMetrics : {};
+
+  return {
+    trending,
+    reactionDistribution,
+    dailyActivity,
+    totalMetrics: {
+      totalConfessions: asNumber(metrics.totalConfessions, trending.length),
+      totalReactions: asNumber(
+        metrics.totalReactions,
+        trending.reduce((sum, item) => sum + item.reactionCount, 0),
+      ),
+      totalUsers: asNumber(metrics.totalUsers),
+    },
+    period: source.period === "30days" || source.period === "7days"
+      ? source.period
+      : fallbackPeriod,
+  };
+}
 
 export const TrendingDashboard = () => {
   const [data, setData] = useState<AnalyticsData | null>(null);
@@ -26,16 +130,23 @@ export const TrendingDashboard = () => {
 
       if (!res.ok) throw new Error('Failed to fetch analytics');
 
-      const analyticsData = await res.json();
+      const rawAnalyticsData = await res.json();
+      const analyticsData = normalizeAnalyticsData(rawAnalyticsData, period);
       setData(analyticsData);
 
       // Prefer backend-provided timestamp header or body field when available
-      const headerDate = res.headers.get('x-generated-at');
+      const headerDate =
+        typeof res.headers?.get === "function"
+          ? res.headers.get("x-generated-at")
+          : null;
       if (headerDate) {
         const ts = Date.parse(headerDate);
         if (!isNaN(ts)) setFetchedAt(ts);
-      } else if ((analyticsData as any).generatedAt) {
-        const ts = Date.parse((analyticsData as any).generatedAt);
+      } else if (
+        isRecord(rawAnalyticsData) &&
+        typeof rawAnalyticsData.generatedAt === "string"
+      ) {
+        const ts = Date.parse(rawAnalyticsData.generatedAt);
         if (!isNaN(ts)) setFetchedAt(ts);
       } else {
         setFetchedAt(Date.now());
@@ -52,8 +163,15 @@ export const TrendingDashboard = () => {
   }, [fetchAnalytics]);
 
   const isStale = fetchedAt ? Date.now() - fetchedAt > STALE_MS : false;
-  const isInitialLoad = !data && loading;
   const showSkeleton = !data;
+  const trending = data?.trending ?? [];
+  const reactionDistribution = data?.reactionDistribution ?? [];
+  const dailyActivity = data?.dailyActivity ?? [];
+  const totalMetrics = data?.totalMetrics ?? {
+    totalConfessions: 0,
+    totalReactions: 0,
+    totalUsers: 0,
+  };
 
   return (
     <div className="min-h-screen bg-black text-white">
@@ -110,17 +228,21 @@ export const TrendingDashboard = () => {
 
         {/* Error banner */}
         {error && (
-          <div className="mb-6 rounded-xl border px-4 py-3 bg-red-900/20 border-red-800 text-sm flex items-center justify-between">
+          <div
+            className="mb-6 rounded-xl border px-4 py-3 bg-red-900/20 border-red-800 text-sm flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
+            role="alert"
+          >
             <div>
-              <strong className="mr-2">Failed to load analytics</strong>
+              <strong className="mr-2">Failed to Load Analytics</strong>
               <span className="text-red-200">{error}</span>
             </div>
             <div>
               <button
                 onClick={fetchAnalytics}
+                disabled={loading}
                 className="px-3 py-1 bg-red-600 hover:bg-red-700 rounded text-white"
               >
-                Retry
+                {loading ? "Retrying..." : "Retry"}
               </button>
             </div>
           </div>
@@ -130,7 +252,7 @@ export const TrendingDashboard = () => {
         {showSkeleton ? (
           <AnalyticsLoadingSkeleton />
         ) : (
-          <MetricsOverview metrics={data?.totalMetrics ?? { totalConfessions: 0, totalReactions: 0, totalUsers: 0 }} period={period} />
+          <MetricsOverview metrics={totalMetrics} period={period} />
         )}
 
         {/* Charts Section */}
@@ -141,7 +263,7 @@ export const TrendingDashboard = () => {
               <div className="h-64 bg-zinc-800 rounded-lg animate-pulse" />
             </div>
           ) : (
-            <ReactionChart data={data?.reactionDistribution ?? []} />
+            <ReactionChart data={reactionDistribution} />
           )}
 
           {showSkeleton ? (
@@ -150,7 +272,7 @@ export const TrendingDashboard = () => {
               <div className="h-64 bg-zinc-800 rounded-lg animate-pulse" />
             </div>
           ) : (
-            <ActivityChart data={data?.dailyActivity ?? []} />
+            <ActivityChart data={dailyActivity} />
           )}
         </div>
 
@@ -175,7 +297,7 @@ export const TrendingDashboard = () => {
                 </div>
               ))
             ) : (
-              data?.trending.map((confession, index) => (
+              trending.map((confession, index) => (
                 <TrendingConfessionCard
                   key={confession.id}
                   confession={confession}
@@ -185,10 +307,25 @@ export const TrendingDashboard = () => {
             )}
           </div>
 
-          {!loading && data && data.trending.length === 0 && (
-            <div className="text-center py-12">
-              <div className="text-6xl mb-4">📭</div>
-              <p className="text-gray-400">No trending confessions yet</p>
+          {!loading && data && trending.length === 0 && (
+            <div className="text-center py-12" role="status" aria-live="polite">
+              <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-lg border border-zinc-700 bg-zinc-800 text-zinc-300">
+                <TrendingUp className="h-6 w-6" aria-hidden />
+              </div>
+              <p className="text-gray-200 font-medium">
+                No trending confessions yet
+              </p>
+              <p className="mx-auto mt-2 max-w-md text-sm text-gray-400">
+                Try a different time period, refresh the dashboard, or seed demo
+                data before a GrantFox walkthrough.
+              </p>
+              <button
+                type="button"
+                onClick={fetchAnalytics}
+                className="mt-4 rounded-lg border border-zinc-700 bg-zinc-800 px-4 py-2 text-sm font-medium text-zinc-200 transition-colors hover:bg-zinc-700"
+              >
+                Refresh trending
+              </button>
             </div>
           )}
         </div>

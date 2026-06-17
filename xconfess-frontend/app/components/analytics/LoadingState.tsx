@@ -9,6 +9,7 @@ export const AnalyticsLoadingSkeleton = () => {
       <div className="max-w-7xl mx-auto px-4 py-8">
         {/* Header skeleton */}
         <div className="mb-8">
+          <p className="sr-only">Loading analytics...</p>
           <div className="h-10 w-64 bg-zinc-800 rounded-lg animate-pulse mb-2" />
           <div className="h-5 w-96 bg-zinc-800 rounded-lg animate-pulse" />
         </div>

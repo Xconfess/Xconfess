@@ -23,6 +23,14 @@ export const TrendingConfessionCard = ({ confession, rank }: Props) => {
     return rank;
   };
 
+  const createdAt = new Date(confession.createdAt);
+  const formattedDate = Number.isNaN(createdAt.getTime())
+    ? "Unknown date"
+    : createdAt.toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+      });
+
   return (
     <div className="bg-zinc-800 border border-zinc-700 rounded-xl p-5 hover:border-purple-500/50 transition-all">
       <div className="flex gap-4">
@@ -56,10 +64,7 @@ export const TrendingConfessionCard = ({ confession, rank }: Props) => {
 
             {/* Date */}
             <span className="text-gray-500 ml-auto">
-              {new Date(confession.createdAt).toLocaleDateString('en-US', {
-                month: 'short',
-                day: 'numeric'
-              })}
+              {formattedDate}
             </span>
           </div>
         </div>
