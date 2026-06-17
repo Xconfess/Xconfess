@@ -102,8 +102,8 @@ describe("TipButton", () => {
     const user = userEvent.setup();
     mockSendTip.mockResolvedValue({ success: true, txHash: "tx-retry-1" });
     mockVerifyTip
-      .mockResolvedValueOnce({ success: false, error: "temporary backend timeout" })
-      .mockResolvedValueOnce({ success: true, tip: undefined });
+      .mockResolvedValueOnce({ success: false, status: "pending", error: "temporary backend timeout" })
+      .mockResolvedValueOnce({ success: true, status: "confirmed", tip: undefined });
 
     renderTipButton();
 
@@ -114,6 +114,60 @@ describe("TipButton", () => {
       await screen.findByText(/backend verification is still pending/i),
     ).toBeInTheDocument();
     expect(mockVerifyTip).toHaveBeenCalledTimes(1);
+
+    await user.click(screen.getByRole("button", { name: /retry verification/i }));
+
+    await waitFor(() => {
+      expect(mockVerifyTip).toHaveBeenCalledTimes(2);
+    });
+    expect(mockSendTip).toHaveBeenCalledTimes(1);
+    expect(
+      await screen.findByText(/tip sent successfully/i),
+    ).toBeInTheDocument();
+  });
+
+  it("shows verifying state while backend confirmation is in-flight", async () => {
+    const user = userEvent.setup();
+    mockSendTip.mockResolvedValue({ success: true, txHash: "tx-verifying-1" });
+
+    let resolveVerify: (value: any) => void;
+    mockVerifyTip.mockReturnValue(
+      new Promise((resolve) => {
+        resolveVerify = resolve;
+      }),
+    );
+
+    renderTipButton();
+
+    await user.click(screen.getByRole("button", { name: /tip confession/i }));
+    await user.click(screen.getByRole("button", { name: /send 0.1 xlm tip/i }));
+
+    expect(await screen.findByText(/verifying transaction/i)).toBeInTheDocument();
+    expect(screen.getByText(/backend verification is still pending/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /checking/i })).toBeDisabled();
+    expect(screen.getByText(/view on explorer/i)).toBeInTheDocument();
+
+    resolveVerify!({ success: true, status: "confirmed", tip: undefined });
+
+    expect(
+      await screen.findByText(/tip sent successfully/i),
+    ).toBeInTheDocument();
+  });
+
+  it("shows failed verification recovery without resending the tip", async () => {
+    const user = userEvent.setup();
+    mockSendTip.mockResolvedValue({ success: true, txHash: "tx-failed-verify" });
+    mockVerifyTip
+      .mockResolvedValueOnce({ success: false, status: "failed", error: "Backend rejected this tip" })
+      .mockResolvedValueOnce({ success: true, status: "confirmed", tip: undefined });
+
+    renderTipButton();
+
+    await user.click(screen.getByRole("button", { name: /tip confession/i }));
+    await user.click(screen.getByRole("button", { name: /send 0.1 xlm tip/i }));
+
+    expect(await screen.findByText(/verification failed/i)).toBeInTheDocument();
+    expect(screen.getByText(/backend rejected this tip/i)).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: /retry verification/i }));
 
@@ -166,7 +220,7 @@ describe("TipButton", () => {
     
     // Setup initial failed verification to show the retry button
     mockSendTip.mockResolvedValue({ success: true, txHash: "tx-verif-retry" });
-    mockVerifyTip.mockResolvedValueOnce({ success: false, error: "pending" });
+    mockVerifyTip.mockResolvedValueOnce({ success: false, status: "pending", error: "pending" });
 
     renderTipButton();
 
@@ -194,7 +248,7 @@ describe("TipButton", () => {
     expect(mockVerifyTip).toHaveBeenCalledTimes(2);
 
     // Resolve
-    resolveVerify!({ success: true, tip: undefined });
+    resolveVerify!({ success: true, status: "confirmed", tip: undefined });
 
     await waitFor(() => {
       expect(screen.getByText(/tip sent successfully/i)).toBeInTheDocument();

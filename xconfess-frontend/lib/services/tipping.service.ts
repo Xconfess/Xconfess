@@ -53,6 +53,15 @@ export interface Tip {
   createdAt: string;
 }
 
+export interface VerifyTipResult {
+  success: boolean;
+  status: TipStatus;
+  error?: string;
+  tip?: Tip;
+  isIdempotent?: boolean;
+  canRetry?: boolean;
+}
+
 // -------------------- Helpers --------------------
 
 function getStellarNetwork(): string {
@@ -84,6 +93,80 @@ function classifyTipError(error: unknown): string {
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function normalizeTipStatus(payload: any): TipStatus {
+  const rawStatus = String(
+    payload?.status ??
+      payload?.verificationStatus ??
+      payload?.tip?.verificationStatus ??
+      "",
+  ).toLowerCase();
+
+  if (["verified", "confirmed", "completed", "success"].includes(rawStatus)) {
+    return "confirmed";
+  }
+
+  if (["rejected", "failed", "conflict"].includes(rawStatus)) {
+    return "failed";
+  }
+
+  if (rawStatus === "stale_pending") {
+    return "stale_pending";
+  }
+
+  if (rawStatus === "pending" || rawStatus === "submitted") {
+    return "pending";
+  }
+
+  return payload?.tip || payload?.txId || payload?.id ? "confirmed" : "pending";
+}
+
+function normalizeTipStats(payload: any): TipStats {
+  const totalAmount = Number(payload?.totalAmount ?? 0);
+  const totalCount = Number(payload?.totalCount ?? payload?.tipCount ?? 0);
+  const averageAmount = Number(
+    payload?.averageAmount ??
+      (totalCount > 0 ? totalAmount / totalCount : 0),
+  );
+
+  return {
+    totalAmount: Number.isFinite(totalAmount) ? totalAmount : 0,
+    totalCount: Number.isFinite(totalCount) ? totalCount : 0,
+    averageAmount: Number.isFinite(averageAmount) ? averageAmount : 0,
+  };
+}
+
+function extractTipError(payload: any, fallback: string): string {
+  if (typeof payload === "string") return payload;
+  if (typeof payload?.message === "string") return payload.message;
+  if (typeof payload?.error === "string") return payload.error;
+  if (typeof payload?.error?.message === "string") return payload.error.message;
+  return fallback;
+}
+
+function isReplaySuccess(status: number, payload: any): boolean {
+  if (status !== 409) return false;
+  if (payload?.canRetry || payload?.conflictReason === "ALREADY_PROCESSING") {
+    return false;
+  }
+
+  const message = extractTipError(payload, "").toLowerCase();
+  return (
+    payload?.isIdempotent === true ||
+    payload?.conflictReason === "ALREADY_VERIFIED" ||
+    message.includes("duplicate") ||
+    message.includes("idempotent") ||
+    message.includes("replay") ||
+    (message.includes("already") &&
+      (message.includes("verified") ||
+        message.includes("processed") ||
+        message.includes("recorded")))
+  );
+}
+
+function isTransientVerifyStatus(status: number): boolean {
+  return [408, 429, 502, 503, 504].includes(status);
 }
 
 // -------------------- Fake Checker --------------------
@@ -162,30 +245,86 @@ export async function sendTip(
 export async function verifyTip(
   confessionId: string,
   txHash: string
-): Promise<{ success: boolean; error?: string }> {
-  try {
-    const res = await fetch(`/api/confessions/${confessionId}/verify-tip`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ txHash }),
-    });
-    if (!res.ok) {
+): Promise<VerifyTipResult> {
+  const maxAttempts = 2;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      const res = await fetch(`/api/confessions/${confessionId}/tips/verify`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ txId: txHash }),
+      });
       const data = await res.json().catch(() => ({}));
-      return { success: false, error: data?.message || "Verification failed" };
+
+      if (res.ok) {
+        const status = normalizeTipStatus(data);
+        return {
+          success: status === "confirmed",
+          status,
+          tip: data?.tip ?? data,
+          isIdempotent: Boolean(data?.isIdempotent),
+          error: status === "confirmed" ? undefined : "Backend verification is still pending.",
+        };
+      }
+
+      if (isReplaySuccess(res.status, data)) {
+        return {
+          success: true,
+          status: "confirmed",
+          isIdempotent: true,
+          tip: data?.tip,
+        };
+      }
+
+      if (res.status === 409 && (data?.canRetry || data?.conflictReason === "ALREADY_PROCESSING")) {
+        return {
+          success: false,
+          status: "pending",
+          error: extractTipError(data, "Transaction is still being processed. Retry verification in a moment."),
+          canRetry: true,
+        };
+      }
+
+      if (isTransientVerifyStatus(res.status) && attempt < maxAttempts) {
+        await sleep(100);
+        continue;
+      }
+
+      return {
+        success: false,
+        status: normalizeTipStatus(data),
+        error: extractTipError(data, "Verification failed"),
+        canRetry: data?.canRetry,
+      };
+    } catch (err: any) {
+      if (attempt < maxAttempts) {
+        await sleep(100);
+        continue;
+      }
+
+      return {
+        success: false,
+        status: "failed",
+        error: err.message,
+      };
     }
-    return { success: true };
-  } catch (err: any) {
-    return { success: false, error: err.message };
   }
+
+  return {
+    success: false,
+    status: "failed",
+    error: "Verification failed",
+  };
 }
 
 // -------------------- Get Tip Stats --------------------
 
 export async function getTipStats(confessionId: string): Promise<TipStats | null> {
   try {
-    const res = await fetch(`/api/confessions/${confessionId}/tip-stats`);
+    const res = await fetch(`/api/confessions/${confessionId}/tips/stats`);
     if (!res.ok) return null;
-    return (await res.json()) as TipStats;
+    return normalizeTipStats(await res.json());
   } catch {
     return null;
   }

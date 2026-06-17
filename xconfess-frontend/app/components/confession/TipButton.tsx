@@ -25,6 +25,13 @@ const MIN_TIP_AMOUNT = 0.1;
 const TIP_STEP = 0.1;
 const TIP_UNIT = "XLM";
 
+type TipLifecycleState = "idle" | "submitting" | "verifying" | "success" | "failed";
+
+interface SubmittedTip {
+  hash: string;
+  amount: number;
+}
+
 function parseTipAmount(rawAmount: string): number | null {
   if (rawAmount.trim() === "") return null;
   const amount = Number(rawAmount);
@@ -61,9 +68,11 @@ export const TipButton = ({
   const [isOpen, setIsOpen] = useState(false);
   const [tipAmount, setTipAmount] = useState(String(MIN_TIP_AMOUNT));
   const [isSending, setIsSending] = useState(false);
+  const [tipState, setTipState] = useState<TipLifecycleState>("idle");
   const [error, setError] = useState<string | null>(null);
   const [confirmedTx, setConfirmedTx] = useState<{ hash: string; amount: number } | null>(null);
-  const [pendingTxHash, setPendingTxHash] = useState<string | null>(null);
+  const [pendingTip, setPendingTip] = useState<SubmittedTip | null>(null);
+  const [pendingActivityId, setPendingActivityId] = useState<string | null>(null);
   const [stats, setStats] = useState<TipStats | null>(initialStats || null);
 
   const wallet = useWallet();
@@ -109,8 +118,11 @@ export const TipButton = ({
     }
 
     setIsSending(true);
+    setTipState("submitting");
     setError(null);
     setConfirmedTx(null);
+    setPendingTip(null);
+    setPendingActivityId(null);
 
     const activityId = uuidv4();
     addActivity({
@@ -121,7 +133,9 @@ export const TipButton = ({
       confessionId,
       amount,
     });
+    setPendingActivityId(activityId);
 
+    let submittedTip: SubmittedTip | null = null;
     try {
       const result = await sendTip(confessionId, amount, recipientAddress);
 
@@ -130,17 +144,25 @@ export const TipButton = ({
       }
 
       updateActivity(activityId, { txHash: result.txHash });
+      submittedTip = { hash: result.txHash, amount };
+      setPendingTip(submittedTip);
+      setTipState("verifying");
 
       const verifyResult = await verifyTip(confessionId, result.txHash);
 
       if (!verifyResult.success) {
-        setPendingTxHash(result.txHash);
-
         updateActivity(activityId, {
-          status: "submitted",
+          status: verifyResult.status === "failed" ? "failed" : "submitted",
           updatedAt: Date.now(),
         });
 
+        setTipState(verifyResult.status === "failed" ? "failed" : "verifying");
+        setError(
+          verifyResult.error ??
+            (verifyResult.status === "failed"
+              ? "Tip verification failed. You can retry verification below."
+              : "Backend verification is still pending. Retry verification in a moment."),
+        );
         return;
       }
 
@@ -150,14 +172,18 @@ export const TipButton = ({
       });
 
       setConfirmedTx({ hash: result.txHash, amount });
+      setTipState("success");
       setTipAmount(String(MIN_TIP_AMOUNT));
-      setPendingTxHash(null);
+      setPendingTip(null);
+      setPendingActivityId(null);
       await refreshStats();
     } catch (err: any) {
       updateActivity(activityId, {
         status: "failed",
         updatedAt: Date.now(),
       });
+      setTipState("failed");
+      if (submittedTip) setPendingTip(submittedTip);
 
       if (err.message === "Verification pending") {
         setError(
@@ -173,22 +199,49 @@ export const TipButton = ({
   };
 
   const handleVerify = async () => {
-    if (isSending || !pendingTxHash) return;
+    if (isSending || !pendingTip) return;
 
     setIsSending(true);
+    setTipState("verifying");
     setError(null);
 
     try {
-      const verifyResult = await verifyTip(confessionId, pendingTxHash);
+      const verifyResult = await verifyTip(confessionId, pendingTip.hash);
 
       if (!verifyResult.success) {
-        throw new Error("Verification still pending");
+        if (verifyResult.status === "failed") {
+          setTipState("failed");
+          if (pendingActivityId) {
+            updateActivity(pendingActivityId, {
+              status: "failed",
+              updatedAt: Date.now(),
+            });
+          }
+          setError(verifyResult.error ?? "Tip verification failed. You can retry verification below.");
+          return;
+        }
+
+        setError(
+          verifyResult.error ??
+            "Backend verification is still pending. Retry verification in a moment.",
+        );
+        return;
       }
 
-      setConfirmedTx({ hash: pendingTxHash, amount: parseFloat(tipAmount) });
-      setPendingTxHash(null);
+      if (pendingActivityId) {
+        updateActivity(pendingActivityId, {
+          status: "confirmed",
+          updatedAt: Date.now(),
+        });
+      }
+      setConfirmedTx({ hash: pendingTip.hash, amount: pendingTip.amount });
+      setTipState("success");
+      setPendingTip(null);
+      setPendingActivityId(null);
+      setTipAmount(String(MIN_TIP_AMOUNT));
       await refreshStats();
-    } catch (err: any) {
+    } catch {
+      setTipState("failed");
       setError(
         "Verification not yet confirmed. The transaction may still be processing on the Stellar network. " +
         "Please wait a moment and try again, or check the explorer link below.",
@@ -201,8 +254,8 @@ export const TipButton = ({
   const totalAmount = stats?.totalAmount || 0;
   const tipCount = stats?.totalCount || 0;
 
-  const explorerUrl = pendingTxHash
-    ? getStellarExplorerUrl(pendingTxHash)
+  const explorerUrl = pendingTip
+    ? getStellarExplorerUrl(pendingTip.hash)
     : confirmedTx
       ? getStellarExplorerUrl(confirmedTx.hash)
       : null;
@@ -281,6 +334,9 @@ export const TipButton = ({
                 <span>Tip confirmed</span>
               </div>
               <p className="text-green-300 text-xs mt-1">
+                Tip sent successfully.
+              </p>
+              <p className="text-green-300 text-xs mt-1">
                 {confirmedTx.amount} XLM sent
               </p>
               {confirmedTx.hash && (
@@ -297,14 +353,14 @@ export const TipButton = ({
           )}
 
           {/* Pending verification state */}
-          {pendingTxHash && (
+          {pendingTip && tipState === "verifying" && (
             <div className="mb-3 p-3 rounded-lg bg-yellow-900/30 border border-yellow-700/50">
               <div className="flex items-center gap-2 text-yellow-400 font-medium text-sm">
                 <Spinner />
                 <span>Verifying transaction</span>
               </div>
               <p className="text-yellow-300 text-xs mt-1">
-                Checking Stellar network confirmation status
+                Backend verification is still pending for {pendingTip.amount} XLM.
               </p>
               <div className="flex gap-2 mt-2">
                 <button
@@ -328,8 +384,40 @@ export const TipButton = ({
             </div>
           )}
 
+          {/* Failed verification state */}
+          {pendingTip && tipState === "failed" && (
+            <div className="mb-3 p-3 rounded-lg bg-red-900/30 border border-red-700/50">
+              <div className="flex items-center gap-2 text-red-300 font-medium text-sm">
+                <AlertCircle className="h-4 w-4" />
+                <span>Verification failed</span>
+              </div>
+              <p className="text-red-300 text-xs mt-1">
+                {error ?? "Tip verification failed. You can retry verification below."}
+              </p>
+              <div className="flex gap-2 mt-2">
+                <button
+                  onClick={handleVerify}
+                  disabled={isSending}
+                  className="flex-1 text-xs bg-red-700 hover:bg-red-600 disabled:opacity-50 py-1.5 rounded text-white transition-colors"
+                >
+                  {isSending ? "Checking..." : "Retry Verification"}
+                </button>
+                {explorerUrl && (
+                  <a
+                    href={explorerUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs bg-zinc-700 hover:bg-zinc-600 py-1.5 px-2 rounded text-zinc-300 transition-colors"
+                  >
+                    View on Explorer
+                  </a>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* Error state */}
-          {error && !pendingTxHash && !confirmedTx && (
+          {error && !pendingTip && !confirmedTx && (
             <div className="mb-3 p-3 rounded-lg bg-red-900/30 border border-red-700/50">
               <p className="text-red-400 text-xs">{error}</p>
               <button
@@ -342,11 +430,12 @@ export const TipButton = ({
           )}
 
           {/* Input */}
-          {!confirmedTx && (
+          {!confirmedTx && !pendingTip && (
             <>
               <div className="relative">
                 <input
-                  type="number"
+                  type="text"
+                  inputMode="decimal"
                   value={tipAmount}
                   onChange={(e) => {
                     setTipAmount(e.target.value);
@@ -388,7 +477,9 @@ export const TipButton = ({
                 )}
                 aria-label={
                   isSending
-                    ? "Sending tip"
+                    ? tipState === "verifying"
+                      ? "Verifying tip"
+                      : "Sending tip"
                     : walletCTA.status === "not-connected"
                       ? "Connect Wallet to Tip"
                       : walletCTA.status === "not-installed"
@@ -399,7 +490,7 @@ export const TipButton = ({
                 {isSending ? (
                   <>
                     <Spinner />
-                    <span>Sending...</span>
+                    <span>{tipState === "verifying" ? "Verifying..." : "Sending..."}</span>
                   </>
                 ) : walletCTA.status === "not-connected" ? (
                   <>
