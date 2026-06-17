@@ -1,56 +1,75 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
-import { RedisHealthIndicator } from './redis.health';
 import { HealthCheckError } from '@nestjs/terminus';
 import Redis from 'ioredis';
+import { RedisHealthIndicator } from './redis.health';
 
-// Shared mocks for ioredis instance methods
 const mockConnect = jest.fn();
 const mockPing = jest.fn();
 const mockDisconnect = jest.fn();
 
-// Mock ioredis constructor
 jest.mock('ioredis', () => {
-  return jest.fn().mockImplementation(() => {
-    return {
-      connect: mockConnect,
-      ping: mockPing,
-      disconnect: mockDisconnect,
-    };
-  });
+  return jest.fn().mockImplementation(() => ({
+    connect: mockConnect,
+    ping: mockPing,
+    disconnect: mockDisconnect,
+  }));
 });
 
-describe('RedisHealthIndicator', () => {
-  let indicator: RedisHealthIndicator;
-  let configService: ConfigService;
+const MockRedis = Redis as unknown as jest.Mock;
 
-  beforeEach(async () => {
-    const module: TestingModule = await Test.createTestingModule({
-      providers: [
-        RedisHealthIndicator,
-        {
-          provide: ConfigService,
-          useValue: {
-            get: jest.fn().mockImplementation((key) => {
-              if (key === 'REDIS_HOST') return 'localhost';
-              if (key === 'REDIS_PORT') return 6379;
-              return null;
-            }),
-          },
+async function buildIndicator(config: Record<string, unknown>) {
+  const module: TestingModule = await Test.createTestingModule({
+    providers: [
+      RedisHealthIndicator,
+      {
+        provide: ConfigService,
+        useValue: {
+          get: jest.fn((key: string, defaultValue?: unknown) =>
+            Object.prototype.hasOwnProperty.call(config, key)
+              ? config[key]
+              : defaultValue,
+          ),
         },
-      ],
-    }).compile();
+      },
+    ],
+  }).compile();
 
-    indicator = module.get<RedisHealthIndicator>(RedisHealthIndicator);
-    configService = module.get<ConfigService>(ConfigService);
+  return module.get<RedisHealthIndicator>(RedisHealthIndicator);
+}
 
-    // Reset shared mocks
+describe('RedisHealthIndicator', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
     mockConnect.mockReset();
     mockPing.mockReset();
     mockDisconnect.mockReset();
+    MockRedis.mockClear();
   });
 
-  it('should return up if Redis ping is successful', async () => {
+  it('returns up and skips Redis when background jobs are disabled', async () => {
+    const indicator = await buildIndicator({
+      ENABLE_BACKGROUND_JOBS: 'false',
+    });
+
+    const result = await indicator.isHealthy('redis');
+
+    expect(result.redis).toMatchObject({
+      status: 'up',
+      mode: 'disabled',
+      severity: 'info',
+    });
+    expect(result.redis.reason).toContain('"false"');
+    expect(MockRedis).not.toHaveBeenCalled();
+    expect(mockConnect).not.toHaveBeenCalled();
+  });
+
+  it('returns up if Redis ping is successful when jobs are enabled', async () => {
+    const indicator = await buildIndicator({
+      ENABLE_BACKGROUND_JOBS: 'true',
+      REDIS_HOST: 'redis.internal',
+      REDIS_PORT: '6380',
+    });
     mockConnect.mockResolvedValue(undefined);
     mockPing.mockResolvedValue('PONG');
 
@@ -59,16 +78,28 @@ describe('RedisHealthIndicator', () => {
     expect(result).toEqual({
       redis: {
         status: 'up',
-        host: 'localhost',
-        port: 6379,
+        host: 'redis.internal',
+        port: 6380,
       },
     });
+    expect(MockRedis).toHaveBeenCalledWith(
+      expect.objectContaining({
+        host: 'redis.internal',
+        port: 6380,
+        lazyConnect: true,
+      }),
+    );
     expect(mockConnect).toHaveBeenCalled();
     expect(mockPing).toHaveBeenCalled();
     expect(mockDisconnect).toHaveBeenCalled();
   });
 
-  it('should throw HealthCheckError if Redis ping fails', async () => {
+  it('throws HealthCheckError if Redis ping fails when jobs are enabled', async () => {
+    const indicator = await buildIndicator({
+      ENABLE_BACKGROUND_JOBS: 'true',
+      REDIS_HOST: 'localhost',
+      REDIS_PORT: 6379,
+    });
     mockConnect.mockResolvedValue(undefined);
     mockPing.mockRejectedValue(new Error('Connection lost'));
 
@@ -78,8 +109,26 @@ describe('RedisHealthIndicator', () => {
     expect(mockDisconnect).toHaveBeenCalled();
   });
 
-  it('should throw HealthCheckError if Redis connection fails', async () => {
+  it('throws HealthCheckError if Redis connection fails when jobs are enabled', async () => {
+    const indicator = await buildIndicator({
+      ENABLE_BACKGROUND_JOBS: 'true',
+      REDIS_HOST: 'localhost',
+      REDIS_PORT: 6379,
+    });
     mockConnect.mockRejectedValue(new Error('ECONNREFUSED'));
+
+    await expect(indicator.isHealthy('redis')).rejects.toThrow(
+      HealthCheckError,
+    );
+    expect(mockDisconnect).toHaveBeenCalled();
+  });
+
+  it('throws HealthCheckError for unexpected Redis ping responses', async () => {
+    const indicator = await buildIndicator({
+      ENABLE_BACKGROUND_JOBS: 'true',
+    });
+    mockConnect.mockResolvedValue(undefined);
+    mockPing.mockResolvedValue('NOPE');
 
     await expect(indicator.isHealthy('redis')).rejects.toThrow(
       HealthCheckError,

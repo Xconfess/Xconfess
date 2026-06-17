@@ -23,7 +23,9 @@ describe('HealthController', () => {
   const dbIndicator = {
     pingCheck: jest.fn().mockResolvedValue(UP('database')),
   };
-  const redisIndicator = { isHealthy: jest.fn().mockResolvedValue(UP('redis')) };
+  const redisIndicator = {
+    isHealthy: jest.fn().mockResolvedValue(UP('redis')),
+  };
   const schemaIndicator = {
     isHealthy: jest.fn().mockResolvedValue(UP('schema')),
   };
