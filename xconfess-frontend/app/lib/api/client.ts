@@ -132,6 +132,9 @@ export interface DataExportHistoryItem {
 	canRedownload: boolean;
 	canRequestNewLink: boolean;
 	downloadUrl: string | null;
+	progress?: {
+		lastFailureReason: string | null;
+	};
 }
 
 export interface DataExportHistoryResponse {

@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { Shield, Eye, MessageSquare, Database, Save } from 'lucide-react';
 import { useGlobalToast } from '@/app/components/common/Toast';
+import DataExportRequest from '../data-export/DataExportRequest';
 
 interface PrivacySettings {
   isDiscoverable: boolean;
@@ -212,6 +213,10 @@ export default function PrivacySettingsPage() {
             />
           </label>
         </div>
+      </div>
+
+      <div className="mb-6">
+        <DataExportRequest />
       </div>
 
       <button
