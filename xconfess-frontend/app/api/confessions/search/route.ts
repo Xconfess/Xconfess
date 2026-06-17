@@ -1,5 +1,6 @@
 import { getApiBaseUrl } from "@/app/lib/config";
 import { createApiErrorResponse } from "@/lib/apiErrorHandler";
+import { buildBackendSearchParams } from "./searchParams";
 
 const BASE_API_URL = getApiBaseUrl();
 
@@ -24,25 +25,9 @@ function parseBoolean(value: unknown, fallback = false): boolean {
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
-  const q = searchParams.get("q") ?? "";
-  const page = Math.max(1, parseInt(searchParams.get("page") ?? "1", 10) || 1);
-  const limit = Math.max(1, Math.min(50, parseInt(searchParams.get("limit") ?? "10", 10) || 10));
-  const sort = searchParams.get("sort") ?? "newest";
-  const dateFrom = searchParams.get("dateFrom") ?? undefined;
-  const dateTo = searchParams.get("dateTo") ?? undefined;
-  const minReactions = searchParams.get("minReactions") ?? undefined;
-  const gender = searchParams.get("gender") ?? undefined;
-
-  const backendParams = new URLSearchParams();
-  backendParams.set("page", String(page));
-  backendParams.set("limit", String(limit));
-  backendParams.set("sort", sort);
-  if (q) backendParams.set("q", q);
-  if (dateFrom) backendParams.set("dateFrom", dateFrom);
-  if (dateTo) backendParams.set("dateTo", dateTo);
-  if (minReactions != null && minReactions !== "")
-    backendParams.set("minReactions", minReactions);
-  if (gender) backendParams.set("gender", gender);
+  const backendParams = buildBackendSearchParams(searchParams);
+  const page = parseNumber(backendParams.get("page"), 1);
+  const limit = parseNumber(backendParams.get("limit"), 10);
 
   const searchUrl = `${BASE_API_URL}/confessions/search?${backendParams}`;
 
