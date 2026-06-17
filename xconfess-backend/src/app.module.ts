@@ -11,6 +11,7 @@ import { AuthModule } from './auth/auth.module';
 import { ConfessionModule } from './confession/confession.module';
 import { SearchDiscoveryModule } from './search-discovery/search-discovery.module';
 import { ReactionModule } from './reaction/reaction.module';
+import { ConfessionDraftModule } from './confession-draft/confession-draft.module';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { APP_GUARD } from '@nestjs/core';
 import throttleConfig from './config/throttle.config';
@@ -111,6 +112,7 @@ import { BullModule } from '@nestjs/bullmq';
     ConfessionModule,
     SearchDiscoveryModule,
     ReactionModule,
+    ConfessionDraftModule,
     MessagesModule,
     AdminModule,
     ReportModule,

@@ -1,28 +1,44 @@
 import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
-import { BullModule, InjectQueue } from '@nestjs/bullmq';
+import { InjectQueue } from '@nestjs/bullmq';
 import { Queue, Worker, Job } from 'bullmq';
 import { ConfigService } from '@nestjs/config';
 import { ConfessionDraftService } from './confession-draft.service';
 
+export const CONFESSION_DRAFT_QUEUE = 'confession-draft-publisher';
+
+interface DraftPublishJobData {
+  id?: string;
+}
+
 @Injectable()
 export class ConfessionDraftQueue implements OnModuleDestroy {
-  private readonly worker: Worker;
+  private readonly worker?: Worker<DraftPublishJobData>;
   private readonly logger = new Logger(ConfessionDraftQueue.name);
 
   constructor(
     private readonly configService: ConfigService,
     private readonly draftService: ConfessionDraftService,
-    @InjectQueue('confession-draft-publisher')
+    @InjectQueue(CONFESSION_DRAFT_QUEUE)
     private readonly queue: Queue,
   ) {
+    const jobsEnabled =
+      this.configService.get<string>('ENABLE_BACKGROUND_JOBS') === 'true';
+
+    if (!jobsEnabled) {
+      this.logger.log(
+        'Confession draft publisher disabled because ENABLE_BACKGROUND_JOBS is not "true"',
+      );
+      return;
+    }
+
     const redisConfig = {
-      host: this.configService.get('REDIS_HOST', 'localhost'),
-      port: this.configService.get('REDIS_PORT', 6379),
+      host: this.configService.get<string>('REDIS_HOST', 'localhost'),
+      port: this.configService.get<number>('REDIS_PORT', 6379),
     };
 
-    this.worker = new Worker(
-      'confession-draft-publisher',
-      async (job: Job) => {
+    this.worker = new Worker<DraftPublishJobData>(
+      CONFESSION_DRAFT_QUEUE,
+      async (job: Job<DraftPublishJobData>) => {
         if (job.name === 'publish-due') {
           const ids = await this.draftService.enqueueDueDraftIds();
           await Promise.all(
@@ -43,7 +59,7 @@ export class ConfessionDraftQueue implements OnModuleDestroy {
         }
 
         if (job.name === 'publish-one') {
-          const id = job.data?.id as string;
+          const id = job.data.id;
           if (!id) return;
           await this.draftService.publishScheduledDraftById(id);
           return;
@@ -65,7 +81,7 @@ export class ConfessionDraftQueue implements OnModuleDestroy {
       );
     });
 
-    (async () => {
+    void (async () => {
       try {
         await this.queue.add(
           'publish-due',
@@ -87,7 +103,7 @@ export class ConfessionDraftQueue implements OnModuleDestroy {
   }
 
   async onModuleDestroy() {
-    await this.worker.close();
+    await this.worker?.close();
     await this.queue.close();
   }
 }

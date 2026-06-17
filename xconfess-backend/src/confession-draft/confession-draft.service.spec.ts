@@ -15,6 +15,7 @@ const AES_KEY = '12345678901234567890123456789012';
 describe('ConfessionDraftService', () => {
   let service: ConfessionDraftService;
   let repo: jest.Mocked<Repository<ConfessionDraft>>;
+  let confessionService: { create: jest.Mock };
 
   beforeEach(async () => {
     repo = {
@@ -26,11 +27,13 @@ describe('ConfessionDraftService', () => {
       remove: jest.fn(),
     } as any;
 
+    confessionService = { create: jest.fn() };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         ConfessionDraftService,
         { provide: getRepositoryToken(ConfessionDraft), useValue: repo },
-        { provide: ConfessionService, useValue: { create: jest.fn() } },
+        { provide: ConfessionService, useValue: confessionService },
         {
           provide: ConfigService,
           useValue: {
@@ -71,6 +74,65 @@ describe('ConfessionDraftService', () => {
 
     const res = await service.createDraft(1, 'hello');
     expect(res.content).toBe('hello');
+  });
+
+  it('listDrafts returns decrypted drafts for the authenticated user', async () => {
+    repo.find.mockResolvedValue([
+      {
+        id: 'draft1',
+        userId: 1,
+        content: encryptConfession('hello from draft', AES_KEY),
+        revisions: [],
+        status: ConfessionDraftStatus.DRAFT,
+      } as any,
+    ]);
+
+    const res = await service.listDrafts(1);
+
+    expect(repo.find).toHaveBeenCalledWith({
+      where: { userId: 1 },
+      order: { updatedAt: 'DESC' },
+    });
+    expect(res).toEqual([
+      expect.objectContaining({
+        id: 'draft1',
+        content: 'hello from draft',
+      }),
+    ]);
+  });
+
+  it('publishNow creates a confession and marks the draft as posted', async () => {
+    const draft = {
+      id: 'draft1',
+      userId: 1,
+      content: encryptConfession('ready to publish', AES_KEY),
+      revisions: [],
+      status: ConfessionDraftStatus.DRAFT,
+      scheduledFor: new Date(),
+      publishAttempts: 2,
+      lastPublishError: 'previous failure',
+    } as any;
+
+    repo.findOne.mockResolvedValue(draft);
+    repo.save.mockImplementation(async (x: any) => x);
+    confessionService.create.mockResolvedValue({ id: 'confession1' });
+
+    const res = await service.publishNow(1, 'draft1');
+
+    expect(confessionService.create).toHaveBeenCalledWith(
+      { message: 'ready to publish' },
+      expect.any(Object),
+    );
+    expect(repo.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: ConfessionDraftStatus.POSTED,
+        scheduledFor: null,
+        publishAttempts: 0,
+        lastPublishError: null,
+      }),
+    );
+    expect(res.confession).toEqual({ id: 'confession1' });
+    expect(res.draft.content).toBe('ready to publish');
   });
 
   describe('updateDraft', () => {
