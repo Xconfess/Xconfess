@@ -316,6 +316,7 @@ describe('AuditLogService', () => {
           AuditActionType.EXPORT_GENERATION_COMPLETED,
           AuditActionType.EXPORT_LINK_REFRESHED,
           AuditActionType.EXPORT_DOWNLOADED,
+          AuditActionType.EXPORT_EXPIRED,
         ]),
       }),
     );

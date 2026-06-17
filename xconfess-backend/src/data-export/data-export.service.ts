@@ -252,10 +252,23 @@ export class DataExportService {
 
     // Retention-window guard: export has exceeded its TTL.
     if (!this.isFileAvailable(record as Pick<ExportRequest, 'status' | 'createdAt'>)) {
+      const expiredAt = new Date();
       // Mark the token as expired so cleanup jobs can tell it apart from unused tokens.
       await this.exportRepository.update(requestId, {
         downloadToken: null,
-        expiredAt: new Date(),
+        expiredAt,
+      });
+      await this.auditLogService?.logExportLifecycleEvent({
+        action: 'expired',
+        actorType: 'system',
+        actorId: 'download-token-validator',
+        requestId,
+        exportId: requestId,
+        metadata: {
+          userId,
+          expiredAt: expiredAt.toISOString(),
+          reason: 'download_window_elapsed',
+        },
       });
       return false;
     }

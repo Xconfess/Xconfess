@@ -59,6 +59,7 @@ export enum AuditActionType {
   EXPORT_GENERATION_COMPLETED = 'export_generation_completed',
   EXPORT_LINK_REFRESHED = 'export_link_refreshed',
   EXPORT_DOWNLOADED = 'export_downloaded',
+  EXPORT_EXPIRED = 'export_expired',
 
   /** Privileged Stellar server-signed contract invocation */
   STELLAR_CONTRACT_INVOCATION = 'stellar_contract_invocation',

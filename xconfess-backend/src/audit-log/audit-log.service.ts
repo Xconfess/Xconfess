@@ -55,7 +55,8 @@ export type ExportLifecycleAction =
   | 'request_created'
   | 'generation_completed'
   | 'link_refreshed'
-  | 'downloaded';
+  | 'downloaded'
+  | 'expired';
 
 export type ExportActorType = AuditActorType;
 
@@ -442,6 +443,8 @@ export class AuditLogService {
         return AuditActionType.EXPORT_LINK_REFRESHED;
       case 'downloaded':
         return AuditActionType.EXPORT_DOWNLOADED;
+      case 'expired':
+        return AuditActionType.EXPORT_EXPIRED;
       default:
         return AuditActionType.EXPORT_REQUEST_CREATED;
     }
@@ -1042,6 +1045,7 @@ export class AuditLogService {
         AuditActionType.EXPORT_GENERATION_COMPLETED,
         AuditActionType.EXPORT_LINK_REFRESHED,
         AuditActionType.EXPORT_DOWNLOADED,
+        AuditActionType.EXPORT_EXPIRED,
       ];
 
       const query = this.auditLogRepository

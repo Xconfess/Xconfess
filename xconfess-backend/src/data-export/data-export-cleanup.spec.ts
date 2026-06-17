@@ -10,7 +10,7 @@ import { AuditLogService } from '../audit-log/audit-log.service';
 describe('DataCleanupService', () => {
   let service: DataCleanupService;
   let mockExportRepository: jest.Mocked<Repository<ExportRequest>>;
-  let mockAuditLogService: { log: jest.Mock };
+  let mockAuditLogService: { logExportLifecycleEvent: jest.Mock };
   let loggerLogSpy: jest.SpyInstance;
   let loggerErrorSpy: jest.SpyInstance;
 
@@ -21,7 +21,9 @@ describe('DataCleanupService', () => {
       findOne: jest.fn(),
       delete: jest.fn(),
     } as any;
-    mockAuditLogService = { log: jest.fn().mockResolvedValue(undefined) };
+    mockAuditLogService = {
+      logExportLifecycleEvent: jest.fn().mockResolvedValue(undefined),
+    };
     mockExportRepository.find.mockResolvedValue([
       {
         id: 'export-1',
@@ -312,6 +314,20 @@ describe('DataCleanupService', () => {
 
       expect(mockExportRepository.update).toHaveBeenCalled();
       expect(mockExportRepository.delete).not.toHaveBeenCalled();
+      expect(mockAuditLogService.logExportLifecycleEvent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'expired',
+          actorType: 'system',
+          actorId: 'retention-cleanup-scheduler',
+          requestId: 'export-1',
+          exportId: 'export-1',
+          metadata: expect.objectContaining({
+            previousStatus: 'READY',
+            newStatus: 'EXPIRED',
+            reason: 'retention_window_elapsed',
+          }),
+        }),
+      );
     });
 
     it('should mark expired exports clearly for users', async () => {

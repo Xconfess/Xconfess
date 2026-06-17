@@ -5,6 +5,7 @@ import { ConfigService } from '@nestjs/config';
 import {
   BadRequestException,
   ConflictException,
+  GoneException,
   UnauthorizedException,
   NotFoundException,
 } from '@nestjs/common';
@@ -115,7 +116,7 @@ describe('DataExportController', () => {
           token,
           {} as any,
         ),
-      ).rejects.toThrow(UnauthorizedException);
+      ).rejects.toThrow(GoneException);
     });
 
     it('should reject download requests with invalid signatures', async () => {

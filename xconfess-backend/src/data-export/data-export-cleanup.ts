@@ -109,20 +109,19 @@ export class DataCleanupService {
   ): Promise<void> {
     for (const exportRecord of exports) {
       try {
-        await this.auditLogService.log({
-          actionType: 'EXPORT_RETENTION_CLEANUP' as any,
+        await this.auditLogService.logExportLifecycleEvent({
+          action: 'expired',
+          actorType: 'system',
+          actorId: 'retention-cleanup-scheduler',
+          requestId: exportRecord.id,
+          exportId: exportRecord.id,
           metadata: {
-            entityType: 'data_export',
-            entityId: exportRecord.id,
-            exportId: exportRecord.id,
-            requestId: exportRecord.id,
             previousStatus: exportRecord.status,
             newStatus: 'EXPIRED',
             retentionPolicyDays: this.retentionDays,
             retentionCutoffDate: cutoff.toISOString(),
             cleanedUpAt: new Date().toISOString(),
-            actorType: 'system',
-            actorId: 'retention-cleanup-scheduler',
+            reason: 'retention_window_elapsed',
           },
         });
       } catch (auditError) {

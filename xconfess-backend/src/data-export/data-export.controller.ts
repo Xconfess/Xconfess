@@ -6,6 +6,7 @@ import {
   Res,
   UnauthorizedException,
   BadRequestException,
+  GoneException,
   NotFoundException,
   Post,
   Req,
@@ -75,7 +76,10 @@ export class DataExportController {
     // 1. Check Expiration
     const expiresMs = parseInt(expires);
     if (isNaN(expiresMs) || Date.now() > expiresMs) {
-      throw new UnauthorizedException('Download link has expired.');
+      throw new GoneException({
+        error: 'Download link has expired.',
+        code: 'EXPORT_DOWNLOAD_EXPIRED',
+      });
     }
 
     // 2. Verify Signature

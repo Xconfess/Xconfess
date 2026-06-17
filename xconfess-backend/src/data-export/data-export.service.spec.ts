@@ -834,6 +834,19 @@ describe('DataExportService', () => {
         requestId,
         expect.objectContaining({ downloadToken: null }),
       );
+      expect(mockAuditLogService.logExportLifecycleEvent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'expired',
+          actorType: 'system',
+          actorId: 'download-token-validator',
+          requestId,
+          exportId: requestId,
+          metadata: expect.objectContaining({
+            userId,
+            reason: 'download_window_elapsed',
+          }),
+        }),
+      );
     });
 
     it('returns false when token does not match', async () => {
