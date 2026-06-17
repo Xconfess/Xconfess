@@ -3,6 +3,60 @@ import { createApiErrorResponse } from "@/lib/apiErrorHandler";
 
 const BASE_API_URL = getApiBaseUrl();
 
+type DemoConfessionSeed = {
+  content: string;
+  commentCount: number;
+  createdAt?: string;
+  viewCount?: number;
+  reactions?: { like: number; love: number };
+  isAnchored?: boolean;
+  stellarTxHash?: string | null;
+};
+
+const DEMO_CONFESSIONS: Record<string, DemoConfessionSeed> = {
+  "1": {
+    content:
+      "I love coding at midnight when everyone else is asleep. There's something magical about the quiet and the glow of the screen. I feel most creative during these hours, and my best ideas come when the world is quiet.",
+    commentCount: 8,
+  },
+  "2": {
+    content:
+      "I secretly watch cartoons even though I'm an adult. They bring me joy and comfort, and I don't care what anyone thinks. Some of my favorite shows have amazing storytelling.",
+    commentCount: 15,
+  },
+  "3": {
+    content:
+      "I talk to my plants every morning. It helps me start the day positively and makes me feel connected to nature. I swear they grow better when I do this.",
+    commentCount: 5,
+  },
+  "4": {
+    content:
+      "I go for midnight walks alone and find them incredibly peaceful. The streets are quiet, the air is fresh, and I can think clearly without distractions.",
+    commentCount: 12,
+  },
+  "5": {
+    content:
+      "I write poems that no one will ever read. But that's okay because writing them helps me process my emotions and understand myself better.",
+    commentCount: 3,
+  },
+  "wave-1": {
+    content:
+      "Wave demo confession: I finally told my team I was overloaded, and they helped me untangle the week.",
+    commentCount: 1,
+    createdAt: "2026-05-20T10:00:00.000Z",
+    viewCount: 42,
+    reactions: { like: 7, love: 3 },
+    isAnchored: true,
+    stellarTxHash: "demo-wave-stellar-tx",
+  },
+};
+
+const DEFAULT_DEMO_CONFESSION: DemoConfessionSeed = {
+  content:
+    "This is a demo confession. Visit the feed to see more confessions when the backend is running.",
+  commentCount: 2,
+};
+
 export async function GET(
   _request: Request,
   context: { params: Promise<{ id: string }> },
@@ -31,69 +85,7 @@ export async function GET(
           console.warn(
             "Confession not found in backend, returning demo data for testing",
           );
-          const demoConfessions: Record<
-            string,
-            { content: string; commentCount: number }
-          > = {
-            "1": {
-              content:
-                "I love coding at midnight when everyone else is asleep. There's something magical about the quiet and the glow of the screen. I feel most creative during these hours, and my best ideas come when the world is quiet.",
-              commentCount: 8,
-            },
-            "2": {
-              content:
-                "I secretly watch cartoons even though I'm an adult. They bring me joy and comfort, and I don't care what anyone thinks. Some of my favorite shows have amazing storytelling.",
-              commentCount: 15,
-            },
-            "3": {
-              content:
-                "I talk to my plants every morning. It helps me start the day positively and makes me feel connected to nature. I swear they grow better when I do this.",
-              commentCount: 5,
-            },
-            "4": {
-              content:
-                "I go for midnight walks alone and find them incredibly peaceful. The streets are quiet, the air is fresh, and I can think clearly without distractions.",
-              commentCount: 12,
-            },
-            "5": {
-              content:
-                "I write poems that no one will ever read. But that's okay because writing them helps me process my emotions and understand myself better.",
-              commentCount: 3,
-            },
-          };
-
-          const demoData = demoConfessions[id] || {
-            content:
-              "This is a demo confession. Visit the feed to see more confessions when the backend is running.",
-            commentCount: 2,
-          };
-
-          const normalized = {
-            id,
-            content: demoData.content,
-            message: demoData.content,
-            createdAt: new Date(
-              Date.now() - Math.random() * 7 * 24 * 60 * 60 * 1000,
-            ).toISOString(),
-            created_at: new Date(
-              Date.now() - Math.random() * 7 * 24 * 60 * 60 * 1000,
-            ).toISOString(),
-            viewCount: Math.floor(Math.random() * 200) + 10,
-            view_count: Math.floor(Math.random() * 200) + 10,
-            reactions: {
-              like: Math.floor(Math.random() * 20) + 1,
-              love: Math.floor(Math.random() * 15) + 1,
-            },
-            commentCount: demoData.commentCount,
-            isAnchored: Math.random() > 0.7,
-            stellarTxHash: Math.random() > 0.7 ? `demo-tx-${Date.now()}` : null,
-            author: {
-              id: "anonymous",
-              username: "Anonymous",
-              avatar: null,
-            },
-            _demo: true,
-          };
+          const normalized = buildDemoConfession(id);
 
           return new Response(JSON.stringify(normalized), {
             status: 200,
@@ -151,70 +143,8 @@ export async function GET(
     if (isDemoMode) {
       console.warn("Backend unreachable, returning demo data for testing");
 
-      const demoConfessions: Record<
-        string,
-        { content: string; commentCount: number }
-      > = {
-        "1": {
-          content:
-            "I love coding at midnight when everyone else is asleep. There's something magical about the quiet and the glow of the screen. I feel most creative during these hours, and my best ideas come when the world is quiet.",
-          commentCount: 8,
-        },
-        "2": {
-          content:
-            "I secretly watch cartoons even though I'm an adult. They bring me joy and comfort, and I don't care what anyone thinks. Some of my favorite shows have amazing storytelling.",
-          commentCount: 15,
-        },
-        "3": {
-          content:
-            "I talk to my plants every morning. It helps me start the day positively and makes me feel connected to nature. I swear they grow better when I do this.",
-          commentCount: 5,
-        },
-        "4": {
-          content:
-            "I go for midnight walks alone and find them incredibly peaceful. The streets are quiet, the air is fresh, and I can think clearly without distractions.",
-          commentCount: 12,
-        },
-        "5": {
-          content:
-            "I write poems that no one will ever read. But that's okay because writing them helps me process my emotions and understand myself better.",
-          commentCount: 3,
-        },
-      };
-
       const { id } = await context.params;
-      const demoData = demoConfessions[id] || {
-        content:
-          "This is a demo confession. Visit the feed to see more confessions when the backend is running.",
-        commentCount: 2,
-      };
-
-      const normalized = {
-        id,
-        content: demoData.content,
-        message: demoData.content,
-        createdAt: new Date(
-          Date.now() - Math.random() * 7 * 24 * 60 * 60 * 1000,
-        ).toISOString(),
-        created_at: new Date(
-          Date.now() - Math.random() * 7 * 24 * 60 * 60 * 1000,
-        ).toISOString(),
-        viewCount: Math.floor(Math.random() * 200) + 10,
-        view_count: Math.floor(Math.random() * 200) + 10,
-        reactions: {
-          like: Math.floor(Math.random() * 20) + 1,
-          love: Math.floor(Math.random() * 15) + 1,
-        },
-        commentCount: demoData.commentCount,
-        isAnchored: Math.random() > 0.7,
-        stellarTxHash: Math.random() > 0.7 ? `demo-tx-${Date.now()}` : null,
-        author: {
-          id: "anonymous",
-          username: "Anonymous",
-          avatar: null,
-        },
-        _demo: true,
-      };
+      const normalized = buildDemoConfession(id);
 
       return new Response(JSON.stringify(normalized), {
         status: 200,
@@ -230,6 +160,45 @@ export async function GET(
       route: "GET /api/confessions/[id]"
     });
   }
+}
+
+function buildDemoConfession(id: string) {
+  const demoData = DEMO_CONFESSIONS[id] || DEFAULT_DEMO_CONFESSION;
+  const createdAt =
+    demoData.createdAt ??
+    new Date(Date.now() - Math.random() * 7 * 24 * 60 * 60 * 1000).toISOString();
+  const viewCount = demoData.viewCount ?? Math.floor(Math.random() * 200) + 10;
+  const reactions = demoData.reactions ?? {
+    like: Math.floor(Math.random() * 20) + 1,
+    love: Math.floor(Math.random() * 15) + 1,
+  };
+  const isAnchored = demoData.isAnchored ?? Math.random() > 0.7;
+  const stellarTxHash =
+    "stellarTxHash" in demoData
+      ? demoData.stellarTxHash
+      : isAnchored
+        ? `demo-tx-${Date.now()}`
+        : null;
+
+  return {
+    id,
+    content: demoData.content,
+    message: demoData.content,
+    createdAt,
+    created_at: createdAt,
+    viewCount,
+    view_count: viewCount,
+    reactions,
+    commentCount: demoData.commentCount,
+    isAnchored,
+    stellarTxHash,
+    author: {
+      id: "anonymous",
+      username: "Anonymous",
+      avatar: null,
+    },
+    _demo: true,
+  };
 }
 
 function aggregateReactions(reactions: Array<{ emoji?: string }> | undefined): {

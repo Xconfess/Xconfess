@@ -1,11 +1,18 @@
 import { defineConfig, devices } from '@playwright/test';
 
+const e2ePort = Number(process.env.PLAYWRIGHT_PORT ?? 3100);
+const e2eBaseURL =
+  process.env.PLAYWRIGHT_BASE_URL ?? `http://127.0.0.1:${e2ePort}`;
+const useExternalServer = Boolean(process.env.PLAYWRIGHT_BASE_URL);
+const reuseExistingServer =
+  process.env.PLAYWRIGHT_REUSE_SERVER === 'true' && process.env.CI !== 'true';
+
 export default defineConfig({
   testDir: './tests/e2e',
   timeout: 30000,
   use: {
     headless: process.env.CI === 'true',
-    baseURL: 'http://localhost:3000',
+    baseURL: e2eBaseURL,
     screenshot: 'only-on-failure',
     trace: 'retain-on-failure',
   },
@@ -36,17 +43,24 @@ export default defineConfig({
       use: { ...devices['Desktop Chrome'] },
     },
   ],
-  webServer: {
-    command: 'npm run dev',
-    env: {
-      ...process.env,
-      BACKEND_API_URL: process.env.BACKEND_API_URL ?? 'http://127.0.0.1:4001',
-      NEXT_PUBLIC_API_URL:
-        process.env.NEXT_PUBLIC_API_URL ?? 'http://127.0.0.1:4001',
-      NEXT_PUBLIC_WS_URL:
-        process.env.NEXT_PUBLIC_WS_URL ?? 'ws://127.0.0.1:4001',
-    },
-    port: 3000,
-    reuseExistingServer: process.env.CI !== 'true',
-  },
+  ...(useExternalServer
+    ? {}
+    : {
+        webServer: {
+          command: `npm run dev -- --hostname 127.0.0.1 --port ${e2ePort}`,
+          env: {
+            ...process.env,
+            APP_URL: process.env.APP_URL ?? e2eBaseURL,
+            BACKEND_API_URL:
+              process.env.BACKEND_API_URL ?? 'http://127.0.0.1:4001',
+            NEXT_PUBLIC_API_URL:
+              process.env.NEXT_PUBLIC_API_URL ?? 'http://127.0.0.1:4001',
+            NEXT_PUBLIC_WS_URL:
+              process.env.NEXT_PUBLIC_WS_URL ?? 'ws://127.0.0.1:4001',
+          },
+          port: e2ePort,
+          reuseExistingServer,
+          timeout: 120000,
+        },
+      }),
 });

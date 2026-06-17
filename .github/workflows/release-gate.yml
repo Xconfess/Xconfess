@@ -134,6 +134,71 @@ jobs:
           path: xconfess-frontend/coverage/
           retention-days: 30
 
+  wave-demo-journey:
+    name: Wave Demo Journey
+    runs-on: ubuntu-latest
+    needs: [frontend-gate]
+    if: always()
+    timeout-minutes: 20
+    outputs:
+      mode: ${{ steps.config.outputs.mode }}
+    steps:
+      - name: Check Wave demo E2E configuration
+        id: config
+        env:
+          FRONTEND_GATE_RESULT: ${{ needs.frontend-gate.result }}
+          WAVE_DEMO_E2E_ENABLED: ${{ vars.WAVE_DEMO_E2E_ENABLED }}
+          WAVE_DEMO_BACKEND_URL: ${{ secrets.WAVE_DEMO_BACKEND_URL }}
+        run: |
+          if [ "$FRONTEND_GATE_RESULT" != "success" ]; then
+            echo "mode=skipped_frontend_gate" >> "$GITHUB_OUTPUT"
+            echo "::notice::Skipping Wave demo journey because frontend-gate did not pass."
+            exit 0
+          fi
+
+          if [ "$WAVE_DEMO_E2E_ENABLED" != "true" ]; then
+            echo "mode=skipped_disabled" >> "$GITHUB_OUTPUT"
+            echo "::notice::Skipping Wave demo journey. Set repository variable WAVE_DEMO_E2E_ENABLED=true to enable it."
+            exit 0
+          fi
+
+          if [ -z "$WAVE_DEMO_BACKEND_URL" ]; then
+            echo "mode=skipped_missing_backend_url" >> "$GITHUB_OUTPUT"
+            echo "::notice::Skipping Wave demo journey. Configure secret WAVE_DEMO_BACKEND_URL to run it against a backend."
+            exit 0
+          fi
+
+          echo "mode=run" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout
+        if: steps.config.outputs.mode == 'run'
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        if: steps.config.outputs.mode == 'run'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        if: steps.config.outputs.mode == 'run'
+        run: npm ci
+
+      - name: Install Playwright Chromium
+        if: steps.config.outputs.mode == 'run'
+        run: npm exec --workspace=xconfess-frontend -- playwright install --with-deps chromium
+
+      - name: Run Wave 5 seeded demo journey
+        if: steps.config.outputs.mode == 'run'
+        env:
+          BACKEND_API_URL: ${{ secrets.WAVE_DEMO_BACKEND_URL }}
+          NEXT_PUBLIC_API_URL: ${{ secrets.WAVE_DEMO_BACKEND_URL }}
+          WAVE_DEMO_REQUIRE_BACKEND: 'true'
+          PLAYWRIGHT_PORT: '3100'
+        run: npm run test:wave-demo --workspace=xconfess-frontend
+
   contracts-gate:
     name: Contracts Gate
     runs-on: ubuntu-latest
@@ -186,7 +251,7 @@ jobs:
   release-gate-summary:
     name: Release Gate Summary
     runs-on: ubuntu-latest
-    needs: [backend-gate, frontend-gate, contracts-gate]
+    needs: [backend-gate, frontend-gate, contracts-gate, wave-demo-journey]
     if: always()
     steps:
       - name: Checkout
@@ -206,6 +271,17 @@ jobs:
             echo "| Backend | ${{ needs.backend-gate.outputs.status == 'success' && '✅ Pass' || '❌ Fail' }} |"
             echo "| Frontend | ${{ needs.frontend-gate.outputs.status == 'success' && '✅ Pass' || '❌ Fail' }} |"
             echo "| Contracts | ${{ needs.contracts-gate.outputs.status == 'success' && '✅ Pass' || '❌ Fail' }} |"
+            WAVE_RESULT="${{ needs.wave-demo-journey.result }}"
+            WAVE_MODE="${{ needs.wave-demo-journey.outputs.mode }}"
+            if [ "$WAVE_RESULT" = "success" ] && [ "$WAVE_MODE" = "run" ]; then
+              echo "| Wave demo journey | ✅ Pass |"
+            elif [ "$WAVE_RESULT" = "success" ]; then
+              echo "| Wave demo journey | ⏭️ Skipped (${WAVE_MODE:-not_configured}) |"
+            elif [ "$WAVE_RESULT" = "skipped" ]; then
+              echo "| Wave demo journey | ⏭️ Skipped |"
+            else
+              echo "| Wave demo journey | ❌ Fail |"
+            fi
             echo ""
             echo "## Details"
             echo ""
@@ -225,6 +301,16 @@ jobs:
               echo "✅ **Contracts**: Formatting, linting, and tests passed"
             else
               echo "❌ **Contracts**: Formatting, linting, or tests failed"
+            fi
+            echo ""
+            if [ "$WAVE_RESULT" = "success" ] && [ "$WAVE_MODE" = "run" ]; then
+              echo "✅ **Wave demo journey**: Playwright seeded demo journey passed"
+            elif [ "$WAVE_RESULT" = "success" ]; then
+              echo "⏭️ **Wave demo journey**: Skipped (${WAVE_MODE:-not_configured})"
+            elif [ "$WAVE_RESULT" = "skipped" ]; then
+              echo "⏭️ **Wave demo journey**: Skipped"
+            else
+              echo "❌ **Wave demo journey**: Playwright seeded demo journey failed"
             fi
             echo ""
             echo "## Artifacts"
@@ -259,7 +345,9 @@ jobs:
         run: |
           if [ "${{ needs.backend-gate.outcome }}" = "success" ] && \
              [ "${{ needs.frontend-gate.outcome }}" = "success" ] && \
-             [ "${{ needs.contracts-gate.outcome }}" = "success" ]; then
+             [ "${{ needs.contracts-gate.outcome }}" = "success" ] && \
+             [ "${{ needs.wave-demo-journey.result }}" != "failure" ] && \
+             [ "${{ needs.wave-demo-journey.result }}" != "cancelled" ]; then
             echo "✅ All gates passed - Release candidate ready"
             exit 0
           else
