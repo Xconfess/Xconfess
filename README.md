@@ -195,6 +195,14 @@ This runs `ci:backend`, `ci:frontend`, and `ci:contract` in sequence — build, 
 
 xConfess participates in Stellar Wave. Check the open issues for work tagged `Stellar Wave`, then coordinate before opening a PR.
 
+Before opening a PR, read the [small PR policy](docs/SMALL_PR_POLICY.md). Keep each PR focused on one issue, include tests for code changes, and screenshots for UI changes.
+
+### GrantFox Campaign Issues
+
+For GrantFox campaign work, choose issues labeled both `GrantFox OSS` and `Official Campaign`. Include `Closes #ISSUE_NUMBER` in the PR description so the campaign tracker and GitHub issue state stay in sync.
+
+For the broader contributor workflow, see the [Wave 5 contributor FAQ](docs/WAVE_5_CONTRIBUTOR_FAQ.md).
+
 When your PR is ready for review, use the [Ready for Review comment template](docs/WAVE_5_READY_FOR_REVIEW_TEMPLATE.md) to signal maintainers.
 
 When reporting bugs, see [Attaching Logs to Issues and PRs](docs/LOG_ATTACHING_GUIDE.md) for redaction guidelines.
@@ -203,23 +211,3 @@ When reporting bugs, see [Attaching Logs to Issues and PRs](docs/LOG_ATTACHING_G
 - `xconfess-backend/README.md`
 - `xconfess-frontend/README.md`
 - `xconfess-contracts/README.md`
-# README.md — contributing section patch
-
-Find the **Contributing** section in `README.md` and insert the two lines marked `+` below.
-The surrounding lines are shown for context; do not duplicate them.
-
-```diff
- ## Contributing
-
- xConfess participates in Stellar Wave. Check the open issues for work tagged
- Stellar Wave, then coordinate before opening a PR.
-+
-+Before opening a PR, read the [small PR policy](docs/SMALL_PR_POLICY.md).
-+Keep each PR focused on one issue, include tests for code changes, and
-+screenshots for UI changes.
-
- When your PR is ready for review, use the Ready for Review comment template
- to signal maintainers.
-```
-
-That is the only change to `README.md`.
