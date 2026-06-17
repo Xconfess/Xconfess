@@ -31,6 +31,13 @@ import { SearchConfessionDto } from './dto/search-confession.dto';
 import { UpdateConfessionDto } from './dto/update-confession.dto';
 import { OptionalJwtAuthGuard } from '../auth/optional-jwt-auth.guard';
 import { SearchDiscoveryService } from '../search-discovery/search-discovery.service';
+import { searchValidationPipe } from '../search-discovery/search-validation.pipe';
+
+type SearchRequest = Request & {
+  user?: {
+    id?: number;
+  };
+};
 
 @ApiTags('Confessions')
 @Controller('confessions')
@@ -62,7 +69,11 @@ export class ConfessionController {
       },
     },
   })
-  @ApiResponse({ status: 400, description: 'Validation error — message exceeds 1000 chars or invalid enum.' })
+  @ApiResponse({
+    status: 400,
+    description:
+      'Validation error — message exceeds 1000 chars or invalid enum.',
+  })
   @UsePipes(new ValidationPipe({ whitelist: true }))
   create(@Body() dto: CreateConfessionDto) {
     // Only allow canonical contract
@@ -99,11 +110,12 @@ export class ConfessionController {
   @Get('search')
   @UseGuards(OptionalJwtAuthGuard)
   @ApiOperation({ summary: 'Search confessions (hybrid)' })
-  @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
-  async search(@Query() dto: SearchConfessionDto, @Req() req: any) {
+  @UsePipes(searchValidationPipe)
+  async search(@Query() dto: SearchConfessionDto, @Req() req: SearchRequest) {
     const result = await this.service.search(dto);
-    if (req.user && req.user.id) {
-      await this.searchDiscoveryService.recordSearch(req.user.id, dto);
+    const userId = req.user?.id;
+    if (typeof userId === 'number') {
+      await this.searchDiscoveryService.recordSearch(userId, dto);
     }
     return result;
   }
@@ -111,11 +123,15 @@ export class ConfessionController {
   @Get('search/fulltext')
   @UseGuards(OptionalJwtAuthGuard)
   @ApiOperation({ summary: 'Full-text search confessions' })
-  @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
-  async fullTextSearch(@Query() dto: SearchConfessionDto, @Req() req: any) {
+  @UsePipes(searchValidationPipe)
+  async fullTextSearch(
+    @Query() dto: SearchConfessionDto,
+    @Req() req: SearchRequest,
+  ) {
     const result = await this.service.fullTextSearch(dto);
-    if (req.user && req.user.id) {
-      await this.searchDiscoveryService.recordSearch(req.user.id, dto);
+    const userId = req.user?.id;
+    if (typeof userId === 'number') {
+      await this.searchDiscoveryService.recordSearch(userId, dto);
     }
     return result;
   }

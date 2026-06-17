@@ -3,6 +3,7 @@ import {
   IsString,
   IsNotEmpty,
   MinLength,
+  MaxLength,
   IsOptional,
   IsInt,
   Min,
@@ -13,9 +14,82 @@ import {
   IsEnum,
   IsArray,
   ValidateIf,
+  ValidateBy,
+  ValidationOptions,
 } from 'class-validator';
 import { Transform, Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+
+const SEARCH_QUERY_MAX_LENGTH = 120;
+
+const trimSearchQuery = (value: unknown): unknown =>
+  typeof value === 'string' ? value.trim() : value;
+
+const parseOptionalInt = (value: unknown): number | undefined => {
+  if (value === undefined || value === null) {
+    return undefined;
+  }
+
+  if (typeof value === 'number') {
+    return value;
+  }
+
+  if (typeof value === 'string') {
+    if (value.trim() === '') {
+      return Number.NaN;
+    }
+
+    return parseInt(value, 10);
+  }
+
+  return Number.NaN;
+};
+
+const parseOptionalBoolean = (value: unknown): boolean | undefined => {
+  if (value === undefined || value === null) {
+    return undefined;
+  }
+
+  if (typeof value === 'string') {
+    return value === 'true';
+  }
+
+  return value === true;
+};
+
+const normalizeTags = (value: unknown): unknown[] => {
+  if (typeof value === 'string') {
+    return value
+      .split(',')
+      .map((tag) => tag.trim())
+      .filter((tag) => tag.length > 0);
+  }
+
+  return Array.isArray(value) ? [...(value as unknown[])] : [];
+};
+
+const hasUnsupportedControlCharacter = (value: string): boolean =>
+  Array.from(value).some((character) => {
+    const codePoint = character.codePointAt(0);
+    return codePoint !== undefined && (codePoint < 32 || codePoint === 127);
+  });
+
+const IsPrintableSearchQuery = (
+  validationOptions?: ValidationOptions,
+): PropertyDecorator =>
+  ValidateBy(
+    {
+      name: 'isPrintableSearchQuery',
+      validator: {
+        validate(value: unknown): boolean {
+          return (
+            typeof value === 'string' && !hasUnsupportedControlCharacter(value)
+          );
+        },
+      },
+    },
+    validationOptions,
+  );
 
 export enum SortBy {
   REACTIONS = 'reactions',
@@ -29,10 +103,18 @@ export class SearchConfessionDto {
     description: 'Search query string',
     example: 'work stress',
     minLength: 1,
+    maxLength: SEARCH_QUERY_MAX_LENGTH,
   })
+  @Transform(({ value }: { value: unknown }) => trimSearchQuery(value))
   @IsString()
-  @IsNotEmpty()
-  @MinLength(1)
+  @IsNotEmpty({ message: 'q must not be empty' })
+  @MinLength(1, { message: 'q must contain at least 1 character' })
+  @MaxLength(SEARCH_QUERY_MAX_LENGTH, {
+    message: 'q must be 120 characters or fewer',
+  })
+  @IsPrintableSearchQuery({
+    message: 'q contains unsupported control characters',
+  })
   q: string;
 
   @ApiPropertyOptional({
@@ -42,7 +124,7 @@ export class SearchConfessionDto {
     default: 1,
   })
   @IsOptional()
-  @Transform(({ value }) => parseInt(value))
+  @Transform(({ value }: { value: unknown }) => parseOptionalInt(value))
   @IsInt()
   @Min(1)
   page?: number = 1;
@@ -55,7 +137,7 @@ export class SearchConfessionDto {
     default: 10,
   })
   @IsOptional()
-  @Transform(({ value }) => parseInt(value))
+  @Transform(({ value }: { value: unknown }) => parseOptionalInt(value))
   @IsInt()
   @Min(1)
   @Max(50)
@@ -88,7 +170,7 @@ export class SearchConfessionDto {
   @IsOptional()
   @Type(() => Date)
   @IsDate()
-  @ValidateIf((o) => o.startDate !== undefined)
+  @ValidateIf((dto: SearchConfessionDto) => dto.startDate !== undefined)
   endDate?: Date;
 
   @ApiPropertyOptional({
@@ -97,7 +179,7 @@ export class SearchConfessionDto {
     minimum: 0,
   })
   @IsOptional()
-  @Transform(({ value }) => parseInt(value))
+  @Transform(({ value }: { value: unknown }) => parseOptionalInt(value))
   @IsNumber()
   @Min(0)
   minReactions?: number;
@@ -108,10 +190,10 @@ export class SearchConfessionDto {
     minimum: 0,
   })
   @IsOptional()
-  @Transform(({ value }) => parseInt(value))
+  @Transform(({ value }: { value: unknown }) => parseOptionalInt(value))
   @IsNumber()
   @Min(0)
-  @ValidateIf((o) => o.minReactions !== undefined)
+  @ValidateIf((dto: SearchConfessionDto) => dto.minReactions !== undefined)
   maxReactions?: number;
 
   @ApiPropertyOptional({
@@ -120,7 +202,7 @@ export class SearchConfessionDto {
     minimum: 0,
   })
   @IsOptional()
-  @Transform(({ value }) => parseInt(value))
+  @Transform(({ value }: { value: unknown }) => parseOptionalInt(value))
   @IsNumber()
   @Min(0)
   minViews?: number;
@@ -131,10 +213,10 @@ export class SearchConfessionDto {
     minimum: 0,
   })
   @IsOptional()
-  @Transform(({ value }) => parseInt(value))
+  @Transform(({ value }: { value: unknown }) => parseOptionalInt(value))
   @IsNumber()
   @Min(0)
-  @ValidateIf((o) => o.minViews !== undefined)
+  @ValidateIf((dto: SearchConfessionDto) => dto.minViews !== undefined)
   maxViews?: number;
 
   @ApiPropertyOptional({
@@ -145,15 +227,7 @@ export class SearchConfessionDto {
   @IsOptional()
   @IsArray()
   @IsString({ each: true })
-  @Transform(({ value }) => {
-    if (typeof value === 'string') {
-      return value
-        .split(',')
-        .map((tag) => tag.trim())
-        .filter((tag) => tag.length > 0);
-    }
-    return Array.isArray(value) ? value : [];
-  })
+  @Transform(({ value }: { value: unknown }) => normalizeTags(value))
   tags?: string[];
 
   @ApiPropertyOptional({
@@ -162,12 +236,7 @@ export class SearchConfessionDto {
     default: false,
   })
   @IsOptional()
-  @Transform(({ value }) => {
-    if (typeof value === 'string') {
-      return value === 'true';
-    }
-    return value === true;
-  })
+  @Transform(({ value }: { value: unknown }) => parseOptionalBoolean(value))
   @IsBoolean()
   anonymousOnly?: boolean;
 
@@ -187,12 +256,7 @@ export class SearchConfessionDto {
     default: false,
   })
   @IsOptional()
-  @Transform(({ value }) => {
-    if (typeof value === 'string') {
-      return value === 'true';
-    }
-    return value === true;
-  })
+  @Transform(({ value }: { value: unknown }) => parseOptionalBoolean(value))
   @IsBoolean()
   requiresReview?: boolean;
 

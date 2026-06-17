@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
-import * as request from 'supertest';
+import request, { Response } from 'supertest';
 import { AppModule } from './../src/app.module';
 import { HttpExceptionFilter } from './../src/common/filters/http-exception.filter';
 import { ThrottlerExceptionFilter } from './../src/common/filters/throttler-exception.filter';
@@ -35,10 +35,7 @@ describe('API Error Contract (e2e)', () => {
     await app.close();
   });
 
-  const expectErrorEnvelope = (
-    response: request.Response,
-    expectedStatus: number,
-  ) => {
+  const expectErrorEnvelope = (response: Response, expectedStatus: number) => {
     expect(response.status).toBe(expectedStatus);
     expect(response.body).toHaveProperty('status', expectedStatus);
     expect(response.body).toHaveProperty('message');
@@ -62,6 +59,65 @@ describe('API Error Contract (e2e)', () => {
 
       expectErrorEnvelope(response, 400);
       expect(response.body.code).toBe('BAD_REQUEST');
+    });
+
+    it('should return field-level validation details for empty search queries', async () => {
+      const response = await request(app.getHttpServer())
+        .get('/confessions/search')
+        .query({ q: '   ' });
+
+      expectErrorEnvelope(response, 400);
+      expect(response.body.code).toBe('VALIDATION_FAILED');
+      expect(response.body.message).toBe('Search query validation failed');
+      expect(response.body.details).toEqual({
+        fields: [
+          {
+            field: 'q',
+            messages: expect.arrayContaining([
+              'q must not be empty',
+              'q must contain at least 1 character',
+            ]),
+          },
+        ],
+      });
+    });
+
+    it('should reject over-max search limit with field-level details', async () => {
+      const response = await request(app.getHttpServer())
+        .get('/confessions/search')
+        .query({ q: 'stress', limit: 51 });
+
+      expectErrorEnvelope(response, 400);
+      expect(response.body.code).toBe('VALIDATION_FAILED');
+      expect(response.body.details.fields).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            field: 'limit',
+            messages: expect.arrayContaining([
+              'limit must not be greater than 50',
+            ]),
+          }),
+        ]),
+      );
+    });
+
+    it('should reject unsupported search query characters', async () => {
+      const response = await request(app.getHttpServer())
+        .get('/confessions/search')
+        .query({ q: 'stress\u0007' });
+
+      expectErrorEnvelope(response, 400);
+      expect(response.body.code).toBe('VALIDATION_FAILED');
+      expect(response.body.details.fields).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            field: 'q',
+            messages: expect.arrayContaining([
+              'q contains unsupported control characters',
+            ]),
+          }),
+        ]),
+      );
     });
   });
 
@@ -136,7 +192,11 @@ describe('API Error Contract (e2e)', () => {
       // This verifies the structure of rate limit error responses
       const response = await request(app.getHttpServer())
         .post('/reactions')
-        .send({ confessionId: 'test-id', anonymousUserId: 'test-user', emoji: 'like' });
+        .send({
+          confessionId: 'test-id',
+          anonymousUserId: 'test-user',
+          emoji: 'like',
+        });
       // The endpoint may return 404 (route exists but validation fails) or other status
       // Key point: any 429 response should have the predictable envelope
       expect(response.body).toHaveProperty('status');
