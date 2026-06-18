@@ -109,6 +109,7 @@ export const EnhancedConfessionForm: React.FC<EnhancedConfessionFormProps> = ({
     scheduledFor?: string;
     updatedAt?: string;
   } | null>(null);
+  const [draftSubmittedAt, setDraftSubmittedAt] = useState(0);
   const submitSuccessTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
     null
   );
@@ -262,6 +263,7 @@ export const EnhancedConfessionForm: React.FC<EnhancedConfessionFormProps> = ({
       });
 
       setSubmitSuccess(true);
+      setDraftSubmittedAt(Date.now());
       toast.success("Confession submitted successfully!");
 
       if (onSubmit) {
@@ -414,6 +416,7 @@ export const EnhancedConfessionForm: React.FC<EnhancedConfessionFormProps> = ({
                 <DraftManager
                   currentDraft={{ title, body, gender }}
                   onLoadDraft={handleLoadDraft}
+                  submittedAt={draftSubmittedAt}
                 />
                 <Button
                   type="button"

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useDrafts, Draft } from "@/app/lib/hooks/useDrafts";
 import { Button } from "@/app/components/ui/button";
 import { Modal } from "@/app/components/ui/modal";
@@ -9,6 +9,14 @@ import { useGlobalToast } from "@/app/components/common/Toast";
 import { Trash2, Clock, FileText } from "lucide-react";
 import { formatDate } from "@/app/lib/utils/formatDate";
 import { Gender } from "@/app/lib/utils/validation";
+import { useAuthStore } from "@/app/lib/store/authStore";
+import {
+  createConfessionDraft,
+  deleteConfessionDraft,
+  listConfessionDrafts,
+  updateConfessionDraft,
+  type ConfessionDraftRecord,
+} from "@/app/lib/api/confessionDrafts";
 
 interface DraftManagerProps {
   currentDraft: {
@@ -18,12 +26,32 @@ interface DraftManagerProps {
   };
   onLoadDraft: (draft: Draft) => void;
   autoSaveInterval?: number; // in milliseconds
+  submittedAt?: number;
+}
+
+function toLocalDraft(remoteDraft: ConfessionDraftRecord): Draft {
+  const savedAt = Date.parse(remoteDraft.updatedAt ?? remoteDraft.createdAt ?? "");
+  const body = remoteDraft.content ?? "";
+
+  return {
+    id: remoteDraft.id,
+    body,
+    savedAt: Number.isFinite(savedAt) ? savedAt : Date.now(),
+    characterCount: body.length,
+    scheduledFor: remoteDraft.scheduledFor ?? undefined,
+    timezone: remoteDraft.timezone ?? undefined,
+  };
+}
+
+function getDraftTimestamp(remoteDraft: ConfessionDraftRecord) {
+  return Date.parse(remoteDraft.updatedAt ?? remoteDraft.createdAt ?? "") || 0;
 }
 
 export const DraftManager: React.FC<DraftManagerProps> = ({
   currentDraft,
   onLoadDraft,
-  autoSaveInterval = 30000, // 30 seconds
+  autoSaveInterval = 3000, // 3 seconds after typing stops
+  submittedAt = 0,
 }) => {
   const {
     drafts,
@@ -35,12 +63,23 @@ export const DraftManager: React.FC<DraftManagerProps> = ({
   } = useDrafts();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [currentDraftId, setCurrentDraftId] = useState<string | null>(null);
+  const [remoteDraftId, setRemoteDraftId] = useState<string | null>(null);
+  const [remoteDraftVersion, setRemoteDraftVersion] = useState<number | null>(null);
   const [clearDraftsOpen, setClearDraftsOpen] = useState(false);
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'unsaved' | 'failed'>('saved');
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
   const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const currentDraftRef = useRef(currentDraft);
   const lastSavedRef = useRef<string>("");
+  const lastSeenContentRef = useRef<string>("");
+  const hasRestoredCloudDraftRef = useRef(false);
+  const lastSubmittedAtRef = useRef(0);
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const toast = useGlobalToast();
+
+  useEffect(() => {
+    currentDraftRef.current = currentDraft;
+  }, [currentDraft]);
 
   useEffect(() => {
     if (currentDraftId && !loadDraft(currentDraftId)) {
@@ -49,7 +88,67 @@ export const DraftManager: React.FC<DraftManagerProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [drafts]);
 
-  const persistDraft = async () => {
+  useEffect(() => {
+    if (!isAuthenticated || hasRestoredCloudDraftRef.current) {
+      return;
+    }
+
+    let cancelled = false;
+
+    const restoreLatestCloudDraft = async () => {
+      const response = await listConfessionDrafts();
+      if (cancelled || !response.ok || response.data.length === 0) {
+        return;
+      }
+
+      const [latestDraft] = [...response.data].sort(
+        (a, b) => getDraftTimestamp(b) - getDraftTimestamp(a),
+      );
+
+      setRemoteDraftId(latestDraft.id);
+      setRemoteDraftVersion(latestDraft.version);
+      hasRestoredCloudDraftRef.current = true;
+
+      const latestComposerDraft = currentDraftRef.current;
+      const composerIsEmpty =
+        !latestComposerDraft.title?.trim() && !latestComposerDraft.body.trim();
+
+      if (composerIsEmpty) {
+        onLoadDraft(toLocalDraft(latestDraft));
+      }
+    };
+
+    void restoreLatestCloudDraft();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthenticated, onLoadDraft]);
+
+  useEffect(() => {
+    if (!submittedAt || submittedAt === lastSubmittedAtRef.current) {
+      return;
+    }
+
+    lastSubmittedAtRef.current = submittedAt;
+
+    if (currentDraftId) {
+      deleteDraft(currentDraftId);
+    }
+
+    if (isAuthenticated && remoteDraftId) {
+      void deleteConfessionDraft(remoteDraftId);
+    }
+
+    setCurrentDraftId(null);
+    setRemoteDraftId(null);
+    setRemoteDraftVersion(null);
+    setSaveStatus('saved');
+    setSaveMessage(null);
+    lastSavedRef.current = JSON.stringify({ title: "", body: "", gender: undefined });
+  }, [currentDraftId, deleteDraft, isAuthenticated, remoteDraftId, submittedAt]);
+
+  const persistDraft = useCallback(async () => {
     const currentContent = JSON.stringify(currentDraft);
     if (currentContent === lastSavedRef.current) {
       return true;
@@ -72,10 +171,10 @@ export const DraftManager: React.FC<DraftManagerProps> = ({
     setSaveMessage('Saving draft...');
 
     const existingDraft = currentDraftId ? loadDraft(currentDraftId) : null;
-    let success = false;
+    let localSaved = false;
 
     if (existingDraft && currentDraftId) {
-      success = updateDraft(currentDraftId, draftToSave);
+      localSaved = updateDraft(currentDraftId, draftToSave);
     } else {
       if (currentDraftId) {
         setCurrentDraftId(null);
@@ -83,29 +182,72 @@ export const DraftManager: React.FC<DraftManagerProps> = ({
       const newDraftId = saveDraft(draftToSave);
       if (newDraftId) {
         setCurrentDraftId(newDraftId);
-        success = true;
+        localSaved = true;
       }
     }
 
-    if (success) {
+    let cloudSaved = !isAuthenticated;
+
+    if (isAuthenticated) {
+      const response =
+        remoteDraftId && remoteDraftVersion
+          ? await updateConfessionDraft(remoteDraftId, {
+              content: currentDraft.body,
+              version: remoteDraftVersion,
+            })
+          : await createConfessionDraft({
+              content: currentDraft.body,
+            });
+
+      if (response.ok) {
+        setRemoteDraftId(response.data.id);
+        setRemoteDraftVersion(response.data.version);
+        cloudSaved = true;
+      } else {
+        cloudSaved = false;
+      }
+    }
+
+    if (cloudSaved) {
       setSaveStatus('saved');
-      setSaveMessage('Draft saved.');
+      setSaveMessage(
+        isAuthenticated ? 'Draft saved.' : 'Draft saved on this device.',
+      );
       lastSavedRef.current = currentContent;
       return true;
+    }
+
+    if (localSaved) {
+      setSaveStatus('failed');
+      setSaveMessage('Saved on this device. Cloud sync failed.');
+      return false;
     }
 
     setSaveStatus('failed');
     setSaveMessage('Failed to save draft.');
     return false;
-  };
+  }, [
+    currentDraft,
+    currentDraftId,
+    isAuthenticated,
+    loadDraft,
+    remoteDraftId,
+    remoteDraftVersion,
+    saveDraft,
+    updateDraft,
+  ]);
 
   useEffect(() => {
     const currentContent = JSON.stringify(currentDraft);
 
-    if (currentContent !== lastSavedRef.current) {
+    if (
+      currentContent !== lastSeenContentRef.current &&
+      currentContent !== lastSavedRef.current
+    ) {
       setSaveStatus('unsaved');
       setSaveMessage('Unsaved changes');
     }
+    lastSeenContentRef.current = currentContent;
 
     if (autoSaveTimerRef.current) {
       clearTimeout(autoSaveTimerRef.current);
@@ -123,10 +265,7 @@ export const DraftManager: React.FC<DraftManagerProps> = ({
   }, [
     currentDraft,
     autoSaveInterval,
-    currentDraftId,
-    saveDraft,
-    updateDraft,
-    loadDraft,
+    persistDraft,
   ]);
 
   const handleLoadDraft = (draft: Draft) => {
@@ -191,7 +330,7 @@ export const DraftManager: React.FC<DraftManagerProps> = ({
           )}
           {saveStatus === 'failed' && (
             <span className="text-rose-300">
-              Failed to save draft.{' '}
+              {saveMessage ?? 'Failed to save draft.'}{' '}
               <button
                 type="button"
                 onClick={() => void persistDraft()}
@@ -212,7 +351,7 @@ export const DraftManager: React.FC<DraftManagerProps> = ({
         <div className="space-y-4">
           {drafts.length === 0 ? (
             <p className="text-center text-zinc-400 py-8">
-              No saved drafts yet. Your drafts will be auto-saved every 30
+              No saved drafts yet. Your drafts will be auto-saved after 3
               seconds.
             </p>
           ) : (
