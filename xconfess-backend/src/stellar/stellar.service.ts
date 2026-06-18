@@ -5,7 +5,10 @@ import { StellarConfigService } from './stellar-config.service';
 import { TransactionBuilderService } from './transaction-builder.service';
 import { DeploymentMetadataService } from './services/deployment-metadata.service';
 import { ITransactionResult } from './interfaces/stellar-config.interface';
-import { StellarConfigResponseDto } from './dto/stellar-config-response.dto';
+import {
+  StellarConfigResponseDto,
+  StellarDiagnosticsResponseDto,
+} from './dto/stellar-config-response.dto';
 import { AppException } from '../common/errors/app-exception';
 import { ErrorCode } from '../common/errors/error-codes';
 import { HttpStatus } from '@nestjs/common';
@@ -116,7 +119,8 @@ export class StellarService {
    */
   getNetworkConfig(): StellarConfigResponseDto {
     const config = this.stellarConfig.getConfig();
-    const metadataFreshness = this.deploymentMetadataService.getMetadataFreshness();
+    const metadataFreshness =
+      this.deploymentMetadataService.getMetadataFreshness();
     return {
       network: config.network,
       horizonUrl: config.horizonUrl,
@@ -137,6 +141,44 @@ export class StellarService {
         loadError: this.deploymentMetadataService.getLoadError(),
       },
     };
+  }
+
+  /**
+   * Get admin-safe Stellar diagnostics with a lightweight Horizon reachability
+   * check. Connectivity failures are returned as warning state so the admin
+   * page can render degraded service details instead of failing the request.
+   */
+  async getNetworkDiagnostics(): Promise<StellarDiagnosticsResponseDto> {
+    const config = this.getNetworkConfig();
+    const checkedAt = new Date().toISOString();
+    const startedAt = Date.now();
+
+    try {
+      await this.stellarConfig.getServer().ledgers().limit(1).call();
+
+      return {
+        ...config,
+        horizon: {
+          status: 'ok',
+          latencyMs: Date.now() - startedAt,
+          checkedAt,
+          error: null,
+        },
+      };
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.warn(`Horizon diagnostics ping failed: ${message}`);
+
+      return {
+        ...config,
+        horizon: {
+          status: 'warning',
+          latencyMs: null,
+          checkedAt,
+          error: message,
+        },
+      };
+    }
   }
 
   /**

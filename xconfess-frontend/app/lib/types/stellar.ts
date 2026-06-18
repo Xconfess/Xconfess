@@ -23,3 +23,14 @@ export interface StellarConfigResponse {
   contractIds: StellarContractIds;
   deploymentMetadata: DeploymentMetadataStatus;
 }
+
+export interface StellarEndpointDiagnostics {
+  status: "ok" | "warning";
+  latencyMs: number | null;
+  checkedAt: string;
+  error: string | null;
+}
+
+export interface StellarDiagnosticsResponse extends StellarConfigResponse {
+  horizon: StellarEndpointDiagnostics;
+}

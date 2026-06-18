@@ -9,6 +9,8 @@ import { AuditLogService } from '../audit-log/audit-log.service';
 import { StellarConfigResponseDto } from './dto/stellar-config-response.dto';
 import { StellarInvokeContractGuard } from './guards/stellar-invoke-contract.guard';
 import { StellarConfigService } from './stellar-config.service';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { AdminGuard } from '../auth/admin.guard';
 
 describe('StellarController GET /stellar/config and anchor verification', () => {
   let app: INestApplication;
@@ -31,13 +33,28 @@ describe('StellarController GET /stellar/config and anchor verification', () => 
     },
   };
 
+  const mockDiagnostics = {
+    ...mockConfig,
+    horizon: {
+      status: 'ok' as const,
+      latencyMs: 42,
+      checkedAt: '2026-06-18T01:30:00.000Z',
+      error: null,
+    },
+  };
+
+  const stellarServiceMock = {
+    getNetworkConfig: jest.fn().mockReturnValue(mockConfig),
+    getNetworkDiagnostics: jest.fn().mockResolvedValue(mockDiagnostics),
+  };
+
   beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
       controllers: [StellarController],
       providers: [
         {
           provide: StellarService,
-          useValue: { getNetworkConfig: jest.fn().mockReturnValue(mockConfig) },
+          useValue: stellarServiceMock,
         },
         {
           provide: ContractService,
@@ -56,7 +73,12 @@ describe('StellarController GET /stellar/config and anchor verification', () => 
           useValue: { canActivate: jest.fn(() => true) },
         },
       ],
-    }).compile();
+    })
+      .overrideGuard(JwtAuthGuard)
+      .useValue({ canActivate: jest.fn(() => true) })
+      .overrideGuard(AdminGuard)
+      .useValue({ canActivate: jest.fn(() => true) })
+      .compile();
 
     app = moduleFixture.createNestApplication();
     await app.init();
@@ -78,9 +100,25 @@ describe('StellarController GET /stellar/config and anchor verification', () => 
     expect(res.body.deploymentMetadata.loaded).toBe(true);
   });
 
+  it('returns admin diagnostics with Horizon latency without secrets', async () => {
+    const res = await request(app.getHttpServer()).get(
+      '/stellar/admin/diagnostics',
+    );
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual(mockDiagnostics);
+    expect(stellarServiceMock.getNetworkDiagnostics).toHaveBeenCalled();
+    expect(res.body.horizon.latencyMs).toBe(42);
+    expect(res.body).not.toHaveProperty('serverSecret');
+    expect(res.body).not.toHaveProperty('STELLAR_SERVER_SECRET');
+  });
+
   it('verifies a confession hash via the anchor contract', async () => {
-    const hash = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
-    const res = await request(app.getHttpServer()).get(`/stellar/anchor/verify/${hash}`);
+    const hash =
+      '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
+    const res = await request(app.getHttpServer()).get(
+      `/stellar/anchor/verify/${hash}`,
+    );
 
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ isAnchored: true, timestamp: 1684939200 });

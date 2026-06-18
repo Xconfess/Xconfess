@@ -4,6 +4,7 @@ import type {
   FailedJobsFilter,
   ReplayJobResponse,
 } from '../types/notification-jobs';
+import type { StellarDiagnosticsResponse } from '../types/stellar';
 
 export interface Report {
   id: string;
@@ -200,6 +201,11 @@ export const adminApi = {
       params: { startDate, endDate },
     });
     return response.data as AdminObservabilityResponse;
+  },
+
+  getStellarDiagnostics: async (): Promise<StellarDiagnosticsResponse> => {
+    const response = await apiClient.get('/api/stellar/admin/diagnostics');
+    return response.data;
   },
 
   // Audit Logs

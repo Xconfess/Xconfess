@@ -2,22 +2,18 @@
  * @jest-environment jsdom
  */
 
-import React from 'react';
-import { render, screen, waitFor } from '@testing-library/react';
-import '@testing-library/jest-dom';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import DiagnosticsPage from '../page';
-import { adminApi } from '@/app/lib/api/admin';
-import { fetchStellarConfig } from '@/app/lib/api/stellar';
+import React from "react";
+import { render, screen, waitFor } from "@testing-library/react";
+import "@testing-library/jest-dom";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import DiagnosticsPage from "../page";
+import { adminApi } from "@/app/lib/api/admin";
+import type { StellarDiagnosticsResponse } from "@/app/lib/types/stellar";
 
-jest.mock('@/app/lib/api/admin', () => ({
+jest.mock("@/app/lib/api/admin", () => ({
   adminApi: {
-    getObservability: jest.fn(),
+    getStellarDiagnostics: jest.fn(),
   },
-}));
-
-jest.mock('@/app/lib/api/stellar', () => ({
-  fetchStellarConfig: jest.fn(),
 }));
 
 function createTestQueryClient() {
@@ -32,71 +28,92 @@ function createTestQueryClient() {
 
 function renderWithProviders(ui: React.ReactElement) {
   const queryClient = createTestQueryClient();
-  return render(<QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>);
+  return render(
+    <QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>,
+  );
 }
 
-describe('DiagnosticsPage', () => {
+const diagnosticsPayload: StellarDiagnosticsResponse = {
+  network: "testnet",
+  horizonUrl: "https://horizon-testnet.stellar.org",
+  sorobanRpcUrl: "https://soroban-rpc-testnet.stellar.org",
+  contractIds: {
+    confessionAnchor: "CANCHOR1234567890ABCDEFG",
+    reputationBadges: null,
+    tippingSystem: "CTIP1234567890ABCDEFG",
+  },
+  deploymentMetadata: {
+    loaded: true,
+    generatedAtUtc: "2026-01-01T00:00:00Z",
+    isStale: false,
+    ageDays: 1,
+    loadError: null,
+  },
+  horizon: {
+    status: "ok",
+    latencyMs: 42,
+    checkedAt: "2026-06-18T01:30:00.000Z",
+    error: null,
+  },
+};
+
+describe("DiagnosticsPage", () => {
   beforeEach(() => {
     jest.clearAllMocks();
   });
 
-  it('renders diagnostics sections and observability metrics', async () => {
-    (fetchStellarConfig as jest.Mock).mockResolvedValue({
-      network: 'Test Network',
-      horizonUrl: 'https://horizon.testnet.stellar.org',
-      sorobanRpcUrl: 'https://rpc.testnet.stellar.org',
-      contractIds: {
-        confessionAnchor: 'ABC123',
-        reputationBadges: 'DEF456',
-        tippingSystem: 'GHI789',
-      },
+  it("renders Stellar diagnostics and contract metadata", async () => {
+    (adminApi.getStellarDiagnostics as jest.Mock).mockResolvedValue(
+      diagnosticsPayload,
+    );
+
+    renderWithProviders(<DiagnosticsPage />);
+
+    expect(screen.getByText("Stellar Diagnostics")).toBeInTheDocument();
+
+    await waitFor(() => {
+      expect(screen.getByText("Reachable")).toBeInTheDocument();
+      expect(screen.getByText("42 ms")).toBeInTheDocument();
+      expect(screen.getByText("Confession Anchor")).toBeInTheDocument();
+      expect(screen.getAllByText("Not configured")).toHaveLength(2);
     });
 
-    (adminApi.getObservability as jest.Mock).mockResolvedValue({
-      audit: {
-        totalLogs: 42,
-        actionTypeCounts: [{ actionType: 'create', count: 18 }],
+    expect(adminApi.getStellarDiagnostics).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows degraded Horizon state without hiding config", async () => {
+    (adminApi.getStellarDiagnostics as jest.Mock).mockResolvedValue({
+      ...diagnosticsPayload,
+      horizon: {
+        status: "warning",
+        latencyMs: null,
+        checkedAt: "2026-06-18T01:30:00.000Z",
+        error: "connect ETIMEDOUT",
       },
-      notifications: {
-        main: { active: 2, waiting: 1, failed: 0 },
-        dlq: { failed: 0, waiting: 0, delayed: 0 },
-      },
-      generatedAt: '2025-01-01T00:00:00Z',
     });
 
     renderWithProviders(<DiagnosticsPage />);
 
-    expect(screen.getByText('Stellar Diagnostics')).toBeInTheDocument();
-    expect(screen.getByText('Admin Observability')).toBeInTheDocument();
-
     await waitFor(() => {
-      expect(screen.getByText('Test Network')).toBeInTheDocument();
-      expect(screen.getByText('42')).toBeInTheDocument();
-      expect(screen.getByText('create')).toBeInTheDocument();
+      expect(screen.getByText("Warning")).toBeInTheDocument();
+      expect(
+        screen.getByText(/Horizon ping failed: connect ETIMEDOUT/),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText("https://horizon-testnet.stellar.org"),
+      ).toBeInTheDocument();
     });
   });
 
-  it('shows an error message when observability loading fails', async () => {
-    (fetchStellarConfig as jest.Mock).mockResolvedValue({
-      network: 'Test Network',
-      horizonUrl: 'https://horizon.testnet.stellar.org',
-      sorobanRpcUrl: 'https://rpc.testnet.stellar.org',
-      contractIds: {
-        confessionAnchor: 'ABC123',
-        reputationBadges: 'DEF456',
-        tippingSystem: 'GHI789',
-      },
-    });
-    (adminApi.getObservability as jest.Mock).mockRejectedValue(new Error('API failure'));
+  it("shows an endpoint error when admin diagnostics cannot load", async () => {
+    (adminApi.getStellarDiagnostics as jest.Mock).mockRejectedValue(
+      new Error("API failure"),
+    );
 
     renderWithProviders(<DiagnosticsPage />);
 
     await waitFor(() => {
-      expect(
-        screen.getByText(
-          'Failed to load admin observability metrics. Ensure the backend is running and accessible.',
-        ),
-      ).toBeInTheDocument();
+      expect(screen.getByText("API failure")).toBeInTheDocument();
     });
   });
 });

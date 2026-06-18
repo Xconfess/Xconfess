@@ -25,7 +25,8 @@ export class StellarContractIdsDto {
 
 export class DeploymentMetadataStatusDto {
   @ApiProperty({
-    description: 'True when deployment metadata was successfully loaded from disk',
+    description:
+      'True when deployment metadata was successfully loaded from disk',
     example: true,
   })
   loaded: boolean;
@@ -38,7 +39,8 @@ export class DeploymentMetadataStatusDto {
   generatedAtUtc: string | null;
 
   @ApiProperty({
-    description: 'Whether the deployment metadata is stale and should be refreshed',
+    description:
+      'Whether the deployment metadata is stale and should be refreshed',
     example: false,
   })
   isStale: boolean;
@@ -84,4 +86,38 @@ export class StellarConfigResponseDto {
 
   @ApiProperty({ type: DeploymentMetadataStatusDto })
   deploymentMetadata: DeploymentMetadataStatusDto;
+}
+
+export class StellarHorizonDiagnosticsDto {
+  @ApiProperty({
+    description: 'Reachability state for the configured Horizon endpoint',
+    enum: ['ok', 'warning'],
+    example: 'ok',
+  })
+  status: 'ok' | 'warning';
+
+  @ApiProperty({
+    description: 'Latency for the lightweight Horizon ping in milliseconds',
+    nullable: true,
+    example: 84,
+  })
+  latencyMs: number | null;
+
+  @ApiProperty({
+    description: 'UTC timestamp for the latest Horizon ping attempt',
+    example: '2026-06-18T01:30:00.000Z',
+  })
+  checkedAt: string;
+
+  @ApiProperty({
+    description: 'Error message when Horizon could not be reached',
+    nullable: true,
+    example: 'connect ETIMEDOUT',
+  })
+  error: string | null;
+}
+
+export class StellarDiagnosticsResponseDto extends StellarConfigResponseDto {
+  @ApiProperty({ type: StellarHorizonDiagnosticsDto })
+  horizon: StellarHorizonDiagnosticsDto;
 }

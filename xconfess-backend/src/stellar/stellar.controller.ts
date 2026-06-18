@@ -8,8 +8,18 @@ import {
   Req,
   UseGuards,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiOkResponse, ApiParam } from '@nestjs/swagger';
-import { StellarConfigResponseDto } from './dto/stellar-config-response.dto';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiOkResponse,
+  ApiParam,
+  ApiBearerAuth,
+} from '@nestjs/swagger';
+import {
+  StellarConfigResponseDto,
+  StellarDiagnosticsResponseDto,
+} from './dto/stellar-config-response.dto';
 import { ConfigService } from '@nestjs/config';
 import * as StellarSDK from '@stellar/stellar-sdk';
 import { StellarService } from './stellar.service';
@@ -17,6 +27,7 @@ import { ContractService } from './contract.service';
 import { VerifyTransactionDto } from './dto/verify-transaction.dto';
 import { InvokeContractDto } from './dto/invoke-contract.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { AdminGuard } from '../auth/admin.guard';
 import { StellarInvokeContractGuard } from './guards/stellar-invoke-contract.guard';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { AuditActionType } from '../audit-log/audit-log.entity';
@@ -53,6 +64,23 @@ export class StellarController {
     return this.stellarService.getNetworkConfig();
   }
 
+  @Get('admin/diagnostics')
+  @UseGuards(JwtAuthGuard, AdminGuard)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Get admin Stellar diagnostics',
+    description:
+      'Returns the configured Stellar network, public contract IDs, deployment metadata, ' +
+      'and a lightweight Horizon reachability check for admin operators.',
+  })
+  @ApiOkResponse({
+    description: 'Admin Stellar diagnostics summary',
+    type: StellarDiagnosticsResponseDto,
+  })
+  async getAdminDiagnostics(): Promise<StellarDiagnosticsResponseDto> {
+    return this.stellarService.getNetworkDiagnostics();
+  }
+
   @Get('anchor/verify/:confessionHash')
   @ApiOperation({ summary: 'Verify a confession hash on the anchor contract' })
   @ApiParam({
@@ -71,10 +99,13 @@ export class StellarController {
   })
   async verifyAnchor(@Param('confessionHash') confessionHash: string) {
     if (!/^[0-9a-fA-F]{64}$/.test(confessionHash)) {
-      throw new BadRequestException('Invalid confession hash format. Expected 32-byte hex.');
+      throw new BadRequestException(
+        'Invalid confession hash format. Expected 32-byte hex.',
+      );
     }
 
-    const timestamp = await this.contractService.verifyConfession(confessionHash);
+    const timestamp =
+      await this.contractService.verifyConfession(confessionHash);
     return {
       isAnchored: timestamp !== null,
       timestamp,
@@ -183,9 +214,11 @@ export class StellarController {
   ): Promise<void> {
     await this.auditLogService.log({
       actionType: AuditActionType.STELLAR_CONTRACT_INVOCATION,
-      context: buildAuditContextFromRequest(req as typeof req & {
-        requestId?: string;
-      }),
+      context: buildAuditContextFromRequest(
+        req as typeof req & {
+          requestId?: string;
+        },
+      ),
       metadata: {
         ...buildStellarInvocationAuditMetadata({
           operation: dto.operation,
