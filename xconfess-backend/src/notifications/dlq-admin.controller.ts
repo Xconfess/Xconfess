@@ -1,5 +1,6 @@
 import {
   Controller,
+  Body,
   Get,
   Post,
   Param,
@@ -50,12 +51,16 @@ export class DlqAdminController {
   }
 
   @Post(':id/retry')
-  async retry(@Param('id') id: string, @Req() req: any) {
+  async retry(
+    @Param('id') id: string,
+    @Body('reason') reason: string | undefined,
+    @Req() req: any,
+  ) {
     const actorId = String(req.user?.id);
     return this.jobManagementService.replayDlqJob(
       id,
       actorId,
-      undefined,
+      reason,
       this.buildAuditContext(req),
     );
   }

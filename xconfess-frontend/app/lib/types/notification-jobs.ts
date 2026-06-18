@@ -31,7 +31,8 @@ export interface FailedJobsFilter {
 }
 
 export interface ReplayJobResponse {
-  success: boolean;
-  message: string;
-  jobId: string;
+  id: string;
+  outcome: 'replayed' | 'deduplicated' | 'failed';
+  replayJobId: string;
+  newJobId: string | null;
 }

@@ -13,8 +13,13 @@ import { AppLogger } from '../../logger/logger.service';
 
 type MockJob = {
   id: string;
+  name?: string;
   data: NotificationJobData;
   timestamp: number;
+  attemptsMade?: number;
+  failedReason?: string;
+  finishedOn?: number;
+  opts?: { attempts?: number };
   remove: jest.Mock<Promise<void>, []>;
   updateData: jest.Mock<Promise<void>, [NotificationJobData]>;
 };
@@ -114,6 +119,62 @@ describe('JobManagementService', () => {
     }).compile();
 
     service = module.get(JobManagementService);
+  });
+
+  it('lists DLQ jobs with UI-ready error details and pagination metadata', async () => {
+    const enqueuedAt = Date.parse('2026-04-24T09:55:00.000Z');
+    const dlqJob = {
+      ...buildJob('dlq-list', {
+        metadata: {
+          channel: 'email',
+          recipientEmail: 'operator@example.com',
+        },
+      }),
+      name: 'dead-letter',
+      timestamp: enqueuedAt,
+      opts: { attempts: 6 },
+    };
+
+    dlqQueue.getJobs.mockResolvedValue([dlqJob as any]);
+    dlqQueue.getJobCounts.mockResolvedValue({
+      failed: 1,
+      completed: 0,
+      waiting: 0,
+      active: 0,
+      delayed: 0,
+    } as any);
+
+    const result = await service.listDlqJobs(1, 20);
+
+    expect(dlqQueue.getJobs).toHaveBeenCalledWith(
+      ['failed', 'completed', 'waiting', 'active', 'delayed'],
+      0,
+      19,
+      true,
+    );
+    expect(result).toEqual({
+      jobs: [
+        expect.objectContaining({
+          id: 'dlq-list',
+          name: 'dead-letter',
+          attemptsMade: 5,
+          maxAttempts: 6,
+          failedReason: 'SMTP timeout',
+          failedAt: '2026-04-24T10:00:00.000Z',
+          createdAt: '2026-04-24T09:55:00.000Z',
+          channel: 'email',
+          recipientEmail: 'operator@example.com',
+          userId: 'user-dlq-list',
+          type: 'message_notification',
+          title: 'Job dlq-list',
+          lastError: 'SMTP timeout',
+          enqueuedAt,
+        }),
+      ],
+      total: 1,
+      page: 1,
+      limit: 20,
+    });
   });
 
   it('replays bulk DLQ jobs with replay-safe deduplication and audit context', async () => {

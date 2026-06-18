@@ -34,7 +34,7 @@ describe('Admin API - Notification Jobs', () => {
 
       const result = await adminApi.getFailedNotificationJobs();
 
-      expect(apiClient.get).toHaveBeenCalledWith('/admin/notifications/dlq', {
+      expect(apiClient.get).toHaveBeenCalledWith('/api/admin/dlq', {
         params: {
           page: 1,
           limit: 20,
@@ -63,7 +63,7 @@ describe('Admin API - Notification Jobs', () => {
 
       await adminApi.getFailedNotificationJobs(filter);
 
-      expect(apiClient.get).toHaveBeenCalledWith('/admin/notifications/dlq', {
+      expect(apiClient.get).toHaveBeenCalledWith('/api/admin/dlq', {
         params: {
           page: 2,
           limit: 10,
@@ -100,16 +100,17 @@ describe('Admin API - Notification Jobs', () => {
   describe('replayFailedNotificationJob', () => {
     it('should replay a failed notification job', async () => {
       const mockResponse: ReplayJobResponse = {
-        success: true,
-        message: 'Job replayed successfully',
-        jobId: 'job-123',
+        id: 'job-123',
+        outcome: 'replayed',
+        replayJobId: 'dlq-replay:job-123',
+        newJobId: 'dlq-replay:job-123',
       };
 
       (apiClient.post as jest.Mock).mockResolvedValue({ data: mockResponse });
 
       const result = await adminApi.replayFailedNotificationJob('job-123');
 
-      expect(apiClient.post).toHaveBeenCalledWith('/admin/notifications/dlq/job-123/replay', {
+      expect(apiClient.post).toHaveBeenCalledWith('/api/admin/dlq/job-123/retry', {
         reason: undefined,
       });
       expect(result).toEqual(mockResponse);
@@ -117,9 +118,10 @@ describe('Admin API - Notification Jobs', () => {
 
     it('should replay a failed notification job with reason', async () => {
       const mockResponse: ReplayJobResponse = {
-        success: true,
-        message: 'Job replayed successfully',
-        jobId: 'job-123',
+        id: 'job-123',
+        outcome: 'replayed',
+        replayJobId: 'dlq-replay:job-123',
+        newJobId: 'dlq-replay:job-123',
       };
 
       (apiClient.post as jest.Mock).mockResolvedValue({ data: mockResponse });
@@ -127,7 +129,7 @@ describe('Admin API - Notification Jobs', () => {
       const reason = 'Manual retry after fixing SMTP configuration';
       await adminApi.replayFailedNotificationJob('job-123', reason);
 
-      expect(apiClient.post).toHaveBeenCalledWith('/admin/notifications/dlq/job-123/replay', {
+      expect(apiClient.post).toHaveBeenCalledWith('/api/admin/dlq/job-123/retry', {
         reason,
       });
     });
@@ -143,9 +145,10 @@ describe('Admin API - Notification Jobs', () => {
 
     it('should handle concurrent replay requests', async () => {
       const mockResponse: ReplayJobResponse = {
-        success: true,
-        message: 'Job replayed successfully',
-        jobId: 'job-123',
+        id: 'job-123',
+        outcome: 'replayed',
+        replayJobId: 'dlq-replay:job-123',
+        newJobId: 'dlq-replay:job-123',
       };
 
       (apiClient.post as jest.Mock).mockResolvedValue({ data: mockResponse });

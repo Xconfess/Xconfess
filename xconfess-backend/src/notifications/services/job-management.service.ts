@@ -42,6 +42,12 @@ function toAuditRecord(value: object): Record<string, unknown> {
   return value as Record<string, unknown>;
 }
 
+function toRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object'
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
 @Injectable()
 export class JobManagementService {
   private readonly dlqStates: Array<
@@ -79,16 +85,7 @@ export class JobManagementService {
     }
 
     return {
-      jobs: filteredJobs.map((job) => ({
-        id: job.id,
-        userId: job.data.userId,
-        type: job.data.type,
-        title: job.data.title,
-        failedAt: job.data._meta?.failedAt,
-        attemptsMade: job.data._meta?.attemptsMade,
-        lastError: job.data._meta?.lastError,
-        enqueuedAt: job.timestamp,
-      })),
+      jobs: filteredJobs.map((job) => this.serializeDlqJob(job)),
       total: totalCount,
       page,
       limit,
@@ -312,6 +309,75 @@ export class JobManagementService {
   private async getFilteredDlqJobs(filter?: DlqJobFilter) {
     const jobs = await this.dlq.getJobs(this.dlqStates);
     return filter ? jobs.filter((job) => this.matchesDlqFilter(job, filter)) : jobs;
+  }
+
+  private serializeDlqJob(job: Job<NotificationJobData>) {
+    const metadata = toRecord(job.data.metadata);
+    const jobDetails = job as Job<NotificationJobData> & {
+      name?: string;
+      failedReason?: string;
+      finishedOn?: number;
+      opts?: { attempts?: number };
+    };
+    const attemptsMade = this.getDlqAttemptsMade(job);
+    const failedReason =
+      job.data._meta?.lastError || jobDetails.failedReason || null;
+    const failedAt =
+      job.data._meta?.failedAt ||
+      this.timestampToIsoString(jobDetails.finishedOn) ||
+      null;
+
+    return {
+      id: String(job.id),
+      name: jobDetails.name || job.data.type || 'dead-letter',
+      attemptsMade,
+      maxAttempts: this.getDlqMaxAttempts(job),
+      failedReason,
+      failedAt,
+      createdAt: this.timestampToIsoString(job.timestamp),
+      channel: this.getStringField(metadata, 'channel') || 'email',
+      recipientEmail:
+        this.getStringField(job.data as unknown as Record<string, unknown>, 'recipientEmail') ||
+        this.getStringField(metadata, 'recipientEmail'),
+      userId: job.data.userId,
+      type: job.data.type,
+      title: job.data.title,
+      lastError: failedReason,
+      enqueuedAt: job.timestamp,
+    };
+  }
+
+  private getDlqAttemptsMade(job: Job<NotificationJobData>): number {
+    const attemptsMade = job.data._meta?.attemptsMade;
+    if (typeof attemptsMade === 'number') {
+      return attemptsMade;
+    }
+
+    const jobAttempts = (job as Job<NotificationJobData> & {
+      attemptsMade?: number;
+    }).attemptsMade;
+    return typeof jobAttempts === 'number' ? jobAttempts : 0;
+  }
+
+  private getDlqMaxAttempts(job: Job<NotificationJobData>): number {
+    const attempts = (job as Job<NotificationJobData> & {
+      opts?: { attempts?: number };
+    }).opts?.attempts;
+    return typeof attempts === 'number' ? attempts : 1;
+  }
+
+  private timestampToIsoString(timestamp?: number): string | null {
+    return typeof timestamp === 'number'
+      ? new Date(timestamp).toISOString()
+      : null;
+  }
+
+  private getStringField(
+    record: Record<string, unknown>,
+    field: string,
+  ): string | undefined {
+    const value = record[field];
+    return typeof value === 'string' && value.length > 0 ? value : undefined;
   }
 
   private buildOperationId(action: string, actorId: string): string {

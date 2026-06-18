@@ -238,12 +238,12 @@ export const adminApi = {
       params.failedBefore = new Date(filter.endDate).toISOString();
     }
 
-    const response = await apiClient.get('/admin/notifications/dlq', { params });
+    const response = await apiClient.get('/api/admin/dlq', { params });
     return response.data;
   },
 
   replayFailedNotificationJob: async (jobId: string, reason?: string): Promise<ReplayJobResponse> => {
-    const response = await apiClient.post(`/admin/notifications/dlq/${jobId}/replay`, {
+    const response = await apiClient.post(`/api/admin/dlq/${jobId}/retry`, {
       reason,
     });
     return response.data;
