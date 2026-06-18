@@ -34,6 +34,9 @@ export async function POST(
     }
 
     const authHeader = request.headers.get("Authorization");
+    const cookieHeader = request.headers.get("Cookie");
+    const correlationId =
+      request.headers.get("X-Correlation-ID") ?? crypto.randomUUID();
     const url = `${BASE_API_URL}/comments/${confessionId}`;
     const payload: Record<string, unknown> = {
       content: content.trim(),
@@ -45,7 +48,9 @@ export async function POST(
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        "X-Correlation-ID": correlationId,
         ...(authHeader ? { Authorization: authHeader } : {}),
+        ...(cookieHeader ? { Cookie: cookieHeader } : {}),
       },
       body: JSON.stringify(payload),
     });
@@ -83,6 +88,7 @@ export async function POST(
       return createApiErrorResponse(err, {
         status: response.status,
         fallbackMessage: "Failed to post comment",
+        correlationId,
         route: "POST /api/comments/[confessionId]"
       });
     }
@@ -138,4 +144,3 @@ export async function POST(
     });
   }
 }
-
