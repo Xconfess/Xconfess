@@ -5,6 +5,7 @@ import {
   type InfiniteData,
 } from "@tanstack/react-query";
 import { useReactions } from "@/app/lib/hooks/useReactions";
+import { getConfessionById } from "@/app/lib/api/confessions";
 import type {
   GetConfessionByIdResult,
   GetConfessionsResult,
@@ -16,7 +17,44 @@ jest.mock("@/app/lib/api/reactions", () => ({
   addReaction: jest.fn(),
 }));
 
+let mockSocketHandlers: Record<string, (...args: unknown[]) => void> = {};
+let mockManagerHandlers: Record<string, (...args: unknown[]) => void> = {};
+
+const mockSocket = {
+  on: jest.fn(),
+  emit: jest.fn(),
+  disconnect: jest.fn(),
+  io: {
+    on: jest.fn(),
+  },
+};
+
+const mockIo = jest.fn(() => mockSocket);
+
+jest.mock("socket.io-client", () => ({
+  io: (...args: unknown[]) => mockIo(...args),
+}));
+
+jest.mock("@/app/lib/api/confessions", () => ({
+  getConfessionById: jest.fn(),
+}));
+
+jest.mock("@/app/lib/config", () => ({
+  getWsUrl: () => "ws://localhost:5000",
+}));
+
 const mockAddReaction = addReaction as jest.MockedFunction<typeof addReaction>;
+const mockGetConfessionById = getConfessionById as jest.MockedFunction<
+  typeof getConfessionById
+>;
+
+function triggerSocketEvent(event: string, ...args: unknown[]) {
+  mockSocketHandlers[event]?.(...args);
+}
+
+function triggerManagerEvent(event: string, ...args: unknown[]) {
+  mockManagerHandlers[event]?.(...args);
+}
 
 function buildConfession(reactions = { like: 2, love: 1 }) {
   return {
@@ -72,7 +110,23 @@ function seedConfessionCache(queryClient: QueryClient) {
 
 describe("useReactions", () => {
   beforeEach(() => {
+    mockSocketHandlers = {};
+    mockManagerHandlers = {};
     jest.clearAllMocks();
+
+    mockIo.mockReturnValue(mockSocket);
+    mockSocket.on.mockImplementation((event: string, handler: (...args: unknown[]) => void) => {
+      mockSocketHandlers[event] = handler;
+      return mockSocket;
+    });
+    mockSocket.io.on.mockImplementation((event: string, handler: (...args: unknown[]) => void) => {
+      mockManagerHandlers[event] = handler;
+      return mockSocket.io;
+    });
+    mockGetConfessionById.mockResolvedValue({
+      ok: true,
+      data: buildConfession(),
+    });
   });
 
   it("patches feed/detail caches immediately and avoids broad invalidation when server returns counts", async () => {
@@ -287,5 +341,148 @@ describe("useReactions", () => {
     // The hook skips optimistic update for already-reacted cases
     expect(optimisticList?.pages[0].confessions[0].reactions.like).toBe(2);
     expect(result.current.optimisticState).toBeNull();
+  });
+
+  it("subscribes to the reaction websocket and reports connection state", async () => {
+    const { wrapper } = createTestHarness();
+
+    const { result } = renderHook(
+      () => useReactions({
+        confessionId: "confession-1",
+        initialCounts: { like: 2, love: 1 },
+      }),
+      { wrapper },
+    );
+
+    expect(mockIo).toHaveBeenCalledWith(
+      "ws://localhost:5000/reactions",
+      expect.objectContaining({
+        reconnection: true,
+        reconnectionDelay: 1000,
+        reconnectionDelayMax: 30000,
+      }),
+    );
+
+    await act(async () => {
+      triggerSocketEvent("connect");
+    });
+
+    expect(mockSocket.emit).toHaveBeenCalledWith("subscribe:confession", {
+      confessionId: "confession-1",
+    });
+    expect(result.current.connectionState).toBe("connected");
+
+    await act(async () => {
+      triggerSocketEvent("disconnect");
+    });
+
+    expect(result.current.connectionState).toBe("reconnecting");
+
+    await act(async () => {
+      triggerManagerEvent("reconnect_failed");
+    });
+
+    expect(result.current.connectionState).toBe("disconnected");
+  });
+
+  it("refetches visible reaction counts after reconnect and patches cached confessions", async () => {
+    const { queryClient, wrapper } = createTestHarness();
+    const { listKey, detailKey } = seedConfessionCache(queryClient);
+    mockGetConfessionById.mockResolvedValue({
+      ok: true,
+      data: buildConfession({ like: 8, love: 4 }),
+    });
+
+    const { result } = renderHook(
+      () => useReactions({
+        confessionId: "confession-1",
+        initialCounts: { like: 2, love: 1 },
+      }),
+      { wrapper },
+    );
+
+    await act(async () => {
+      triggerSocketEvent("connect");
+    });
+
+    expect(mockGetConfessionById).not.toHaveBeenCalled();
+
+    await act(async () => {
+      triggerSocketEvent("disconnect");
+      triggerSocketEvent("connect");
+    });
+
+    await waitFor(() => {
+      expect(mockGetConfessionById).toHaveBeenCalledWith("confession-1");
+    });
+
+    const recoveredList =
+      queryClient.getQueryData<InfiniteData<GetConfessionsResult>>(listKey);
+    const recoveredDetail =
+      queryClient.getQueryData<GetConfessionByIdResult>(detailKey);
+
+    expect(recoveredList?.pages[0].confessions[0].reactions).toEqual({
+      like: 8,
+      love: 4,
+    });
+    expect(recoveredDetail?.reactions).toEqual({ like: 8, love: 4 });
+    expect(result.current.liveCounts).toEqual({ like: 8, love: 4 });
+  });
+
+  it("applies duplicate reaction events only once to visible UI state", async () => {
+    const { queryClient, wrapper } = createTestHarness();
+    const { detailKey } = seedConfessionCache(queryClient);
+    const duplicatePayload = {
+      confessionId: "confession-1",
+      reactionId: "reaction-duplicate-1",
+      reactionType: "like",
+      timestamp: "2026-06-18T00:00:00.000Z",
+    };
+
+    const { result } = renderHook(
+      () => useReactions({
+        confessionId: "confession-1",
+        initialCounts: { like: 2, love: 1 },
+      }),
+      { wrapper },
+    );
+
+    await act(async () => {
+      triggerSocketEvent("reaction:added", duplicatePayload);
+      triggerSocketEvent("reaction:added", duplicatePayload);
+    });
+
+    const recoveredDetail =
+      queryClient.getQueryData<GetConfessionByIdResult>(detailKey);
+
+    expect(recoveredDetail?.reactions).toEqual({ like: 3, love: 1 });
+    expect(result.current.liveCounts).toEqual({ like: 3, love: 1 });
+  });
+
+  it("applies authoritative confession updated counts from the socket", async () => {
+    const { queryClient, wrapper } = createTestHarness();
+    const { detailKey } = seedConfessionCache(queryClient);
+
+    const { result } = renderHook(
+      () => useReactions({
+        confessionId: "confession-1",
+        initialCounts: { like: 2, love: 1 },
+      }),
+      { wrapper },
+    );
+
+    await act(async () => {
+      triggerSocketEvent("confession:updated", {
+        confessionId: "confession-1",
+        reactionCounts: { like: 12, love: 5 },
+        timestamp: "2026-06-18T00:00:01.000Z",
+      });
+    });
+
+    const recoveredDetail =
+      queryClient.getQueryData<GetConfessionByIdResult>(detailKey);
+
+    expect(recoveredDetail?.reactions).toEqual({ like: 12, love: 5 });
+    expect(result.current.liveCounts).toEqual({ like: 12, love: 5 });
   });
 });
