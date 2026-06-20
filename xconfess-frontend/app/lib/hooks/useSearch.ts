@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { buildSearchProxyParams } from "@/app/lib/search/searchParams";
 import type { SearchConfession, SearchFilters } from "@/app/lib/types/search";
 import { logError } from "@/app/lib/utils/errorHandler";
 
@@ -107,7 +108,7 @@ function userMessageForSearchFailure(status: number | null): string {
 async function fetchSearchWithRetry(
   url: string,
   signal: AbortSignal,
-  onRetrying: (retrying: boolean) => void
+  onRetrying: (retrying: boolean) => void,
 ): Promise<Record<string, unknown>> {
   for (let attempt = 0; attempt < SEARCH_MAX_RETRIES; attempt++) {
     if (signal.aborted) {
@@ -133,7 +134,7 @@ async function fetchSearchWithRetry(
           {
             url: "/api/confessions/search",
             attempt: attempt + 1,
-          }
+          },
         );
       } else {
         logError(fetchErr, "useSearch", {
@@ -161,7 +162,7 @@ async function fetchSearchWithRetry(
           url: "/api/confessions/search",
           httpStatus: res.status,
           attempt: attempt + 1,
-        }
+        },
       );
     } else {
       logError(new Error(`search_upstream_${res.status}`), "useSearch", {
@@ -197,9 +198,8 @@ export function useSearch({
   const [isLoading, setIsLoading] = useState(false);
   const [isRetrying, setIsRetrying] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [statusMeta, setStatusMeta] = useState<UseSearchResult["statusMeta"]>(
-    null
-  );
+  const [statusMeta, setStatusMeta] =
+    useState<UseSearchResult["statusMeta"]>(null);
   const [retryTick, setRetryTick] = useState(0);
   const abortRef = useRef<AbortController | null>(null);
   const accumulatedRef = useRef<SearchConfession[]>([]);
@@ -234,18 +234,12 @@ export function useSearch({
     const { signal } = abortRef.current;
 
     const append = page > 1;
-    const params = new URLSearchParams();
-    params.set("page", String(page));
-    params.set("limit", "10");
-    params.set("sort", filters.sort);
-
-    if (debouncedQuery.trim()) params.set("q", debouncedQuery.trim());
-    if (filters.dateFrom) params.set("dateFrom", filters.dateFrom);
-    if (filters.dateTo) params.set("dateTo", filters.dateTo);
-    if (filters.minReactions != null && filters.minReactions > 0) {
-      params.set("minReactions", String(filters.minReactions));
-    }
-    if (filters.gender) params.set("gender", filters.gender);
+    const params = buildSearchProxyParams({
+      query: debouncedQuery,
+      filters,
+      page,
+      limit: 10,
+    });
 
     if (page === 1) accumulatedRef.current = [];
     setIsLoading(true);
@@ -260,7 +254,7 @@ export function useSearch({
           signal,
           (retrying) => {
             if (!cancelled) setIsRetrying(retrying);
-          }
+          },
         );
 
         if (cancelled) return;
@@ -271,7 +265,7 @@ export function useSearch({
         const warnings = Array.isArray(data.warnings)
           ? data.warnings.filter(
               (entry: unknown) =>
-                typeof entry === "string" && entry.trim().length > 0
+                typeof entry === "string" && entry.trim().length > 0,
             )
           : [];
         const partial = Boolean(data.partial);
@@ -309,7 +303,7 @@ export function useSearch({
                 warnings,
                 searchType,
               }
-            : null
+            : null,
         );
       } catch (e: unknown) {
         if (e instanceof DOMException && e.name === "AbortError") return;
@@ -328,7 +322,7 @@ export function useSearch({
                 warnings: [],
                 searchType: "error",
               }
-            : null
+            : null,
         );
 
         if (page === 1) {
