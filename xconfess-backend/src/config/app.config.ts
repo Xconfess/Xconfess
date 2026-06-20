@@ -12,6 +12,7 @@ export default registerAs('app', () => ({
   backendUrl: process.env.BACKEND_URL ?? '',
   appSecret: process.env.APP_SECRET ?? '',
   confessionEncryptionKey: process.env.CONFESSION_ENCRYPTION_KEY ?? '',
+  confessionAesKey: process.env.CONFESSION_AES_KEY ?? '',
 
   /**
    * Search observability settings.
