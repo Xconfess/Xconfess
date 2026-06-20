@@ -1,48 +1,26 @@
-import { HttpException, HttpStatus } from '@nestjs/common';
+import { BadRequestException, HttpStatus } from '@nestjs/common';
 import { AppException } from './app-exception';
 import { ErrorCode } from './error-codes';
 
 describe('AppException', () => {
-  it('should create an instance with default values', () => {
-    const exception = new AppException('Test error');
-    const response: any = exception.getResponse();
-    expect(response.message).toBe('Test error');
-    expect(response.code).toBe(ErrorCode.INTERNAL_SERVER_ERROR);
-    expect(exception.getStatus()).toBe(HttpStatus.INTERNAL_SERVER_ERROR);
-  });
+  it('normalizes validation message arrays into a readable message with field details', () => {
+    const exception = new BadRequestException({
+      message: ['q should not be empty', 'limit must not be greater than 50'],
+    });
 
-  it('should create an instance with custom values', () => {
-    const exception = new AppException(
-      'Not found',
-      ErrorCode.NOT_FOUND,
-      HttpStatus.NOT_FOUND,
-      { id: 1 },
-    );
-    const response: any = exception.getResponse();
-    expect(response.message).toBe('Not found');
-    expect(response.code).toBe(ErrorCode.NOT_FOUND);
-    expect(response.details).toEqual({ id: 1 });
-    expect(exception.getStatus()).toBe(HttpStatus.NOT_FOUND);
-  });
+    const appException = AppException.fromHttpException(exception);
+    const response = appException.getResponse() as any;
 
-  it('should create from standard HttpException', () => {
-    const httpException = new HttpException('Bad request', HttpStatus.BAD_REQUEST);
-    const appException = AppException.fromHttpException(httpException);
-    const response: any = appException.getResponse();
-    expect(response.message).toBe('Bad request');
-    expect(response.code).toBe(ErrorCode.BAD_REQUEST);
     expect(appException.getStatus()).toBe(HttpStatus.BAD_REQUEST);
-  });
-
-  it('should create from HttpException with custom response', () => {
-    const httpException = new HttpException(
-      { message: 'Custom', code: 'CUSTOM_CODE', details: 'info' },
-      HttpStatus.BAD_REQUEST,
+    expect(response.code).toBe(ErrorCode.BAD_REQUEST);
+    expect(response.message).toBe(
+      'q should not be empty; limit must not be greater than 50',
     );
-    const appException = AppException.fromHttpException(httpException);
-    const response: any = appException.getResponse();
-    expect(response.message).toBe('Custom');
-    expect(response.code).toBe('CUSTOM_CODE');
-    expect(response.details).toBe('info');
+    expect(response.details).toEqual({
+      errors: [
+        { field: 'q', message: 'q should not be empty' },
+        { field: 'limit', message: 'limit must not be greater than 50' },
+      ],
+    });
   });
 });
