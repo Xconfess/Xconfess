@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
-import * as request from 'supertest';
+import request from 'supertest';
 import { AppModule } from './../src/app.module';
 import { HttpExceptionFilter } from './../src/common/filters/http-exception.filter';
 import { ThrottlerExceptionFilter } from './../src/common/filters/throttler-exception.filter';
@@ -62,6 +62,23 @@ describe('API Error Contract (e2e)', () => {
 
       expectErrorEnvelope(response, 400);
       expect(response.body.code).toBe('BAD_REQUEST');
+    });
+
+    it('should return field-level search validation errors in the standard envelope', async () => {
+      const response = await request(app.getHttpServer())
+        .get('/confessions/search')
+        .query({ q: '   ', limit: 51 });
+
+      expectErrorEnvelope(response, 400);
+      expect(response.body.code).toBe('BAD_REQUEST');
+      expect(response.body.details).toEqual(
+        expect.objectContaining({
+          errors: expect.arrayContaining([
+            expect.objectContaining({ field: 'q' }),
+            expect.objectContaining({ field: 'limit' }),
+          ]),
+        }),
+      );
     });
   });
 
@@ -136,7 +153,11 @@ describe('API Error Contract (e2e)', () => {
       // This verifies the structure of rate limit error responses
       const response = await request(app.getHttpServer())
         .post('/reactions')
-        .send({ confessionId: 'test-id', anonymousUserId: 'test-user', emoji: 'like' });
+        .send({
+          confessionId: 'test-id',
+          anonymousUserId: 'test-user',
+          emoji: 'like',
+        });
       // The endpoint may return 404 (route exists but validation fails) or other status
       // Key point: any 429 response should have the predictable envelope
       expect(response.body).toHaveProperty('status');
