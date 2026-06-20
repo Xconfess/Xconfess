@@ -3,6 +3,8 @@ import {
   IsString,
   IsNotEmpty,
   MinLength,
+  MaxLength,
+  Matches,
   IsOptional,
   IsInt,
   Min,
@@ -24,15 +26,65 @@ export enum SortBy {
   RELEVANCE = 'relevance',
 }
 
+export const SEARCH_QUERY_MAX_LENGTH = 100;
+export const SEARCH_QUERY_PATTERN = /^[\p{L}\p{N}\s.,!?'"#@&()_:-]+$/u;
+
+type TransformValue = { value: unknown };
+
+const trimString = ({ value }: TransformValue): unknown =>
+  typeof value === 'string' ? value.trim() : value;
+
+const toInteger = ({ value }: TransformValue): unknown => {
+  if (typeof value === 'number') {
+    return value;
+  }
+
+  if (typeof value === 'string') {
+    return parseInt(value, 10);
+  }
+
+  return value;
+};
+
+const toStringArray = ({ value }: TransformValue): string[] => {
+  if (typeof value === 'string') {
+    return value
+      .split(',')
+      .map((tag) => tag.trim())
+      .filter((tag) => tag.length > 0);
+  }
+
+  if (Array.isArray(value)) {
+    return value.filter((tag): tag is string => typeof tag === 'string');
+  }
+
+  return [];
+};
+
+const toBoolean = ({ value }: TransformValue): boolean => {
+  if (typeof value === 'string') {
+    return value === 'true';
+  }
+
+  return value === true;
+};
+
 export class SearchConfessionDto {
   @ApiProperty({
     description: 'Search query string',
     example: 'work stress',
     minLength: 1,
+    maxLength: SEARCH_QUERY_MAX_LENGTH,
   })
+  @Transform(trimString)
   @IsString()
   @IsNotEmpty()
   @MinLength(1)
+  @MaxLength(SEARCH_QUERY_MAX_LENGTH)
+  @Matches(SEARCH_QUERY_PATTERN, {
+    message:
+      'q can only contain letters, numbers, spaces, and common punctuation',
+  })
   q: string;
 
   @ApiPropertyOptional({
@@ -42,7 +94,7 @@ export class SearchConfessionDto {
     default: 1,
   })
   @IsOptional()
-  @Transform(({ value }) => parseInt(value))
+  @Transform(toInteger)
   @IsInt()
   @Min(1)
   page?: number = 1;
@@ -55,7 +107,7 @@ export class SearchConfessionDto {
     default: 10,
   })
   @IsOptional()
-  @Transform(({ value }) => parseInt(value))
+  @Transform(toInteger)
   @IsInt()
   @Min(1)
   @Max(50)
@@ -88,7 +140,9 @@ export class SearchConfessionDto {
   @IsOptional()
   @Type(() => Date)
   @IsDate()
-  @ValidateIf((o) => o.startDate !== undefined)
+  @ValidateIf(
+    (o: Pick<SearchConfessionDto, 'startDate'>) => o.startDate !== undefined,
+  )
   endDate?: Date;
 
   @ApiPropertyOptional({
@@ -97,7 +151,7 @@ export class SearchConfessionDto {
     minimum: 0,
   })
   @IsOptional()
-  @Transform(({ value }) => parseInt(value))
+  @Transform(toInteger)
   @IsNumber()
   @Min(0)
   minReactions?: number;
@@ -108,10 +162,13 @@ export class SearchConfessionDto {
     minimum: 0,
   })
   @IsOptional()
-  @Transform(({ value }) => parseInt(value))
+  @Transform(toInteger)
   @IsNumber()
   @Min(0)
-  @ValidateIf((o) => o.minReactions !== undefined)
+  @ValidateIf(
+    (o: Pick<SearchConfessionDto, 'minReactions'>) =>
+      o.minReactions !== undefined,
+  )
   maxReactions?: number;
 
   @ApiPropertyOptional({
@@ -120,7 +177,7 @@ export class SearchConfessionDto {
     minimum: 0,
   })
   @IsOptional()
-  @Transform(({ value }) => parseInt(value))
+  @Transform(toInteger)
   @IsNumber()
   @Min(0)
   minViews?: number;
@@ -131,10 +188,12 @@ export class SearchConfessionDto {
     minimum: 0,
   })
   @IsOptional()
-  @Transform(({ value }) => parseInt(value))
+  @Transform(toInteger)
   @IsNumber()
   @Min(0)
-  @ValidateIf((o) => o.minViews !== undefined)
+  @ValidateIf(
+    (o: Pick<SearchConfessionDto, 'minViews'>) => o.minViews !== undefined,
+  )
   maxViews?: number;
 
   @ApiPropertyOptional({
@@ -145,15 +204,7 @@ export class SearchConfessionDto {
   @IsOptional()
   @IsArray()
   @IsString({ each: true })
-  @Transform(({ value }) => {
-    if (typeof value === 'string') {
-      return value
-        .split(',')
-        .map((tag) => tag.trim())
-        .filter((tag) => tag.length > 0);
-    }
-    return Array.isArray(value) ? value : [];
-  })
+  @Transform(toStringArray)
   tags?: string[];
 
   @ApiPropertyOptional({
@@ -162,12 +213,7 @@ export class SearchConfessionDto {
     default: false,
   })
   @IsOptional()
-  @Transform(({ value }) => {
-    if (typeof value === 'string') {
-      return value === 'true';
-    }
-    return value === true;
-  })
+  @Transform(toBoolean)
   @IsBoolean()
   anonymousOnly?: boolean;
 
@@ -187,12 +233,7 @@ export class SearchConfessionDto {
     default: false,
   })
   @IsOptional()
-  @Transform(({ value }) => {
-    if (typeof value === 'string') {
-      return value === 'true';
-    }
-    return value === true;
-  })
+  @Transform(toBoolean)
   @IsBoolean()
   requiresReview?: boolean;
 
