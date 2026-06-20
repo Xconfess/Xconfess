@@ -3,9 +3,9 @@
 ## Overview
 
 Use this guide to prepare local data for the Wave 5 walkthrough in
-[`docs/DEMO_SCRIPT.md`](./DEMO_SCRIPT.md). The repository does not currently
-include a one-shot demo seed script, so prepare the dataset with the local
-stack, the UI, and the existing backend API/database surfaces listed below.
+[`docs/DEMO_SCRIPT.md`](./DEMO_SCRIPT.md). The backend includes a one-shot demo seed script for the local stack. Use it
+after the database schema exists to create the standard users, feed content,
+comments, reactions, and sample tip rows used by the walkthrough.
 
 Keep all data local and disposable. Do not use production exports, real user
 content, live private keys, or private URLs in demo records.
@@ -50,49 +50,54 @@ content, live private keys, or private URLs in demo records.
    ./scripts/smoke-test.sh
    ```
 
-## Running Seed Scripts
+## Running the Demo Seed
 
-There is no dedicated demo-data seed command in `package.json` or
-`xconfess-backend/package.json` at the time of writing. Relevant existing
-helpers are:
+Run the seed after the database schema exists. With the default local env copied
+from `xconfess-backend/.env.example`, the command is:
 
-- `compose.yaml` for local Postgres and Redis.
-- `xconfess-backend/.env.example` for local database and Redis settings.
-- `xconfess-backend/data-source.ts` plus `xconfess-backend/migrations/` for
-  TypeORM migration setup.
-- `scripts/smoke-test.sh` for confirming the local frontend and backend are up.
-- Backend Swagger at `http://localhost:5000/api/api-docs` after the backend
-  starts.
+```bash
+npm run seed:demo --workspace=xconfess-backend
+```
 
-For a clean local demo, reset the Docker volume if needed, then recreate the
-schema with `TYPEORM_SYNCHRONIZE=true` in `xconfess-backend/.env`.
+The command is safe to re-run. Existing demo users and confessions are updated,
+and reaction/comment rows that already exist are skipped. If the database cannot
+be reached or the local confession AES key is not exactly 32 characters, the
+command exits non-zero.
+
+## Demo Credentials
+
+All seeded accounts use the local-only password `Wave5DemoPass!2026`.
+
+| Role         | Username       | Email                       |
+| ------------ | -------------- | --------------------------- |
+| Regular user | `wave5_user`   | `wave5-user@example.test`   |
+| Regular user | `wave5_friend` | `wave5-friend@example.test` |
+| Admin        | `wave5_admin`  | `wave5-admin@example.test`  |
 
 ## Minimum Demo Dataset
 
 Prepare at least:
 
-| Area          | Minimum records                                               | How to create                                                                                |
-| ------------- | ------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| Users         | 1 regular user, 1 admin user                                  | UI/API, then promote admin locally in DB                                                     |
-| Confessions   | 3 visible confessions with distinct text and tags             | UI or `POST /api/confessions`                                                                |
-| Reactions     | 2 reactions on one confession and 1 reaction on another       | UI or `POST /api/reactions`                                                                  |
-| Comments      | 2 top-level comments and 1 reply                              | UI or `POST /api/comments/:confessionId`                                                     |
-| Reports       | 1 pending report tied to a visible confession                 | UI or report API                                                                             |
-| Notifications | 2 notifications for the regular user, one unread and one read | Direct DB insert                                                                             |
-| Tips          | 1 verified or pending local tip tied to a confession          | Direct DB insert, or `POST /api/confessions/:id/tips/verify` with a real testnet transaction |
+| Area        | Minimum records                                         | How to create                                    |
+| ----------- | ------------------------------------------------------- | ------------------------------------------------ |
+| Users       | 2 regular users, 1 admin user                           | `npm run seed:demo --workspace=xconfess-backend` |
+| Confessions | 3 visible confessions with distinct demo text           | `npm run seed:demo --workspace=xconfess-backend` |
+| Reactions   | 2 reactions on one confession and 1 reaction on another | `npm run seed:demo --workspace=xconfess-backend` |
+| Comments    | 2 top-level comments and 1 nested reply                 | `npm run seed:demo --workspace=xconfess-backend` |
+| Tips        | 1 verified sample tip and 1 pending sample tip          | `npm run seed:demo --workspace=xconfess-backend` |
 
 ## UI-Created Data
 
-Use the UI for the records that the Wave 5 demo is meant to exercise directly:
+Use the UI for extra records that the Wave 5 demo is meant to exercise beyond the seeded baseline:
 
 1. Register or log in as a regular user at `http://localhost:3000`.
 2. Create at least three confessions from the composer.
 3. Add reactions from the feed or confession detail page.
 4. Add comments and one nested reply from a confession detail page.
 5. Report one confession from the regular user session.
-6. Register or log in as the future admin user.
+6. Log in as the seeded admin user if you need the admin review walkthrough.
 
-Promote the admin user only in your local database:
+If you created an extra admin account manually, promote it only in your local database:
 
 ```sql
 UPDATE "user"
