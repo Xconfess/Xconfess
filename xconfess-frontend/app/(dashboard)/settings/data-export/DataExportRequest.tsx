@@ -18,7 +18,7 @@ const FOCUS_RECOVERY_DELAY = 1000;
 const CONFLICT_STATUS = 409;
 
 export default function DataExportRequest() {
-  const { addToast } = useGlobalToast();
+  const { success, error: showError, info } = useGlobalToast();
   const [history, setHistory] = useState<DataExportHistoryItem[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(true);
   const [requestingExport, setRequestingExport] = useState(false);
@@ -50,12 +50,17 @@ export default function DataExportRequest() {
         ? 'Your data export failed. Please try again.'
         : `Export status changed to ${newStatus.toLowerCase()}`;
       
-      // Use toast notification here - would need to integrate with toast system
-      addToast(message, newStatus === 'READY' ? 'success' : newStatus === 'FAILED' ? 'error' : 'info');
+      if (newStatus === 'READY') {
+        success(message);
+      } else if (newStatus === 'FAILED') {
+        showError(message);
+      } else {
+        info(message);
+      }
       
       setLastNotifiedStatus((prev: Record<string, DataExportStatus>) => ({ ...prev, [jobId]: newStatus }));
     }
-  }, [addToast]);
+  }, [success, showError, info]);
 
   const loadHistory = useCallback(async (isRefresh = false) => {
     if (isRefresh) {
@@ -66,6 +71,7 @@ export default function DataExportRequest() {
 
     try {
       const data = await dataExportApi.getHistory();
+      const previousStatuses = lastNotifiedStatus;
       setHistory(data.history);
       setError(null);
       
@@ -80,13 +86,20 @@ export default function DataExportRequest() {
         localStorage.removeItem(STORAGE_KEY);
       }
       
-      // Check for status changes to show notifications
-      activeJobs.forEach((job: DataExportHistoryItem) => {
-        const prevStatus = lastNotifiedStatus[job.id];
+      // Check all jobs so ready, failed, and expired transitions are surfaced.
+      data.history.forEach((job: DataExportHistoryItem) => {
+        const prevStatus = previousStatuses[job.id];
         if (prevStatus && prevStatus !== job.status) {
           handleStatusChange(job.id, job.status, prevStatus);
         }
       });
+
+      setLastNotifiedStatus(
+        data.history.reduce<Record<string, DataExportStatus>>((statuses, job) => {
+          statuses[job.id] = job.status;
+          return statuses;
+        }, {}),
+      );
       
     } catch {
       setError('Failed to load data export history. Please try again.');
@@ -100,26 +113,37 @@ export default function DataExportRequest() {
   }, [lastNotifiedStatus, handleStatusChange]);
 
   useEffect(() => {
-    // Restore active job from localStorage on mount
+    // Restore active job from localStorage on mount.
     const savedJobId = localStorage.getItem(STORAGE_KEY);
-    
+
     const initialize = async () => {
-      await loadHistory();
-      
-      // If we had a saved job ID, check if it's still active
+      const data = await dataExportApi.getHistory();
+      setHistory(data.history);
+      setLastNotifiedStatus(
+        data.history.reduce<Record<string, DataExportStatus>>((statuses, job) => {
+          statuses[job.id] = job.status;
+          return statuses;
+        }, {}),
+      );
+      setError(null);
+      setLoadingHistory(false);
+
       if (savedJobId) {
-        const hasActiveJob = history.some((item: DataExportHistoryItem) => 
-          item.id === savedJobId && (item.status === 'PENDING' || item.status === 'PROCESSING')
+        const hasActiveJob = data.history.some((item: DataExportHistoryItem) =>
+          item.id === savedJobId && (item.status === 'PENDING' || item.status === 'PROCESSING'),
         );
-        
+
         if (!hasActiveJob) {
           localStorage.removeItem(STORAGE_KEY);
         }
       }
     };
-    
-    initialize();
-  }, [loadHistory, history]);
+
+    initialize().catch(() => {
+      setError('Failed to load data export history. Please try again.');
+      setLoadingHistory(false);
+    });
+  }, []);
 
   const hasInProgressJob = useMemo(
     () => history.some((item: DataExportHistoryItem) => item.status === 'PENDING' || item.status === 'PROCESSING'),
@@ -206,7 +230,7 @@ export default function DataExportRequest() {
       if (response.requestId) {
         localStorage.setItem(STORAGE_KEY, response.requestId);
       }
-      addToast('Export request submitted successfully!', 'success');
+      success('Export request submitted successfully!');
       await loadHistory(true);
     } catch (err: unknown) {
       const status = (err as { status?: number; response?: { status?: number } })?.status
@@ -214,7 +238,7 @@ export default function DataExportRequest() {
 
       if (status === CONFLICT_STATUS) {
         // Server already has an active job for this user — sync UI state.
-        addToast('An export is already in progress. Check the status below.', 'info');
+        info('An export is already in progress. Check the status below.');
         await loadHistory(true);
       } else {
         setError('Unable to request a new archive right now. Please try again shortly.');
@@ -291,7 +315,9 @@ export default function DataExportRequest() {
       return 'Secure link expired. Request a new export link.';
     }
     if (item.status === 'FAILED') {
-      return 'Generation failed. Request a new export to retry.';
+      return item.progress?.lastFailureReason
+        ? `Generation failed: ${item.progress.lastFailureReason}`
+        : 'Generation failed. Request a new export to retry.';
     }
     return 'Archive retained for 24 hours once complete.';
   };
@@ -433,7 +459,11 @@ export default function DataExportRequest() {
       {latest?.status === 'FAILED' && (
         <div className="mt-4 flex items-center gap-2 text-red-600 text-sm">
           <AlertCircle size={16} />
-          <span>Something went wrong. Please try again in a few minutes.</span>
+          <span>
+            {latest.progress?.lastFailureReason
+              ? `Latest export failed: ${latest.progress.lastFailureReason}`
+              : 'Something went wrong. Please try again in a few minutes.'}
+          </span>
         </div>
       )}
     </div>
