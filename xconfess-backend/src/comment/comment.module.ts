@@ -8,11 +8,13 @@ import { AnonymousContextMiddleware } from '../middleware/anonymous-context.midd
 import { ModerationComment } from './entities/moderation-comment.entity';
 import { OutboxEvent } from '../common/entities/outbox-event.entity';
 import { AnalyticsModule } from '../analytics/analytics.module';
+import { AuditLogModule } from '../audit-log/audit-log.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Comment, ModerationComment, OutboxEvent]),
     AnalyticsModule,
+    AuditLogModule,
   ],
   controllers: [CommentController, CommentAdminController],
   providers: [CommentService],
