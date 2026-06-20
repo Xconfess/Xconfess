@@ -3,6 +3,8 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { DataSource, Repository, UpdateResult } from 'typeorm';
 import { AnalyticsService } from '../analytics/analytics.service';
+import { AuditActionType } from '../audit-log/audit-log.entity';
+import { AuditLogService } from '../audit-log/audit-log.service';
 import { OutboxEvent } from '../common/entities/outbox-event.entity';
 import { AnonymousConfession } from '../confession/entities/confession.entity';
 import { CommentService } from './comment.service';
@@ -611,6 +613,72 @@ describe('CommentService – analytics cache invalidation', () => {
       await Promise.resolve();
       expect(analyticsService.invalidateTrendingCache).toHaveBeenCalledWith(
         `comment-moderated:${ModerationStatus.REJECTED}`,
+      );
+    });
+
+    it('writes an audit log with comment id and moderator after approval', async () => {
+      const modEntry = {
+        comment: { id: 12 },
+        status: ModerationStatus.PENDING,
+      } as any;
+      const modRepoValue = {
+        findOne: jest.fn().mockResolvedValue(modEntry),
+        save: jest.fn().mockResolvedValue({
+          ...modEntry,
+          status: ModerationStatus.APPROVED,
+        }),
+      };
+      const auditLogService = {
+        log: jest.fn().mockResolvedValue(undefined),
+      };
+
+      const module = await Test.createTestingModule({
+        providers: [
+          CommentService,
+          {
+            provide: getRepositoryToken(Comment),
+            useValue: { findOne: jest.fn() },
+          },
+          {
+            provide: getRepositoryToken(AnonymousConfession),
+            useValue: { findOne: jest.fn() },
+          },
+          {
+            provide: getRepositoryToken(ModerationComment),
+            useValue: modRepoValue,
+          },
+          {
+            provide: getRepositoryToken(OutboxEvent),
+            useValue: { create: jest.fn(), save: jest.fn() },
+          },
+          { provide: DataSource, useValue: { transaction: jest.fn() } },
+          { provide: AnalyticsService, useValue: analyticsService },
+          { provide: AuditLogService, useValue: auditLogService },
+        ],
+      }).compile();
+
+      service = module.get(CommentService);
+      await service.moderateComment(12, ModerationStatus.APPROVED, moderator);
+
+      expect(auditLogService.log).toHaveBeenCalledWith(
+        expect.objectContaining({
+          actionType: AuditActionType.MODERATION_OVERRIDE,
+          metadata: expect.objectContaining({
+            entityType: 'comment',
+            entityId: '12',
+            commentId: '12',
+            moderationStatus: ModerationStatus.APPROVED,
+            previousStatus: ModerationStatus.PENDING,
+          }),
+          context: expect.objectContaining({
+            userId: moderator.id,
+            actor: expect.objectContaining({
+              type: 'admin',
+              id: String(moderator.id),
+              userId: String(moderator.id),
+            }),
+          }),
+        }),
       );
     });
 
