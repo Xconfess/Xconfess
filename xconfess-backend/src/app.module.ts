@@ -28,6 +28,7 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { EncryptionModule } from './encryption/encryption.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { DatabaseModule } from './database/database.module';
+import { ConfessionDraftModule } from './confession-draft/confession-draft.module';
 // ✅ Canonical queue stack: @nestjs/bullmq (BullMQ v4 + ioredis)
 // The legacy @nestjs/bull import has been removed. All queues use BullMQ.
 import { BullModule } from '@nestjs/bullmq';
@@ -109,6 +110,7 @@ import { BullModule } from '@nestjs/bullmq';
     UserModule,
     AuthModule,
     ConfessionModule,
+    ConfessionDraftModule,
     SearchDiscoveryModule,
     ReactionModule,
     MessagesModule,
