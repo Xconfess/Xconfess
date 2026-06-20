@@ -1,4 +1,5 @@
 import { getApiBaseUrl } from "@/app/lib/config";
+import { buildBackendSearchParams } from "@/app/lib/search/searchParams";
 import { createApiErrorResponse } from "@/lib/apiErrorHandler";
 
 const BASE_API_URL = getApiBaseUrl();
@@ -24,31 +25,17 @@ function parseBoolean(value: unknown, fallback = false): boolean {
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
-  const q = searchParams.get("q") ?? "";
-  const page = Math.max(1, parseInt(searchParams.get("page") ?? "1", 10) || 1);
-  const limit = Math.max(1, Math.min(50, parseInt(searchParams.get("limit") ?? "10", 10) || 10));
-  const sort = searchParams.get("sort") ?? "newest";
-  const dateFrom = searchParams.get("dateFrom") ?? undefined;
-  const dateTo = searchParams.get("dateTo") ?? undefined;
-  const minReactions = searchParams.get("minReactions") ?? undefined;
-  const gender = searchParams.get("gender") ?? undefined;
-
-  const backendParams = new URLSearchParams();
-  backendParams.set("page", String(page));
-  backendParams.set("limit", String(limit));
-  backendParams.set("sort", sort);
-  if (q) backendParams.set("q", q);
-  if (dateFrom) backendParams.set("dateFrom", dateFrom);
-  if (dateTo) backendParams.set("dateTo", dateTo);
-  if (minReactions != null && minReactions !== "")
-    backendParams.set("minReactions", minReactions);
-  if (gender) backendParams.set("gender", gender);
+  const backendParams = buildBackendSearchParams(searchParams);
+  const page = parseNumber(backendParams.get("page"), 1);
+  const limit = parseNumber(backendParams.get("limit"), 10);
 
   const searchUrl = `${BASE_API_URL}/confessions/search?${backendParams}`;
 
   try {
     const authHeader = request.headers.get("Authorization");
-    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+    };
     if (authHeader) {
       headers["Authorization"] = authHeader;
     }
@@ -64,7 +51,7 @@ export async function GET(request: Request) {
       return createApiErrorResponse(errData, {
         status: res.status,
         fallbackMessage: `Search failed: ${res.statusText}`,
-        route: "GET /api/confessions/search"
+        route: "GET /api/confessions/search",
       });
     }
 
@@ -114,11 +101,11 @@ export async function GET(request: Request) {
 
     const partial = parseBoolean(
       data.partial ?? data.meta?.partial ?? inferredPartialFromSearchType,
-      false
+      false,
     );
     const degraded = parseBoolean(
       data.degraded ?? data.meta?.degraded,
-      warnings.length > 0
+      warnings.length > 0,
     );
 
     return Response.json({
@@ -144,7 +131,7 @@ export async function GET(request: Request) {
     return createApiErrorResponse(err, {
       status: 503,
       fallbackMessage: "Search service unavailable",
-      route: "GET /api/confessions/search"
+      route: "GET /api/confessions/search",
     });
   }
 }
