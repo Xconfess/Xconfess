@@ -1,12 +1,12 @@
 import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
-import { BullModule, InjectQueue } from '@nestjs/bullmq';
+import { InjectQueue } from '@nestjs/bullmq';
 import { Queue, Worker, Job } from 'bullmq';
 import { ConfigService } from '@nestjs/config';
 import { ConfessionDraftService } from './confession-draft.service';
 
 @Injectable()
 export class ConfessionDraftQueue implements OnModuleDestroy {
-  private readonly worker: Worker;
+  private readonly worker?: Worker;
   private readonly logger = new Logger(ConfessionDraftQueue.name);
 
   constructor(
@@ -15,6 +15,13 @@ export class ConfessionDraftQueue implements OnModuleDestroy {
     @InjectQueue('confession-draft-publisher')
     private readonly queue: Queue,
   ) {
+    if (this.configService.get<string>('ENABLE_BACKGROUND_JOBS') !== 'true') {
+      this.logger.log(
+        'Confession draft publisher disabled because ENABLE_BACKGROUND_JOBS is not true',
+      );
+      return;
+    }
+
     const redisConfig = {
       host: this.configService.get('REDIS_HOST', 'localhost'),
       port: this.configService.get('REDIS_PORT', 6379),
@@ -87,7 +94,7 @@ export class ConfessionDraftQueue implements OnModuleDestroy {
   }
 
   async onModuleDestroy() {
-    await this.worker.close();
+    await this.worker?.close();
     await this.queue.close();
   }
 }
