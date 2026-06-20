@@ -3,10 +3,13 @@ import {
   Injectable,
   Logger,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
 import { AnalyticsService } from '../analytics/analytics.service';
+import { AuditActionType } from '../audit-log/audit-log.entity';
+import { AuditLogService } from '../audit-log/audit-log.service';
 import {
   OutboxEvent,
   OutboxStatus,
@@ -50,6 +53,8 @@ export class CommentService {
     private outboxRepo: Repository<OutboxEvent>,
     private readonly dataSource: DataSource,
     private readonly analyticsService: AnalyticsService,
+    @Optional()
+    private readonly auditLogService?: AuditLogService,
   ) {}
 
   async create(
@@ -128,7 +133,7 @@ export class CommentService {
 
         return savedComment;
       })
-      .then(async (result) => {
+      .then((result) => {
         // Invalidate trending analytics after a new comment lands.
         // Fire-and-forget: cache failures must not roll back the comment write.
         this.analyticsService
@@ -386,6 +391,26 @@ export class CommentService {
     moderation.moderatedBy = moderator;
     moderation.moderatedById = moderator.id;
     await this.moderationCommentRepo.save(moderation);
+
+    await this.auditLogService?.log({
+      actionType: AuditActionType.MODERATION_OVERRIDE,
+      metadata: {
+        entityType: 'comment',
+        entityId: String(commentId),
+        commentId: String(commentId),
+        moderationStatus: status,
+        previousStatus: ModerationStatus.PENDING,
+      },
+      context: {
+        userId: moderator.id,
+        actor: {
+          type: 'admin',
+          id: String(moderator.id),
+          userId: String(moderator.id),
+          source: 'comment-admin-controller',
+        },
+      },
+    });
 
     // Moderation changes which comments are publicly visible, directly
     // affecting trending scores and platform stats.
