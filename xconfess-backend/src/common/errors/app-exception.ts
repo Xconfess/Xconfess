@@ -4,7 +4,13 @@ import { ErrorCode } from './error-codes';
 export interface AppExceptionResponse {
   message: string;
   code: ErrorCode;
-  details?: any;
+  details?: unknown;
+}
+
+interface HttpExceptionObjectResponse {
+  message?: string | string[];
+  code?: ErrorCode;
+  details?: unknown;
 }
 
 export class AppException extends HttpException {
@@ -12,23 +18,33 @@ export class AppException extends HttpException {
     message: string,
     code: ErrorCode = ErrorCode.INTERNAL_SERVER_ERROR,
     status: HttpStatus = HttpStatus.INTERNAL_SERVER_ERROR,
-    details?: any,
+    details?: unknown,
   ) {
     super({ message, code, details }, status);
   }
 
   static fromHttpException(exception: HttpException): AppException {
     const response = exception.getResponse();
-    const status = exception.getStatus();
+    const status = exception.getStatus() as HttpStatus;
     let message = exception.message;
     let code = ErrorCode.INTERNAL_SERVER_ERROR;
-    let details: any;
+    let details: unknown;
 
     if (typeof response === 'object' && response !== null) {
-      const res = response as any;
-      message = res.message || message;
+      const res = response as HttpExceptionObjectResponse;
+      const responseMessage = res.message;
+      if (Array.isArray(responseMessage)) {
+        const validationMessages = responseMessage.map((item: unknown) =>
+          String(item),
+        );
+        message = validationMessages.join('; ') || message;
+        details =
+          res.details || this.buildValidationDetails(validationMessages);
+      } else {
+        message = responseMessage || message;
+        details = res.details;
+      }
       code = res.code || this.mapStatusToCode(status);
-      details = res.details;
     } else {
       message = typeof response === 'string' ? response : message;
       code = this.mapStatusToCode(status);
@@ -37,7 +53,26 @@ export class AppException extends HttpException {
     return new AppException(message, code as ErrorCode, status, details);
   }
 
-  private static mapStatusToCode(status: number): ErrorCode {
+  private static buildValidationDetails(messages: string[]) {
+    return {
+      errors: messages.map((validationMessage) => ({
+        field: this.extractValidationField(validationMessage),
+        message: validationMessage,
+      })),
+    };
+  }
+
+  private static extractValidationField(message: string): string {
+    const eachValueMatch = message.match(/^each value in ([\w.-]+)\s/);
+    if (eachValueMatch?.[1]) {
+      return eachValueMatch[1];
+    }
+
+    const fieldMatch = message.match(/^([\w.-]+)\s/);
+    return fieldMatch?.[1] || 'request';
+  }
+
+  private static mapStatusToCode(status: HttpStatus): ErrorCode {
     switch (status) {
       case HttpStatus.BAD_REQUEST:
         return ErrorCode.BAD_REQUEST;
