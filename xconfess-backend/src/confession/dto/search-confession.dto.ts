@@ -3,6 +3,7 @@ import {
   IsString,
   IsNotEmpty,
   MinLength,
+  MaxLength,
   IsOptional,
   IsInt,
   Min,
@@ -29,10 +30,12 @@ export class SearchConfessionDto {
     description: 'Search query string',
     example: 'work stress',
     minLength: 1,
+    maxLength: 200,
   })
   @IsString()
   @IsNotEmpty()
   @MinLength(1)
+  @MaxLength(200)
   q: string;
 
   @ApiPropertyOptional({
