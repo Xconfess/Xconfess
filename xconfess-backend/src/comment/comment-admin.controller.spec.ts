@@ -4,9 +4,15 @@ import { CommentService } from './comment.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { AdminGuard } from '../auth/admin.guard';
 import { ModerationStatus } from './entities/moderation-comment.entity';
+import { AuditLogService } from '../audit-log/audit-log.service';
+import { AuditActionType } from '../audit-log/audit-log.entity';
 
 const mockCommentService = {
   moderateComment: jest.fn(),
+};
+
+const mockAuditLogService = {
+  log: jest.fn().mockResolvedValue(undefined),
 };
 
 /**

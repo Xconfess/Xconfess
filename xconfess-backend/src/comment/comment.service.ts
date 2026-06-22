@@ -7,6 +7,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
 import { AnalyticsService } from '../analytics/analytics.service';
+import { AuditLogService, AuditActionType } from '../audit-log/audit-log.service';
 import {
   OutboxEvent,
   OutboxStatus,
@@ -50,6 +51,7 @@ export class CommentService {
     private outboxRepo: Repository<OutboxEvent>,
     private readonly dataSource: DataSource,
     private readonly analyticsService: AnalyticsService,
+    private readonly auditLogService: AuditLogService,
   ) {}
 
   async create(
@@ -386,6 +388,36 @@ export class CommentService {
     moderation.moderatedBy = moderator;
     moderation.moderatedById = moderator.id;
     await this.moderationCommentRepo.save(moderation);
+
+    // Write audit log entry for the moderation action
+    const actionType = status === ModerationStatus.APPROVED
+      ? AuditActionType.COMMENT_APPROVED
+      : AuditActionType.COMMENT_REJECTED;
+    this.auditLogService.log({
+      actionType,
+      metadata: {
+        entityType: 'comment',
+        entityId: String(commentId),
+        commentId: String(commentId),
+        previousStatus: ModerationStatus.PENDING,
+        newStatus: status,
+        moderatedAt: moderation.moderatedAt.toISOString(),
+      },
+      context: {
+        userId: moderator.id,
+        actor: {
+          type: 'admin',
+          id: String(moderator.id),
+          userId: String(moderator.id),
+          label: moderator.username || `admin-${moderator.id}`,
+          source: 'comment-admin-controller',
+        },
+      },
+    }).catch((err: Error) => {
+      this.logger.error(
+        `Failed to write audit log for comment ${status} on comment ${commentId}: ${err.message}`,
+      );
+    });
 
     // Moderation changes which comments are publicly visible, directly
     // affecting trending scores and platform stats.

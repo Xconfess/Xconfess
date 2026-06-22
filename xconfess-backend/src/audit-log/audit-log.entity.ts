@@ -34,6 +34,8 @@ export enum AuditActionType {
   // Moderation
   MODERATION_ESCALATION = 'moderation_escalation',
   MODERATION_OVERRIDE = 'moderation_override',
+  COMMENT_APPROVED = 'comment_approved',
+  COMMENT_REJECTED = 'comment_rejected',
   BULK_ACTION = 'bulk_action',
 
   // User actions
