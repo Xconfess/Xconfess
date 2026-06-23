@@ -4,9 +4,14 @@ import { CommentService } from './comment.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { AdminGuard } from '../auth/admin.guard';
 import { ModerationStatus } from './entities/moderation-comment.entity';
-
+import { AuditLogService } from '../audit-log/audit-log.service';
+import { ForbiddenException } from '@nestjs/common';
 const mockCommentService = {
   moderateComment: jest.fn(),
+};
+
+const mockAuditLogService = {
+  log: jest.fn().mockResolvedValue(undefined),
 };
 
 /**
@@ -20,6 +25,7 @@ async function buildModule() {
     controllers: [CommentAdminController],
     providers: [
       { provide: CommentService, useValue: mockCommentService },
+      { provide: AuditLogService, useValue: mockAuditLogService },
     ],
   })
     .overrideGuard(JwtAuthGuard)
@@ -152,6 +158,64 @@ describe('CommentAdminController', () => {
         (g) => g === AdminGuard || g?.name === 'AdminGuard',
       );
       expect(hasAdmin).toBe(true);
+    });
+  });
+
+  // ── Non-admin rejection ─────────────────────────────────────────────────────
+  //
+  // Verifies that when AdminGuard denies access the controller is never
+  // reached and a ForbiddenException (HTTP 403) propagates.
+  describe('non-admin rejection', () => {
+    const forbidGuard = {
+      canActivate: () => {
+        throw new ForbiddenException();
+      },
+    };
+
+    it('returns 403 when AdminGuard denies access (approve)', async () => {
+      const module: TestingModule = await Test.createTestingModule({
+        controllers: [CommentAdminController],
+        providers: [
+          { provide: CommentService, useValue: mockCommentService },
+          { provide: AuditLogService, useValue: mockAuditLogService },
+        ],
+      })
+        .overrideGuard(JwtAuthGuard)
+        .useValue({ canActivate: () => true })
+        .overrideGuard(AdminGuard)
+        .useValue(forbidGuard)
+        .compile();
+
+      const ctrl = module.get(CommentAdminController);
+      await expect(
+        ctrl.approveComment('1', {
+          user: { id: 99, role: 'user' },
+        } as any),
+      ).rejects.toThrow();
+      expect(mockCommentService.moderateComment).not.toHaveBeenCalled();
+    });
+
+    it('returns 403 when AdminGuard denies access (reject)', async () => {
+      const module: TestingModule = await Test.createTestingModule({
+        controllers: [CommentAdminController],
+        providers: [
+          { provide: CommentService, useValue: mockCommentService },
+          { provide: AuditLogService, useValue: mockAuditLogService },
+        ],
+      })
+        .overrideGuard(JwtAuthGuard)
+        .useValue({ canActivate: () => true })
+        .overrideGuard(AdminGuard)
+        .useValue(forbidGuard)
+        .compile();
+
+      const ctrl = module.get(CommentAdminController);
+      await expect(
+        ctrl.rejectComment('1', {
+          user: { id: 99, role: 'user' },
+        } as any),
+      ).rejects.toThrow();
+      expect(mockCommentService.moderateComment).not.toHaveBeenCalled();
     });
   });
 });

@@ -7,6 +7,8 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
 import { AnalyticsService } from '../analytics/analytics.service';
+import { AuditLogService } from '../audit-log/audit-log.service';
+import { AuditActionType } from '../audit-log/audit-log.entity';
 import {
   OutboxEvent,
   OutboxStatus,
@@ -50,6 +52,7 @@ export class CommentService {
     private outboxRepo: Repository<OutboxEvent>,
     private readonly dataSource: DataSource,
     private readonly analyticsService: AnalyticsService,
+    private readonly auditLogService: AuditLogService,
   ) {}
 
   async create(
@@ -386,6 +389,33 @@ export class CommentService {
     moderation.moderatedBy = moderator;
     moderation.moderatedById = moderator.id;
     await this.moderationCommentRepo.save(moderation);
+
+    // Audit-log the moderation action with comment id and actor.
+    const auditAction =
+      status === ModerationStatus.APPROVED
+        ? AuditActionType.COMMENT_APPROVED
+        : AuditActionType.COMMENT_REJECTED;
+    this.auditLogService
+      .log({
+        actionType: auditAction,
+        metadata: {
+          commentId,
+          entityType: 'comment',
+          entityId: String(commentId),
+          moderationStatus: status,
+          moderatedAt: moderation.moderatedAt.toISOString(),
+        },
+        context: {
+          userId: moderator.id,
+          actor: { type: 'admin', id: String(moderator.id) },
+        },
+      })
+      .catch((err) =>
+        this.logger.error(
+          `Failed to create audit log for comment ${commentId} ${status}: ${err}`,
+          err,
+        ),
+      );
 
     // Moderation changes which comments are publicly visible, directly
     // affecting trending scores and platform stats.
