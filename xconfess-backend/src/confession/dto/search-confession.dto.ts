@@ -3,6 +3,7 @@ import {
   IsString,
   IsNotEmpty,
   MinLength,
+  MaxLength,
   IsOptional,
   IsInt,
   Min,
@@ -13,6 +14,7 @@ import {
   IsEnum,
   IsArray,
   ValidateIf,
+  Matches,
 } from 'class-validator';
 import { Transform, Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
@@ -29,10 +31,16 @@ export class SearchConfessionDto {
     description: 'Search query string',
     example: 'work stress',
     minLength: 1,
+    maxLength: 200,
   })
   @IsString()
   @IsNotEmpty()
   @MinLength(1)
+  @MaxLength(200)
+  @Matches(/^[\p{L}\p{N}\s\-_'".,!?&]+$/u, {
+    message:
+      'Query contains invalid characters. Only letters, numbers, spaces, and basic punctuation are allowed.',
+  })
   q: string;
 
   @ApiPropertyOptional({

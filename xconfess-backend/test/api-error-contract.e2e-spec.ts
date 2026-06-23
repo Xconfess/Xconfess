@@ -144,4 +144,61 @@ describe('API Error Contract (e2e)', () => {
       expect(response.body).toHaveProperty('message');
     });
   });
+
+  describe('400 Search Validation', () => {
+    it('should return 400 with structured error when search query is empty', async () => {
+      const response = await request(app.getHttpServer())
+        .get('/confessions/search')
+        .query({ q: '' });
+
+      expectErrorEnvelope(response, 400);
+      expect(response.body.code).toBe('BAD_REQUEST');
+    });
+
+    it('should return 400 with structured error when search query exceeds max length', async () => {
+      const longQuery = 'a'.repeat(201);
+      const response = await request(app.getHttpServer())
+        .get('/confessions/search')
+        .query({ q: longQuery });
+
+      expectErrorEnvelope(response, 400);
+      expect(response.body.code).toBe('BAD_REQUEST');
+    });
+
+    it('should return 400 with structured error when search query has invalid characters', async () => {
+      const response = await request(app.getHttpServer())
+        .get('/confessions/search')
+        .query({ q: '<script>alert(1)</script>' });
+
+      expectErrorEnvelope(response, 400);
+      expect(response.body.code).toBe('BAD_REQUEST');
+    });
+
+    it('should return 400 with structured error when limit exceeds maximum', async () => {
+      const response = await request(app.getHttpServer())
+        .get('/confessions/search')
+        .query({ q: 'test', limit: 100 });
+
+      expectErrorEnvelope(response, 400);
+      expect(response.body.code).toBe('BAD_REQUEST');
+    });
+
+    it('should return 400 with structured error when page is less than 1', async () => {
+      const response = await request(app.getHttpServer())
+        .get('/confessions/search')
+        .query({ q: 'test', page: 0 });
+
+      expectErrorEnvelope(response, 400);
+      expect(response.body.code).toBe('BAD_REQUEST');
+    });
+
+    it('should return 400 with structured error when sortBy is invalid', async () => {
+      const response = await request(app.getHttpServer())
+        .get('/confessions/search')
+        .query({ q: 'test', sortBy: 'invalid_sort' });
+
+      expectErrorEnvelope(response, 400);
+      expect(response.body.code).toBe('BAD_REQUEST');
+    });
+  });
 });
