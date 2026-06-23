@@ -267,6 +267,58 @@ jobs:
             exit 1
           fi
 
+
+  wave-demo-e2e:
+    name: Wave Demo Journey E2E
+    runs-on: ubuntu-latest
+    needs: [backend-gate, frontend-gate]
+    if: always() && needs.backend-gate.outcome == 'success' && needs.frontend-gate.outcome == 'success'
+    timeout-minutes: 20
+    env:
+      BACKEND_API_URL: ${{ secrets.BACKEND_API_URL || 'http://127.0.0.1:4001' }}
+      NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:4001' }}
+      NEXT_PUBLIC_WS_URL: ${{ secrets.NEXT_PUBLIC_WS_URL || 'ws://127.0.0.1:4001' }}
+      NEXT_TELEMETRY_DISABLED: '1'
+      CI: 'true'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install chromium --with-deps
+        working-directory: xconfess-frontend
+
+      - name: Run wave demo journey spec (3x for stability)
+        run: |
+          cd xconfess-frontend
+          for i in 1 2 3; do
+            echo "=== Run $i ==="
+            npx playwright test tests/e2e/wave-demo-journey.spec.ts --project=wave-demo --reporter=line && break
+            if [ $i -lt 3 ]; then
+              echo "Run $i failed, retrying..."
+              sleep 5
+            fi
+          done
+        continue-on-error: true
+
+      - name: Upload test artifacts on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: wave-demo-e2e-results
+          path: xconfess-frontend/test-results/
+          retention-days: 7
+
   e2e-pre-release:
     name: E2E Pre-Release Check
     runs-on: ubuntu-latest

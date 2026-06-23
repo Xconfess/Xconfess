@@ -16,6 +16,12 @@ export default defineConfig({
       use: { ...devices['Desktop Chrome'] },
     },
     {
+      name: 'wave-demo',
+      testMatch: /wave-demo-journey\.spec\.ts/,
+      use: { ...devices['Desktop Chrome'] },
+      timeout: 60_000,
+    },
+    {
       name: 'mobile-portrait',
       use: { ...devices['iPhone SE'] },
     },

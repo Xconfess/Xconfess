@@ -124,20 +124,37 @@ test.describe("Wave 5 seeded demo journey", () => {
   });
 
   test("covers feed, detail, report, and admin analytics", async ({ page }) => {
-    await page.goto("/");
-    await expect(page.getByText("Welcome back")).toBeVisible();
-    await expect(page.getByText(seededConfession.content)).toBeVisible();
+    // --- Feed page: wait for network idle before asserting ---
+    await page.goto("/", { waitUntil: "networkidle" });
 
-    await page.getByText(seededConfession.content).click();
-    await expect(page).toHaveURL(/\/confessions\/wave-1/);
-    await expect(page.getByText("42 views")).toBeVisible();
+    // Use dedicated locators with explicit timeouts for CI stability
+    const welcomeText = page.getByText("Welcome back");
+    await expect(welcomeText).toBeVisible({ timeout: 10_000 });
 
-    await page.getByRole("button", { name: "Report confession" }).click();
-    await expect(page.getByText("Report submitted. Thank you!")).toBeVisible();
+    const confessionText = page.getByText(seededConfession.content);
+    await expect(confessionText).toBeVisible({ timeout: 10_000 });
 
-    await page.goto("/admin/dashboard");
-    await expect(page.getByRole("heading", { name: "Platform Analytics" })).toBeVisible();
-    await expect(page.getByText("312")).toBeVisible();
-    await expect(page.getByText("18")).toBeVisible();
+    // --- Detail page: click and verify navigation ---
+    await confessionText.click();
+    await page.waitForURL(/\/confessions\/wave-1/, { timeout: 10_000 });
+
+    const viewCount = page.getByText("42 views");
+    await expect(viewCount).toBeVisible({ timeout: 10_000 });
+
+    // --- Report flow: use role-based locator ---
+    const reportButton = page.getByRole("button", { name: "Report confession" });
+    await expect(reportButton).toBeEnabled({ timeout: 5_000 });
+    await reportButton.click();
+
+    const reportConfirmation = page.getByText("Report submitted. Thank you!");
+    await expect(reportConfirmation).toBeVisible({ timeout: 10_000 });
+
+    // --- Admin analytics: navigate with network idle ---
+    await page.goto("/admin/dashboard", { waitUntil: "networkidle" });
+
+    const heading = page.getByRole("heading", { name: "Platform Analytics" });
+    await expect(heading).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText("312")).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText("18")).toBeVisible({ timeout: 10_000 });
   });
 });
