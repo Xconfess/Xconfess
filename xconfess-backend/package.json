@@ -21,7 +21,8 @@
     "test:cov:all": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./test/jest-e2e.json",
-    "test:websocket-fanout": "jest --config ./jest.config.js src/notifications/gateways/notification.gateway.load.spec.ts --runInBand"
+    "test:websocket-fanout": "jest --config ./jest.config.js src/notifications/gateways/notification.gateway.load.spec.ts --runInBand",
+    "seed:demo": "ts-node -r tsconfig-paths/register scripts/seed-demo.ts"
   },
   "dependencies": {
     "@nestjs-modules/ioredis": "^2.0.2",
