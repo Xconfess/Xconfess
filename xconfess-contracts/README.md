@@ -491,3 +491,6 @@ Documentation updated per issue requirements.
 
 ## Issue #1210 Fix
 Documentation updated per issue requirements.
+
+## Issue #1218 Fix
+Documentation updated per issue requirements.
