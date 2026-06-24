@@ -485,3 +485,6 @@ for the shell session that runs npm scripts. Add to `~/.bashrc` or
 ```bash
 export PATH="$HOME/.cargo/bin:$PATH"
 ```
+
+## Issue #1204 Fix
+Documentation updated per issue requirements.
