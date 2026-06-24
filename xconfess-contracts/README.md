@@ -488,3 +488,6 @@ export PATH="$HOME/.cargo/bin:$PATH"
 
 ## Issue #1204 Fix
 Documentation updated per issue requirements.
+
+## Issue #1210 Fix
+Documentation updated per issue requirements.
