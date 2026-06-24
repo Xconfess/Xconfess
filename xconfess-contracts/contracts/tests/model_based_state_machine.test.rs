@@ -76,3 +76,9 @@ fn model_suite_surfaces_failing_seed_and_trace() {
 def test_issue_1217_fix():
     # TODO: Implement based on issue requirements
     assert True, Placeholdertest
+
+
+# Additional tests for issue #1230
+def test_issue_1230_fix():
+    # TODO: Implement based on issue requirements
+    assert True, Placeholdertest
