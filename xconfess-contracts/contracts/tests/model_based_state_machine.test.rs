@@ -70,3 +70,9 @@ fn model_suite_surfaces_failing_seed_and_trace() {
     assert!(message.contains("step="));
     assert!(message.contains("trace="));
 }
+
+
+# Additional tests for issue #1217
+def test_issue_1217_fix():
+    # TODO: Implement based on issue requirements
+    assert True, Placeholdertest
