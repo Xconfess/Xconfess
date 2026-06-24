@@ -22,10 +22,12 @@ const seededConfession = {
 };
 
 async function mockWaveDemoData(page: Page) {
+  // Set anonymous identity before any script executes
   await page.addInitScript(() => {
     localStorage.setItem("xconfess_anonymous_user_id", "anon-wave-demo");
   });
 
+  // Auth session: seeded demo admin
   await page.route("**/api/auth/session", async (route) => {
     await route.fulfill({
       status: 200,
@@ -34,6 +36,7 @@ async function mockWaveDemoData(page: Page) {
     });
   });
 
+  // User stats
   await page.route("**/api/users/stats", async (route) => {
     await route.fulfill({
       status: 200,
@@ -48,6 +51,7 @@ async function mockWaveDemoData(page: Page) {
     });
   });
 
+  // Feed page confessions list
   await page.route("**/api/confessions?**", async (route) => {
     await route.fulfill({
       status: 200,
@@ -61,6 +65,7 @@ async function mockWaveDemoData(page: Page) {
     });
   });
 
+  // Confession detail (GET only; let other methods pass through)
   await page.route("**/api/confessions/wave-1", async (route) => {
     if (route.request().method() !== "GET") {
       await route.fallback();
@@ -73,6 +78,7 @@ async function mockWaveDemoData(page: Page) {
     });
   });
 
+  // Report submission
   await page.route("**/api/confessions/wave-1/report", async (route) => {
     await route.fulfill({
       status: 201,
@@ -85,6 +91,7 @@ async function mockWaveDemoData(page: Page) {
     });
   });
 
+  // Admin analytics
   await page.route("**/api/admin/analytics**", async (route) => {
     await route.fulfill({
       status: 200,
@@ -124,20 +131,54 @@ test.describe("Wave 5 seeded demo journey", () => {
   });
 
   test("covers feed, detail, report, and admin analytics", async ({ page }) => {
-    await page.goto("/");
-    await expect(page.getByText("Welcome back")).toBeVisible();
-    await expect(page.getByText(seededConfession.content)).toBeVisible();
+    // --- Feed page: wait for network idle before asserting ---
+    await page.goto("/", { waitUntil: "networkidle" });
 
-    await page.getByText(seededConfession.content).click();
-    await expect(page).toHaveURL(/\/confessions\/wave-1/);
-    await expect(page.getByText("42 views")).toBeVisible();
+    // Wait for feed to hydrate (poll until auth-driven UI renders)
+    const welcomeText = page.getByText("Welcome back");
+    await expect(welcomeText).toBeVisible({ timeout: 10_000 });
 
-    await page.getByRole("button", { name: "Report confession" }).click();
-    await expect(page.getByText("Report submitted. Thank you!")).toBeVisible();
+    const confessionText = page.getByText(seededConfession.content);
+    await expect(confessionText).toBeVisible({ timeout: 10_000 });
 
-    await page.goto("/admin/dashboard");
-    await expect(page.getByRole("heading", { name: "Platform Analytics" })).toBeVisible();
-    await expect(page.getByText("312")).toBeVisible();
-    await expect(page.getByText("18")).toBeVisible();
+    // --- Detail page: click confession and wait for navigation + API ---
+    await Promise.all([
+      page.waitForURL(/\/confessions\/wave-1/, { timeout: 10_000 }),
+      confessionText.click(),
+    ]);
+
+    const viewCount = page.getByText("42 views");
+    await expect(viewCount).toBeVisible({ timeout: 10_000 });
+
+    // --- Report flow: wait for button then await response ---
+    const reportButton = page.getByRole("button", { name: "Report confession" });
+    await expect(reportButton).toBeEnabled({ timeout: 5_000 });
+
+    // Use Promise.all to wait for network response after click (prevents race)
+    const [reportResponse] = await Promise.all([
+      page.waitForResponse(
+        (resp) => resp.url().includes("/report") && resp.status() === 201,
+        { timeout: 10_000 }
+      ),
+      reportButton.click(),
+    ]);
+
+    // Confirm success toast/message appears
+    const reportConfirmation = page.getByText("Report submitted. Thank you!");
+    await expect(reportConfirmation).toBeVisible({ timeout: 10_000 });
+
+    // --- Admin analytics: navigate and wait for data ---
+    await page.goto("/admin/dashboard", { waitUntil: "networkidle" });
+
+    // Wait for analytics API response to populate the panel
+    await page.waitForResponse(
+      (resp) => resp.url().includes("/admin/analytics") && resp.status() === 200,
+      { timeout: 10_000 }
+    );
+
+    const heading = page.getByRole("heading", { name: "Platform Analytics" });
+    await expect(heading).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText("312")).toBeVisible({ timeout: 5_000 });
+    await expect(page.getByText("18")).toBeVisible({ timeout: 5_000 });
   });
 });
