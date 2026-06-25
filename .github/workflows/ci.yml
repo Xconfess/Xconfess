@@ -134,8 +134,11 @@ jobs:
       - name: Run clippy
         run: cargo clippy --workspace --all-targets -- -D warnings
 
-      - name: Test contracts
+      - name: Test contracts (unit)
         run: cargo test --workspace
+
+      - name: Test contracts (integration — local sandbox)
+        run: cargo test --test integration -p confession-anchor -- --nocapture
 
       - name: Upload target directory on failure
         if: failure()

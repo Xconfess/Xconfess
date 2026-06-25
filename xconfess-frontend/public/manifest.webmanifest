@@ -1,0 +1,22 @@
+{
+  "name": "xConfess",
+  "short_name": "xConfess",
+  "description": "Anonymous confessions anchored on Stellar",
+  "start_url": "/",
+  "display": "standalone",
+  "theme_color": "#8f6d3c",
+  "background_color": "#0a0a0a",
+  "icons": [
+    {
+      "src": "/icon-light-32x32.png",
+      "sizes": "32x32",
+      "type": "image/png"
+    },
+    {
+      "src": "/apple-icon.png",
+      "sizes": "180x180",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

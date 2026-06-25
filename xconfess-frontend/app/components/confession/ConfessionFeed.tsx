@@ -1,5 +1,7 @@
 "use client";
 
+import { useRef } from "react";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { ConfessionCard } from "./ConfessionCard";
 import { ConfessionFeedSkeleton } from "./LoadingSkeleton";
 import { useConfessionsQuery } from "../../lib/hooks/useConfessionsQuery";
@@ -14,6 +16,8 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from "@/components/ui/pagination";
+
+const ESTIMATED_CARD_HEIGHT = 300;
 
 export const ConfessionFeed = () => {
   const { page, setPage, limit } = usePaginationState();
@@ -30,6 +34,15 @@ export const ConfessionFeed = () => {
       ? page + 1
       : page;
   const isEmpty = !isLoading && confessions.length === 0;
+
+  const scrollParentRef = useRef<HTMLDivElement>(null);
+  const virtualizer = useVirtualizer({
+    count: confessions.length,
+    getScrollElement: () => scrollParentRef.current,
+    estimateSize: () => ESTIMATED_CARD_HEIGHT,
+    overscan: 3,
+  });
+  const virtualItems = virtualizer.getVirtualItems();
 
   // Retry handler
   const handleRetry = () => {
@@ -138,14 +151,38 @@ export const ConfessionFeed = () => {
         {/* Loading state (skeleton kept inside the reserved space to avoid jumps) */}
         {isLoading && <ConfessionFeedSkeleton />}
 
-        {/* Confessions Grid */}
+        {/* Confessions — virtualised list */}
         {!isEmpty && confessions.length > 0 && (
           <div
-            className={`space-y-5 transition-opacity duration-200 ${isFetching && !isLoading ? "opacity-50" : "opacity-100"}`}
+            ref={scrollParentRef}
+            className={`overflow-y-auto transition-opacity duration-200 ${isFetching && !isLoading ? "opacity-50" : "opacity-100"}`}
+            style={{ height: "calc(100vh - 320px)", minHeight: 400 }}
+            data-testid="virtual-scroll-container"
           >
-            {confessions.map((confession) => (
-              <ConfessionCard key={confession.id} confession={confession} />
-            ))}
+            <div
+              style={{ height: virtualizer.getTotalSize(), position: "relative" }}
+            >
+              {virtualItems.map((virtualRow) => {
+                const confession = confessions[virtualRow.index];
+                return (
+                  <div
+                    key={virtualRow.key}
+                    data-index={virtualRow.index}
+                    ref={virtualizer.measureElement}
+                    style={{
+                      position: "absolute",
+                      top: 0,
+                      left: 0,
+                      width: "100%",
+                      transform: `translateY(${virtualRow.start}px)`,
+                      paddingBottom: "1.25rem",
+                    }}
+                  >
+                    <ConfessionCard confession={confession} />
+                  </div>
+                );
+              })}
+            </div>
           </div>
         )}
       </div>
