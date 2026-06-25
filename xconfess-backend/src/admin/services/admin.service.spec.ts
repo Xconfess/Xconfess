@@ -80,6 +80,14 @@ describe('AdminService', () => {
     emit: jest.fn(),
   };
 
+  const auditLogService: any = {
+    getStatistics: jest.fn(),
+  };
+
+  const jobManagementService: any = {
+    getDiagnostics: jest.fn(),
+  };
+
   let service: AdminService;
 
   beforeEach(() => {
@@ -110,6 +118,8 @@ describe('AdminService', () => {
       moderationTemplateService,
       configService,
       eventEmitter,
+      auditLogService,
+      jobManagementService,
     );
   });
 

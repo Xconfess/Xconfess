@@ -47,7 +47,7 @@ export class ContractService {
         };
       default: {
         const _never: never = policy.operation;
-        throw new Error('Unhandled allowlisted operation: ' + _never);
+        throw new Error(`Unhandled allowlisted operation: ${String(_never)}`);
       }
     }
   }

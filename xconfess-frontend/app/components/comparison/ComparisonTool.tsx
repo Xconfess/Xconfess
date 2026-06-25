@@ -6,7 +6,7 @@ import { useComparison } from '@/app/lib/api/comparison';
 import { useComparisonStore } from '@/app/lib/store/comparisonStore';
 import { ComparisonTable } from './ComparisonTable';
 import { Button } from '@/app/components/ui/button';
-import { Share2, ArrowClockwise } from 'lucide-react';
+import { Share2, RefreshCw } from 'lucide-react';
 import { useGlobalToast } from '@/app/components/common/Toast';
 
 export function ComparisonTool() {
@@ -48,7 +48,7 @@ export function ComparisonTool() {
           </Button>
           {error && (
             <Button variant="outline" onClick={() => void refetch()}>
-              <ArrowClockwise className="h-4 w-4 mr-2" />
+              <RefreshCw className="h-4 w-4 mr-2" />
               Retry
             </Button>
           )}

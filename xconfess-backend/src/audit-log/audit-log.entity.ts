@@ -73,6 +73,7 @@ export enum AuditActionType {
   // Stellar Anchor Retry Logic
   STELLAR_ANCHOR_RETRY = 'stellar_anchor_retry',
   STELLAR_ANCHOR_FAILED = 'stellar_anchor_failed',
+  TIP_RECONCILIATION_DEAD_LETTER = 'tip_reconciliation_dead_letter',
 }
 
 @Entity('audit_logs')

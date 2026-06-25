@@ -104,14 +104,11 @@ export class QueueHealthIndicator extends HealthIndicator {
     await Promise.all(
       queues.map(async ({ name, queue, requiresWorkers }) => {
         try {
-          const [counts, workers, client] = await Promise.all([
+          const start = Date.now();
+          const [counts, workers] = await Promise.all([
             queue.getJobCounts('active', 'waiting', 'failed', 'delayed'),
             queue.getWorkers(),
-            queue.client,
           ]);
-
-          const start = Date.now();
-          await client.ping();
           const latencyMs = Date.now() - start;
 
           const workerCount = workers.length;

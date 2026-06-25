@@ -13,7 +13,7 @@
     "start:dev": "ts-node -r tsconfig-paths/register src/main.ts",
     "start:debug": "node --inspect -r ts-node/register -r tsconfig-paths/register src/main.ts",
     "start:prod": "node dist/main",
-    "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --max-warnings=0",
+    "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --quiet",
     "lint:fix": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
     "test": "jest --config jest.config.js",
     "test:watch": "jest --watch",

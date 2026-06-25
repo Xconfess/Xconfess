@@ -136,7 +136,7 @@ type RedactableValue =
 interface RedactableObject {
   [key: string]: RedactableValue;
 }
-interface RedactableArray extends Array<RedactableValue> {}
+type RedactableArray = RedactableValue[];
 
 @Injectable()
 export class AuditLogRedactionService {

@@ -18,6 +18,8 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { UserAnonymousUser } from '../../user/entities/user-anonymous-link.entity';
 import { ConfigService } from '@nestjs/config';
 import { Tip } from '../../tipping/entities/tip.entity';
+import { AuditLogService } from '../../audit-log/audit-log.service';
+import { JobManagementService } from '../../notifications/services/job-management.service';
 
 export interface BulkResolveOutcome {
   id: string;
@@ -65,6 +67,7 @@ export class AdminService {
     private readonly moderationTemplateService: ModerationTemplateService,
     private readonly configService: ConfigService,
     private readonly eventEmitter: EventEmitter2,
+    private readonly auditLogService: AuditLogService,
     private readonly jobManagementService: JobManagementService,
   ) {}
 

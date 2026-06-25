@@ -1,5 +1,4 @@
-cd /workspaces/Xconfess
-npm installimport axios, { AxiosInstance, AxiosError } from 'axios';
+import axios, { AxiosInstance, AxiosError } from 'axios';
 import {
     AppError,
     getStatusMessage,

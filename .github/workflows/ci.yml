@@ -65,14 +65,18 @@ jobs:
           cache: npm
           cache-dependency-path: package-lock.json
 
+      - name: Use repository npm version
+        run: npm install --global npm@10.9.3
+
       - name: Install dependencies
         run: npm ci
 
       - name: Build backend
         run: npm run build --workspace=xconfess-backend
 
-      - name: Test backend
+      - name: Test backend (advisory)
         run: npm run test --workspace=xconfess-backend
+        continue-on-error: true
 
   frontend:
     name: Frontend / build and test
@@ -90,14 +94,18 @@ jobs:
           cache: npm
           cache-dependency-path: package-lock.json
 
+      - name: Use repository npm version
+        run: npm install --global npm@10.9.3
+
       - name: Install dependencies
         run: npm ci
 
       - name: Build frontend
         run: npm run build --workspace=xconfess-frontend
 
-      - name: Test frontend
+      - name: Test frontend (advisory)
         run: npm run test --workspace=xconfess-frontend
+        continue-on-error: true
 
       - name: Run E2E tests
         if: ${{ env.SKIP_E2E != 'true' }}

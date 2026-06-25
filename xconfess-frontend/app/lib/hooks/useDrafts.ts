@@ -51,7 +51,9 @@ export function useDrafts() {
 
   // Avoid stale closures in the async fetch-on-mount effect.
   const draftsRef = useRef<Draft[]>(drafts);
-  draftsRef.current = drafts;
+  useEffect(() => {
+    draftsRef.current = drafts;
+  }, [drafts]);
 
   // ---- Guest mode: cross-tab sync (unchanged from prior behavior) ----
   useEffect(() => {

@@ -6,6 +6,7 @@ import { ConfigService } from '@nestjs/config';
 import { Tip, TipVerificationStatus } from './entities/tip.entity';
 import { StellarService } from '../stellar/stellar.service';
 import { AuditLogService } from '../audit-log/audit-log.service';
+import { AuditActionType } from '../audit-log/audit-log.entity';
 
 interface ReconciliationMetrics {
   totalPending: number;
@@ -75,7 +76,10 @@ export class ChainReconciliationService {
 
     // Add jitter: ±20% of backoff time
     const jitter = exponentialBackoff * 0.2 * (Math.random() * 2 - 1);
-    return Math.max(exponentialBackoff + jitter, this.INITIAL_BACKOFF_MS);
+    return Math.min(
+      Math.max(exponentialBackoff + jitter, this.INITIAL_BACKOFF_MS),
+      this.MAX_BACKOFF_MS,
+    );
   }
 
   /**
@@ -209,7 +213,7 @@ export class ChainReconciliationService {
         this.logger.debug('No pending tips to reconcile');
         this.lastMetrics = {
           ...metrics,
-          duration: Date.now() - startTime,
+          duration: Math.max(1, Date.now() - startTime),
         };
         return;
       }
@@ -247,7 +251,7 @@ export class ChainReconciliationService {
                 lastReconciliationAttempt: new Date().toISOString(),
                 lastReconciliationError: reconcileResult.error,
                 attemptCount: tip.retryCount + 1,
-              },
+              } as Tip['reconciliationMetadata'],
             });
 
             // Check if this is now a dead-letter
@@ -282,7 +286,7 @@ export class ChainReconciliationService {
                 finalizedStatus: newStatus,
                 wasStale,
                 reconciliationAttempts: tip.retryCount + 1,
-              },
+              } as Tip['reconciliationMetadata'],
             });
 
             if (newStatus === TipVerificationStatus.VERIFIED) {
@@ -314,18 +318,23 @@ export class ChainReconciliationService {
         );
 
         for (const deadLetter of deadLetters) {
-          await this.auditLogService.logAction({
-            userId: null,
-            action: 'TIP_RECONCILIATION_DEAD_LETTER',
-            resourceType: 'TIP',
-            resourceId: deadLetter.tipId,
-            metadata: deadLetter,
-            description: `Tip ${deadLetter.txId} stuck after ${deadLetter.attemptCount} reconciliation attempts: ${deadLetter.lastError}`,
+          await this.auditLogService.log({
+            actionType: AuditActionType.TIP_RECONCILIATION_DEAD_LETTER,
+            context: {
+              userId: null,
+              actor: { type: 'system', id: 'chain-reconciliation' },
+            },
+            metadata: {
+              entityType: 'TIP',
+              entityId: deadLetter.tipId,
+              ...deadLetter,
+              description: `Tip ${deadLetter.txId} stuck after ${deadLetter.attemptCount} reconciliation attempts: ${deadLetter.lastError}`,
+            },
           });
         }
       }
 
-      metrics.duration = Date.now() - startTime;
+      metrics.duration = Math.max(1, Date.now() - startTime);
 
       // Log reconciliation summary
       this.logger.log(

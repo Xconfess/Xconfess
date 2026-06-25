@@ -55,7 +55,7 @@ describe('ChainReconciliationService - Issue #173', () => {
         {
           provide: AuditLogService,
           useValue: {
-            logAction: jest.fn(),
+            log: jest.fn(),
           },
         },
         {
@@ -346,7 +346,9 @@ describe('ChainReconciliationService - Issue #173', () => {
       await service.reconcilePendingTips();
 
       const metrics = service.getLastMetrics();
-      expect(metrics?.errors).toContain(expect.stringContaining('Database'));
+      expect(metrics?.errors).toEqual(
+        expect.arrayContaining([expect.stringContaining('Database')]),
+      );
     });
 
     it('should continue reconciliation even if one tip fails', async () => {
