@@ -11,14 +11,18 @@ import helmet from 'helmet';
 import { RequestIdMiddleware } from './middleware/request-id.middleware';
 import { WebSocketAdapter } from './websocket/websocket.adapter';
 import { AppLogger } from './logger/logger.service';
+import { configureRequestBodyParsing } from './common/request-body-limits';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create(AppModule, { bodyParser: false });
   const configService = app.get(ConfigService);
 
   // ── 1. Request-ID must be first so all downstream code sees it ──────────────
   const requestIdMiddleware = new RequestIdMiddleware();
   app.use(requestIdMiddleware.use.bind(requestIdMiddleware));
+
+  // Apply targeted limits before Nest validation pipes and controller code.
+  configureRequestBodyParsing(app);
 
   app.enableShutdownHooks();
 

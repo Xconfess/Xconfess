@@ -53,6 +53,8 @@ export class AppException extends HttpException {
         return ErrorCode.RESOURCE_GONE;
       case HttpStatus.UNPROCESSABLE_ENTITY:
         return ErrorCode.UNPROCESSABLE_ENTITY;
+      case HttpStatus.PAYLOAD_TOO_LARGE:
+        return ErrorCode.REQUEST_TOO_LARGE;
       case HttpStatus.TOO_MANY_REQUESTS:
         return ErrorCode.THROTTLED;
       default:
