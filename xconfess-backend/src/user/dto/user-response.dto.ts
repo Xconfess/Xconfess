@@ -22,4 +22,5 @@ export interface UserResponse {
   };
   createdAt: Date;
   updatedAt: Date;
+  is2faEnabled?: boolean;
 }

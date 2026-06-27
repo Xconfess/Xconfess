@@ -1,5 +1,5 @@
 import { Transform } from 'class-transformer';
-import { IsEmail, IsNotEmpty, IsString } from 'class-validator';
+import { IsEmail, IsNotEmpty, IsOptional, IsString } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 /**
@@ -31,4 +31,23 @@ export class LoginDto {
   @IsString()
   @IsNotEmpty({ message: 'password must not be empty' })
   password!: string;
+
+  @ApiProperty({
+    description: 'Optional 6-digit TOTP code if 2FA is enabled',
+    required: false,
+    example: '123456',
+  })
+  @IsOptional()
+  @IsString()
+  totpCode?: string;
+
+  @ApiProperty({
+    description: 'Optional recovery backup code if 2FA is enabled and TOTP device is lost',
+    required: false,
+    example: 'a1b2c3d4',
+  })
+  @IsOptional()
+  @IsString()
+  recoveryCode?: string;
 }
+

@@ -10,11 +10,10 @@ module.exports = {
       },
     ],
   },
-  testMatch: ['<rootDir>/src/**/*.spec.ts', '<rootDir>/test/**/*.spec.ts'],
+  testRegex: 'src/.*\\.spec\\.ts$',
   testPathIgnorePatterns: [
     '/node_modules/',
-    '<rootDir>/xconfess-backend/',
-    '<rootDir>/e2e/',
+    '/e2e/',
   ],
   watchPathIgnorePatterns: ['<rootDir>/xconfess-backend/'],
   modulePathIgnorePatterns: ['<rootDir>/xconfess-backend/'],

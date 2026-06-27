@@ -58,6 +58,18 @@ export class User {
   @Column({ default: true })
   is_active!: boolean;
 
+  @Column({ name: 'is_2fa_enabled', default: false })
+  is2faEnabled!: boolean;
+
+  @Column({ name: 'totp_secret', type: 'varchar', length: 255, nullable: true })
+  totpSecret!: string | null;
+
+  @Column({ name: 'pending_totp_secret', type: 'varchar', length: 255, nullable: true })
+  pendingTotpSecret!: string | null;
+
+  @Column({ name: 'totp_recovery_codes', type: 'simple-array', nullable: true })
+  totpRecoveryCodes!: string[] | null;
+
   @Column({ type: 'varchar', length: 255, nullable: true })
   resetPasswordToken!: string | null;
 

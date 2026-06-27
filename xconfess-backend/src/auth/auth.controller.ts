@@ -23,6 +23,8 @@ import { AuthService } from './auth.service';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { LoginDto } from './dto/login.dto';
+import { TotpEnableDto } from './dto/totp-enable.dto';
+import { TotpDisableDto } from './dto/totp-disable.dto';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { GetUser } from './get-user.decorator';
 import { User } from '../user/entities/user.entity';
@@ -64,6 +66,8 @@ export class AuthController {
       const result = await this.authService.login(
         loginDto.email,
         loginDto.password,
+        loginDto.totpCode,
+        loginDto.recoveryCode,
       );
 
       if (!result) {
@@ -216,5 +220,43 @@ export class AuthController {
         'Failed to reset password: ' + errorMessage,
       );
     }
+  }
+
+  @Post('2fa/setup')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @RateLimit(5, 60)
+  @ApiOperation({ summary: 'Initiate 2FA TOTP setup' })
+  @ApiResponse({ status: 200, description: 'Returns base32 secret and QR code URL' })
+  async setupTotp(@GetUser('id') userId: number): Promise<{ secret: string; qrCodeUrl: string }> {
+    return this.authService.setupTotp(userId);
+  }
+
+  @Post('2fa/enable')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @RateLimit(5, 60)
+  @ApiOperation({ summary: 'Verify initial TOTP code and enable 2FA' })
+  @ApiBody({ type: TotpEnableDto })
+  @ApiResponse({ status: 200, description: '2FA enabled successfully. Returns recovery codes.' })
+  async enableTotp(
+    @GetUser('id') userId: number,
+    @Body() dto: TotpEnableDto,
+  ): Promise<{ recoveryCodes: string[]; message: string }> {
+    return this.authService.enableTotp(userId, dto.totpCode);
+  }
+
+  @Post('2fa/disable')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @RateLimit(5, 60)
+  @ApiOperation({ summary: 'Disable 2FA after confirming password' })
+  @ApiBody({ type: TotpDisableDto })
+  @ApiResponse({ status: 200, description: '2FA disabled successfully.' })
+  async disableTotp(
+    @GetUser('id') userId: number,
+    @Body() dto: TotpDisableDto,
+  ): Promise<{ message: string }> {
+    return this.authService.disableTotp(userId, dto.password);
   }
 }

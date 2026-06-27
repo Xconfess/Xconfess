@@ -7,6 +7,7 @@ import { JwtService } from '@nestjs/jwt';
 import { HttpStatus } from '@nestjs/common';
 import { User, UserRole } from '../user/entities/user.entity';
 import * as bcrypt from 'bcryptjs';
+import * as speakeasy from 'speakeasy';
 import { AnonymousUserService } from '../user/anonymous-user.service';
 import { CryptoUtil } from '../common/crypto.util';
 import { UserResponse } from '../user/user.controller';
@@ -71,6 +72,7 @@ describe('AuthService', () => {
     findById: jest.fn(),
     setResetPasswordToken: jest.fn(),
     updatePassword: jest.fn(),
+    saveUser: jest.fn(),
   };
 
   const mockEmailService = {
@@ -303,6 +305,71 @@ describe('AuthService', () => {
           scopes: getDefaultAdminStellarInvocationScopes(),
         }),
       );
+    });
+  });
+
+  describe('2FA (TOTP)', () => {
+    it('should generate setup secret and QR code URL', async () => {
+      mockUserService.findById.mockResolvedValue({ ...mockUser, pendingTotpSecret: null });
+      const result = await service.setupTotp(1);
+      expect(result.secret).toBeDefined();
+      expect(result.qrCodeUrl).toContain('data:image/png;base64,');
+      expect(mockUserService.saveUser).toHaveBeenCalled();
+    });
+
+    it('should enable TOTP with a valid code', async () => {
+      const secret = speakeasy.generateSecret().base32;
+      mockUserService.findById.mockResolvedValue({ ...mockUser, pendingTotpSecret: secret });
+      const code = speakeasy.totp({ secret, encoding: 'base32' });
+
+      const result = await service.enableTotp(1, code);
+      expect(result.recoveryCodes).toHaveLength(10);
+      expect(result.message).toBe('2FA enabled successfully');
+    });
+
+    it('should throw exception when enabling TOTP with invalid code', async () => {
+      const secret = speakeasy.generateSecret().base32;
+      mockUserService.findById.mockResolvedValue({ ...mockUser, pendingTotpSecret: secret });
+
+      await expect(service.enableTotp(1, '000000')).rejects.toThrow(AppException);
+    });
+
+    it('should require 2FA code during login when enabled', async () => {
+      mockUserService.findByEmail.mockResolvedValue({ ...mockUser, is2faEnabled: true, totpSecret: 'secret' });
+      jest.spyOn(service, 'validateUser').mockResolvedValue({
+        id: 1,
+        username: 'testuser',
+        role: UserRole.USER,
+        is_active: true,
+        email: 'test@example.com',
+        notificationPreferences: {},
+        privacy: { isDiscoverable: true, canReceiveReplies: true, showReactions: true, dataProcessingConsent: true },
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+
+      await expect(service.login('test@example.com', 'hashedpassword')).rejects.toThrow('2FA verification required');
+    });
+
+    it('should successfully log in with valid TOTP code when 2FA enabled', async () => {
+      const secret = speakeasy.generateSecret().base32;
+      mockUserService.findByEmail.mockResolvedValue({ ...mockUser, is2faEnabled: true, totpSecret: secret });
+      jest.spyOn(service, 'validateUser').mockResolvedValue({
+        id: 1,
+        username: 'testuser',
+        role: UserRole.USER,
+        is_active: true,
+        email: 'test@example.com',
+        notificationPreferences: {},
+        privacy: { isDiscoverable: true, canReceiveReplies: true, showReactions: true, dataProcessingConsent: true },
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+      mockJwtService.sign.mockReturnValue('mock-jwt-token');
+
+      const code = speakeasy.totp({ secret, encoding: 'base32' });
+      const result = await service.login('test@example.com', 'hashedpassword', code);
+      expect(result.access_token).toBe('mock-jwt-token');
     });
   });
 });

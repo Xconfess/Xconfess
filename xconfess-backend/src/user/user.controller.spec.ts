@@ -33,6 +33,7 @@ describe('UserController', () => {
     createdAt: new Date(),
     updatedAt: new Date(),
     is_active: true,
+    is2faEnabled: false,
     role: UserRole.USER,
     notificationPreferences: {},
     privacySettings: {
@@ -117,6 +118,7 @@ describe('UserController', () => {
         },
         createdAt: mockUser.createdAt,
         updatedAt: mockUser.updatedAt,
+        is2faEnabled: false,
       });
     });
 
@@ -159,6 +161,7 @@ describe('UserController', () => {
           },
           createdAt: mockUser.createdAt,
           updatedAt: mockUser.updatedAt,
+          is2faEnabled: false,
         },
       };
       expect(result).toEqual(expectedResult);
@@ -249,6 +252,7 @@ describe('UserController', () => {
           },
           createdAt: mockUser.createdAt,
           updatedAt: mockUser.updatedAt,
+          is2faEnabled: false,
         },
       };
       expect(result).toEqual(expectedResult);
