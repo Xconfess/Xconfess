@@ -1,6 +1,6 @@
 # Health Endpoint Quick Reference
 
-The backend exposes two health endpoints under the global `/api` prefix.
+The backend exposes three health endpoints under the global `/api` prefix.
 
 ## Endpoints
 
@@ -20,6 +20,9 @@ curl http://localhost:5000/api/health/live
 
 # Are all dependencies ready?
 curl http://localhost:5000/api/health/ready
+
+# Legacy alias for readiness
+curl http://localhost:5000/api/health
 ```
 
 ### Kubernetes / Docker health checks
@@ -44,7 +47,7 @@ readinessProbe:
 
 ## What gets checked
 
-The readiness probe (`/api/health/ready`) checks:
+The readiness probe (`/api/health/ready`) and its legacy alias (`/api/health`) check:
 
 1. **Database** — Postgres connection via TypeORM ping
 2. **Redis** — Redis connection health. Conditioned on `ENABLE_BACKGROUND_JOBS=true`; returns `mode: disabled` when jobs are off.
@@ -117,5 +120,6 @@ The readiness probe (`/api/health/ready`) checks:
 
 - `/api/health/live`: 120 requests per minute
 - `/api/health/ready`: 30 requests per minute
+- `/api/health`: 30 requests per minute
 
 These limits are intentionally generous for local development. In production, use your load balancer's health check interval (typically 10-30 seconds).
