@@ -94,6 +94,7 @@ The Stellar entries in `xconfess-backend/.env.example` are pre-filled for testne
 - `REPUTATION_BADGES_CONTRACT_ID` - Reputation badges contract.
 - `TIPPING_SYSTEM_CONTRACT_ID` - Tipping / micro-tip contract.
 - `STELLAR_SERVER_SECRET` - Server signer keypair secret used for on-chain operations.
+- `TIP_VERIFICATION_STALE_THRESHOLD_MINUTES` - How long a tip verification may remain pending before the runbook treats it as stale. Default: `30`.
 
 If you are enabling `STELLAR_FEATURES_ENABLED=true`, double-check that the contract IDs and network URLs all point at the same network.
 

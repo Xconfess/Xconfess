@@ -65,6 +65,7 @@ Operator checks for healthy flow:
   - Mark as `stale_pending` for operator visibility.
   - Continue reconciliation attempts if the chain settles later.
   - Do not auto-refund; follow evidence checklist before manual action.
+- The threshold is controlled by `TIP_VERIFICATION_STALE_THRESHOLD_MINUTES` in `xconfess-backend/.env.example` and defaults to `30`.
 
 ### Failed
 - Definition: transaction rejected, malformed, expired, insufficient funds, or network failure.
