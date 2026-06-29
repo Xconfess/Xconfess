@@ -80,7 +80,22 @@ Required keys to set before first boot (everything else has safe defaults):
 | `CONFESSION_ENCRYPTION_KEY` | 64-character hex string used to encrypt confession content |
 | `STELLAR_SERVER_SECRET` | Stellar keypair secret for on-chain operations (testnet only) |
 
-Mail (`MAIL_HOST`, `MAIL_USER`, `MAIL_PASSWORD`) and Stellar contract IDs are pre-filled with testnet values in the example file and can be left as-is for local development. Leave `STELLAR_FEATURES_ENABLED=false` (default) to boot without enforcing every contract ID; set it to `true` only when you need full on-chain anchoring and tipping.
+Mail (`MAIL_HOST`, `MAIL_USER`, `MAIL_PASSWORD`) is pre-filled with safe local values in the example file and can be left as-is for local development.
+
+### Stellar backend settings
+
+The Stellar entries in `xconfess-backend/.env.example` are pre-filled for testnet development:
+
+- `STELLAR_FEATURES_ENABLED` - Keep this `false` for local boot unless you need full on-chain anchoring and tipping. Set it to `true` when the contract IDs must be present and validated.
+- `STELLAR_NETWORK` - Stellar network name used by the backend (`testnet` by default).
+- `STELLAR_HORIZON_URL` - Horizon API endpoint for the selected network.
+- `STELLAR_SOROBAN_RPC_URL` - Soroban RPC endpoint for the selected network.
+- `CONFESSION_ANCHOR_CONTRACT_ID` - Confession anchoring contract.
+- `REPUTATION_BADGES_CONTRACT_ID` - Reputation badges contract.
+- `TIPPING_SYSTEM_CONTRACT_ID` - Tipping / micro-tip contract.
+- `STELLAR_SERVER_SECRET` - Server signer keypair secret used for on-chain operations.
+
+If you are enabling `STELLAR_FEATURES_ENABLED=true`, double-check that the contract IDs and network URLs all point at the same network.
 
 **Frontend** â€” copy the sample (no secrets required for basic local use):
 
