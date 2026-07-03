@@ -3,7 +3,14 @@
  */
 
 import React from "react";
-import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
+import {
+  render,
+  screen,
+  fireEvent,
+  waitFor,
+  act,
+  within,
+} from "@testing-library/react";
 import "@testing-library/jest-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ReactionButton } from "../ReactionButtons";
@@ -22,7 +29,7 @@ const mockSocket = {
     on: jest.fn(),
   },
 };
-const mockIo = jest.fn((..._args: unknown[]) => mockSocket);
+const mockIo = jest.fn(() => mockSocket);
 jest.mock("socket.io-client", () => ({
   io: (...args: unknown[]) => mockIo(...args),
 }));
@@ -106,6 +113,47 @@ describe("ReactionButton — optimistic count and active state", () => {
     });
 
     expect(screen.getByRole("button")).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("exposes the reaction as a named control group with count and selected state", () => {
+    mockAddReaction.mockReturnValue(new Promise(() => {}));
+
+    render(
+      <Wrapper>
+        <ReactionButton type="like" count={5} confessionId="c-1" />
+      </Wrapper>,
+    );
+
+    const group = screen.getByRole("group", {
+      name: "like reaction controls",
+    });
+    const button = within(group).getByRole("button", {
+      name: "like reaction, 5 reactions, not selected",
+    });
+
+    expect(button).toHaveAccessibleDescription(
+      /like reaction not selected\. 5 reactions\. Reaction live status: (disconnected|reconnecting)/,
+    );
+  });
+
+  it("updates the accessible name when optimistic state changes count and selection", async () => {
+    mockAddReaction.mockReturnValue(new Promise(() => {}));
+
+    render(
+      <Wrapper>
+        <ReactionButton type="like" count={5} confessionId="c-1" />
+      </Wrapper>,
+    );
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button"));
+    });
+
+    expect(
+      screen.getByRole("button", {
+        name: "like reaction, 6 reactions, selected",
+      }),
+    ).toHaveAttribute("aria-pressed", "true");
   });
 
   it("rolls back the displayed count when the reaction API fails (feed surface)", async () => {
@@ -261,11 +309,11 @@ describe("ReactionButton — optimistic count and active state", () => {
     await act(async () => {
       triggerSocketEvent("connect");
     });
-    expect(screen.getByLabelText("Reaction live status: connected")).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("Reaction live status: connected");
 
     await act(async () => {
       triggerSocketEvent("disconnect");
     });
-    expect(screen.getByLabelText("Reaction live status: reconnecting")).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("Reaction live status: reconnecting");
   });
 });

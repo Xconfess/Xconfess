@@ -43,8 +43,12 @@ jest.mock("@/app/lib/hooks/useAuth", () => ({
 
 jest.mock("@/app/lib/hooks/useReactions", () => ({
   useReactions: () => ({
-    addReaction: mockAddReaction,
+    addReaction: (confessionId: string, type: string) =>
+      mockAddReaction({ confessionId, type }),
     isPending: false,
+    optimisticState: null,
+    liveCounts: { like: 5, love: 0 },
+    connectionState: "connected",
   }),
 }));
 
@@ -259,6 +263,21 @@ describe("ReactionButton accessibility", () => {
     const button = screen.getByRole("button");
     expect(button.getAttribute("aria-label")).toContain("like");
     expect(button.getAttribute("aria-label")).toContain("5");
+  });
+
+  it("exposes a named reaction control group with selected state and live status", () => {
+    render(<ReactionButton {...defaultProps} />);
+
+    const group = screen.getByRole("group", {
+      name: "like reaction controls",
+    });
+    const button = within(group).getByRole("button", {
+      name: "like reaction, 5 reactions, not selected",
+    });
+
+    expect(button).toHaveAccessibleDescription(
+      "like reaction not selected. 5 reactions. Reaction live status: connected",
+    );
   });
 
   it("can be triggered with Enter key", async () => {
