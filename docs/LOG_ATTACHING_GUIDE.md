@@ -1,5 +1,9 @@
 # Attaching Logs to Issues and PRs
 
+This is the canonical contributor guide for sharing redacted logs in Xconfess
+issues and pull requests. Other contributor docs should link here instead of
+duplicating redaction rules.
+
 When reporting bugs or asking for help, logs are invaluable. However, logs often contain sensitive data that must be redacted before sharing.
 
 ## What to redact
@@ -27,6 +31,20 @@ Some information is safe and useful for debugging:
 - **Status codes** — `500 Internal Server Error` is safe
 - **Error messages** — generic errors like `ECONNREFUSED` are safe
 - **User IDs** — UUIDs like `a1b2c3d4-...` are safe (not personally identifiable)
+
+## Quick checklist
+
+Before posting logs in an issue or PR, verify:
+
+- [ ] No API keys, tokens, JWTs, session IDs, or cookies are visible
+- [ ] No database passwords or connection strings with credentials are visible
+- [ ] No private keys, seed phrases, or Stellar secret keys are visible
+- [ ] No user emails, phone numbers, IP addresses, or private user data are visible
+- [ ] Request IDs, timestamps, status codes, and generic error messages are kept
+
+Use bracketed placeholders such as `[REDACTED_TOKEN]`,
+`[REDACTED_EMAIL]`, and `[REDACTED_PASSWORD]` so maintainers can see what was
+removed without seeing the sensitive value.
 
 ## How to attach logs
 

@@ -106,7 +106,8 @@ Error: Connection refused to user@example.com at token=sk_live_abc123xyz
 Error: Connection refused to [USER_EMAIL] at token=[REDACTED_TOKEN]
 ```
 
-See [CONTRIBUTOR_LOGS_GUIDE.md](CONTRIBUTOR_LOGS_GUIDE.md) for detailed examples.
+See [LOG_ATTACHING_GUIDE.md](LOG_ATTACHING_GUIDE.md) for the canonical
+redaction checklist and detailed examples.
 
 ---
 
