@@ -21,6 +21,17 @@ interface DraftManagerProps {
   autoSaveInterval?: number; // in milliseconds
 }
 
+const draftContentKey = (draft: {
+  title?: string;
+  body: string;
+  gender?: string;
+}) =>
+  JSON.stringify({
+    title: draft.title ?? "",
+    body: draft.body,
+    gender: draft.gender ?? "",
+  });
+
 export const DraftManager: React.FC<DraftManagerProps> = ({
   currentDraft,
   onLoadDraft,
@@ -45,9 +56,36 @@ export const DraftManager: React.FC<DraftManagerProps> = ({
     "saved" | "saving" | "unsaved" | "failed"
   >("saved");
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
+  const [dismissedConflictKey, setDismissedConflictKey] = useState<
+    string | null
+  >(null);
   const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
   const lastSavedRef = useRef<string>("");
   const toast = useGlobalToast();
+  const latestSavedDraft = !isLoading && drafts.length > 0 ? drafts[0] : null;
+  const localDraftHasContent = Boolean(
+    currentDraft.title?.trim() || currentDraft.body.trim(),
+  );
+  const savedDraftContentKey = latestSavedDraft
+    ? draftContentKey(latestSavedDraft)
+    : null;
+  const localDraftContentKey = draftContentKey(currentDraft);
+  const activeConflictKey =
+    latestSavedDraft &&
+    localDraftHasContent &&
+    !currentDraftId &&
+    savedDraftContentKey !== localDraftContentKey
+      ? `${latestSavedDraft.id}:${latestSavedDraft.savedAt}:${savedDraftContentKey}`
+      : null;
+  const hasDraftConflict = Boolean(
+    activeConflictKey && dismissedConflictKey !== activeConflictKey,
+  );
+
+  useEffect(() => {
+    if (!activeConflictKey && dismissedConflictKey) {
+      setDismissedConflictKey(null);
+    }
+  }, [activeConflictKey, dismissedConflictKey]);
 
   // Restore most recent draft on mount if one exists and the composer is empty.
   // Acceptance criteria: "Restore draft on composer mount when user has
@@ -149,6 +187,11 @@ export const DraftManager: React.FC<DraftManagerProps> = ({
       clearTimeout(autoSaveTimerRef.current);
     }
 
+    if (hasDraftConflict) {
+      setSaveMessage("Resolve draft conflict before autosave resumes.");
+      return;
+    }
+
     autoSaveTimerRef.current = setTimeout(() => {
       void persistDraft();
     }, autoSaveInterval);
@@ -172,6 +215,36 @@ export const DraftManager: React.FC<DraftManagerProps> = ({
     setSaveStatus("saved");
     setSaveMessage("Draft saved.");
     setIsModalOpen(false);
+    setDismissedConflictKey(null);
+  };
+
+  const dismissActiveConflict = () => {
+    if (activeConflictKey) {
+      setDismissedConflictKey(activeConflictKey);
+    }
+  };
+
+  const handleKeepLocalDraft = () => {
+    dismissActiveConflict();
+    setSaveStatus("unsaved");
+    setSaveMessage("Unsaved changes");
+  };
+
+  const handleDiscardLocalDraft = () => {
+    const emptyDraft: Draft = {
+      id: "discard-local-draft",
+      title: "",
+      body: "",
+      savedAt: Date.now(),
+      characterCount: 0,
+    };
+
+    onLoadDraft(emptyDraft);
+    setCurrentDraftId(null);
+    lastSavedRef.current = JSON.stringify({ title: "", body: "" });
+    setSaveStatus("saved");
+    setSaveMessage(null);
+    dismissActiveConflict();
   };
 
   const handleDeleteDraft = (id: string, e: React.MouseEvent) => {
@@ -189,38 +262,56 @@ export const DraftManager: React.FC<DraftManagerProps> = ({
     toast.success("All drafts cleared.");
   };
 
-  /**
-   * Called by the composer on successful publish/submit, per acceptance
-   * criteria: "Publishing or submitting clears or archives draft per
-   * product rules." Exposed via a side-effect prop would be cleaner, but
-   * to minimize blast radius on this pass we expose it as a stable
-   * function consumers can call directly through a ref if needed.
-   * TODO(product): confirm clear vs archive semantics with product —
-   * this currently clears (deletes) rather than archiving.
-   */
-  const handlePublishCleanup = async () => {
-    if (currentDraftId) {
-      await deleteDraft(currentDraftId);
-      setCurrentDraftId(null);
-      lastSavedRef.current = "";
-      setSaveStatus("saved");
-      setSaveMessage(null);
-    }
-  };
-
   return (
     <>
       <ConfirmDialog
         open={clearDraftsOpen}
         onOpenChange={setClearDraftsOpen}
         title="Clear all drafts?"
-        description="This will permanently remove every saved draft on this device."
+        description="This permanently deletes every saved draft. Published drafts are cleared after submit rather than archived."
         confirmLabel="Clear drafts"
         variant="danger"
         onConfirm={() => void handleClearDrafts()}
       />
 
       <div className="flex flex-col gap-2">
+        {hasDraftConflict && latestSavedDraft && (
+          <div
+            role="status"
+            className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-50"
+          >
+            <p className="font-medium">Draft conflict detected</p>
+            <p className="mt-1 text-xs text-amber-100/80">
+              A saved server draft differs from your local text. Discard clears
+              only the local composer; Clear All permanently deletes saved
+              drafts. Published drafts are cleared after submit, not archived.
+            </p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleKeepLocalDraft}
+              >
+                Keep local
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleLoadDraft(latestSavedDraft)}
+              >
+                Use saved draft
+              </Button>
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={handleDiscardLocalDraft}
+              >
+                Discard local
+              </Button>
+            </div>
+          </div>
+        )}
+
         <Button
           variant="outline"
           size="sm"
