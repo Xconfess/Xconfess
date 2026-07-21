@@ -7,17 +7,12 @@ import React, {
   useState,
 } from 'react';
 import { useRouter } from 'next/navigation';
-
-interface User {
-  id: string;
-  username: string;
-  email: string;
-}
+import { authApi, type LoginCredentials, type User } from './auth';
 
 interface AuthContextValue {
   user: User | null;
   isLoading: boolean;
-  login: (token: string) => Promise<void>;
+  login: (credentials: LoginCredentials) => Promise<void>;
   logout: () => void;
   refreshUser: () => Promise<void>;
 }
@@ -30,39 +25,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
 
   const refreshUser = async () => {
-    const token = localStorage.getItem('access_token');
-
-    if (!token) {
-      setUser(null);
-      setIsLoading(false);
-      return;
-    }
-
     try {
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL || ''}/auth/me`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        },
-      );
-
-      if (!response.ok) {
-        console.error('Auth refresh failed:', {
-          status: response.status,
-          path: '/auth/me',
-        });
-        localStorage.removeItem('access_token');
-        setUser(null);
-        return;
-      }
-
-      const userData = await response.json();
+      const userData = await authApi.refreshSession();
       setUser(userData);
     } catch (error) {
       console.error('Auth refresh failed:', error);
-      localStorage.removeItem('access_token');
       setUser(null);
     } finally {
       setIsLoading(false);
@@ -70,16 +37,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   useEffect(() => {
-    refreshUser();
+    void refreshUser();
   }, []);
 
-  const login = async (token: string) => {
-    localStorage.setItem('access_token', token);
+  const login = async (credentials: LoginCredentials) => {
+    const response = await authApi.login(credentials);
+    setUser(response.user ?? null);
     await refreshUser();
   };
 
   const logout = () => {
-    localStorage.removeItem('access_token');
+    void authApi.logout();
     setUser(null);
     router.push('/login');
   };

@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect, useRef, ReactNode, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { authApi } from '../api/authService';
+import { authApi } from '../api/auth';
 import {
   AuthContextValue,
   AuthState,
