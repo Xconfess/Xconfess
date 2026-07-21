@@ -91,4 +91,35 @@ describe('Environment Validation', () => {
     const { error } = envValidationSchema.validate(config);
     expect(error).toBeUndefined();
   });
+
+  it('should default ENABLE_SWAGGER to false when not set', () => {
+    const config = {
+      ...baseConfig,
+      CONFESSION_ENCRYPTION_KEY: validKey,
+    };
+    const { error, value } = envValidationSchema.validate(config);
+    expect(error).toBeUndefined();
+    expect(value.ENABLE_SWAGGER).toBe('false');
+  });
+
+  it('should allow ENABLE_SWAGGER to be explicitly enabled', () => {
+    const config = {
+      ...baseConfig,
+      CONFESSION_ENCRYPTION_KEY: validKey,
+      ENABLE_SWAGGER: 'true',
+    };
+    const { error, value } = envValidationSchema.validate(config);
+    expect(error).toBeUndefined();
+    expect(value.ENABLE_SWAGGER).toBe('true');
+  });
+
+  it('should reject a non-boolean-like value for ENABLE_SWAGGER', () => {
+    const config = {
+      ...baseConfig,
+      CONFESSION_ENCRYPTION_KEY: validKey,
+      ENABLE_SWAGGER: 'yes',
+    };
+    const { error } = envValidationSchema.validate(config);
+    expect(error).toBeDefined();
+  });
 });
