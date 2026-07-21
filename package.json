@@ -38,7 +38,7 @@
     "seed": "npx ts-node --project tsconfig.seed.json scripts/seed.ts",
     "frontend:lint": "npm run lint --workspace=xconfess-frontend",
     "ci:backend": "npm run backend:build && npm run backend:lint && npm run backend:test",
-    "ci:frontend": "npm run frontend:lint && npm run frontend:test && npm run frontend:build",
+    "ci:frontend": "npm run frontend:lint && npm run typecheck --workspace=xconfess-frontend && npm run frontend:test && npm run frontend:build",
     "ci:contract": "npm run contract:fmt:check && npm run contract:lint && npm run contract:test && npm run contract:build:release",
     "ci": "npm run ci:backend && npm run ci:frontend && npm run ci:contract"
   },

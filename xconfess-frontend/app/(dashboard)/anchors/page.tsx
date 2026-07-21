@@ -124,7 +124,7 @@ export default function AnchorsPage() {
                       </td>
                       <td className="px-6 py-4 text-right">
                         <a
-                          href={getStellarExplorerUrl(anchor.stellarTxHash)}
+                          href={getStellarExplorerUrl(anchor.stellarTxHash) ?? "#"}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 text-sm"

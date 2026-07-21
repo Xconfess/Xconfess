@@ -287,9 +287,11 @@ impl AnonymousTipping {
             .persistent()
             .set(&DataKey::RecipientTotal(recipient.clone()), &next_total);
         // Extend TTL on persistent storage to prevent data loss
-        env.storage()
-            .persistent()
-            .extend_ttl(&DataKey::RecipientTotal(recipient.clone()), PERSISTENT_TTL_LEDGERS, PERSISTENT_TTL_LEDGERS);
+        env.storage().persistent().extend_ttl(
+            &DataKey::RecipientTotal(recipient.clone()),
+            PERSISTENT_TTL_LEDGERS,
+            PERSISTENT_TTL_LEDGERS,
+        );
 
         let settlement_id = env
             .storage()
@@ -314,9 +316,11 @@ impl AnonymousTipping {
         env.storage()
             .persistent()
             .set(&DataKey::SettlementReceipt(settlement_id), &receipt);
-        env.storage()
-            .persistent()
-            .extend_ttl(&DataKey::SettlementReceipt(settlement_id), PERSISTENT_TTL_LEDGERS, PERSISTENT_TTL_LEDGERS);
+        env.storage().persistent().extend_ttl(
+            &DataKey::SettlementReceipt(settlement_id),
+            PERSISTENT_TTL_LEDGERS,
+            PERSISTENT_TTL_LEDGERS,
+        );
 
         SettlementEvent {
             recipient,
@@ -613,9 +617,11 @@ impl AnonymousTipping {
         env.storage()
             .persistent()
             .set(&DataKey::WalletWindow(wallet.clone()), &state);
-        env.storage()
-            .persistent()
-            .extend_ttl(&DataKey::WalletWindow(wallet.clone()), PERSISTENT_TTL_LEDGERS, PERSISTENT_TTL_LEDGERS);
+        env.storage().persistent().extend_ttl(
+            &DataKey::WalletWindow(wallet.clone()),
+            PERSISTENT_TTL_LEDGERS,
+            PERSISTENT_TTL_LEDGERS,
+        );
         Ok(())
     }
 }

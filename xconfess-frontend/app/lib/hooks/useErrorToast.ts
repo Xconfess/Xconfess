@@ -25,7 +25,7 @@ export function useErrorToast() {
       });
     } else {
       toast.error(message, {
-        duration: options.duration || 4000,
+        duration: options?.duration || 4000,
       });
     }
   }, []);
