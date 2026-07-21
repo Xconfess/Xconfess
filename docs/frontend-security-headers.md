@@ -40,12 +40,17 @@ Based on codebase analysis, the frontend uses:
 
 ```javascript
 // next.config.mjs — add to nextConfig
+const isDev = process.env.NODE_ENV === "development";
+
 const securityHeaders = [
   {
     key: 'Content-Security-Policy',
     value: [
       "default-src 'self'",
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval'",  // Next.js requires unsafe-inline/eval
+      // unsafe-eval ONLY in development for hot reloading; excluded in production
+      isDev
+        ? "script-src 'self' 'unsafe-inline' 'unsafe-eval'"
+        : "script-src 'self' 'unsafe-inline'",
       "style-src 'self' 'unsafe-inline'",  // Tailwind requires unsafe-inline
       "img-src 'self' data: blob:",
       "font-src 'self' data:",
@@ -100,7 +105,7 @@ const nextConfig = {
 
 ### Next.js Requirements
 - `'unsafe-inline'` for scripts: Required for Next.js hydration and inline scripts
-- `'unsafe-eval'` for scripts: Required for development mode hot reloading
+- `'unsafe-eval'` for scripts: Required **only** for development mode hot reloading — excluded from production CSP to strengthen XSS defense
 - `'unsafe-inline'` for styles: Required for Tailwind CSS and CSS-in-JS
 
 ### Stellar SDK Requirements
@@ -113,7 +118,7 @@ const nextConfig = {
 
 ## Follow-up Implementation Tasks
 
-1. **Environment-specific CSP**: Create separate CSP configs for development and production
+1. ~~**Environment-specific CSP**: Create separate CSP configs for development and production~~ ✅ Done — `unsafe-eval` excluded from production `script-src`
 2. **CSP Reporting**: Add `report-uri` or `report-to` directive for monitoring violations
 3. **Nonce-based CSP**: Consider implementing nonces for stricter script security (requires custom server)
 4. **Stellar Network Endpoints**: Verify all required Stellar endpoints are included in `connect-src`
