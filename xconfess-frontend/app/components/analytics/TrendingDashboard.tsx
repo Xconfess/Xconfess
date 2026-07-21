@@ -90,7 +90,7 @@ function normalizeAnalyticsData(
     source.reactionDistribution,
   );
   const dailyActivity = normalizeDailyActivity(source.dailyActivity);
-  const metrics = isRecord(source.totalMetrics) ? source.totalMetrics : {};
+  const metrics: Record<string, unknown> = isRecord(source.totalMetrics) ? source.totalMetrics : {};
 
   return {
     trending,
@@ -288,7 +288,7 @@ export const TrendingDashboard = () => {
         {showSkeleton ? (
           <AnalyticsLoadingSkeleton />
         ) : (
-          <MetricsOverview metrics={totalMetrics} period={period} />
+          <MetricsOverview metrics={totalMetrics} period={period as "7days" | "30days"} />
         )}
 
         {/* Charts Section */}

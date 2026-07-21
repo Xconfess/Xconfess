@@ -239,7 +239,7 @@ export default function AnalyticsPage() {
 
                 {/* Trending Confessions */}
                 <TrendingConfessions
-                    confessions={data?.trendingConfessions ?? []}
+                    confessions={(data?.trendingConfessions ?? []) as any[]}
                     loading={loading}
                 />
             </div>
