@@ -47,6 +47,7 @@ import { toWindowBoundaries, TrendingWindow } from 'src/types/analytics.types';
 import { GetUserConfessionsDto } from './dto/get-user-confessions.dto';
 import { mapToSlimConfession } from './utils/confession-mapper';
 import { AnomalyDetectionService } from '../anomaly/anomaly-detection.service';
+import { OutboxEvent } from '../common/entities/outbox-event.entity';
 
 @Injectable()
 export class ConfessionService {
@@ -107,37 +108,26 @@ export class ConfessionService {
     }
 
     try {
-      // Step 0: Validate tags if provided
+      // Step 0: Validate tags if provided (read-only, fine outside the transaction)
       let validatedTags: any[] = [];
       if (dto.tags && dto.tags.length > 0) {
         validatedTags = await this.tagService.validateTags(dto.tags);
       }
 
-      // Step 1: Moderate the content BEFORE encryption
+      // Step 1: Moderate content BEFORE encryption (external call — deliberately
+      // kept outside the transaction so we never hold a DB transaction open
+      // across a network call to the moderation provider)
       const moderationResult =
         await this.aiModerationService.moderateContent(msg);
 
-      // Step 1.5: Create an AnonymousUser to associate with this confession
-      const anonymousUser = manager
-        ? await manager
-            .getRepository(AnonymousUser)
-            .save(manager.getRepository(AnonymousUser).create())
-        : await this.anonymousUserService.create();
-
-      // Step 2: Encrypt and save the confession
       const encryptedMsg = encryptConfession(msg, this.aesKey);
-      const confessionRepo: Repository<AnonymousConfession> = manager
-        ? manager.getRepository(AnonymousConfession)
-        : (this.confessionRepo as unknown as Repository<AnonymousConfession>);
 
-      // Prepare Stellar anchoring data if transaction hash provided
       let stellarData: {
         stellarTxHash?: string;
         stellarHash?: string;
         isAnchored?: boolean;
         anchoredAt?: Date;
       } = {};
-
       if (dto.stellarTxHash) {
         const anchorData = this.stellarService.processAnchorData(
           msg,
@@ -153,67 +143,92 @@ export class ConfessionService {
         }
       }
 
-      const conf = confessionRepo.create({
-        message: encryptedMsg,
-        gender: dto.gender,
-        anonymousUser,
-        moderationScore: moderationResult.score,
-        moderationFlags: moderationResult.flags as any,
-        moderationStatus: moderationResult.status as any,
-        requiresReview: moderationResult.requiresReview,
-        isHidden: moderationResult.status === ModerationStatus.REJECTED,
-        moderationDetails: moderationResult.details,
-        ...stellarData,
-        ...(dto.idempotencyKey ? { idempotencyKey: dto.idempotencyKey } : {}),
-      });
+      // Everything below is a DB write and must succeed or fail together.
+      // If an external `manager` was passed in (caller already has a
+      // transaction open), reuse it instead of nesting a second transaction.
+      const runInTransaction = async (txManager: EntityManager) => {
+        const anonymousUser = await txManager
+          .getRepository(AnonymousUser)
+          .save(txManager.getRepository(AnonymousUser).create());
 
-      const savedConfession = await confessionRepo.save(conf);
+        const confessionRepo = txManager.getRepository(AnonymousConfession);
+        const conf = confessionRepo.create({
+          message: encryptedMsg,
+          gender: dto.gender,
+          anonymousUser,
+          moderationScore: moderationResult.score,
+          moderationFlags: moderationResult.flags as any,
+          moderationStatus: moderationResult.status as any,
+          requiresReview: moderationResult.requiresReview,
+          isHidden: moderationResult.status === ModerationStatus.REJECTED,
+          moderationDetails: moderationResult.details,
+          ...stellarData,
+          ...(dto.idempotencyKey ? { idempotencyKey: dto.idempotencyKey } : {}),
+        });
+        const savedConfession = await confessionRepo.save(conf);
 
-      // Step 2.5: Create ConfessionTag entries if tags were provided
-      if (validatedTags.length > 0) {
-        const confessionTagRepo: Repository<ConfessionTag> = manager
-          ? manager.getRepository(ConfessionTag)
-          : this.confessionRepo.manager.getRepository(ConfessionTag);
+        if (validatedTags.length > 0) {
+          const confessionTagRepo = txManager.getRepository(ConfessionTag);
+          const confessionTags = validatedTags.map((tag) =>
+            confessionTagRepo.create({ confession: savedConfession, tag }),
+          );
+          await confessionTagRepo.save(confessionTags);
+        }
 
-        const confessionTags = validatedTags.map((tag) =>
-          confessionTagRepo.create({
-            confession: savedConfession,
-            tag: tag,
-          }),
+        await this.moderationRepoService.createLog(
+          msg,
+          moderationResult,
+          savedConfession.id,
+          undefined,
+          'openai',
+          txManager,
         );
 
-        await confessionTagRepo.save(confessionTags);
-      }
+        // Moderation escalations now go through the outbox, written in the
+        // SAME transaction as the confession itself — so an escalation can
+        // never exist for a confession that didn't actually get created,
+        // and a confession can never get created "silently" without its
+        // escalation being durably queued.
+        const outboxRepo = txManager.getRepository(OutboxEvent);
+        if (moderationResult.status === ModerationStatus.REJECTED) {
+          await outboxRepo.save(
+            outboxRepo.create({
+              type: 'moderation_high_severity',
+              payload: {
+                confessionId: savedConfession.id,
+                score: moderationResult.score,
+                flags: moderationResult.flags,
+              },
+              idempotencyKey: `moderation-high-severity-${savedConfession.id}`,
+            }),
+          );
+        }
+        if (moderationResult.status === ModerationStatus.FLAGGED) {
+          await outboxRepo.save(
+            outboxRepo.create({
+              type: 'moderation_requires_review',
+              payload: {
+                confessionId: savedConfession.id,
+                score: moderationResult.score,
+                flags: moderationResult.flags,
+              },
+              idempotencyKey: `moderation-requires-review-${savedConfession.id}`,
+            }),
+          );
+        }
 
+        return savedConfession;
+      };
+
+      const savedConfession = manager
+        ? await runInTransaction(manager)
+        : await this.confessionRepo.manager.transaction(runInTransaction);
+
+      // Cache invalidation is not transactional (Redis, not Postgres) and is
+      // intentionally best-effort — it only runs after the DB transaction
+      // has committed, so a cache-invalidation failure never rolls back a
+      // real confession.
       await this.invalidateConfessionCache();
-
-      // Step 3: Log moderation decision
-      await this.moderationRepoService.createLog(
-        msg,
-        moderationResult,
-        savedConfession.id,
-        undefined,
-        'openai',
-        manager,
-      );
-
-      // Step 4: Handle high-severity content
-      if (moderationResult.status === ModerationStatus.REJECTED) {
-        this.eventEmitter.emit('moderation.high-severity', {
-          confessionId: savedConfession.id,
-          score: moderationResult.score,
-          flags: moderationResult.flags,
-        });
-      }
-
-      // Step 5: Handle medium-severity content
-      if (moderationResult.status === ModerationStatus.FLAGGED) {
-        this.eventEmitter.emit('moderation.requires-review', {
-          confessionId: savedConfession.id,
-          score: moderationResult.score,
-          flags: moderationResult.flags,
-        });
-      }
 
       return savedConfession;
     } catch (error) {
