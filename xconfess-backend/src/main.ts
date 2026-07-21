@@ -111,7 +111,7 @@ async function bootstrap() {
     new ThrottlerExceptionFilter(),
   );
 
-  if (process.env.NODE_ENV !== 'production') {
+  if (configService.get<string>('ENABLE_SWAGGER', 'false') === 'true') {
     const config = new DocumentBuilder()
       .setTitle('xConfess API')
       .setDescription(

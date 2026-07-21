@@ -15,6 +15,12 @@ export const envValidationSchema = Joi.object({
   APP_ENV: Joi.string().optional(),
   PORT: Joi.number().port().default(3000),
 
+  // ── API Docs ──────────────────────────────────────────────────────────
+  // Swagger must be explicitly opted into. It is never derived from
+  // NODE_ENV, so a mislabeled or unexpected environment name can't
+  // accidentally expose the full API surface.
+  ENABLE_SWAGGER: Joi.string().valid('true', 'false').default('false'),
+
   // ── Database ──────────────────────────────────────────────────────────
   DB_HOST: Joi.string().required().messages({
     'any.required': 'DB_HOST is required – set the PostgreSQL hostname.',

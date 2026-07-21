@@ -178,7 +178,12 @@ npm run migration:revert
 
 ## API Documentation
 
-When running locally, Swagger docs are available at `/api/api-docs`.
+Swagger UI is opt-in and disabled by default. To enable it locally, set
+`ENABLE_SWAGGER=true` in your `.env` file, then start the server — the docs
+will be available at `/api/docs`.
+
+Swagger should never be enabled in production or staging, regardless of
+`NODE_ENV`, since it exposes the full API surface.
 
 For route inventory, DTO examples, and the **`GET /api/health`** contract (including schema readiness for `anonymous_confessions`), see [API_DOCUMENTATION.md](./API_DOCUMENTATION.md).
 
