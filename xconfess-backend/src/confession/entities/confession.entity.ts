@@ -64,7 +64,7 @@ export class AnonymousConfession {
   @Column({ default: false })
   isDeleted: boolean;
 
-   ─── Migration tracking ──────────────────────────────────────────────────
+  // ─── Migration tracking ──────────────────────────────────────────────────
   @Column({
     type: 'varchar',
     length: 16,

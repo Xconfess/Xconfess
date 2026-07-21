@@ -23,7 +23,7 @@ function toBase64Url(bytes: Uint8Array): string {
   return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
 
-function fromBase64Url(value: string): Uint8Array {
+function fromBase64Url(value: string): BufferSource {
   const padded =
     value.replace(/-/g, '+').replace(/_/g, '/') +
     '='.repeat((4 - (value.length % 4)) % 4);
@@ -64,7 +64,7 @@ async function importX25519PrivateKey(privateKeyBase64Url: string): Promise<Cryp
   return subtle.importKey(
     'pkcs8',
     fromBase64Url(privateKeyBase64Url),
-    { name: 'X25519' },
+    { name: 'X25519' } as EcKeyImportParams,
     false,
     ['deriveBits'],
   );
@@ -74,14 +74,14 @@ async function importX25519PublicKey(publicKeyBase64Url: string): Promise<Crypto
   return subtle.importKey(
     'raw',
     fromBase64Url(publicKeyBase64Url),
-    { name: 'X25519' },
+    { name: 'X25519' } as EcKeyImportParams,
     false,
     [],
   );
 }
 
 export async function generateMessageKeyPair(): Promise<MessageKeyPair> {
-  const keyPair = await subtle.generateKey({ name: 'X25519' }, true, ['deriveBits']);
+  const keyPair = await subtle.generateKey({ name: 'X25519' } as EcKeyGenParams, true, ['deriveBits']) as CryptoKeyPair;
   const publicRaw = await subtle.exportKey('raw', keyPair.publicKey);
   const privatePkcs8 = await subtle.exportKey('pkcs8', keyPair.privateKey);
 

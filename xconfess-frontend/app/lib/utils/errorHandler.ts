@@ -76,17 +76,20 @@ export class AppError extends Error {
   public readonly code: string;
   public readonly statusCode: number;
   public readonly details?: Record<string, unknown>;
+  public readonly retryAfter?: number;
 
   constructor(
     message: string,
     code: string = 'UNKNOWN_ERROR',
     statusCode: number = 500,
-    details?: Record<string, unknown>
+    details?: Record<string, unknown>,
+    retryAfter?: number
   ) {
     super(message);
     this.code = code;
     this.statusCode = statusCode;
     this.details = details;
+    this.retryAfter = retryAfter;
     this.name = 'AppError';
   }
 }

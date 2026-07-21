@@ -23,7 +23,8 @@ import {
   ValidationErrors,
 } from "@/app/lib/utils/validation";
 import { useStellarWallet } from "@/lib/hooks/useStellarWallet";
-import { useDrafts, Draft } from "@/app/lib/hooks/useDrafts";
+import { useDrafts } from "@/app/lib/hooks/useDrafts";
+import { Draft } from "@/app/lib/types/draft";
 import { Eye, EyeOff, Send, Loader2, CloudDownload } from "lucide-react";
 import { cn } from "@/app/lib/utils/cn";
 import apiClient from "@/app/lib/api/client";

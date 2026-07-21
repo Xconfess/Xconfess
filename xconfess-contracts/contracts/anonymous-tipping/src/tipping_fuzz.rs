@@ -11,9 +11,7 @@ mod fuzz {
 
     use soroban_sdk::{testutils::Address as _, Address, Env};
 
-    use crate::{
-        AnonymousTipping, AnonymousTippingClient, Error, SettlementReceipt,
-    };
+    use crate::{AnonymousTipping, AnonymousTippingClient, Error, SettlementReceipt};
 
     fn setup() -> (Env, Address) {
         let env = Env::default();

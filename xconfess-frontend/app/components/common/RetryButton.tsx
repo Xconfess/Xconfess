@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 
 interface RetryButtonProps {
-  onRetry: () => Promise<void>;
+  onRetry: () => void | Promise<void>;
   error?: string;
   label?: string;
   variant?: 'default' | 'primary' | 'danger';

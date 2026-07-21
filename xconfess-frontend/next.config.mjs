@@ -13,13 +13,16 @@ const isDev = process.env.NODE_ENV === "development";
 const securityHeaders = [
   // Prevents XSS and data injection attacks.
   // - unsafe-inline required for Next.js hydration and Tailwind CSS
-  // - unsafe-eval required for Next.js development mode hot reloading
+  // - unsafe-eval required ONLY for Next.js development mode hot reloading
+  //   Production builds must NOT include unsafe-eval (weakens XSS defense)
   // - connect-src allows Stellar Horizon and Soroban RPC endpoints
   {
     key: "Content-Security-Policy",
     value: [
       "default-src 'self'",
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+      isDev
+        ? "script-src 'self' 'unsafe-inline' 'unsafe-eval'"
+        : "script-src 'self' 'unsafe-inline'",
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data: blob:",
       "font-src 'self' data:",
@@ -79,10 +82,6 @@ const securityHeaders = [
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   outputFileTracingRoot: path.resolve(__dirname, ".."),
-
-  typescript: {
-    ignoreBuildErrors: true,
-  },
 
   experimental: {
     optimizePackageImports: ["lucide-react", "@stellar/stellar-sdk"],
