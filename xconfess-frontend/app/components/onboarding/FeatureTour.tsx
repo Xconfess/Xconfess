@@ -11,7 +11,7 @@ const STELLAR_STEP_IDS = new Set(["stellar-wallet", "anchor-action"]);
 
 function isFreighterInstalled(): boolean {
   if (typeof window === "undefined") return false;
-  return !!(window as Record<string, unknown>).freighter;
+  return !!(window as unknown as Record<string, unknown>).freighter;
 }
 
 interface Props {
