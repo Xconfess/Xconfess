@@ -7,6 +7,7 @@ import {
   OutboxStatus,
 } from '../../common/entities/outbox-event.entity';
 import { NotificationService } from './notification.service';
+import { ModerationEscalationService } from './moderation-escalation.service';
 import * as os from 'os';
 
 @Injectable()
@@ -20,6 +21,7 @@ export class OutboxDispatcherService {
     @InjectRepository(OutboxEvent)
     private readonly outboxRepo: Repository<OutboxEvent>,
     private readonly notificationService: NotificationService,
+    private readonly escalationService: ModerationEscalationService,
   ) {}
 
   @Cron(CronExpression.EVERY_10_SECONDS)
@@ -138,6 +140,12 @@ export class OutboxDispatcherService {
             event.payload,
             event.id,
           );
+          break;
+        case 'moderation_high_severity':
+          await this.escalationService.escalateHighSeverity(event.payload);
+          break;
+        case 'moderation_requires_review':
+          await this.escalationService.escalateRequiresReview(event.payload);
           break;
         default:
           this.logger.warn(`Unknown outbox event type: ${event.type}`);
