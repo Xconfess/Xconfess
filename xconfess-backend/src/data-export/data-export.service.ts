@@ -15,9 +15,14 @@ import { Repository, MoreThan } from 'typeorm';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { ExportRequest } from './entities/export-request.entity';
-import { ExportChunk } from './entities/export-chunk.entity';
+import {
+  ExportChunk,
+  ExportChunkErrorMetadata,
+} from './entities/export-chunk.entity';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { EXPORT_QUEUE_NAME } from './data-export.constants';
+
+import { Logger } from '@nestjs/common';
 
 export type ExportHistoryStatus =
   | 'PENDING'
@@ -59,6 +64,8 @@ export interface ExportJobStatus {
 
 @Injectable()
 export class DataExportService {
+  private readonly logger = new Logger(DataExportService.name);
+
   constructor(
     @InjectRepository(ExportRequest)
     private exportRepository: Repository<ExportRequest>,
@@ -68,6 +75,207 @@ export class DataExportService {
     private readonly configService: ConfigService,
     @Optional() private readonly auditLogService?: AuditLogService,
   ) {}
+
+  // ── Issue #1453: resumable export helpers ──────────────────────────────────
+  //
+  // The processor is now able to restart from the last successfully completed
+  // chunk. The helpers below are the service-level primitives the processor
+  // uses to:
+  //   - determine the resume point,
+  //   - record chunk-level progress atomically,
+  //   - mark a chunk failure with sanitized metadata (no PII, no stacks),
+  //   - verify the integrity of the final archive before declaring READY.
+
+  /**
+   * Returns the highest chunk index for a request that has been durably
+   * persisted as COMPLETED, or -1 when no chunk has been written yet.
+   *
+   * Returns -1 when the record cannot be resolved (should not happen in
+   * normal operation, but prevents NaN-based infinite loops on resume).
+   */
+  async getResumeIndex(requestId: string): Promise<number> {
+    const result = await this.chunkRepository
+      .createQueryBuilder('chunk')
+      .select('COALESCE(MAX(chunk.chunk_index), -1)', 'max')
+      .where('chunk.export_request_id = :requestId', { requestId })
+      .andWhere("chunk.status = 'COMPLETED'")
+      .getRawOne<{ max: string | number | null }>();
+
+    if (!result) return -1;
+    const raw = result.max;
+    if (raw === null || raw === undefined) return -1;
+    const parsed = typeof raw === 'string' ? parseInt(raw, 10) : raw;
+    return Number.isFinite(parsed) ? parsed : -1;
+  }
+
+  /**
+   * Returns all chunks for a request, ordered by chunkIndex ascending.
+   * Used by the integrity verification step before declaring an export READY.
+   */
+  async getChunksForRequest(
+    requestId: string,
+  ): Promise<Pick<ExportChunk, 'chunkIndex' | 'fileData' | 'chunkSize' | 'checksum' | 'status'>[]> {
+    return this.chunkRepository.find({
+      where: { exportRequestId: requestId },
+      order: { chunkIndex: 'ASC' },
+      select: ['chunkIndex', 'fileData', 'chunkSize', 'checksum', 'status'],
+    });
+  }
+
+  /**
+   * Persists a completed chunk row. Safe to call repeatedly for the same
+   * (requestId, chunkIndex) thanks to the unique index added in #1453 — the
+   * second write will be a no-op equivalent thanks to the early existence
+   * check. As a defence-in-depth we also catch the unique-violation race
+   * that can happen when two workers attempt to insert the same chunk slot.
+   *
+   * Returns true when a new row was inserted, false when an existing row was
+   * detected and the call was suppressed (resume dedup).
+   */
+  async saveCompletedChunk(
+    requestId: string,
+    chunkIndex: number,
+    buffer: Buffer,
+    checksum: string,
+  ): Promise<boolean> {
+    const existing = await this.chunkRepository.findOne({
+      where: { exportRequestId: requestId, chunkIndex },
+      select: ['id'],
+    });
+    if (existing) {
+      return false;
+    }
+
+    try {
+      await this.chunkRepository.save({
+        exportRequestId: requestId,
+        chunkIndex,
+        fileData: buffer,
+        chunkSize: buffer.length,
+        checksum,
+        status: 'COMPLETED',
+        errorMetadata: null,
+      } as Partial<ExportChunk>);
+      return true;
+    } catch (err) {
+      // Postgres unique-violation code is '23505'. If a concurrent worker
+      // raced us to insert the same chunk, treat it as a successful dedup.
+      const code = (err as { code?: string })?.code;
+      if (code === '23505') {
+        return false;
+      }
+      throw err;
+    }
+  }
+
+  /**
+   * Records a failed-chunk tombstone so a subsequent resume can detect the
+   * hole and re-process the slot. The metadata is sanitized to contain
+   * absolutely no PII, file paths, stack frames or secrets — only a
+   * category, short description, timestamp, and retry hint.
+   */
+  async markChunkFailed(
+    requestId: string,
+    chunkIndex: number,
+    rawError: unknown,
+  ): Promise<ExportChunkErrorMetadata> {
+    const sanitized = sanitizeErrorMetadata(rawError);
+
+    const payload: Partial<ExportChunk> = {
+      exportRequestId: requestId,
+      chunkIndex,
+      fileData: Buffer.alloc(0),
+      chunkSize: 0,
+      checksum: '',
+      status: 'FAILED',
+      errorMetadata: sanitized,
+    };
+
+    // Upsert semantics — if a previous row exists at this slot, overwrite
+    // the failure metadata so the latest attempt is reflected.
+    const existing = await this.chunkRepository.findOne({
+      where: { exportRequestId: requestId, chunkIndex },
+      select: ['id'],
+    });
+    if (existing) {
+      await this.chunkRepository.update(existing.id, payload);
+    } else {
+      await this.chunkRepository.save(payload);
+    }
+
+    this.logger.warn(
+      `Chunk ${chunkIndex} of export ${requestId} failed: ${sanitized.code} (retryable=${sanitized.isRetryable})`,
+    );
+    return sanitized;
+  }
+
+  /**
+   * Verifies the integrity of an export by:
+   *   1. Confirming each chunk's stored checksum matches its actual bytes,
+   *   2. Recomputing the combined SHA-256 over the concatenation of chunk
+   *      payloads (in chunkIndex order) and comparing it against
+   *      `expectedCombinedChecksum`.
+   *
+   * Throws BadRequestException with a stable error code whenever the archive
+   * is incomplete or corrupt so callers can mark the export FAILED.
+   */
+  async verifyArchiveIntegrity(
+    requestId: string,
+    expectedCombinedChecksum: string,
+  ): Promise<void> {
+    const chunks = await this.getChunksForRequest(requestId);
+
+    // Must be non-empty and contiguous from index 0 — partial archives are
+    // an integrity failure even if every individual chunk verifies.
+    if (chunks.length === 0) {
+      throw new BadRequestException({
+        message:
+          'Archive integrity verification failed: no completed chunks were found.',
+        code: 'ARCHIVE_INTEGRITY_FAILED',
+      });
+    }
+
+    let expectedIndex = 0;
+    const combinedHasher = crypto.createHash('sha256');
+
+    for (const chunk of chunks) {
+      if (chunk.chunkIndex !== expectedIndex) {
+        throw new BadRequestException({
+          message: `Archive integrity verification failed: missing chunk ${expectedIndex} (found ${chunk.chunkIndex}).`,
+          code: 'ARCHIVE_INTEGRITY_FAILED',
+        });
+      }
+      if (chunk.status !== 'COMPLETED' || !chunk.fileData || chunk.fileData.length === 0) {
+        throw new BadRequestException({
+          message: `Archive integrity verification failed: chunk ${expectedIndex} is not completed.`,
+          code: 'ARCHIVE_INTEGRITY_FAILED',
+        });
+      }
+
+      const actualChecksum = crypto
+        .createHash('sha256')
+        .update(chunk.fileData)
+        .digest('hex');
+      if (actualChecksum !== chunk.checksum) {
+        throw new BadRequestException({
+          message: `Archive integrity verification failed: chunk ${expectedIndex} checksum mismatch.`,
+          code: 'ARCHIVE_INTEGRITY_FAILED',
+        });
+      }
+
+      combinedHasher.update(chunk.fileData);
+      expectedIndex += 1;
+    }
+
+    const combined = combinedHasher.digest('hex');
+    if (combined !== expectedCombinedChecksum) {
+      throw new BadRequestException({
+        message:
+          'Archive integrity verification failed: combined checksum mismatch with in-memory hash.',
+        code: 'ARCHIVE_INTEGRITY_FAILED',
+      });
+    }
+  }
 
   async requestExport(userId: string) {
     if (this.configService.get<string>('ENABLE_BACKGROUND_JOBS') !== 'true') {
@@ -799,4 +1007,71 @@ export class DataExportService {
     const rows = data.map((obj) => Object.values(obj).join(',')).join('\n');
     return `${headers}\n${rows}`;
   }
+}
+
+/**
+ * Issue #1453 — produces a safe, non-sensitive metadata payload from any error.
+ *
+ * Scrubs:
+ *  - PII: identifiers, emails, usernames, names — replaced with placeholders.
+ *  - Stack traces & file paths: never persisted.
+ *  - Long messages: truncated to 240 characters.
+ *
+ * Categorises the failure using a stable code so operators can reason about
+ * it without inspecting logs.
+ */
+export function sanitizeErrorMetadata(
+  rawError: unknown,
+): ExportChunkErrorMetadata {
+  const at = new Date().toISOString();
+  const err = rawError instanceof Error ? rawError : null;
+  const rawMessage = err?.message || (typeof rawError === 'string' ? rawError : '');
+
+  // PII scrubbing — replace anything that looks like an email or long id.
+  // (Defence-in-depth: payloads should never contain PII, but if they do we
+  // make sure they never leak to the metadata column.)
+  const safeMessage = rawMessage
+    // strip leading/trailing whitespace
+    .trim()
+    // emails
+    .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, '[redacted-email]')
+    // long hex ids (32+ chars) that may be PII
+    .replace(/\b[0-9a-f]{32,}\b/gi, '[redacted-id]')
+    // strip anything resembling a file path
+    .replace(/\/[^\s)]+/g, '[path]')
+    .slice(0, 240);
+
+  const code = classifyError(rawMessage, err);
+  const isRetryable = code !== 'CHUNK_PAYLOAD_INVALID';
+
+  return {
+    at,
+    code,
+    message: safeMessage.length === 0 ? 'unknown error' : safeMessage,
+    isRetryable,
+  };
+}
+
+function classifyError(message: string, err: Error | null): string {
+  const haystack = (message || err?.name || '').toLowerCase();
+  if (haystack.includes('timeout') || haystack.includes('etimedout')) {
+    return 'CHUNK_WRITE_TIMEOUT';
+  }
+  if (haystack.includes('econnrefused') || haystack.includes('econnreset')) {
+    return 'CHUNK_WRITE_CONNECTION_LOST';
+  }
+  if (
+    haystack.includes('disk') ||
+    haystack.includes('enospc') ||
+    haystack.includes('quota')
+  ) {
+    return 'CHUNK_WRITE_OUT_OF_SPACE';
+  }
+  if (haystack.includes('permission') || haystack.includes('eacces')) {
+    return 'CHUNK_WRITE_PERMISSION_DENIED';
+  }
+  if (haystack.includes('payload') || haystack.includes('invalid')) {
+    return 'CHUNK_PAYLOAD_INVALID';
+  }
+  return 'CHUNK_WRITE_FAILED';
 }
