@@ -16,6 +16,7 @@ import { EncryptionService } from 'src/encryption/encryption.service';
 import { StellarService } from '../stellar/stellar.service';
 import { CacheService, CACHE_TTL } from '../cache/cache.service';
 import { TagService } from './tag.service';
+import { OutboxEvent } from '../common/entities/outbox-event.entity';
 import { encryptConfession } from '../utils/confession-encryption';
 
 describe('ConfessionService', () => {
@@ -390,6 +391,192 @@ describe('ConfessionService — anchor pending-state guard (#776)', () => {
 
       expect(result.isAnchored).toBe(false);
       expect(result.anchorPending).toBe(false);
+    });
+  });
+});
+
+describe('ConfessionService — create() transactional integrity (#1446)', () => {
+  let service: ConfessionService;
+  let confessionRepo: any;
+  let txManager: any;
+  let userRepoMock: any;
+  let confessionRepoMock: any;
+  let tagRepoMock: any;
+  let outboxRepoMock: any;
+  let tagService: any;
+  let aiModerationService: any;
+
+  const AES_KEY = '12345678901234567890123456789012';
+
+  beforeEach(async () => {
+    userRepoMock = {
+      create: jest.fn().mockReturnValue({ id: 'user-1' }),
+      save: jest.fn().mockResolvedValue({ id: 'user-1' }),
+    };
+    confessionRepoMock = {
+      create: jest.fn().mockImplementation((data) => ({ id: 'conf-1', ...data })),
+      save: jest.fn().mockImplementation((entity) => Promise.resolve(entity)),
+    };
+    tagRepoMock = {
+      create: jest.fn().mockImplementation((data) => data),
+      save: jest.fn().mockResolvedValue(undefined),
+    };
+    outboxRepoMock = {
+      create: jest.fn().mockImplementation((data) => data),
+      save: jest.fn().mockResolvedValue(undefined),
+    };
+
+    txManager = {
+      getRepository: jest.fn((entity: any) => {
+        const name = entity?.name;
+        if (name === 'AnonymousUser') return userRepoMock;
+        if (name === 'AnonymousConfession') return confessionRepoMock;
+        if (name === 'ConfessionTag') return tagRepoMock;
+        if (name === 'OutboxEvent') return outboxRepoMock;
+        throw new Error(`Unexpected entity in getRepository: ${name}`);
+      }),
+    };
+
+    confessionRepo = {
+      manager: {
+        transaction: jest.fn(async (cb) => cb(txManager)),
+      },
+      findOne: jest.fn().mockResolvedValue(null),
+    };
+
+    tagService = { validateTags: jest.fn().mockResolvedValue([]) };
+    aiModerationService = {
+      moderateContent: jest.fn().mockResolvedValue({
+        score: 0.1,
+        flags: [],
+        status: 'APPROVED',
+        requiresReview: false,
+        details: {},
+      }),
+    };
+
+    const module = await Test.createTestingModule({
+      providers: [
+        ConfessionService,
+        { provide: AnonymousConfessionRepository, useValue: confessionRepo },
+        { provide: ConfessionViewCacheService, useValue: { checkAndMarkView: jest.fn() } },
+        { provide: AiModerationService, useValue: aiModerationService },
+        {
+          provide: ModerationRepositoryService,
+          useValue: { createLog: jest.fn(), getLogsByConfession: jest.fn(), updateReview: jest.fn() },
+        },
+        { provide: EventEmitter2, useValue: { emit: jest.fn() } },
+        { provide: AnonymousUserService, useValue: { create: jest.fn(), getAnonIdsForUser: jest.fn() } },
+        { provide: ConfigService, useValue: { get: jest.fn().mockReturnValue(AES_KEY) } },
+        { provide: AppLogger, useValue: { log: jest.fn(), error: jest.fn() } },
+        { provide: EncryptionService, useValue: { encrypt: jest.fn(), decrypt: jest.fn() } },
+        {
+          provide: StellarService,
+          useValue: { processAnchorData: jest.fn(), getExplorerUrl: jest.fn(), isValidTxHash: jest.fn() },
+        },
+        {
+          provide: CacheService,
+          useValue: {
+            buildKey: jest.fn((...parts) => parts.join(':')),
+            get: jest.fn().mockResolvedValue(null),
+            set: jest.fn(),
+            delPattern: jest.fn(),
+          },
+        },
+        { provide: TagService, useValue: tagService },
+      ],
+    }).compile();
+
+    service = module.get(ConfessionService);
+  });
+
+  it('happy path: writes user, confession, and outbox event within the same transaction', async () => {
+    await service.create({ message: 'hello world' });
+    expect(confessionRepo.manager.transaction).toHaveBeenCalledTimes(1);
+    expect(userRepoMock.save).toHaveBeenCalledTimes(1);
+    expect(confessionRepoMock.save).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not write an outbox event for APPROVED content', async () => {
+    await service.create({ message: 'hello world' });
+    expect(outboxRepoMock.save).not.toHaveBeenCalled();
+  });
+
+  it('writes a moderation_high_severity outbox event when content is REJECTED', async () => {
+    aiModerationService.moderateContent.mockResolvedValue({
+      score: 0.95,
+      flags: ['hate_speech'],
+      status: 'REJECTED',
+      requiresReview: false,
+      details: {},
+    });
+    await service.create({ message: 'bad content' });
+    expect(outboxRepoMock.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'moderation_high_severity',
+        idempotencyKey: expect.stringContaining('moderation-high-severity-'),
+      }),
+    );
+  });
+
+  it('writes a moderation_requires_review outbox event when content is FLAGGED', async () => {
+    aiModerationService.moderateContent.mockResolvedValue({
+      score: 0.6,
+      flags: ['borderline'],
+      status: 'FLAGGED',
+      requiresReview: true,
+      details: {},
+    });
+    await service.create({ message: 'borderline content' });
+    expect(outboxRepoMock.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'moderation_requires_review',
+        idempotencyKey: expect.stringContaining('moderation-requires-review-'),
+      }),
+    );
+  });
+
+  describe('failure injection: no partial rows on mid-transaction failure', () => {
+    it('rolls back and creates zero rows when tag save fails', async () => {
+      tagService.validateTags.mockResolvedValue([{ id: 'tag-1' }]);
+      tagRepoMock.save.mockRejectedValue(new Error('DB connection lost'));
+      await expect(
+        service.create({ message: 'hello', tags: ['drama'] }),
+      ).rejects.toThrow();
+      expect(userRepoMock.save).toHaveBeenCalledTimes(1);
+      expect(confessionRepoMock.save).toHaveBeenCalledTimes(1);
+      expect(tagRepoMock.save).toHaveBeenCalledTimes(1);
+      expect(outboxRepoMock.save).not.toHaveBeenCalled();
+    });
+
+    it('rolls back and never writes an outbox event when the confession save itself fails', async () => {
+      confessionRepoMock.save.mockRejectedValue(new Error('unique constraint violation'));
+      await expect(service.create({ message: 'hello' })).rejects.toThrow();
+      expect(outboxRepoMock.save).not.toHaveBeenCalled();
+    });
+
+    it('propagates a rejection when the transaction callback throws', async () => {
+      confessionRepoMock.save.mockRejectedValue(new Error('boom'));
+      await expect(service.create({ message: 'hello' })).rejects.toThrow(
+        'Failed to create confession',
+      );
+    });
+  });
+
+  describe('idempotency + outbox retry-safety', () => {
+    it('gives high-severity outbox rows a deterministic idempotency key per confession', async () => {
+      aiModerationService.moderateContent.mockResolvedValue({
+        score: 0.95,
+        flags: ['x'],
+        status: 'REJECTED',
+        requiresReview: false,
+        details: {},
+      });
+      await service.create({ message: 'bad' });
+      const savedEvent = outboxRepoMock.save.mock.calls[0][0];
+      expect(savedEvent.idempotencyKey).toBe(
+        `moderation-high-severity-${savedEvent.payload.confessionId}`,
+      );
     });
   });
 });
