@@ -63,6 +63,7 @@ export enum AuditActionType {
   EXPORT_DOWNLOADED = 'export_downloaded',
   EXPORT_TOKEN_EXPIRED = 'export_token_expired',   // <-- ADDED
   EXPORT_EXPIRED = 'export_expired',               // <-- ADDED
+  EXPORT_INTEGRITY_VERIFICATION_FAILED = 'export_integrity_verification_failed', // <-- #1453
 
   // Admin CSV export actions initiated from the frontend
   ADMIN_CSV_EXPORT = 'admin_csv_export',

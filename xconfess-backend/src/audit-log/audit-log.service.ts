@@ -57,7 +57,8 @@ export type ExportLifecycleAction =
   | 'link_refreshed'
   | 'downloaded'
   | 'token_expired'
-  | 'export_expired';
+  | 'export_expired'
+  | 'integrity_verification_failed';
 
 export type ExportActorType = AuditActorType;
 
@@ -478,6 +479,8 @@ export class AuditLogService {
         return AuditActionType.EXPORT_TOKEN_EXPIRED;
       case 'export_expired':
         return AuditActionType.EXPORT_EXPIRED;
+      case 'integrity_verification_failed':
+        return AuditActionType.EXPORT_INTEGRITY_VERIFICATION_FAILED;
       default:
         return AuditActionType.EXPORT_REQUEST_CREATED;
     }

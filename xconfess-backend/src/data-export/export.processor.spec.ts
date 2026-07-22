@@ -6,6 +6,7 @@ import { ExportChunk } from './entities/export-chunk.entity';
 import { User } from '../user/entities/user.entity';
 import { DataExportService } from './data-export.service';
 import { EmailService } from '../email/email.service';
+import { AuditLogService } from '../audit-log/audit-log.service';
 import { ConfigService } from '@nestjs/config';
 import { Job } from 'bullmq';
 import {
@@ -18,6 +19,7 @@ describe('ExportProcessor', () => {
   let chunkRepo: any;
   let userRepo: any;
   let dataExportService: any;
+  let auditLogService: any;
 
   beforeEach(async () => {
     exportRepo = {
@@ -40,6 +42,7 @@ describe('ExportProcessor', () => {
       getResumeIndex: jest
         .fn()
         .mockResolvedValue(-1), // By default: nothing persisted yet.
+      getChunksForRequest: jest.fn().mockResolvedValue([]),
       saveCompletedChunk: jest.fn().mockResolvedValue(true),
       markChunkFailed: jest.fn().mockResolvedValue({
         at: new Date().toISOString(),
@@ -48,6 +51,9 @@ describe('ExportProcessor', () => {
         isRetryable: true,
       }),
       verifyArchiveIntegrity: jest.fn().mockResolvedValue(undefined),
+    };
+    auditLogService = {
+      logExportLifecycleEvent: jest.fn().mockResolvedValue(undefined),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -72,6 +78,10 @@ describe('ExportProcessor', () => {
         {
           provide: EmailService,
           useValue: { sendWelcomeEmail: jest.fn() },
+        },
+        {
+          provide: AuditLogService,
+          useValue: auditLogService,
         },
         {
           provide: ConfigService,
@@ -170,6 +180,72 @@ describe('ExportProcessor', () => {
       expect(exportRepo.update).not.toHaveBeenCalledWith(
         'req-1',
         expect.objectContaining({ status: 'READY' }),
+      );
+    });
+
+    it('should emit export_integrity_verification_failed audit event on integrity failure', async () => {
+      const mockJob = {
+        name: 'process-export',
+        data: { userId: '42', requestId: 'req-audit-1' },
+      } as Job;
+
+      dataExportService.compileUserData.mockResolvedValue({
+        userId: '42',
+        confessions: [{ id: 1, message: 'hello' }],
+      });
+      userRepo.findOneBy.mockResolvedValue(null);
+      dataExportService.verifyArchiveIntegrity.mockRejectedValue(
+        new BadRequestException({
+          message:
+            'Archive integrity verification failed: combined checksum mismatch with in-memory hash.',
+          code: 'ARCHIVE_INTEGRITY_FAILED',
+        }),
+      );
+
+      await expect(processor.process(mockJob)).rejects.toThrow();
+
+      expect(auditLogService.logExportLifecycleEvent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'integrity_verification_failed',
+          requestId: 'req-audit-1',
+          exportId: 'req-audit-1',
+          actorType: 'system',
+          metadata: expect.objectContaining({
+            userId: '42',
+            integrityCode: 'ARCHIVE_INTEGRITY_FAILED',
+            reason: expect.stringContaining('Archive integrity'),
+          }),
+        }),
+      );
+    });
+
+    it('does not block the failure path when audit emission itself throws', async () => {
+      const mockJob = {
+        name: 'process-export',
+        data: { userId: '1', requestId: 'req-audit-2' },
+      } as Job;
+
+      dataExportService.compileUserData.mockResolvedValue({
+        userId: '1',
+        confessions: [{ id: 1, message: 'hello' }],
+      });
+      dataExportService.verifyArchiveIntegrity.mockRejectedValue(
+        new BadRequestException({
+          message: 'Archive integrity verification failed: corrupt chunk 0.',
+          code: 'ARCHIVE_INTEGRITY_FAILED',
+        }),
+      );
+      auditLogService.logExportLifecycleEvent.mockRejectedValueOnce(
+        new Error('audit db down'),
+      );
+
+      await expect(processor.process(mockJob)).rejects.toThrow(
+        /Archive integrity/,
+      );
+      // markExportFailed still runs because the audit failure is swallowed.
+      expect(dataExportService.markExportFailed).toHaveBeenCalledWith(
+        'req-audit-2',
+        expect.stringContaining('Archive integrity'),
       );
     });
   });

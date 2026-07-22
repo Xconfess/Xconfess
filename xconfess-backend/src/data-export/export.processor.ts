@@ -10,7 +10,8 @@ import { ExportChunk } from './entities/export-chunk.entity';
 import { User } from '../user/entities/user.entity';
 import { DataExportService } from './data-export.service';
 import { EmailService } from '../email/email.service';
-import { Logger } from '@nestjs/common';
+import { AuditLogService } from '../audit-log/audit-log.service';
+import { BadRequestException, Logger, Optional } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { EXPORT_QUEUE_NAME } from './data-export.constants';
 
@@ -42,6 +43,7 @@ export class ExportProcessor extends WorkerHost {
     private dataExportService: DataExportService,
     private emailService: EmailService,
     private configService: ConfigService,
+    @Optional() private readonly auditLogService?: AuditLogService,
   ) {
     super();
   }
@@ -62,11 +64,22 @@ export class ExportProcessor extends WorkerHost {
 
       // Final integrity pass — re-checksum the persisted chunks against the
       // combined hash we computed in memory. Mismatches fail the job so the
-      // caller (Bull / operator) can decide whether to retry.
-      await this.dataExportService.verifyArchiveIntegrity(
-        requestId,
-        result.combinedChecksum,
-      );
+      // caller (Bull / operator) can decide whether to retry. The integrity
+      // failure path emits a dedicated audit event so operators can spot
+      // archive corruption without grepping logs.
+      try {
+        await this.dataExportService.verifyArchiveIntegrity(
+          requestId,
+          result.combinedChecksum,
+        );
+      } catch (integrityErr) {
+        await this.emitIntegrityFailureAudit(
+          requestId,
+          userId,
+          integrityErr,
+        );
+        throw integrityErr;
+      }
 
       await this.exportRepository.update(requestId, {
         status: 'READY',
@@ -318,5 +331,53 @@ export class ExportProcessor extends WorkerHost {
 
       archive.finalize();
     });
+  }
+
+  /**
+   * Issue #1453 — emit a dedicated `export_integrity_verification_failed`
+   * audit event whenever `verifyArchiveIntegrity` rejects the archive.
+   * Fire-and-forget so a transient audit failure cannot block the
+   * downstream `markExportFailed` / re-throw path.
+   */
+  private async emitIntegrityFailureAudit(
+    requestId: string,
+    userId: string,
+    error: unknown,
+  ): Promise<void> {
+    if (!this.auditLogService) {
+      return;
+    }
+    const message =
+      error instanceof Error ? error.message : 'unknown integrity failure';
+    const code =
+      error instanceof BadRequestException &&
+      typeof error.getResponse === 'function' &&
+      typeof error.getResponse() === 'object' &&
+      error.getResponse() !== null
+        ? (error.getResponse() as { code?: string }).code ??
+          'ARCHIVE_INTEGRITY_FAILED'
+        : 'ARCHIVE_INTEGRITY_FAILED';
+
+    try {
+      await this.auditLogService.logExportLifecycleEvent({
+        action: 'integrity_verification_failed',
+        requestId,
+        exportId: requestId,
+        actorType: 'system',
+        actorId: EXPORT_QUEUE_NAME,
+        metadata: {
+          userId,
+          integrityCode: code,
+          reason: message,
+          failedAt: new Date().toISOString(),
+        },
+      });
+    } catch (auditErr) {
+      this.logger.warn(
+        `Failed to emit export_integrity_verification_failed audit for ${requestId}: ${
+          auditErr instanceof Error ? auditErr.message : 'unknown error'
+        }`,
+      );
+    }
   }
 }
