@@ -48,6 +48,7 @@ import { GetUserConfessionsDto } from './dto/get-user-confessions.dto';
 import { mapToSlimConfession } from './utils/confession-mapper';
 import { AnomalyDetectionService } from '../anomaly/anomaly-detection.service';
 import { OutboxEvent } from '../common/entities/outbox-event.entity';
+import { ConfessionIdempotencyService } from './confession-idempotency.service';
 
 @Injectable()
 export class ConfessionService {
@@ -65,6 +66,7 @@ export class ConfessionService {
     private readonly tagService: TagService,
     private readonly configService: ConfigService,
     private readonly anomalyDetection: AnomalyDetectionService,
+    private readonly idempotencyService: ConfessionIdempotencyService,
   ) {}
 
   private get aesKey(): string {
@@ -84,29 +86,61 @@ export class ConfessionService {
     const msg = this.sanitizeMessage(dto.message);
     if (!msg) throw new BadRequestException('Invalid confession content');
 
-    // Idempotency: return existing confession if key was already processed
+    // ── Idempotency check ─────────────────────────────────────────────────
     if (dto.idempotencyKey) {
-      const existing = await this.confessionRepo.findOne({
-        where: { idempotencyKey: dto.idempotencyKey },
+      const payloadHash = this.idempotencyService.computePayloadHash({
+        message: msg,
+        gender: dto.gender ?? null,
+        tags: dto.tags ?? null,
+        stellarTxHash: dto.stellarTxHash ?? null,
       });
-      if (existing) {
-        const decryptedMessage = decryptConfession(existing.message, this.aesKey);
-        const hasSamePayload =
-          msg === decryptedMessage &&
-          (dto.gender ?? null) === (existing.gender ?? null) &&
-          (dto.stellarTxHash ?? null) === (existing.stellarTxHash ?? null);
 
-        if (!hasSamePayload) {
-          throw new ConflictException(
-            'Idempotency key replay conflict: request body does not match original submission.',
-          );
+      const idempotencyResult = await this.idempotencyService.check(
+        dto.idempotencyKey,
+        payloadHash,
+      );
+
+      if (idempotencyResult.isReplay) {
+        // Return the canonical cached response without re-creating anything.
+        const cached = idempotencyResult.cachedResponse;
+        if (cached) {
+          cached.message = decryptConfession(cached.message, this.aesKey);
         }
-
-        existing.message = decryptedMessage;
-        return existing;
+        return cached;
       }
+
+      // First occurrence: run creation, then commit idempotency record.
+      let savedConfession: AnonymousConfession;
+      try {
+        savedConfession = await this.executeCreate(dto, msg, manager);
+      } catch (err) {
+        await this.idempotencyService.commitFailure(idempotencyResult.record);
+        throw err;
+      }
+
+      await this.idempotencyService.commitSuccess(
+        idempotencyResult.record,
+        savedConfession,
+        { id: savedConfession.id, message: msg },
+        201,
+      );
+
+      return savedConfession;
     }
 
+    // No idempotency key – run creation directly (legacy / optional path).
+    return this.executeCreate(dto, msg, manager);
+  }
+
+  /**
+   * Core confession creation logic, extracted so it can be called both from
+   * the idempotency-guarded path and the legacy (no-key) path.
+   */
+  private async executeCreate(
+    dto: CreateConfessionDto,
+    msg: string,
+    manager?: EntityManager,
+  ): Promise<AnonymousConfession> {
     try {
       // Step 0: Validate tags if provided (read-only, fine outside the transaction)
       let validatedTags: any[] = [];
@@ -233,8 +267,11 @@ export class ConfessionService {
       return savedConfession;
     } catch (error) {
       if (error instanceof BadRequestException) throw error;
+      if (error instanceof ConflictException) throw error;
 
       if (dto.idempotencyKey && (error as any)?.code === '23505') {
+        // The idempotency_key UNIQUE constraint on anonymous_confessions fired
+        // while the records table approach was bypassed (legacy path).
         const existing = await this.confessionRepo.findOne({
           where: { idempotencyKey: dto.idempotencyKey },
         });

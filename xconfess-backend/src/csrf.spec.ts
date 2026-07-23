@@ -8,10 +8,12 @@ function buildTestApp() {
   app.use(express.json());
   app.use(cookieParser());
   const csrfProtection = csurf({ cookie: { key: '_csrf', httpOnly: true, sameSite: 'strict' }, value: (req: any) => req.headers['x-xsrf-token'] || req.headers['x-csrf-token'] || (req.body && req.body._csrf) });
-  app.use((req, res, next) => { if (req.path.startsWith('/api/webhooks/')) return next(); csrfProtection(req as any, res as any, (err: any) => { if (err) return next(err); res.cookie('XSRF-TOKEN', (req as any).csrfToken(), { httpOnly: false }); next(); }); });
+  app.use((req, res, next) => { if (req.path.startsWith('/api/webhooks/moderation')) return next(); csrfProtection(req as any, res as any, (err: any) => { if (err) return next(err); res.cookie('XSRF-TOKEN', (req as any).csrfToken(), { httpOnly: false }); next(); }); });
   app.get('/api/csrf-token', (_req: Request, res: Response) => { res.json({ ok: true }); });
   app.post('/api/confessions', (_req: Request, res: Response) => { res.status(201).json({ created: true }); });
   app.post('/api/webhooks/moderation/results', (_req: Request, res: Response) => { res.status(200).json({ ok: true }); });
+  app.post('/api/webhooks/other-endpoint', (_req: Request, res: Response) => { res.status(200).json({ ok: true }); });
+  app.post('/api/webhooks/moderation/../../dangerous-action', (_req: Request, res: Response) => { res.status(200).json({ ok: true }); });
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => { if (err.code === 'EBADCSRFTOKEN') { return res.status(403).json({ message: 'Invalid or missing CSRF token' }); } _next(err); });
   return app;
 }
@@ -51,5 +53,17 @@ describe('CSRF protection', () => {
   it('webhook endpoint is exempt from CSRF checks (200)', async () => {
     const res = await request(app).post('/api/webhooks/moderation/results').send({ confessionId: 'abc', moderationScore: 0.1, moderationFlags: [], moderationStatus: 'APPROVED', details: {}, timestamp: new Date().toISOString() });
     expect(res.status).toBe(200);
+  });
+
+  it('rejects near-miss webhook path that is not explicitly listed (403)', async () => {
+    const res = await request(app).post('/api/webhooks/other-endpoint').send({ data: 'test' });
+    expect(res.status).toBe(403);
+    expect(res.body.message).toMatch(/csrf/i);
+  });
+
+  it('rejects path traversal disguised under webhooks prefix (403)', async () => {
+    const res = await request(app).post('/api/webhooks/moderation/../../dangerous-action').send({ data: 'test' });
+    expect(res.status).toBe(403);
+    expect(res.body.message).toMatch(/csrf/i);
   });
 });

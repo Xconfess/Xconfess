@@ -6,10 +6,14 @@ import {
   Max,
   IsOptional,
   IsArray,
+  Matches,
 } from 'class-validator';
 
 export class CreateFeatureFlagDto {
   @IsString()
+  @Matches(/^[a-zA-Z0-9_.-]+$/, {
+    message: 'Flag name must contain only letters, numbers, underscores, hyphens, and dots',
+  })
   name: string;
 
   @IsOptional()
@@ -28,6 +32,10 @@ export class CreateFeatureFlagDto {
   @IsArray()
   @IsString({ each: true })
   userIds?: string[];
+
+  @IsOptional()
+  @IsString()
+  lastChangedBy?: string;
 }
 
 export class UpdateFeatureFlagDto {
@@ -49,4 +57,8 @@ export class UpdateFeatureFlagDto {
   @IsArray()
   @IsString({ each: true })
   userIds?: string[];
+
+  @IsOptional()
+  @IsString()
+  lastChangedBy?: string;
 }

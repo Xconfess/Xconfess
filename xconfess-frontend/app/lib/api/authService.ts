@@ -20,13 +20,13 @@ import {
 } from '@/lib/normalizeAuthError';
 import { getApiBaseUrl } from '@/app/lib/config';
 
-const API_URL = getApiBaseUrl();
-
 /**
- * Axios instance for API calls
+ * Axios instance for proxy API calls.
+ * baseURL is set to the Next.js origin so that all paths are relative to /api/*.
+ * The proxy routes (app/api/**) handle forwarding requests to the backend.
  */
 const apiClient: AxiosInstance = axios.create({
-  baseURL: API_URL,
+  baseURL: typeof window === 'undefined' ? getApiBaseUrl() : '',
   headers: {
     'Content-Type': 'application/json',
   },
@@ -130,14 +130,29 @@ export const authApi = {
   },
 
   /**
-   * Register new user
+   * Register new user via the /api/users/register proxy route
    * @param data - Registration data (email, password, username)
    * @returns Registered user data
    */
   async register(data: RegisterData): Promise<RegisterResponse> {
     try {
-      const response = await apiClient.post<RegisterResponse>('/users/register', data);
-      return response.data;
+      const response = await fetch('/api/users/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        const message =
+          (body as any)?.message ?? `Registration failed (${response.status})`;
+        throw new AppError(message, 'REGISTER_FAILED', response.status, {
+          responseBody: body,
+          path: '/api/users/register',
+        });
+      }
+
+      return response.json() as Promise<RegisterResponse>;
     } catch (error) {
       const appError =
         error instanceof AppError

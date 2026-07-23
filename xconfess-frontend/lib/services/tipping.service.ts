@@ -13,7 +13,6 @@ import {
   BASE_FEE,
 } from "@stellar/stellar-sdk";
 import { ActivityStatus } from "@/app/lib/types/activity";
-import { getApiBaseUrl } from "@/app/lib/config";
 import {
   isFreighterInstalled,
   freighterGetPublicKey,
@@ -97,10 +96,6 @@ function classifyTipError(error: unknown): string {
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-function tippingApiUrl(path: string): string {
-  return `${getApiBaseUrl().replace(/\/$/, "")}${path}`;
 }
 
 function getResponseMessage(body: unknown): string | undefined {
@@ -231,7 +226,7 @@ export async function verifyTip(
   for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
     try {
       const res = await fetch(
-        tippingApiUrl(`/confessions/${confessionId}/tips/verify`),
+        `/api/confessions/${confessionId}/tips/verify`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -271,7 +266,7 @@ export async function getTipStats(
 ): Promise<TipStats | null> {
   try {
     const res = await fetch(
-      tippingApiUrl(`/confessions/${confessionId}/tips/stats`),
+      `/api/confessions/${confessionId}/tips/stats`,
     );
     if (!res.ok) return null;
     return (await res.json()) as TipStats;

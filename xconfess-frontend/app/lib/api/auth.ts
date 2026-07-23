@@ -1,7 +1,3 @@
-import { getApiBaseUrl } from "@/app/lib/config";
-
-const API_URL = getApiBaseUrl();
-
 export interface AuthTokenPayload {
   sub: string;
   email?: string;
@@ -103,10 +99,18 @@ export async function authFetch(
     headers.set("Content-Type", "application/json");
   }
 
-  // Session cookies are automatically included by the browser
-  return fetch(`${API_URL}${path}`, {
+  // Route all calls through the Next.js /api proxy so that browser-facing
+  // code never contacts the backend host directly. Session cookies are
+  // forwarded automatically by the proxy.
+  //
+  // Callers must pass a path that begins with "/api/", e.g. "/api/auth/session".
+  // If a bare backend path is passed (no /api/ prefix) it is rewritten to
+  // use the proxy so no direct backend URL ever leaves the browser.
+  const proxyPath = path.startsWith("/api/") ? path : `/api${path}`;
+
+  return fetch(proxyPath, {
     ...options,
     headers,
-    credentials: "include"
+    credentials: "same-origin",
   });
 }

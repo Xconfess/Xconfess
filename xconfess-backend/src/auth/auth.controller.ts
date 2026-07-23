@@ -23,6 +23,8 @@ import { Request } from 'express';
 import * as speakeasy from 'speakeasy';
 import * as QRCode from 'qrcode';
 import { AuthService } from './auth.service';
+import { StepUpService } from './step-up.service';
+import { StepUpDto } from './dto/step-up.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { LoginDto } from './dto/login.dto';
@@ -31,11 +33,47 @@ import { GetUser } from './get-user.decorator';
 import { User } from '../user/entities/user.entity';
 import { CryptoUtil } from '../common/crypto.util';
 import { RateLimit } from './guard/rate-limit.decorator';
+import { AppException } from '../common/errors/app-exception';
+import { ErrorCode } from '../common/errors/error-codes';
 
 @ApiTags('Auth')
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(
+    private readonly authService: AuthService,
+    private readonly stepUpService: StepUpService,
+  ) {}
+
+  @Post('step-up')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  @RateLimit(5, 60)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary:
+      'Re-authenticate (password or TOTP) to obtain a short-lived step-up proof',
+    description:
+      'Returns a step-up token to be sent in the "x-step-up-token" header on ' +
+      'destructive admin actions. The proof expires quickly.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Step-up proof issued.',
+    schema: {
+      example: {
+        stepUpToken: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
+        expiresIn: 300,
+      },
+    },
+  })
+  @ApiResponse({ status: 401, description: 'Step-up verification failed.' })
+  async stepUp(
+    @GetUser('id') userId: number,
+    @Body() dto: StepUpDto,
+  ): Promise<{ stepUpToken: string; expiresIn: number }> {
+    return this.stepUpService.createProof(userId, dto);
+  }
 
   @Post('2fa/setup')
   @UseGuards(JwtAuthGuard)
@@ -147,8 +185,6 @@ export class AuthController {
     const verified = speakeasy.totp.verify({ secret: secretPlain, encoding: 'base32', token, window: 1 });
     if (!verified) throw new UnauthorizedException('Invalid TOTP token');
 
-    // return JWT — use authService.login with the user's email and password? We don't have the password here.
-    // Instead, create a token payload and sign directly via jwtService exposed from authService
     const payload = {
       email: user.email,
       sub: user.id,
@@ -191,7 +227,6 @@ export class AuthController {
     @Body() loginDto: LoginDto,
   ): Promise<any> {
     try {
-      // Validate password first
       const validated = await this.authService.validateUser(
         loginDto.email,
         loginDto.password,
@@ -201,14 +236,11 @@ export class AuthController {
         throw new UnauthorizedException('Invalid credentials');
       }
 
-      // Check whether user has TOTP enabled
       const dbUser = await (this as any).authService.userService.findByEmail(loginDto.email);
       if (dbUser && dbUser.totpEnabled) {
-        // Prompt client to provide TOTP token
         return { twoFactorRequired: true, userId: dbUser.id };
       }
 
-      // No 2FA — proceed to full login
       const result = await this.authService.login(loginDto.email, loginDto.password);
       if (!result) {
         throw new UnauthorizedException('Invalid credentials');
@@ -221,6 +253,68 @@ export class AuthController {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       throw new BadRequestException('Login failed: ' + errorMessage);
     }
+  }
+
+  @Post('step-up')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  @RateLimit(5, 60)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Re-verify identity via password or TOTP for a short-lived step-up token' })
+  async stepUp(
+    @GetUser('id') userId: number,
+    @Body() body: { password?: string; totpToken?: string },
+  ): Promise<{ stepUpToken: string; expiresIn: number }> {
+    const { password, totpToken } = body;
+
+    if (!password && !totpToken) {
+      throw new AppException(
+        'Provide either password or a TOTP token to step up.',
+        ErrorCode.BAD_REQUEST,
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    const svc = (this as any).authService.userService;
+    const dbUser = await svc.findById(userId);
+    if (!dbUser) {
+      throw new UnauthorizedException('User not found');
+    }
+
+    let verified = false;
+
+    if (password) {
+      const bcrypt = require('bcryptjs');
+      verified = await bcrypt.compare(password, dbUser.password);
+    } else if (totpToken) {
+      if (!dbUser.totpSecretEncrypted || !dbUser.totpSecretIv || !dbUser.totpSecretTag) {
+        throw new UnauthorizedException('TOTP not configured');
+      }
+      const secretPlain = CryptoUtil.decrypt(
+        dbUser.totpSecretEncrypted,
+        dbUser.totpSecretIv,
+        dbUser.totpSecretTag,
+      );
+      verified = speakeasy.totp.verify({
+        secret: secretPlain,
+        encoding: 'base32',
+        token: totpToken,
+        window: 1,
+      });
+    }
+
+    if (!verified) {
+      throw new UnauthorizedException('Invalid password or TOTP token');
+    }
+
+    const expiresIn = 300; // 5 minutes
+    const stepUpToken = (this as any).authService.jwtService.sign(
+      { sub: userId, stepUp: true },
+      { expiresIn },
+    );
+
+    return { stepUpToken, expiresIn };
   }
 
   @Get('me')
@@ -261,7 +355,7 @@ export class AuthController {
         throw new UnauthorizedException('User not found');
       }
 
-      return user; // Already formatted by validateUserById
+      return user;
     } catch (error) {
       if (error instanceof UnauthorizedException) {
         throw error;
@@ -283,8 +377,6 @@ export class AuthController {
     schema: { example: { message: 'Logged out successfully' } },
   })
   async logout(): Promise<{ message: string }> {
-    // In a stateless JWT setup, logout is mainly client-side
-    // but we can add token blacklisting here if needed
     return { message: 'Logged out successfully' };
   }
 
@@ -323,7 +415,6 @@ export class AuthController {
       if (error instanceof BadRequestException) {
         throw error;
       }
-      // Handle generic errors gracefully - don't expose internal details
       return {
         message: 'If the user exists, a password reset email has been sent.',
       };
@@ -352,7 +443,6 @@ export class AuthController {
       if (error instanceof BadRequestException) {
         throw error;
       }
-      // Handle generic errors
       const errorMessage =
         error instanceof Error ? error.message : 'Unknown error';
       throw new BadRequestException(

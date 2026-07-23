@@ -37,17 +37,15 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
   return (
     <>
       <div
-        className={`fixed inset-0 bg-black/50 z-40 transition-opacity duration-300 md:hidden ${
-          isOpen ? "opacity-100" : "opacity-0 pointer-events-none"
-        }`}
+        className={`fixed inset-0 bg-black/50 z-40 transition-opacity duration-300 md:hidden ${isOpen ? "opacity-100" : "opacity-0 pointer-events-none"
+          }`}
         onClick={onClose}
         aria-hidden="true"
       />
 
       <div
-        className={`fixed top-0 right-0 h-full w-64 bg-background border-l border-zinc-200 dark:border-slate-800 shadow-2xl z-50 transform transition-transform duration-300 ease-in-out md:hidden ${
-          isOpen ? "translate-x-0" : "translate-x-full"
-        }`}
+        className={`fixed top-0 right-0 h-full w-72 max-w-[85vw] bg-background border-l border-zinc-200 dark:border-slate-800 shadow-2xl z-50 transform transition-transform duration-300 ease-in-out md:hidden ${isOpen ? "translate-x-0" : "translate-x-full"
+          }`}
         role="dialog"
         aria-modal="true"
         aria-label="Mobile Navigation"
@@ -60,7 +58,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
             <button
               ref={closeButtonRef}
               onClick={onClose}
-              className="p-2 -mr-2 text-gray-500 hover:text-gray-700 dark:text-slate-400 dark:hover:text-slate-200 rounded-full hover:bg-zinc-100 dark:hover:bg-slate-800 transition-colors"
+              className="p-2 -mr-2 text-gray-500 hover:text-gray-700 dark:text-slate-400 dark:hover:text-slate-200 rounded-full hover:bg-zinc-100 dark:hover:bg-slate-800 transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center"
               aria-label="Close menu"
             >
               <X size={24} />
@@ -72,7 +70,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
               <li>
                 <Link
                   href="/"
-                  className="flex items-center gap-3 px-4 py-4 text-gray-700 dark:text-slate-300 hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:text-purple-600 dark:hover:text-purple-400 rounded-lg transition-colors min-h-[44px]"
+                  className="flex items-center gap-3 px-4 py-3 text-gray-700 dark:text-slate-300 hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:text-purple-600 dark:hover:text-purple-400 rounded-lg transition-colors min-h-[44px]"
                   onClick={onClose}
                 >
                   <Home size={20} />
@@ -82,7 +80,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
               <li>
                 <Link
                   href="/search"
-                  className="flex items-center gap-3 px-4 py-4 text-gray-700 dark:text-slate-300 hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:text-purple-600 dark:hover:text-purple-400 rounded-lg transition-colors min-h-[44px]"
+                  className="flex items-center gap-3 px-4 py-3 text-gray-700 dark:text-slate-300 hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:text-purple-600 dark:hover:text-purple-400 rounded-lg transition-colors min-h-[44px]"
                   onClick={onClose}
                 >
                   <Search size={20} />
@@ -92,7 +90,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
               <li>
                 <Link
                   href="/compare"
-                  className="flex items-center gap-3 px-4 py-3 text-gray-700 dark:text-slate-300 hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:text-purple-600 dark:hover:text-purple-400 rounded-lg transition-colors"
+                  className="flex items-center gap-3 px-4 py-3 text-gray-700 dark:text-slate-300 hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:text-purple-600 dark:hover:text-purple-400 rounded-lg transition-colors min-h-[44px]"
                   onClick={onClose}
                 >
                   <BarChart3 size={20} />
@@ -102,7 +100,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
               <li>
                 <Link
                   href="/profile"
-                  className="flex items-center gap-3 px-4 py-4 text-gray-700 dark:text-slate-300 hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:text-purple-600 dark:hover:text-purple-400 rounded-lg transition-colors min-h-[44px]"
+                  className="flex items-center gap-3 px-4 py-3 text-gray-700 dark:text-slate-300 hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:text-purple-600 dark:hover:text-purple-400 rounded-lg transition-colors min-h-[44px]"
                   onClick={onClose}
                 >
                   <User size={20} />
@@ -112,17 +110,29 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
               <li>
                 <Link
                   href="/anchors"
-                  className="flex items-center gap-3 px-4 py-4 text-gray-700 dark:text-slate-300 hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:text-purple-600 dark:hover:text-purple-400 rounded-lg transition-colors min-h-[44px]"
+                  className="flex items-center gap-3 px-4 py-3 text-gray-700 dark:text-slate-300 hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:text-purple-600 dark:hover:text-purple-400 rounded-lg transition-colors min-h-[44px]"
                   onClick={onClose}
                 >
                   <Anchor size={20} />
                   <span>Anchors</span>
                 </Link>
               </li>
+              {user?.role === "admin" && (
+                <li>
+                  <Link
+                    href="/admin"
+                    className="flex items-center gap-3 px-4 py-3 font-bold text-gray-700 dark:text-slate-300 hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:text-purple-600 dark:hover:text-purple-400 rounded-lg transition-colors min-h-[44px]"
+                    onClick={onClose}
+                  >
+                    <span className="w-5 text-center">🛡️</span>
+                    <span>Admin</span>
+                  </Link>
+                </li>
+              )}
               <li>
                 <Link
                   href="/messages"
-                  className="flex items-center gap-3 px-4 py-4 text-gray-700 dark:text-slate-300 hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:text-purple-600 dark:hover:text-purple-400 rounded-lg transition-colors min-h-[44px]"
+                  className="flex items-center gap-3 px-4 py-3 text-gray-700 dark:text-slate-300 hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:text-purple-600 dark:hover:text-purple-400 rounded-lg transition-colors min-h-[44px]"
                   onClick={onClose}
                 >
                   <MessageSquare size={20} />
@@ -150,7 +160,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                   logout();
                   onClose();
                 }}
-                className="w-full flex items-center justify-center gap-2 px-4 py-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors border border-red-200 dark:border-red-900/40"
+                className="w-full flex items-center justify-center gap-2 px-4 py-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors border border-red-200 dark:border-red-900/40 min-h-[44px]"
               >
                 <LogOut size={18} />
                 <span>Logout</span>

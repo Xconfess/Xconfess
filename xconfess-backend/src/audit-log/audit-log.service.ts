@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+﻿import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { AuditLog, AuditActionType } from './audit-log.entity';
@@ -430,6 +430,41 @@ export class AuditLogService {
         ...context,
         userId: adminId,
         actor: this.createActor('admin', adminId),
+      },
+    });
+  }
+
+  /**
+   * Log a single summary entry for an export-retention cleanup run
+   * (dry-run or real), mirroring logNotificationDlqCleanup.
+   */
+  async logExportRetentionCleanup(
+    metadata: {
+      dryRun: boolean;
+      retentionDays: number;
+      cutoff: string;
+      summary: {
+        eligibleCount: number;
+        expiredCount: number;
+        chunkCount: number;
+        statusCounts: Record<string, number>;
+        requestIds: string[];
+        omittedRequestIds: number;
+      };
+      cleanedAt?: string;
+    },
+    context?: AuditLogContext,
+  ): Promise<void> {
+    await this.log({
+      actionType: AuditActionType.EXPORT_RETENTION_CLEANUP,
+      metadata: {
+        entityType: 'data_export_retention',
+        ...metadata,
+        cleanedAt: metadata.cleanedAt || new Date().toISOString(),
+      },
+      context: {
+        ...context,
+        actor: this.createActor('system', 'retention-cleanup-scheduler'),
       },
     });
   }
@@ -1281,3 +1316,4 @@ export class AuditLogService {
     return null;
   }
 }
+

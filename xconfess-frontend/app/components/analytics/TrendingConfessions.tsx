@@ -37,8 +37,11 @@ export const TrendingConfessions: React.FC<TrendingConfessionsProps> = ({
 
     const getTimeAgo = (dateString: string) => {
         const date = new Date(dateString);
+        // Fallback to current time or a safe default if the date is invalid
+        const validDate = isNaN(date.getTime()) ? new Date() : date;
+
         const now = new Date();
-        const diffInHours = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60));
+        const diffInHours = Math.floor((now.getTime() - validDate.getTime()) / (1000 * 60 * 60));
 
         if (diffInHours < 1) return 'Just now';
         if (diffInHours < 24) return `${diffInHours}h ago`;
@@ -64,6 +67,7 @@ export const TrendingConfessions: React.FC<TrendingConfessionsProps> = ({
                 {confessions.slice(0, 10).map((confession, index) => (
                     <div
                         key={confession.id}
+                        data-testid={`confession-card-${confession.id || index + 1}`}
                         className="group bg-zinc-800/30 hover:bg-zinc-800/50 rounded-xl p-4 transition-all cursor-pointer border border-transparent hover:border-zinc-700"
                     >
                         <div className="flex items-start gap-3">

@@ -1,4 +1,4 @@
-import {
+﻿import {
   Entity,
   PrimaryGeneratedColumn,
   Column,
@@ -20,6 +20,9 @@ export enum AuditActionType {
   COMMENT_APPROVED = 'comment_approved',
   COMMENT_REJECTED = 'comment_rejected',
 
+  // Webhook security
+  WEBHOOK_REJECTED = 'webhook_rejected',
+
   // Report actions
   REPORT_CREATED = 'report_created',
   REPORT_RESOLVED = 'report_resolved',
@@ -32,6 +35,7 @@ export enum AuditActionType {
   NOTIFICATION_SUPPRESSED = 'notification_suppressed',
   NOTIFICATION_DLQ_REPLAY = 'notification_dlq_replay',
   NOTIFICATION_DLQ_CLEANUP = 'notification_dlq_cleanup',
+  EXPORT_RETENTION_CLEANUP = 'export_retention_cleanup',
 
   // Moderation
   MODERATION_ESCALATION = 'moderation_escalation',
@@ -61,8 +65,8 @@ export enum AuditActionType {
   EXPORT_GENERATION_COMPLETED = 'export_generation_completed',
   EXPORT_LINK_REFRESHED = 'export_link_refreshed',
   EXPORT_DOWNLOADED = 'export_downloaded',
-  EXPORT_TOKEN_EXPIRED = 'export_token_expired',   // <-- ADDED
-  EXPORT_EXPIRED = 'export_expired',               // <-- ADDED
+  EXPORT_TOKEN_EXPIRED = 'export_token_expired', // <-- ADDED
+  EXPORT_EXPIRED = 'export_expired', // <-- ADDED
 
   // Admin CSV export actions initiated from the frontend
   ADMIN_CSV_EXPORT = 'admin_csv_export',
@@ -74,6 +78,12 @@ export enum AuditActionType {
   STELLAR_ANCHOR_RETRY = 'stellar_anchor_retry',
   STELLAR_ANCHOR_FAILED = 'stellar_anchor_failed',
   TIP_RECONCILIATION_DEAD_LETTER = 'tip_reconciliation_dead_letter',
+
+  // Feature Flag actions
+  FEATURE_FLAG_CREATED = 'feature_flag_created',
+  FEATURE_FLAG_UPDATED = 'feature_flag_updated',
+  FEATURE_FLAG_DELETED = 'feature_flag_deleted',
+  FEATURE_FLAG_ROLLED_BACK = 'feature_flag_rolled_back',
 }
 
 @Entity('audit_logs')
@@ -162,3 +172,4 @@ export class AuditLog {
     this.createdAt = value;
   }
 }
+

@@ -13,9 +13,10 @@ interface NetworkStatusContextType {
 
 const NetworkStatusContext = createContext<NetworkStatusContextType | undefined>(undefined);
 
-function getApiBaseUrl(): string {
-  if (typeof window === "undefined") return "http://localhost:3000";
-  return process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000/api";
+function getHealthCheckUrl(): string {
+  // Always use the Next.js proxy route — never contact the backend host directly
+  // from client-rendered code.
+  return "/api/health/ready";
 }
 
 export const NetworkStatusProvider = ({ children }: { children: React.ReactNode }) => {
@@ -36,10 +37,9 @@ export const NetworkStatusProvider = ({ children }: { children: React.ReactNode 
     if (checkInFlight.current) return isApiOnline;
     checkInFlight.current = true;
     try {
-      const base = getApiBaseUrl().replace(/\/api\/?$/, "");
       const controller = new AbortController();
       const id = setTimeout(() => controller.abort(), 5000);
-      const res = await fetch(`${base}/api/health`, {
+      const res = await fetch(getHealthCheckUrl(), {
         method: "GET",
         signal: controller.signal,
       });

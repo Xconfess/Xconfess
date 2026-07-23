@@ -8,7 +8,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/app/lib/api/queryKeys";
 import { AUTH_TOKEN_KEY } from "@/app/lib/api/constants";
 import { useFocusTrap } from "@/app/lib/hooks/useFocusTrap";
-import { getApiBaseUrl } from "@/app/lib/config";
+import { getWsUrl } from "@/app/lib/config";
 import { useAuth } from "@/app/lib/hooks/useAuth";
 
 /**
@@ -48,10 +48,13 @@ export default function AdminLayout({
   );
 
   useEffect(() => {
-    // In development mock mode, skip real auth so local UI work is unblocked.
-    // This path is compiled away in production builds (NODE_ENV check is
-    // evaluated at build time by Next.js / webpack dead-code elimination).
-    if (isDevBypassEnabled()) return;
+    // In development mock mode, skip real auth checks (but NOT role checks)
+    if (isDevBypassEnabled()) {
+      if (user?.role !== "admin") {
+        router.replace("/dashboard");
+      }
+      return;
+    }
 
     if (isLoading) {
       return;
@@ -77,7 +80,7 @@ export default function AdminLayout({
         : null;
     if (!token) return;
 
-    const baseUrl = getApiBaseUrl();
+    const baseUrl = getWsUrl();
     if (!baseUrl) return;
 
     const socket: Socket = io(`${baseUrl}/admin`, {
@@ -148,14 +151,18 @@ export default function AdminLayout({
     trapFocus: true,
   });
 
-  if (!isDevBypassEnabled()) {
-    if (isLoading) {
-      return null;
-    }
+  if (isLoading) {
+    return null;
+  }
 
-    if (!isAuthenticated || user?.role !== "admin") {
+  if (!isDevBypassEnabled()) {
+    if (!isAuthenticated) {
       return null;
     }
+  }
+
+  if (user?.role !== "admin") {
+    return null;
   }
 
   return (

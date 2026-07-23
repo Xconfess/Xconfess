@@ -629,6 +629,31 @@ export class DataExportService {
       .where('userLinks.userId = :userId', { userId })
       .getMany();
 
+    const tipRepo = this.exportRepository.manager.getRepository('Tip');
+    const reportRepo = this.exportRepository.manager.getRepository('Report');
+    const moderationLogRepo = this.exportRepository.manager.getRepository('ModerationLog');
+
+    const tips = await tipRepo
+      .createQueryBuilder('tip')
+      .leftJoinAndSelect('tip.confession', 'confession')
+      .leftJoinAndSelect('confession.anonymousUser', 'anonymousUser')
+      .leftJoinAndSelect('anonymousUser.userLinks', 'userLinks')
+      .where('userLinks.userId = :userId', { userId })
+      .getMany();
+
+    const reports = await reportRepo
+      .createQueryBuilder('report')
+      .leftJoinAndSelect('report.reporter', 'reporter')
+      .leftJoinAndSelect('report.anonymousReporter', 'anonymousReporter')
+      .leftJoinAndSelect('anonymousReporter.userLinks', 'userLinks')
+      .where('report.reporterId = :userId OR userLinks.userId = :userId', { userId })
+      .getMany();
+
+    const moderationLogs = await moderationLogRepo
+      .createQueryBuilder('log')
+      .where('log.userId = :userId', { userId })
+      .getMany();
+
     // Apply redaction policy
     const redactedConfessions = confessions.map((confession) =>
       this.redactConfessionForExport(confession, user),
@@ -642,6 +667,10 @@ export class DataExportService {
       this.redactMessageForExport(message, user),
     );
 
+    const redactedTips = tips.map((tip) => this.redactTipForExport(tip, user));
+    const redactedReports = reports.map((report) => this.redactReportForExport(report, user));
+    const redactedModerationLogs = moderationLogs.map((log) => this.redactModerationLogForExport(log, user));
+
     return {
       userId,
       exportedAt: new Date().toISOString(),
@@ -649,6 +678,9 @@ export class DataExportService {
       confessions: redactedConfessions,
       comments: redactedComments,
       messages: redactedMessages,
+      tips: redactedTips,
+      reports: redactedReports,
+      moderationLogs: redactedModerationLogs,
       reactions: [],
       _redactionPolicy: {
         description: 'Content redacted according to deletion and moderation policies',
@@ -790,6 +822,52 @@ export class DataExportService {
       repliedAt: message.repliedAt,
       confessionId: message.confession?.id,
       _redacted: false,
+    };
+  }
+
+  private redactTipForExport(tip: any, user: any): any {
+    return {
+      id: tip.id,
+      amount: tip.amount,
+      verificationStatus: tip.verificationStatus,
+      confessionId: tip.confessionId,
+      createdAt: tip.createdAt,
+      senderAddress: '[REDACTED]',
+      _redacted: true,
+      _reason: 'counterpart_privacy',
+    };
+  }
+
+  private redactReportForExport(report: any, user: any): any {
+    return {
+      id: report.id,
+      confessionId: report.confessionId,
+      type: report.type,
+      reason: report.reason,
+      status: report.status,
+      createdAt: report.createdAt,
+      resolvedAt: report.resolvedAt,
+      resolutionNotes: report.resolutionNotes,
+      resolver: '[REDACTED]',
+      resolvedBy: null,
+      _redacted: true,
+      _reason: 'counterpart_privacy',
+    };
+  }
+
+  private redactModerationLogForExport(log: any, user: any): any {
+    return {
+      id: log.id,
+      confessionId: log.confessionId,
+      moderationScore: log.moderationScore,
+      moderationFlags: log.moderationFlags,
+      moderationStatus: log.moderationStatus,
+      createdAt: log.createdAt,
+      reviewedAt: log.reviewedAt,
+      reviewNotes: log.reviewNotes,
+      reviewedBy: '[REDACTED]',
+      _redacted: true,
+      _reason: 'counterpart_privacy',
     };
   }
 
