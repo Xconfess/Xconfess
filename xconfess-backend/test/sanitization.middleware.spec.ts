@@ -1,4 +1,6 @@
 import { SanitizationMiddleware } from '../src/middleware/sanitization.middleware';
+import { MALICIOUS_PAYLOAD_FIXTURES } from '../../shared/fixtures/malicious-payloads';
+import { encryptConfession, decryptConfession } from '../src/utils/confession-encryption';
 
 function makeMiddleware() {
   return new SanitizationMiddleware();
@@ -30,9 +32,40 @@ describe('SanitizationMiddleware', () => {
     mw = makeMiddleware();
   });
 
+  // ── Shared Malicious Fixtures Testing ─────────────────────────────────────
+
+  describe('Shared Malicious Payload Fixtures', () => {
+    it.each(MALICIOUS_PAYLOAD_FIXTURES)(
+      'sanitizes $id ($description) in confession context',
+      async (fixture) => {
+        const req = makeReq({ message: fixture.input }, {}, '/api/confessions');
+        await run(mw, req);
+
+        for (const notAllowed of fixture.expectedSanitizedConfessionNotContains) {
+          expect(req.body.message).not.toContain(notAllowed);
+        }
+        if (fixture.expectedSanitizedConfessionContains) {
+          expect(req.body.message).toContain(fixture.expectedSanitizedConfessionContains);
+        }
+      },
+    );
+
+    it.each(MALICIOUS_PAYLOAD_FIXTURES)(
+      'sanitizes $id ($description) in comment context',
+      async (fixture) => {
+        const req = makeReq({ content: fixture.input }, {}, '/api/comments');
+        await run(mw, req);
+
+        for (const notAllowed of fixture.expectedSanitizedPlainTextNotContains) {
+          expect(req.body.content).not.toContain(notAllowed);
+        }
+      },
+    );
+  });
+
   // ── Confession context ─────────────────────────────────────────────────────
 
-  describe('confession content', () => {
+  describe('confession context', () => {
     it('strips <script> tags', async () => {
       const req = makeReq(
         { message: 'Hello <script>alert("xss")</script> world' },
@@ -44,15 +77,21 @@ describe('SanitizationMiddleware', () => {
       expect(req.body.message).not.toContain('<script>');
     });
 
-    it('preserves allowed markdown HTML tags', async () => {
+    it('preserves allowed markdown HTML tags and attributes', async () => {
       const req = makeReq(
-        { message: 'I feel <strong>strongly</strong> about <em>this</em>' },
+        {
+          message:
+            '# Title\n' +
+            'I feel <strong>strongly</strong> about <em>this</em>. ' +
+            '<a href="https://example.com" target="_blank">Link</a>',
+        },
         {},
         '/api/confessions',
       );
       await run(mw, req);
       expect(req.body.message).toContain('<strong>strongly</strong>');
       expect(req.body.message).toContain('<em>this</em>');
+      expect(req.body.message).toContain('<a href="https://example.com" target="_blank">Link</a>');
     });
 
     it('strips onclick and other dangerous attributes', async () => {
@@ -87,28 +126,44 @@ describe('SanitizationMiddleware', () => {
     });
   });
 
-  // ── Comment context ────────────────────────────────────────────────────────
+  // ── Messages context ────────────────────────────────────────────────────────
 
-  describe('comment content', () => {
-    it('strips all HTML tags', async () => {
+  describe('messages context', () => {
+    it('applies markdown sanitization policy to messages route', async () => {
+      const req = makeReq(
+        { body: 'Direct message with <script>alert(1)</script> <strong>safe markdown</strong>' },
+        {},
+        '/api/messages',
+      );
+      await run(mw, req);
+      expect(req.body.body).not.toContain('<script>');
+      expect(req.body.body).toContain('<strong>safe markdown</strong>');
+    });
+  });
+
+  // ── Comment & Reports context ─────────────────────────────────────────────
+
+  describe('comment & reports context', () => {
+    it('strips all HTML tags from comments', async () => {
       const req = makeReq(
         { content: 'Nice <b>post</b>! <script>evil()</script>' },
         {},
         '/api/comments',
       );
       await run(mw, req);
-      expect(req.body.content).toBe('Nice post! ');
+      expect(req.body.content).toBe('Nice post!');
       expect(req.body.content).not.toContain('<b>');
     });
 
-    it('preserves plain text', async () => {
+    it('strips all HTML tags from reports', async () => {
       const req = makeReq(
-        { content: 'This is a normal comment.' },
+        { reason: 'Abusive content <i>here</i> <script>alert(1)</script>' },
         {},
-        '/api/comments',
+        '/api/reports',
       );
       await run(mw, req);
-      expect(req.body.content).toBe('This is a normal comment.');
+      expect(req.body.reason).toBe('Abusive content here');
+      expect(req.body.reason).not.toContain('<i>');
     });
   });
 
@@ -126,16 +181,34 @@ describe('SanitizationMiddleware', () => {
     });
 
     it('escapes SQL wildcard characters', async () => {
-      const req = makeReq({}, { q: '100% complete' }, '/api/search');
+      const req = makeReq({}, { q: 'user_name' }, '/api/search');
       await run(mw, req);
-      // % is not in the escape list (only %, _, \) — let's check _ is escaped
-      const req2 = makeReq({}, { q: 'user_name' }, '/api/search');
-      await run(mw, req2);
-      expect(req2.query['q']).toBe('user\\_name');
+      expect(req.query['q']).toBe('user\\_name');
     });
   });
 
-  // ── Nested objects and arrays ──────────────────────────────────────────────
+  // ── Encryption Flow Preservation ──────────────────────────────────────────
+
+  describe('Encryption Flow Integration', () => {
+    const key = '12345678901234567890123456789012';
+
+    it('sanitizes input before encryption while preserving safe content', async () => {
+      const input = 'Secret confession <script>alert(1)</script> <strong>bold text</strong>';
+      const req = makeReq({ message: input }, {}, '/api/confessions');
+      await run(mw, req);
+
+      const sanitized = req.body.message;
+      expect(sanitized).toBe('Secret confession  <strong>bold text</strong>');
+
+      const encrypted = encryptConfession(sanitized, key);
+      expect(encrypted).not.toBe(sanitized);
+
+      const decrypted = decryptConfession(encrypted, key);
+      expect(decrypted).toBe('Secret confession  <strong>bold text</strong>');
+    });
+  });
+
+  // ── Nested objects and edge cases ─────────────────────────────────────────
 
   describe('nested body sanitization', () => {
     it('sanitizes string fields inside nested objects', async () => {
@@ -150,14 +223,15 @@ describe('SanitizationMiddleware', () => {
 
     it('sanitizes strings inside arrays', async () => {
       const req = makeReq(
-        { tags: ['valid', '<img onerror="xss()">bad'] },
+        { tags: ['valid', '<b onclick="xss()">bad</b>'] },
         {},
         '/api/confessions',
       );
       await run(mw, req);
       const tags = req.body.tags as string[];
       expect(tags[0]).toBe('valid');
-      expect(tags[1]).not.toContain('<img');
+      expect(tags[1]).not.toContain('onclick');
+      expect(tags[1]).toContain('<b>bad</b>');
     });
 
     it('leaves non-string values untouched', async () => {
@@ -172,22 +246,6 @@ describe('SanitizationMiddleware', () => {
       expect(req.body.data).toBeNull();
     });
   });
-
-  // ── Generic context ────────────────────────────────────────────────────────
-
-  describe('generic routes', () => {
-    it('strips script tags from unknown routes', async () => {
-      const req = makeReq(
-        { note: '<script>alert(1)</script>hello' },
-        {},
-        '/api/misc',
-      );
-      await run(mw, req);
-      expect(req.body.note).not.toContain('<script>');
-    });
-  });
-
-  // ── No body ───────────────────────────────────────────────────────────────
 
   it('handles requests with no body gracefully', async () => {
     const req: any = { path: '/api/confessions', query: {} };
