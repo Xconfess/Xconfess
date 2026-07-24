@@ -4,6 +4,7 @@ import {
   insertLink,
   insertEmoji,
 } from "../markdown";
+import { MALICIOUS_PAYLOAD_FIXTURES } from "../../../../../shared/fixtures/malicious-payloads";
 
 // Mock textarea element
 function createMockTextarea(value: string, selectionStart: number, selectionEnd: number) {
@@ -56,6 +57,16 @@ describe("markdown utilities", () => {
       const textarea = createMockTextarea("Hello world", 6, 6);
       insertEmoji(textarea, "😀");
       expect(textarea.value).toBe("Hello 😀world");
+    });
+  });
+
+  describe("shared malicious payload fixtures check", () => {
+    it("has shared malicious payloads available for frontend rendering validation", () => {
+      expect(MALICIOUS_PAYLOAD_FIXTURES.length).toBeGreaterThan(0);
+      MALICIOUS_PAYLOAD_FIXTURES.forEach((fixture) => {
+        expect(fixture.input).toBeDefined();
+        expect(fixture.expectedSanitizedConfessionNotContains.length).toBeGreaterThan(0);
+      });
     });
   });
 });
