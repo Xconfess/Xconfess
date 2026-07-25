@@ -41,8 +41,10 @@ export class NotificationService {
     jobId?: string,
   ): Promise<void> {
     if (this.configService.get<string>('ENABLE_BACKGROUND_JOBS') !== 'true') {
+      const requestId =
+        payload?.requestId || payload?.messageId || jobId || 'unknown';
       this.appLogger.warn(
-        `enqueueNotification skipped (jobs disabled): type=${type}`,
+        `[BackgroundJobDisabled] Enqueue skipped for queue "${NOTIFICATION_QUEUE}": type=${type} requestId=${requestId} jobId=${jobId || 'none'}`,
         'NotificationService',
       );
       return;

@@ -130,6 +130,92 @@ describe('[Backend] DELETE /users/:userId', () => {
   });
 });
 
+describe('[Backend] GET /users/:userId/activities', () => {
+  it('401 when unauthenticated', async () => {
+    await request(BACKEND).get(`/users/${USER_A.id}/activities`).expect(401);
+  });
+
+  it('200 for own activities', async () => {
+    await request(BACKEND)
+      .get(`/users/${USER_A.id}/activities`)
+      .set(authed(USER_A.token))
+      .expect(200);
+  });
+
+  it('403 IDOR — user B cannot read user A activities', async () => {
+    await request(BACKEND)
+      .get(`/users/${USER_A.id}/activities`)
+      .set(authed(USER_B.token))
+      .expect(403);
+  });
+});
+
+describe('[Backend] GET /users/:userId/confessions', () => {
+  it('401 when unauthenticated', async () => {
+    await request(BACKEND).get(`/users/${USER_A.id}/confessions`).expect(401);
+  });
+
+  it('200 for own confessions', async () => {
+    await request(BACKEND)
+      .get(`/users/${USER_A.id}/confessions`)
+      .set(authed(USER_A.token))
+      .expect(200);
+  });
+
+  it('403 IDOR — user B cannot read user A confessions', async () => {
+    await request(BACKEND)
+      .get(`/users/${USER_A.id}/confessions`)
+      .set(authed(USER_B.token))
+      .expect(403);
+  });
+});
+
+describe('[Backend] GET /users/:userId/profile/summary', () => {
+  it('401 when unauthenticated', async () => {
+    await request(BACKEND).get(`/users/${USER_A.id}/profile/summary`).expect(401);
+  });
+
+  it('200 for own profile summary', async () => {
+    await request(BACKEND)
+      .get(`/users/${USER_A.id}/profile/summary`)
+      .set(authed(USER_A.token))
+      .expect(200);
+  });
+
+  it('403 IDOR — user B cannot read user A profile summary', async () => {
+    await request(BACKEND)
+      .get(`/users/${USER_A.id}/profile/summary`)
+      .set(authed(USER_B.token))
+      .expect(403);
+  });
+});
+
+describe('[Backend] Public profile endpoints', () => {
+  it('200 public access to /users/:userId/profile without token', async () => {
+    const res = await request(BACKEND)
+      .get(`/users/${USER_A.id}/profile`)
+      .expect(200);
+    // Excludes private fields
+    expect(res.body).not.toHaveProperty('id');
+    expect(res.body).not.toHaveProperty('settings');
+    expect(res.body).not.toHaveProperty('history');
+    expect(res.body).toHaveProperty('username');
+    expect(res.body).toHaveProperty('stats');
+  });
+
+  it('200 public access to /users/:userId/public-profile without token', async () => {
+    const res = await request(BACKEND)
+      .get(`/users/${USER_A.id}/public-profile`)
+      .expect(200);
+    // Excludes private fields
+    expect(res.body).not.toHaveProperty('id');
+    expect(res.body).not.toHaveProperty('settings');
+    expect(res.body).not.toHaveProperty('history');
+    expect(res.body).toHaveProperty('username');
+    expect(res.body).toHaveProperty('stats');
+  });
+});
+
 // ── Admin endpoints ─────────────────────────────────────────────────────────
 
 describe('[Backend] Admin data endpoints', () => {
@@ -191,6 +277,57 @@ describe('[Proxy] Next.js proxy routes enforce IDOR independently', () => {
     );
     // Proxy must reject based on session, not the spoofed header.
     expect(res.status).toBe(403);
+  });
+
+  it('403 — proxy rejects cross-user activity access', async () => {
+    const res = await fetch(
+      `${FRONTEND}/api/users/${USER_A.id}/activities`,
+      { headers: { cookie: `session=${sessionB}` } },
+    );
+    expect(res.status).toBe(403);
+  });
+
+  it('200 — proxy allows own activity access', async () => {
+    const res = await fetch(
+      `${FRONTEND}/api/users/${USER_A.id}/activities`,
+      { headers: { cookie: `session=${sessionA}` } },
+    );
+    expect(res.status).toBe(200);
+  });
+
+  it('403 — proxy rejects cross-user confessions access', async () => {
+    const res = await fetch(
+      `${FRONTEND}/api/users/${USER_A.id}/confessions`,
+      { headers: { cookie: `session=${sessionB}` } },
+    );
+    expect(res.status).toBe(403);
+  });
+
+  it('200 — proxy allows own confessions access', async () => {
+    const res = await fetch(
+      `${FRONTEND}/api/users/${USER_A.id}/confessions`,
+      { headers: { cookie: `session=${sessionA}` } },
+    );
+    expect(res.status).toBe(200);
+  });
+
+  it('200 — proxy allows public profile access without cookie', async () => {
+    const res = await fetch(
+      `${FRONTEND}/api/users/${USER_A.id}/public-profile`,
+    );
+    expect(res.status).toBe(200);
+  });
+
+  it('SECURITY — proxy strips X-User-Id header before forwarding to public profile', async () => {
+    const res = await fetch(
+      `${FRONTEND}/api/users/${USER_A.id}/public-profile`,
+      {
+        headers: {
+          'x-user-id': USER_B.id,
+        },
+      },
+    );
+    expect(res.status).toBe(200);
   });
 });
 

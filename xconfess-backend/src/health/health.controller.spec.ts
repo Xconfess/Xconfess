@@ -1,5 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { HealthCheckService, TypeOrmHealthIndicator } from '@nestjs/terminus';
+import { ConfigService } from '@nestjs/config';
 import { HealthController } from './health.controller';
 import { RedisHealthIndicator } from './redis.health';
 import { SchemaReadinessHealthIndicator } from './schema-readiness.health';
@@ -9,6 +10,7 @@ const UP = (key: string) => ({ [key]: { status: 'up' } });
 
 describe('HealthController', () => {
   let controller: HealthController;
+  let configService: { get: jest.Mock };
 
   const healthService = {
     check: jest
@@ -34,6 +36,8 @@ describe('HealthController', () => {
   beforeEach(async () => {
     jest.clearAllMocks();
 
+    configService = { get: jest.fn().mockReturnValue('false') };
+
     const module: TestingModule = await Test.createTestingModule({
       controllers: [HealthController],
       providers: [
@@ -42,6 +46,7 @@ describe('HealthController', () => {
         { provide: RedisHealthIndicator, useValue: redisIndicator },
         { provide: SchemaReadinessHealthIndicator, useValue: schemaIndicator },
         { provide: QueueHealthIndicator, useValue: queueIndicator },
+        { provide: ConfigService, useValue: configService },
       ],
     }).compile();
 
@@ -76,6 +81,18 @@ describe('HealthController', () => {
       expect(queueIndicator.isHealthy).toHaveBeenCalledWith('queues');
       expect(schemaIndicator.isHealthy).toHaveBeenCalledWith('schema');
     });
+
+    it('includes backgroundJobMode in readiness response', async () => {
+      configService.get.mockReturnValue('false');
+      const result = await controller.readiness();
+      expect(result).toHaveProperty('backgroundJobMode', 'disabled');
+    });
+
+    it('reports backgroundJobMode as enabled when ENABLE_BACKGROUND_JOBS=true', async () => {
+      configService.get.mockReturnValue('true');
+      const result = await controller.readiness();
+      expect(result).toHaveProperty('backgroundJobMode', 'enabled');
+    });
   });
 
   describe('GET /health (backward-compat alias)', () => {
@@ -85,6 +102,12 @@ describe('HealthController', () => {
       expect(redisIndicator.isHealthy).toHaveBeenCalledWith('redis');
       expect(queueIndicator.isHealthy).toHaveBeenCalledWith('queues');
       expect(schemaIndicator.isHealthy).toHaveBeenCalledWith('schema');
+    });
+
+    it('includes backgroundJobMode in check response', async () => {
+      configService.get.mockReturnValue('false');
+      const result = await controller.check();
+      expect(result).toHaveProperty('backgroundJobMode', 'disabled');
     });
   });
 });

@@ -6,6 +6,7 @@ import {
 } from '@nestjs/terminus';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
+import { ConfigService } from '@nestjs/config';
 import { RedisHealthIndicator } from './redis.health';
 import { SchemaReadinessHealthIndicator } from './schema-readiness.health';
 import { QueueHealthIndicator } from './queue.health';
@@ -19,6 +20,7 @@ export class HealthController {
     private readonly redis: RedisHealthIndicator,
     private readonly schemaReadiness: SchemaReadinessHealthIndicator,
     private readonly queues: QueueHealthIndicator,
+    private readonly configService: ConfigService,
   ) {}
 
   /**
@@ -57,13 +59,19 @@ export class HealthController {
     status: 503,
     description: 'One or more dependencies unavailable',
   })
-  readiness() {
-    return this.health.check([
+  async readiness() {
+    const result = await this.health.check([
       async () => this.db.pingCheck('database'),
       async () => this.redis.isHealthy('redis'),
       async () => this.queues.isHealthy('queues'),
       async () => this.schemaReadiness.isHealthy('schema'),
     ]);
+    const jobsEnabled =
+      this.configService?.get<string>('ENABLE_BACKGROUND_JOBS') === 'true';
+    return {
+      ...result,
+      backgroundJobMode: jobsEnabled ? 'enabled' : 'disabled',
+    };
   }
 
   /** Backward-compatible alias for GET /health/ready. */
@@ -78,12 +86,18 @@ export class HealthController {
   })
   @ApiResponse({ status: 200, description: 'All checks passed' })
   @ApiResponse({ status: 503, description: 'One or more checks failed' })
-  check() {
-    return this.health.check([
+  async check() {
+    const result = await this.health.check([
       async () => this.db.pingCheck('database'),
       async () => this.redis.isHealthy('redis'),
       async () => this.queues.isHealthy('queues'),
       async () => this.schemaReadiness.isHealthy('schema'),
     ]);
+    const jobsEnabled =
+      this.configService?.get<string>('ENABLE_BACKGROUND_JOBS') === 'true';
+    return {
+      ...result,
+      backgroundJobMode: jobsEnabled ? 'enabled' : 'disabled',
+    };
   }
 }

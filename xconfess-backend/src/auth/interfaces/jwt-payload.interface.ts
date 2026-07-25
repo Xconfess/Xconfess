@@ -24,6 +24,7 @@ export interface JwtPayload {
  */
 export interface RequestUser {
   id: number; // Canonical user ID field
+  sub?: number;
   username: string;
   email: string;
   role: UserRole;

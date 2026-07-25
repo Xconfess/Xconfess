@@ -143,7 +143,7 @@ export class AnonymousConfession {
   @Column({ name: 'wrapped_dek', type: 'text', nullable: true })
   wrappedDek: string | null;
 
-  @Column({ name: 'key_version', type: 'varchar', length: 16, nullable: true })
+  @Column({ name: 'key_version', type: 'varchar', length: 16, nullable: true, default: 'v1' })
   keyVersion: string | null;
 
   @Column({ name: 'migration_status', type: 'varchar', length: 32, nullable: true })

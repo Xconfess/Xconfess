@@ -1,10 +1,14 @@
+import { NextRequest, NextResponse } from "next/server";
 import { createApiErrorResponse } from "@/lib/apiErrorHandler";
 import { getApiBaseUrl } from "@/app/lib/config";
 
 const BASE_API_URL = getApiBaseUrl();
 
-export async function GET(request: Request, { params }: { params: { id: string } }) {
-  const correlationId = request.headers.get("X-Correlation-ID") || "unknown";
+export async function GET(
+  req: NextRequest,
+  { params }: { params: { id: string } },
+) {
+  const correlationId = req.headers.get("X-Correlation-ID") || "unknown";
 
   try {
     const { id } = params;
@@ -12,16 +16,14 @@ export async function GET(request: Request, { params }: { params: { id: string }
 
     const response = await fetch(backendUrl, {
       method: "GET",
-      headers: {
-        "X-Correlation-ID": correlationId,
-      },
+      headers: buildForwardHeaders(req, correlationId),
     });
 
     if (!response.ok) {
       const errData = await response.json().catch(() => ({}));
       return createApiErrorResponse(errData, {
         status: response.status,
-          upstreamResponse: response,
+        upstreamResponse: response,
         correlationId,
         route: "GET /api/users/[id]/public-profile"
       });
@@ -43,3 +45,17 @@ export async function GET(request: Request, { params }: { params: { id: string }
   }
 }
 
+function buildForwardHeaders(req: NextRequest, correlationId: string): HeadersInit {
+  const headers: Record<string, string> = {
+    cookie: req.headers.get("cookie") ?? "",
+    "content-type": "application/json",
+    "X-Correlation-ID": correlationId,
+  };
+
+  const blockedHeaders = ["x-user-id", "x-forwarded-user", "x-admin-override"];
+  for (const h of blockedHeaders) {
+    delete headers[h];
+  }
+
+  return headers;
+}

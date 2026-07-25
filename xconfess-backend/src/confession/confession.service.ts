@@ -21,6 +21,8 @@ import sanitizeHtml from 'sanitize-html';
 import {
   encryptConfession,
   decryptConfession,
+  safeDecryptConfession,
+  assertEncryptedBeforeSave,
 } from '../utils/confession-encryption';
 import { ConfessionViewCacheService } from './confession-view-cache.service';
 import { Request } from 'express';
@@ -160,6 +162,7 @@ export class ConfessionService {
 
       // Step 2: Encrypt and save the confession
       const encryptedMsg = encryptConfession(msg, this.aesKey);
+      assertEncryptedBeforeSave(encryptedMsg);
       const confessionRepo: Repository<AnonymousConfession> = manager
         ? manager.getRepository(AnonymousConfession)
         : (this.confessionRepo as unknown as Repository<AnonymousConfession>);
@@ -189,6 +192,7 @@ export class ConfessionService {
 
       const conf = confessionRepo.create({
         message: encryptedMsg,
+        keyVersion: 'v1',
         gender: dto.gender,
         anonymousUser,
         moderationScore: moderationResult.score,
@@ -415,6 +419,7 @@ export class ConfessionService {
         await this.aiModerationService.moderateContent(sanitized);
 
       dto.message = encryptConfession(sanitized, this.aesKey);
+      assertEncryptedBeforeSave(dto.message);
       await this.confessionRepo.update(id, {
         ...dto,
         moderationScore: moderationResult.score,
