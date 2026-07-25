@@ -206,6 +206,49 @@ export class UserService {
     return this.userRepository.save(user);
   }
 
+  /**
+   * Minimal, non-sensitive profile shape for the public "/users/:userId/profile"
+   * route — no ownership check applies here, so this must never include
+   * email, password, or other private fields.
+   */
+  async getPublicProfile(
+    userId: string | number,
+  ): Promise<{ id: number; username: string; joinDate: Date }> {
+    const user = await this.findById(Number(userId));
+    if (!user) throw new NotFoundException('User not found');
+
+    return {
+      id: user.id,
+      username: user.username,
+      joinDate: user.createdAt,
+    };
+  }
+
+  /**
+   * Generic account-settings update for the ownership-guarded
+   * "PATCH /users/:userId/settings" route.
+   */
+  async updateSettings(
+    userId: number,
+    dto: Record<string, unknown>,
+  ): Promise<User> {
+    const user = await this.findById(userId);
+    if (!user) throw new NotFoundException('User not found');
+
+    Object.assign(user, dto);
+    return this.userRepository.save(user);
+  }
+
+  /**
+   * Account deletion is a soft-delete (mirrors deactivateAccount) — the row
+   * and its confessions/reactions are preserved, consistent with the rest of
+   * the app's soft-delete model, rather than a destructive hard delete.
+   */
+  async deleteAccount(userId: number): Promise<{ message: string }> {
+    await this.deactivateAccount(userId);
+    return { message: 'Account deactivated' };
+  }
+
   // =========================
   // ROLE
   // =========================
