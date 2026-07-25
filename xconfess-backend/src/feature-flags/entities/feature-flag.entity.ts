@@ -26,6 +26,30 @@ export class FeatureFlag {
   @Column({ type: 'simple-array', nullable: true })
   userIds: string[];
 
+  @Column({ type: 'varchar', nullable: true })
+  lastChangedBy: string | null;
+
+  @Column({ type: 'timestamp', nullable: true })
+  lastChangedAt: Date | null;
+
+  /**
+   * Snapshot of the flag's state immediately before the most recent update,
+   * so a single rollback() call can restore it without a separate audit lookup.
+   */
+  @Column({ type: 'json', nullable: true })
+  rollbackMetadata: {
+    previousState: {
+      name: string;
+      description: string;
+      enabled: boolean;
+      percentage: number;
+      userIds: string[];
+      lastChangedBy: string | null;
+      lastChangedAt: Date | null;
+    };
+    timestamp: string;
+  } | null;
+
   @CreateDateColumn()
   createdAt: Date;
 

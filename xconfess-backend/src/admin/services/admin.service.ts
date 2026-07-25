@@ -22,6 +22,12 @@ import { Tip } from "../../tipping/entities/tip.entity";
 import { AuditLogService } from "../../audit-log/audit-log.service";
 import { JobManagementService } from "../../notifications/services/job-management.service";
 import { LockoutService } from "../../auth/lockout.service";
+import {
+  CursorPaginatedResponseDto,
+  decodeCursor,
+  encodeCursor,
+  PAGINATION,
+} from "../../common/pagination";
 
 export interface BulkResolveOutcome {
   id: string;

@@ -725,6 +725,6 @@ export class AdminController {
   ) {
     const start = startDate ? new Date(startDate) : undefined;
     const end = endDate ? new Date(endDate) : undefined;
-    return this.auditLogService.getObservabilityMetrics(start, end);
+    return this.adminService.getObservability(start, end);
   }
 }
