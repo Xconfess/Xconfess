@@ -80,6 +80,11 @@ export enum AuditActionType {
   STELLAR_ANCHOR_FAILED = 'stellar_anchor_failed',
   TIP_RECONCILIATION_DEAD_LETTER = 'tip_reconciliation_dead_letter',
 
+  // Tip settlement — emitted exactly once per unique (confession, tx) pair.
+  // Concurrent duplicate verify calls receive the canonical response but do NOT
+  // emit a second event, guaranteeing audit totals are never double-counted.
+  TIP_SETTLEMENT_VERIFIED = 'tip_settlement_verified',
+
   // Feature Flag actions
   FEATURE_FLAG_CREATED = 'feature_flag_created',
   FEATURE_FLAG_UPDATED = 'feature_flag_updated',

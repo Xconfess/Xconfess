@@ -27,6 +27,9 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
+# generated API client (produced by `npm run generate-api`)
+/app/lib/api/generated/
+
 # test artifacts
 /test-results/
 lint_output.txt

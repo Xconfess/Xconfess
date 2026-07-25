@@ -206,47 +206,10 @@ export class UserService {
     return this.userRepository.save(user);
   }
 
-  /**
-   * Minimal, non-sensitive profile shape for the public "/users/:userId/profile"
-   * route — no ownership check applies here, so this must never include
-   * email, password, or other private fields.
-   */
-  async getPublicProfile(
-    userId: string | number,
-  ): Promise<{ id: number; username: string; joinDate: Date }> {
-    const user = await this.findById(Number(userId));
-    if (!user) throw new NotFoundException('User not found');
-
-    return {
-      id: user.id,
-      username: user.username,
-      joinDate: user.createdAt,
-    };
-  }
-
-  /**
-   * Generic account-settings update for the ownership-guarded
-   * "PATCH /users/:userId/settings" route.
-   */
-  async updateSettings(
-    userId: number,
-    dto: Record<string, unknown>,
-  ): Promise<User> {
+  async deleteAccount(userId: number): Promise<void> {
     const user = await this.findById(userId);
     if (!user) throw new NotFoundException('User not found');
-
-    Object.assign(user, dto);
-    return this.userRepository.save(user);
-  }
-
-  /**
-   * Account deletion is a soft-delete (mirrors deactivateAccount) — the row
-   * and its confessions/reactions are preserved, consistent with the rest of
-   * the app's soft-delete model, rather than a destructive hard delete.
-   */
-  async deleteAccount(userId: number): Promise<{ message: string }> {
-    await this.deactivateAccount(userId);
-    return { message: 'Account deactivated' };
+    await this.userRepository.remove(user);
   }
 
   // =========================
@@ -776,5 +739,102 @@ export class UserService {
       this.logger.error(`Failed to aggregate user activity: ${error.message}`, error.stack);
       return { data: [], meta: { total: 0, page, limit, totalPages: 0 } };
     }
+  }
+
+  async updateSettings(
+    userId: number,
+    dto: Record<string, any>,
+  ): Promise<User> {
+    const user = await this.findById(userId);
+    if (!user) throw new NotFoundException('User not found');
+
+    if (dto.privacySettings) {
+      user.privacySettings = {
+        ...user.privacySettings,
+        ...dto.privacySettings,
+      };
+    }
+
+    if (dto.notificationPreferences) {
+      user.notificationPreferences = {
+        ...user.notificationPreferences,
+        ...dto.notificationPreferences,
+      };
+    }
+
+    for (const key of Object.keys(dto)) {
+      if (
+        key !== 'privacySettings' &&
+        key !== 'notificationPreferences' &&
+        key in user
+      ) {
+        (user as any)[key] = dto[key];
+      }
+    }
+
+    await this.userRepository.save(user);
+    await this.enforcePrivacyPolicies(user);
+    return user;
+  }
+
+  async getPublicProfile(userId: string | number): Promise<any> {
+    const numericId = typeof userId === 'string' ? parseInt(userId, 10) : userId;
+    if (isNaN(numericId)) {
+      throw new NotFoundException('User not found');
+    }
+    const user = await this.findById(numericId);
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    const anonRows = await this.userRepository.manager.query(
+      'SELECT anonymous_user_id as id FROM user_anonymous_users WHERE user_id = $1',
+      [numericId],
+    );
+    const anonIds = anonRows.map((row: { id: string }) => row.id);
+
+    let stats = {
+      confessions: 0,
+      reactions: 0,
+      comments: 0,
+      tipsReceived: 0,
+    };
+
+    if (anonIds.length > 0) {
+      const [statsRow] = await this.userRepository.manager.query(
+        `
+        SELECT
+          (SELECT COUNT(*)::int FROM anonymous_confessions c
+            WHERE c.anonymous_user_id = ANY($1) AND c."isDeleted" = false) AS confessions,
+          (SELECT COUNT(*)::int FROM reaction r
+            JOIN anonymous_confessions c ON c.id = r.confession_id
+            WHERE c.anonymous_user_id = ANY($1) AND c."isDeleted" = false) AS reactions,
+          (SELECT COUNT(*)::int FROM comments com
+            JOIN anonymous_confessions c ON c.id = com."confessionId"
+            WHERE c.anonymous_user_id = ANY($1) AND com."isDeleted" = false) AS comments,
+          (SELECT COALESCE(SUM(t.amount), 0)::float FROM tips t
+            JOIN anonymous_confessions c ON c.id = t.confession_id
+            WHERE c.anonymous_user_id = ANY($1)) AS tips_received
+        `,
+        [anonIds],
+      );
+      stats = {
+        confessions: Number(statsRow?.confessions ?? 0),
+        reactions: Number(statsRow?.reactions ?? 0),
+        comments: Number(statsRow?.comments ?? 0),
+        tipsReceived: Number(statsRow?.tips_received ?? 0),
+      };
+    }
+
+    const badges = this.buildReputationBadges(stats.confessions);
+
+    return {
+      displayName: user.username,
+      username: user.username,
+      avatar: null,
+      createdAt: user.createdAt,
+      stats,
+      badges,
+    };
   }
 }

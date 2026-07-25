@@ -31,7 +31,7 @@ When sharing error logs, stack traces, or debugging output in issues or pull req
 Error: Authentication failed for user@xconfess.com
   at verifyToken (auth.ts:42)
   at middleware (jwt.ts:18)
-Token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dozjgNryP4J3jVmNHl0w5N_XgL0n3I9PlFUP0THsR8U
+Token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.[UNREDACTED_TOKEN_EXPOSED]
 
 ✓ GOOD - Token and email redacted:
 Error: Authentication failed for [USER_EMAIL]
