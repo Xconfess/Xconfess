@@ -8,6 +8,7 @@ pub enum Action {
         reason_len: u32,
     },
     Resolve { admin: u32, confession_id: u32 },
+    Escalate { admin: u32, confession_id: u32 },
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]

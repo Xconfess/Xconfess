@@ -13,6 +13,9 @@ import { EXPORT_QUEUE_NAME } from './data-export.constants';
 describe('DataExportService', () => {
   let service: DataExportService;
 
+  const hashToken = (token: string) =>
+    crypto.createHmac('sha256', 'test-secret').update(token).digest('hex');
+
   const mockQueryBuilder = {
     update: jest.fn().mockReturnThis(),
     set: jest.fn().mockReturnThis(),
@@ -68,6 +71,7 @@ describe('DataExportService', () => {
     mockAuditLogService.logExportLifecycleEvent.mockReset();
     mockAuditLogService.logExportLifecycleEvent.mockResolvedValue(undefined);
     mockConfigService.get.mockImplementation((key: string, fallback?: string) => {
+      if (key === 'ENABLE_BACKGROUND_JOBS') return 'true';
       if (key === 'app.appSecret') return 'test-secret';
       if (key === 'app.backendUrl') return 'https://backend.example.com';
       return fallback;
@@ -457,6 +461,24 @@ describe('DataExportService', () => {
       expect(url).not.toContain('chunk=');
     });
 
+    it('stores only a hash of the one-time token for non-chunked exports', async () => {
+      const url = await service.generateSignedDownloadUrl('req-123', 'user-456');
+      const token = new URL(url).searchParams.get('token');
+
+      expect(token).toEqual(expect.any(String));
+      expect(mockExportRepository.update).toHaveBeenCalledWith(
+        'req-123',
+        expect.objectContaining({
+          downloadTokenHash: hashToken(token as string),
+          downloadedAt: null,
+        }),
+      );
+      expect(mockExportRepository.update).not.toHaveBeenCalledWith(
+        'req-123',
+        expect.objectContaining({ downloadToken: token }),
+      );
+    });
+
     it('should generate a valid URL for a specific chunk', async () => {
       const url = await service.generateSignedDownloadUrl('req-123', 'user-456', 5);
       expect(url).toContain('/api/data-export/download/req-123');
@@ -832,10 +854,11 @@ describe('DataExportService', () => {
     const requestId = 'req-token-test';
     const userId = 'user-token-test';
     const validToken = 'abc123';
+    const validTokenHash = hashToken(validToken);
 
     it('returns true and invalidates a fresh, unconsumed token within TTL', async () => {
       mockExportRepository.findOne.mockResolvedValueOnce({
-        downloadToken: validToken,
+        downloadTokenHash: validTokenHash,
         downloadedAt: null,
         createdAt: new Date(), // just now — within 24 h TTL
         status: 'READY',
@@ -846,14 +869,18 @@ describe('DataExportService', () => {
 
       expect(result).toBe(true);
       expect(mockExportRepository.update).toHaveBeenCalledWith(
-        requestId,
-        expect.objectContaining({ downloadToken: null }),
+        expect.objectContaining({
+          id: requestId,
+          userId,
+          downloadTokenHash: validTokenHash,
+        }),
+        expect.objectContaining({ downloadTokenHash: null }),
       );
     });
 
-    it('returns false when token does not match', async () => {
+    it('returns false and audits when token does not match', async () => {
       mockExportRepository.findOne.mockResolvedValueOnce({
-        downloadToken: 'different-token',
+        downloadTokenHash: hashToken('different-token'),
         downloadedAt: null,
         createdAt: new Date(),
         status: 'READY',
@@ -863,11 +890,20 @@ describe('DataExportService', () => {
 
       expect(result).toBe(false);
       expect(mockExportRepository.update).not.toHaveBeenCalled();
+      expect(mockAuditLogService.logExportLifecycleEvent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'download_failed',
+          actorType: 'system',
+          actorId: 'download-token-validator',
+          requestId,
+          metadata: expect.objectContaining({ reason: 'invalid_or_used' }),
+        }),
+      );
     });
 
     it('returns false when token was already consumed (downloadedAt is set)', async () => {
       mockExportRepository.findOne.mockResolvedValueOnce({
-        downloadToken: validToken,
+        downloadTokenHash: validTokenHash,
         downloadedAt: new Date('2026-01-01T00:00:00Z'), // already used
         createdAt: new Date(),
         status: 'READY',
@@ -882,7 +918,7 @@ describe('DataExportService', () => {
     it('returns false and marks token expired when retention window has elapsed', async () => {
       const expiredCreatedAt = new Date(Date.now() - 25 * 60 * 60 * 1000); // 25 h ago
       mockExportRepository.findOne.mockResolvedValueOnce({
-        downloadToken: validToken,
+        downloadTokenHash: validTokenHash,
         downloadedAt: null,
         createdAt: expiredCreatedAt,
         status: 'READY',
@@ -895,16 +931,52 @@ describe('DataExportService', () => {
       // The token must be cleared and expiredAt stamped so the record reflects terminal state.
       expect(mockExportRepository.update).toHaveBeenCalledWith(
         requestId,
-        expect.objectContaining({ downloadToken: null }),
+        expect.objectContaining({ downloadTokenHash: null }),
       );
     });
 
-    it('returns false when record not found', async () => {
+    it('returns false and audits generically when record not found', async () => {
       mockExportRepository.findOne.mockResolvedValueOnce(null);
 
       const result = await service.validateAndConsumeToken(requestId, userId, 'any-token');
 
       expect(result).toBe(false);
+      expect(mockAuditLogService.logExportLifecycleEvent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'download_failed',
+          actorType: 'system',
+          actorId: 'download-token-validator',
+          requestId,
+          metadata: expect.objectContaining({ reason: 'not_found' }),
+        }),
+      );
+      expect(
+        mockAuditLogService.logExportLifecycleEvent.mock.calls[0][0],
+      ).not.toHaveProperty('actorId', userId);
+    });
+
+    it('rejects replay when the conditional consume update loses the race', async () => {
+      mockExportRepository.findOne.mockResolvedValueOnce({
+        downloadTokenHash: validTokenHash,
+        downloadedAt: null,
+        createdAt: new Date(),
+        status: 'READY',
+      } as Partial<ExportRequest>);
+      mockExportRepository.update.mockResolvedValueOnce({ affected: 0 });
+
+      const result = await service.validateAndConsumeToken(
+        requestId,
+        userId,
+        validToken,
+      );
+
+      expect(result).toBe(false);
+      expect(mockAuditLogService.logExportLifecycleEvent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'download_failed',
+          metadata: expect.objectContaining({ reason: 'replay_race' }),
+        }),
+      );
     });
   });
 
@@ -920,10 +992,10 @@ describe('DataExportService', () => {
     expect(mockExportRepository.createQueryBuilder).toHaveBeenCalled();
     expect(mockQueryBuilder.update).toHaveBeenCalledWith(ExportRequest);
     expect(mockQueryBuilder.set).toHaveBeenCalledWith({
-      downloadToken: null,
+      downloadTokenHash: null,
       expiredAt: expect.any(Function),
     });
-    expect(mockQueryBuilder.where).toHaveBeenCalledWith('downloadToken IS NOT NULL');
+    expect(mockQueryBuilder.where).toHaveBeenCalledWith('downloadTokenHash IS NOT NULL');
     expect(mockQueryBuilder.andWhere).toHaveBeenCalledWith('downloadedAt IS NULL');
     expect(mockQueryBuilder.andWhere).toHaveBeenCalledWith(
       'createdAt < :cutoff',

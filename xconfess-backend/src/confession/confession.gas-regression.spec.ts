@@ -18,6 +18,7 @@ import { AnonymousUserService } from '../user/anonymous-user.service';
 import { AppLogger } from '../logger/logger.service';
 import { EncryptionService } from '../encryption/encryption.service';
 import { StellarService } from '../stellar/stellar.service';
+import { ContractService } from '../stellar/contract.service';
 import { CacheService } from '../cache/cache.service';
 import { TagService } from './tag.service';
 
@@ -113,6 +114,7 @@ describe('ConfessionService Gas Regression Tests', () => {
             verifyTransaction: jest.fn(),
           },
         },
+        { provide: ContractService, useValue: { verifyConfession: jest.fn() } },
         {
           provide: CacheService,
           useValue: {

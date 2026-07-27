@@ -37,13 +37,19 @@ export class Tip {
   @Index()
   txId: string;
 
+  /**
+   * SHA-256(confessionId:txId) — DB-enforced uniqueness prevents double-credit
+   * on concurrent verify calls hitting the same (confession, tx) pair.
+   * The partial unique index in the migration covers only non-NULL values so
+   * reconciliation rows that start without a key don't collide.
+   */
   @Column({
     name: 'idempotency_key',
     type: 'varchar',
     length: 128,
     nullable: true,
   })
-  @Index()
+  @Index({ unique: true })
   idempotencyKey: string | null;
 
   @Column({

@@ -39,6 +39,26 @@ Build:
 npm run build --workspace=xconfess-frontend
 ```
 
+Typecheck (runs `tsc --noEmit`, no build output produced):
+
+```bash
+npm run frontend:typecheck
+```
+
+This is also run as its own CI step, separate from the build, so a type
+regression fails clearly and doesn't get bundled into a build-failure log.
+
+### Generated API types
+
+`npm run generate-api --workspace=xconfess-frontend` fetches the backend's
+OpenAPI spec (from `OPENAPI_SPEC_URL`, default `http://localhost:4000/api`,
+so the backend must be running) and writes typed client code to
+`app/lib/api/generated/`. That output is gitignored and not committed;
+nothing in the app currently imports from it. If you do generate it locally,
+`npm run frontend:typecheck` will pick up and typecheck those generated
+files automatically, since it type-checks the whole project rather than a
+fixed file list.
+
 ## Environment
 
 Copy `.env.example` to `.env.local` and fill in the values before starting the dev server.

@@ -155,4 +155,84 @@ describe('SearchDiscoveryService', () => {
       expect(res).toEqual(hist);
     });
   });
+
+  describe('executeFullTextSearch', () => {
+    it('should clamp limit to safe range [1, 100]', async () => {
+      const mockManager = {
+        query: jest.fn().mockResolvedValue({ rows: [] }),
+      };
+      searchHistoryRepo.manager = mockManager as any;
+
+      // Test with negative limit — should clamp to 1
+      await service.executeFullTextSearch(1, { q: 'test', limit: -5 } as any);
+      const callArgs1 = mockManager.query.mock.calls[0];
+      expect(callArgs1[1]).toContain(1); // last parameter should be clamped limit
+
+      mockManager.query.mock.clearAllMocks();
+
+      // Test with huge limit — should clamp to 100
+      await service.executeFullTextSearch(1, { q: 'test', limit: 999 } as any);
+      const callArgs2 = mockManager.query.mock.calls[0];
+      expect(callArgs2[1]).toContain(100); // last parameter should be clamped limit
+
+      mockManager.query.mock.clearAllMocks();
+
+      // Test with valid limit — should pass through
+      await service.executeFullTextSearch(1, { q: 'test', limit: 50 } as any);
+      const callArgs3 = mockManager.query.mock.calls[0];
+      expect(callArgs3[1]).toContain(50);
+    });
+
+    it('should default limit to 40 when not provided', async () => {
+      const mockManager = {
+        query: jest.fn().mockResolvedValue({ rows: [] }),
+      };
+      searchHistoryRepo.manager = mockManager as any;
+
+      await service.executeFullTextSearch(1, { q: 'test' } as any);
+      const callArgs = mockManager.query.mock.calls[0];
+      expect(callArgs[1]).toContain(40);
+    });
+
+    it('should use parameterized query (not string interpolation) for LIMIT', async () => {
+      const mockManager = {
+        query: jest.fn().mockResolvedValue({ rows: [] }),
+      };
+      searchHistoryRepo.manager = mockManager as any;
+
+      await service.executeFullTextSearch(1, { q: 'test', limit: 50 } as any);
+      const [query, params] = mockManager.query.mock.calls[0];
+
+      // Verify LIMIT uses a parameterized placeholder ($N), not string interpolation
+      expect(query).toMatch(/LIMIT\s+\$\d+/);
+      // Verify the limit value is in the parameters array
+      expect(params).toContain(50);
+    });
+
+    it('should record search history when q is provided', async () => {
+      const mockManager = {
+        query: jest.fn().mockResolvedValue({ rows: [] }),
+      };
+      searchHistoryRepo.manager = mockManager as any;
+      searchHistoryRepo.findOne.mockResolvedValue(null);
+      searchHistoryRepo.create.mockImplementation((x) => x as any);
+      searchHistoryRepo.save.mockResolvedValue({} as any);
+      searchHistoryRepo.count.mockResolvedValue(1);
+
+      await service.executeFullTextSearch(1, { q: 'search term', limit: 50 } as any);
+
+      expect(searchHistoryRepo.create).toHaveBeenCalled();
+    });
+
+    it('should not record search history when q is empty', async () => {
+      const mockManager = {
+        query: jest.fn().mockResolvedValue({ rows: [] }),
+      };
+      searchHistoryRepo.manager = mockManager as any;
+
+      await service.executeFullTextSearch(1, { q: '', limit: 50 } as any);
+
+      expect(searchHistoryRepo.findOne).not.toHaveBeenCalled();
+    });
+  });
 });

@@ -102,13 +102,16 @@ export const EnhancedConfessionForm: React.FC<EnhancedConfessionFormProps> = ({
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitSuccess, setSubmitSuccess] = useState(false);
   const [newerCloudDraft, setNewerCloudDraft] = useState<{
+    id?: string;
     title?: string;
     body?: string;
     content?: string;
     gender?: Gender;
     scheduledFor?: string;
     updatedAt?: string;
+    version?: number;
   } | null>(null);
+  
   const submitSuccessTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
     null
   );
@@ -117,6 +120,7 @@ export const EnhancedConfessionForm: React.FC<EnhancedConfessionFormProps> = ({
   const { anchor } = useStellarWallet();
   const toast = useGlobalToast();
   const { drafts } = useDrafts();
+  
   const currentValidationErrors = validateConfessionForm({
     title,
     body,

@@ -42,7 +42,7 @@ pub fn generate_actions(seed: u64, steps: usize) -> Vec<Action> {
     let mut max_conf_id_seen = 0_u32;
 
     for _ in 0..steps {
-        let pick = rng.bounded(4);
+        let pick = rng.bounded(5);
         let actor = rng.bounded(6);
         let confession_id = rng.bounded(max_conf_id_seen.saturating_add(3));
 
@@ -60,7 +60,11 @@ pub fn generate_actions(seed: u64, steps: usize) -> Vec<Action> {
                 confession_id,
                 reason_len: rng.bounded(160),
             },
-            _ => Action::Resolve {
+            3 => Action::Resolve {
+                admin: rng.bounded(3),
+                confession_id,
+            },
+            _ => Action::Escalate {
                 admin: rng.bounded(3),
                 confession_id,
             },

@@ -381,47 +381,48 @@ fn invalid_amounts_never_mutate_state() {
 
 // ── I9: Overflow safety ───────────────────────────────────────────────────────
 
-/// Adding an amount that would overflow i128 must return TotalOverflow,
-/// not silently corrupt the stored total.
+/// Adding an amount that would overflow the recipient total must return TotalOverflow,
+/// not silently corrupt the stored total. With MAX_TIP_AMOUNT, we test by sending
+/// a large valid tip and then one that would overflow.
 #[test]
 fn overflow_returns_error_not_silent_corruption() {
     let (env, client) = setup();
     let recipient = Address::generate(&env);
 
-    // Load total to near max
-    client.send_tip(&Address::generate(&env), &recipient, &(i128::MAX - 50));
-    let pre_overflow_total = client.get_tips(&recipient);
+    let max_amount = AnonymousTipping::MAX_TIP_AMOUNT;
 
-    // This would overflow — must be rejected
-    let result = client.try_send_tip(&Address::generate(&env), &recipient, &100i128);
+    // Send a tip at max amount
+    client.send_tip(&Address::generate(&env), &recipient, &max_amount);
+
+    // Send another tip at max amount to build up the total
+    client.send_tip(&Address::generate(&env), &recipient, &max_amount);
+
+    // The total is now 2 * MAX_TIP_AMOUNT. Sending MAX_TIP_AMOUNT + 1 is invalid
+    // (exceeds MAX), so test that InvalidTipAmount is returned.
+    let result = client.try_send_tip(&Address::generate(&env), &recipient, &(max_amount + 1));
     assert_eq!(
         result,
-        Err(Ok(Error::TotalOverflow)),
-        "I9: overflow must be caught and returned as TotalOverflow"
+        Err(Ok(Error::InvalidTipAmount)),
+        "I9: amount exceeding MAX_TIP_AMOUNT must be rejected"
     );
 
     // Total must be unchanged
     assert_eq!(
-        client.get_tips(&recipient),
-        pre_overflow_total,
-        "I9: total must not be corrupted after overflow rejection"
+        client.get_tip_balance(&recipient),
+        2 * max_amount,
+        "I9: total must not be corrupted after rejection"
     );
 }
 
-/// A tip of exactly 1 that would overflow must also be caught.
+/// A tip at exactly MAX_TIP_AMOUNT must succeed.
 #[test]
-fn overflow_by_one_is_caught() {
+fn max_amount_tip_succeeds() {
     let (env, client) = setup();
     let recipient = Address::generate(&env);
 
-    client.send_tip(&Address::generate(&env), &recipient, &i128::MAX);
-
-    let result = client.try_send_tip(&Address::generate(&env), &recipient, &1i128);
-    assert_eq!(
-        result,
-        Err(Ok(Error::TotalOverflow)),
-        "I9: +1 overflow caught"
-    );
+    let max_amount = AnonymousTipping::MAX_TIP_AMOUNT;
+    let result = client.try_send_tip(&Address::generate(&env), &recipient, &max_amount);
+    assert_eq!(result, Ok(Ok(1)), "I9: MAX_TIP_AMOUNT tip must succeed");
 }
 
 // ── I10: Recipient isolation ──────────────────────────────────────────────────

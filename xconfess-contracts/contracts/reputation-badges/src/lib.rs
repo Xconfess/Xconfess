@@ -28,6 +28,9 @@ pub enum Error {
     NotAuthorized = 4,
     NotInitialized = 5,
     BadgeTypeMetadataNotFound = 6,
+    /// Emergency pause is active; badge/reputation mutations are blocked
+    /// until an admin unpauses. Read-only queries remain available.
+    ContractPaused = 7,
 }
 
 #[contracttype]
@@ -81,6 +84,8 @@ pub enum StorageKey {
     /// Global epoch index: StorageKey::CurrentEpoch -> u32
     /// Incremented each time a global recalibration occurs
     CurrentEpoch,
+    /// Emergency pause flag: StorageKey::Paused -> bool (absent means false)
+    Paused,
 }
 
 #[contracttype]
@@ -145,6 +150,20 @@ fn get_admin(env: &Env) -> Result<Address, Error> {
 fn is_authorized(env: &Env, caller: &Address) -> Result<bool, Error> {
     let admin = get_admin(env)?;
     Ok(admin == *caller)
+}
+
+fn is_paused_internal(env: &Env) -> bool {
+    env.storage()
+        .persistent()
+        .get(&StorageKey::Paused)
+        .unwrap_or(false)
+}
+
+fn assert_not_paused(env: &Env) -> Result<(), Error> {
+    if is_paused_internal(env) {
+        return Err(Error::ContractPaused);
+    }
+    Ok(())
 }
 
 // Reputation decay helper functions
@@ -291,6 +310,39 @@ impl ReputationBadges {
         Ok(())
     }
 
+    /// Pause the contract (admin only). Blocks badge and reputation
+    /// mutations; read-only queries (get_badges, get_user_reputation, etc.)
+    /// remain available while paused.
+    pub fn pause(env: Env, reason: String) -> Result<(), Error> {
+        let admin = get_admin(&env)?;
+        admin.require_auth();
+
+        env.storage().persistent().set(&StorageKey::Paused, &true);
+
+        let event_topic = Symbol::new(&env, "contract_paused");
+        env.events().publish((event_topic, admin.clone()), reason);
+
+        Ok(())
+    }
+
+    /// Unpause the contract (admin only).
+    pub fn unpause(env: Env, reason: String) -> Result<(), Error> {
+        let admin = get_admin(&env)?;
+        admin.require_auth();
+
+        env.storage().persistent().set(&StorageKey::Paused, &false);
+
+        let event_topic = Symbol::new(&env, "contract_unpaused");
+        env.events().publish((event_topic, admin.clone()), reason);
+
+        Ok(())
+    }
+
+    /// Check whether the contract is currently paused.
+    pub fn is_paused(env: Env) -> bool {
+        is_paused_internal(&env)
+    }
+
     /// Create or update metadata for a badge type (admin only)
     pub fn create_badge(
         env: Env,
@@ -299,6 +351,8 @@ impl ReputationBadges {
         description: String,
         criteria: String,
     ) -> Result<(), Error> {
+        assert_not_paused(&env)?;
+
         let admin = get_admin(&env)?;
         admin.require_auth();
 
@@ -323,6 +377,8 @@ impl ReputationBadges {
     /// Award a badge to a user (admin only)
     /// Returns the badge ID
     pub fn award_badge(env: Env, recipient: Address, badge_type: BadgeType) -> Result<u64, Error> {
+        assert_not_paused(&env)?;
+
         let admin = get_admin(&env)?;
         admin.require_auth();
 
@@ -393,6 +449,8 @@ impl ReputationBadges {
         amount: i128,
         reason: String,
     ) -> Result<i128, Error> {
+        assert_not_paused(&env)?;
+
         let admin = get_admin(&env)?;
         admin.require_auth();
 
@@ -485,6 +543,8 @@ impl ReputationBadges {
     /// Mint a new badge for a recipient (self-service)
     /// Returns the badge ID if successful
     pub fn mint_badge(env: Env, recipient: Address, badge_type: BadgeType) -> Result<u64, Error> {
+        assert_not_paused(&env)?;
+
         recipient.require_auth();
 
         // Check if recipient already has this badge type
@@ -585,6 +645,8 @@ impl ReputationBadges {
 
     /// Transfer a badge to another address (optional feature)
     pub fn transfer_badge(env: Env, badge_id: u64, to: Address) -> Result<(), Error> {
+        assert_not_paused(&env)?;
+
         // Get the badge
         let badge_key = StorageKey::Badge(badge_id);
         let mut badge: Badge = env
@@ -711,6 +773,8 @@ impl ReputationBadges {
 
     /// Revoke a badge
     pub fn revoke_badge(env: Env, badge_id: u64) -> Result<(), Error> {
+        assert_not_paused(&env)?;
+
         // Get the badge
         let badge_key = StorageKey::Badge(badge_id);
         let badge: Badge = env
@@ -792,6 +856,8 @@ impl ReputationBadges {
     /// This is a bounded operation - processes a batch of user addresses provided
     /// Returns the number of users whose reputation was updated
     pub fn recalibrate_epoch(env: Env, user_batch: Vec<Address>) -> Result<u32, Error> {
+        assert_not_paused(&env)?;
+
         let admin = get_admin(&env)?;
         admin.require_auth();
 

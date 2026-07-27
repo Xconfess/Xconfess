@@ -33,6 +33,7 @@ impl ObservedMachine {
                         reacted_by: BTreeSet::new(),
                         reported_by: BTreeSet::new(),
                         resolved: false,
+                        escalated: false,
                     },
                 );
                 Outcome::Applied
@@ -50,6 +51,10 @@ impl ObservedMachine {
                 admin,
                 confession_id,
             } => self.apply_resolve(admin, confession_id),
+            Action::Escalate {
+                admin,
+                confession_id,
+            } => self.apply_escalate(admin, confession_id),
         }
     }
 
@@ -59,6 +64,9 @@ impl ObservedMachine {
         };
         if conf.resolved {
             return Outcome::Rejected("already_resolved");
+        }
+        if conf.escalated {
+            return Outcome::Rejected("escalated_terminal");
         }
         if conf.reacted_by.contains(&actor) {
             return Outcome::Rejected("duplicate_reaction");
@@ -73,6 +81,9 @@ impl ObservedMachine {
         };
         if conf.resolved {
             return Outcome::Rejected("already_resolved");
+        }
+        if conf.escalated {
+            return Outcome::Rejected("escalated_terminal");
         }
         if reason_len == 0 {
             return Outcome::Rejected("reason_empty");
@@ -97,10 +108,33 @@ impl ObservedMachine {
         if conf.resolved {
             return Outcome::Rejected("already_resolved");
         }
+        if conf.escalated {
+            return Outcome::Rejected("must_resolve_from_escalated");
+        }
         if conf.reported_by.is_empty() {
             return Outcome::Rejected("no_pending_report");
         }
         conf.resolved = true;
+        Outcome::Applied
+    }
+
+    fn apply_escalate(&mut self, admin: u32, confession_id: u32) -> Outcome {
+        if !self.state.admins.contains(&admin) {
+            return Outcome::Rejected("unauthorized");
+        }
+        let Some(conf) = self.state.confessions.get_mut(&confession_id) else {
+            return Outcome::Rejected("confession_not_found");
+        };
+        if conf.resolved {
+            return Outcome::Rejected("cannot_escalate_resolved");
+        }
+        if conf.escalated {
+            return Outcome::Rejected("already_escalated");
+        }
+        if conf.reported_by.is_empty() {
+            return Outcome::Rejected("no_pending_report_to_escalate");
+        }
+        conf.escalated = true;
         Outcome::Applied
     }
 }

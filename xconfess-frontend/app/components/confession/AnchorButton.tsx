@@ -112,11 +112,25 @@ export const AnchorButton: FC<AnchorButtonProps> = ({
         body: JSON.stringify({ stellarTxHash: result.txHash }),
       });
 
+      const data = await response.json().catch(() => ({}));
+
       if (!response.ok) {
-        const data = await response.json().catch(() => ({}));
         throw new Error(
           mapAnchorApiError(response.status, data?.message),
         );
+      }
+
+      // Handle idempotent replay: a pending anchor already exists for this confession
+      if (data?.anchorPending && data?.stellarTxHash) {
+        updateActivity(activityId, {
+          status: "submitted",
+          txHash: data.stellarTxHash,
+        });
+        setTxHash(data.stellarTxHash);
+        setStatus("confirmed");
+        setLiveMessage("Confession anchor is pending on-chain.");
+        onAnchorSuccess?.(data.stellarTxHash);
+        return;
       }
 
       updateActivity(activityId, {

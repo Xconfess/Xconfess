@@ -27,6 +27,7 @@ import { ShareButton } from "@/app/components/confession/ShareButton";
 import { CommentSection } from "@/app/components/confession/CommentSection";
 import { RelatedConfessions } from "@/app/components/confession/RelatedConfessions";
 import { formatDate } from "@/app/lib/utils/formatDate";
+import { sanitizeMarkdown } from "@/app/lib/utils/markdown";
 import { queryKeys } from "@/app/lib/api/queryKeys";
 import { useAuth } from "@/app/lib/hooks/useAuth";
 import { getConfessionById } from "@/app/lib/api/confessions";
@@ -315,7 +316,7 @@ export function ConfessionDetailClient({
           <CardContent className="pt-0">
             <div className="prose prose-zinc max-w-none text-zinc-900 dark:prose-invert dark:text-white prose-p:text-lg prose-p:leading-relaxed prose-a:break-all">
               <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                {confession.content}
+                {sanitizeMarkdown(confession.content)}
               </ReactMarkdown>
             </div>
 

@@ -299,8 +299,25 @@ export default function ReportDetail({
               <h4 className="text-md mb-2 font-medium text-gray-900 dark:text-white">
                 Confession Content
               </h4>
+              {report.confession?.isDeleted && (
+                <p
+                  role="status"
+                  className="mb-2 rounded bg-red-50 px-3 py-2 text-xs font-medium text-red-700 dark:bg-red-900/40 dark:text-red-300"
+                >
+                  This confession has been deleted. The content below reflects the
+                  message at the time it was reported.
+                </p>
+              )}
+              {!report.confession?.isDeleted && report.confession?.isHidden && (
+                <p
+                  role="status"
+                  className="mb-2 rounded bg-amber-50 px-3 py-2 text-xs font-medium text-amber-700 dark:bg-amber-900/40 dark:text-amber-300"
+                >
+                  This confession is currently hidden from other users.
+                </p>
+              )}
               <div className="rounded bg-gray-50 p-4 dark:bg-gray-700">
-                <p className="text-sm text-gray-900 dark:text-white">
+                <p className="whitespace-pre-wrap break-words text-sm text-gray-900 dark:text-white">
                   {report.confession?.message || 'Confession not available'}
                 </p>
               </div>

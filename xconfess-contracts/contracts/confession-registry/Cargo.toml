@@ -27,3 +27,7 @@ path = "../tests/event_nonce_ordering.test.rs"
 [[test]]
 name = "pagination"
 path = "../tests/pagination.rs"
+
+[[test]]
+name = "emergency_pause"
+path = "../tests/emergency_pause.test.rs"

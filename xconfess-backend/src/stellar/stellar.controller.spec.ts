@@ -1,6 +1,10 @@
 import request from 'supertest';
 import { Test, TestingModule } from '@nestjs/testing';
-import { INestApplication, ValidationPipe } from '@nestjs/common';
+import {
+  INestApplication,
+  InternalServerErrorException,
+  ValidationPipe,
+} from '@nestjs/common';
 import { PassportModule } from '@nestjs/passport';
 import { JwtModule, JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
@@ -323,5 +327,43 @@ describe('StellarController authz', () => {
 
     expect(res.status).toBe(400);
     expect(contractServiceMock.invokeContract).not.toHaveBeenCalled();
+  });
+});
+
+describe('StellarController — misconfigured signer secret (#1472)', () => {
+  it('returns a generic 500 and never leaks the malformed secret', async () => {
+    const malformedSecret = 'not-a-valid-stellar-secret';
+    const configServiceMock = {
+      get: jest.fn((key: string) =>
+        key === 'STELLAR_SERVER_SECRET' ? malformedSecret : undefined,
+      ),
+    };
+
+    const controller = new StellarController(
+      { getNetworkConfig: jest.fn() } as any,
+      { invocationFromAllowlistedDto: jest.fn(), invokeContract: jest.fn() } as any,
+      configServiceMock as any,
+      { log: jest.fn().mockResolvedValue(undefined) } as any,
+    );
+
+    const dto = {
+      operation: 'anchor_confession',
+      confessionHash: 'a'.repeat(64),
+      timestamp: 1_700_000_000,
+      sourceAccount: 'GSOMEPUBLICKEYVALUEXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX',
+    } as any;
+    const req = { requestId: 'req-1' } as any;
+
+    let caught: any;
+    try {
+      await controller.invokeContract(dto, req);
+      throw new Error('expected invokeContract to reject');
+    } catch (err) {
+      caught = err;
+    }
+
+    expect(caught).toBeInstanceOf(InternalServerErrorException);
+    expect(caught.getStatus()).toBe(500);
+    expect(caught.message).not.toContain(malformedSecret);
   });
 });

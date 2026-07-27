@@ -121,6 +121,36 @@ describe('CommentService (soft‑delete)', () => {
         'comment',
       );
     });
+
+    // ── Soft-delete consistency (#1449) ─────────────────────────────────────
+
+    it(`excludes comments belonging to a soft-deleted confession`, async () => {
+      const fakeQB: any = {
+        leftJoinAndSelect: jest.fn().mockReturnThis(),
+        innerJoin: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        orderBy: jest.fn().mockReturnThis(),
+        take: jest.fn().mockReturnThis(),
+        skip: jest.fn().mockReturnThis(),
+        getMany: jest.fn().mockResolvedValue([]),
+      };
+      (commentRepo as any).createQueryBuilder = jest
+        .fn()
+        .mockReturnValue(fakeQB);
+      const queryDto: GetCommentsQueryDto = {
+        sortField: CommentSortField.CREATED_AT,
+        sortOrder: SortOrder.DESC,
+        limit: 20,
+      };
+
+      await service.findByConfessionId('conf1', queryDto);
+
+      expect(fakeQB.where).toHaveBeenCalledWith(
+        expect.stringContaining('confession.isDeleted = false'),
+        expect.objectContaining({ confessionId: 'conf1' }),
+      );
+    });
   });
 
   describe(`delete()`, () => {
@@ -138,7 +168,7 @@ describe('CommentService (soft‑delete)', () => {
       } as UpdateResult);
 
       await expect(service.delete(42, fakeUser)).resolves.toBeUndefined();
-      expect(commentRepo.update).toHaveBeenCalledWith(42, { isDeleted: true });
+      expect(commentRepo.update).toHaveBeenCalledWith(42, { isDeleted: true, content: '[deleted]' });
     });
 
     it(`throws NotFoundException if comment not found`, async () => {
@@ -834,11 +864,229 @@ describe('CommentService (cursor pagination)', () => {
 
       await service.findByConfessionId('conf1', queryDto);
 
-      // Should filter out orphaned replies (third andWhere after base filters)
+      // Should filter out orphaned replies (second andWhere after moderation status filter)
       expect(fakeQB.andWhere).toHaveBeenNthCalledWith(
-        3,
+        2,
         '(comment.parent IS NULL OR comment.parent.isDeleted = false)',
       );
     });
+  });
+});
+
+// ─── Idempotency Tests ─────────────────────────────────────────────────────
+
+describe('CommentService (idempotency)', () => {
+  let service: CommentService;
+  let commentRepo: jest.Mocked<Repository<Comment>>;
+  let confessionRepo: jest.Mocked<Repository<AnonymousConfession>>;
+  let moderationRepo: jest.Mocked<Repository<ModerationComment>>;
+
+  const fakeAnonUser = { id: 'anon1' } as any;
+  const fakeConf = {
+    id: 'c1',
+    anonymousUser: {
+      id: 'anon-owner',
+      userLinks: [{ user: { getEmail: () => 'owner@test.com' } }],
+    },
+    isDeleted: false,
+  } as any;
+
+  const makeCommentRepoMock = (existingComment?: any) => ({
+    createQueryBuilder: jest.fn(),
+    findOne: jest.fn().mockImplementation((opts: any) => {
+      if (opts?.where?.idempotencyKey && existingComment) {
+        return Promise.resolve(existingComment);
+      }
+      return Promise.resolve(null);
+    }),
+    create: jest.fn().mockImplementation((dto: any) => dto),
+    save: jest.fn().mockImplementation((c: any) =>
+      Promise.resolve({ ...c, id: 200 }),
+    ),
+    update: jest.fn(),
+  });
+
+  const buildModule = async (commentRepoMock: any) => {
+    const moderationRepoMock = {
+      create: jest.fn().mockImplementation((dto: any) => dto),
+      save: jest.fn().mockImplementation((m: any) => Promise.resolve(m)),
+      findOne: jest.fn(),
+    };
+    const outboxRepoMock = {
+      create: jest.fn().mockImplementation((dto: any) => dto),
+      save: jest.fn().mockImplementation((e: any) => Promise.resolve(e)),
+      findOne: jest.fn(),
+    };
+
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        CommentService,
+        { provide: getRepositoryToken(Comment), useValue: commentRepoMock },
+        {
+          provide: getRepositoryToken(AnonymousConfession),
+          useValue: { findOne: jest.fn().mockResolvedValue(fakeConf) },
+        },
+        {
+          provide: getRepositoryToken(ModerationComment),
+          useValue: moderationRepoMock,
+        },
+        {
+          provide: getRepositoryToken(OutboxEvent),
+          useValue: outboxRepoMock,
+        },
+        {
+          provide: DataSource,
+          useValue: {
+            transaction: jest.fn().mockImplementation((cb: any) =>
+              cb({
+                getRepository: jest.fn().mockImplementation((entity: any) => {
+                  if (entity === Comment) return commentRepoMock;
+                  if (entity === ModerationComment) return moderationRepoMock;
+                  return outboxRepoMock;
+                }),
+              }),
+            ),
+          },
+        },
+        {
+          provide: AnalyticsService,
+          useValue: {
+            invalidateTrendingCache: jest.fn().mockResolvedValue(undefined),
+            invalidateStatsCache: jest.fn().mockResolvedValue(undefined),
+          },
+        },
+      ],
+    }).compile();
+
+    return {
+      service: module.get(CommentService),
+      commentRepo: commentRepoMock,
+      moderationRepo: moderationRepoMock,
+      outboxRepo: outboxRepoMock,
+    };
+  };
+
+  it('returns the existing comment when idempotency key matches', async () => {
+    const existingComment = {
+      id: 42,
+      content: 'hello world',
+      anonymousUser: fakeAnonUser,
+      idempotencyKey: 'idem-key-1',
+    } as any;
+
+    const { service, commentRepo } = await buildModule(
+      makeCommentRepoMock(existingComment),
+    );
+
+    const result = await service.create(
+      'hello world',
+      fakeAnonUser,
+      'c1',
+      'ctx1',
+      undefined,
+      'idem-key-1',
+    );
+
+    expect(result.id).toBe(42);
+    expect(result.content).toBe('hello world');
+    // Should NOT enter the transaction since we returned early
+  });
+
+  it('creates a new comment when idempotency key is new', async () => {
+    const { service, commentRepo, moderationRepo, outboxRepo } =
+      await buildModule(makeCommentRepoMock());
+
+    const result = await service.create(
+      'new comment',
+      fakeAnonUser,
+      'c1',
+      'ctx1',
+      undefined,
+      'new-idem-key',
+    );
+
+    expect(result.id).toBe(200);
+    expect(commentRepo.save).toHaveBeenCalled();
+    expect(moderationRepo.save).toHaveBeenCalled();
+    // Outbox event should use the idempotency key, not the comment ID
+    expect(outboxRepo.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        idempotencyKey: 'comment:new-idem-key',
+      }),
+    );
+  });
+
+  it('creates a new comment when no idempotency key is provided', async () => {
+    const { service, commentRepo, outboxRepo } =
+      await buildModule(makeCommentRepoMock());
+
+    await service.create('no key', fakeAnonUser, 'c1', 'ctx1');
+
+    expect(commentRepo.save).toHaveBeenCalled();
+    // Falls back to comment-id-based key
+    expect(outboxRepo.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        idempotencyKey: expect.stringContaining('comment:'),
+      }),
+    );
+  });
+
+  it('deduplicates mention outbox events using idempotency key', async () => {
+    const { service, outboxRepo } = await buildModule(makeCommentRepoMock());
+
+    await service.create(
+      'hello @alice @bob',
+      fakeAnonUser,
+      'c1',
+      'ctx1',
+      undefined,
+      'mention-idem-key',
+    );
+
+    // Should create 2 mention outbox events (one per user), each with the idempotency key prefix
+    const mentionCalls = outboxRepo.save.mock.calls.filter(
+      (call: any) => call[0]?.type === 'mention_notification',
+    );
+    expect(mentionCalls).toHaveLength(2);
+    expect(mentionCalls[0][0].idempotencyKey).toBe(
+      'mention:mention-idem-key:alice',
+    );
+    expect(mentionCalls[1][0].idempotencyKey).toBe(
+      'mention:mention-idem-key:bob',
+    );
+  });
+
+  it('replay returns the original comment payload', async () => {
+    const originalComment = {
+      id: 99,
+      content: 'replay test',
+      anonymousUser: fakeAnonUser,
+      idempotencyKey: 'replay-key',
+    } as any;
+
+    const { service } = await buildModule(makeCommentRepoMock(originalComment));
+
+    // First call (simulated by having the key already in DB)
+    const firstResult = await service.create(
+      'replay test',
+      fakeAnonUser,
+      'c1',
+      'ctx1',
+      undefined,
+      'replay-key',
+    );
+
+    // Second call (replay) — should return identical data
+    const secondResult = await service.create(
+      'replay test',
+      fakeAnonUser,
+      'c1',
+      'ctx1',
+      undefined,
+      'replay-key',
+    );
+
+    expect(secondResult.id).toBe(firstResult.id);
+    expect(secondResult.content).toBe(firstResult.content);
   });
 });

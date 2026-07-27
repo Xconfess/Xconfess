@@ -108,7 +108,7 @@ export default function ProfilePage() {
     setError(null);
 
     apiClient
-      .get<ProfileSummary>("/users/profile/summary", {
+      .get<ProfileSummary>("/api/users/profile/summary", {
         params: { page, limit: 5 },
       })
       .then((response) => {

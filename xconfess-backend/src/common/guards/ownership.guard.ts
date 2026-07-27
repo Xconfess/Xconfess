@@ -45,6 +45,11 @@ export class OwnershipGuard implements CanActivate {
       throw new ForbiddenException('Not authenticated');
     }
 
+    const authedUserId = authedUser.id ?? authedUser.sub;
+    if (!authedUserId) {
+      throw new ForbiddenException('Not authenticated');
+    }
+
     // Admins bypass ownership checks when meta allows it.
     if (meta.adminBypass && authedUser.role === 'admin') {
       return true;
@@ -63,10 +68,10 @@ export class OwnershipGuard implements CanActivate {
       throw new ForbiddenException('Ownership check failed: missing resource ID');
     }
 
-    const isSelf = String(authedUser.sub) === String(resourceOwnerId);
+    const isSelf = String(authedUserId) === String(resourceOwnerId);
     if (!isSelf) {
       this.logger.warn(
-        `IDOR attempt blocked: user ${authedUser.sub} tried to access resource owned by ${resourceOwnerId}`,
+        `IDOR attempt blocked: user ${authedUserId} tried to access resource owned by ${resourceOwnerId}`,
       );
       throw new ForbiddenException('Access denied: resource belongs to another user');
     }

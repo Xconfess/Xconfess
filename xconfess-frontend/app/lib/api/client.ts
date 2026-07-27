@@ -1,10 +1,14 @@
 ﻿import axios, { AxiosError, AxiosResponse } from "axios";
 import { logError } from "@/app/lib/utils/errorHandler";
 import { useAuthStore } from "@/app/lib/store/authStore";
-import { getApiBaseUrl } from "@/app/lib/config";
 
+/**
+ * Axios instance for browser-facing API calls.
+ * No baseURL is set — all paths must be relative /api/* proxy routes.
+ * The proxy routes (app/api/**) are the only code allowed to contact the backend host.
+ */
 const apiClient = axios.create({
-	baseURL: getApiBaseUrl(),
+	baseURL: "",
 	headers: { "Content-Type": "application/json" },
 	timeout: 30000,
 });
@@ -155,20 +159,20 @@ export interface DataExportHistoryResponse {
 
 export const dataExportApi = {
 	async getHistory() {
-		const response = await apiClient.get<DataExportHistoryResponse>("/data-export/history");
+		const response = await apiClient.get<DataExportHistoryResponse>("/api/data-export/history");
 		return response.data;
 	},
 
 	async requestExport() {
 		const response = await apiClient.post<{ requestId: string; status: string }>(
-			"/data-export/request",
+			"/api/data-export/request",
 		);
 		return response.data;
 	},
 
 	async redownload(requestId: string) {
 		const response = await apiClient.post<{ downloadUrl: string }>(
-			`/data-export/${requestId}/redownload`,
+			`/api/data-export/${requestId}/redownload`,
 		);
 		return response.data;
 	},

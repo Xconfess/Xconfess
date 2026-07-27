@@ -6,7 +6,7 @@ export class AddDownloadTokenToExportRequests20260422000000 implements Migration
   public async up(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(`
       ALTER TABLE "export_requests"
-        ADD COLUMN IF NOT EXISTS "downloadToken"  VARCHAR(255) NULL,
+        ADD COLUMN IF NOT EXISTS "downloadTokenHash"  VARCHAR(64) NULL,
         ADD COLUMN IF NOT EXISTS "downloadedAt"   TIMESTAMP   NULL;
     `);
   }
@@ -14,7 +14,7 @@ export class AddDownloadTokenToExportRequests20260422000000 implements Migration
   public async down(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(`
       ALTER TABLE "export_requests"
-        DROP COLUMN IF EXISTS "downloadToken",
+        DROP COLUMN IF EXISTS "downloadTokenHash",
         DROP COLUMN IF EXISTS "downloadedAt";
     `);
   }

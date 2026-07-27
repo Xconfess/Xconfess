@@ -88,7 +88,7 @@ async function bootstrap() {
   //    Webhooks are exempt — they use HMAC signature verification instead.
   //    All other POST / PUT / PATCH / DELETE routes require a valid CSRF token.
   app.use((req, res, next) => {
-    if (req.path.startsWith('/api/webhooks/')) {
+    if (req.path.startsWith('/api/webhooks/moderation')) {
       return next();
     }
     csrfMiddleware(req as any, res as any, (err) => {

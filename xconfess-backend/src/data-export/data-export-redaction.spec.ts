@@ -119,5 +119,64 @@ describe('DataExportService - Redaction Policy', () => {
       expect(expectedMetadata._redactionPolicy.deletedContentMasked).toBe(true);
       expect(expectedMetadata._redactionPolicy.moderatedContentMasked).toBe(true);
     });
+
+    it('should redact counterpart identifiers from Tip exports', () => {
+      const mockTip = {
+        id: 'tip-1',
+        amount: 10,
+        verificationStatus: 'verified',
+        confessionId: 'confession-1',
+        createdAt: new Date(),
+        senderAddress: 'wallet-abc-123',
+      };
+      const result = (service as any).redactTipForExport(mockTip, { is_active: true });
+      expect(result.id).toBe('tip-1');
+      expect(result.amount).toBe(10);
+      expect(result.senderAddress).toBe('[REDACTED]');
+      expect(result._redacted).toBe(true);
+      expect(result._reason).toBe('counterpart_privacy');
+    });
+
+    it('should redact counterpart identifiers from Report exports', () => {
+      const mockReport = {
+        id: 'report-1',
+        confessionId: 'confession-1',
+        type: 'spam',
+        reason: 'looks like spam',
+        status: 'resolved',
+        createdAt: new Date(),
+        resolvedAt: new Date(),
+        resolutionNotes: 'deleted post',
+        resolver: { id: 99, username: 'admin' },
+        resolvedBy: 99,
+      };
+      const result = (service as any).redactReportForExport(mockReport, { is_active: true });
+      expect(result.id).toBe('report-1');
+      expect(result.type).toBe('spam');
+      expect(result.resolver).toBe('[REDACTED]');
+      expect(result.resolvedBy).toBeNull();
+      expect(result._redacted).toBe(true);
+      expect(result._reason).toBe('counterpart_privacy');
+    });
+
+    it('should redact counterpart identifiers from ModerationLog exports', () => {
+      const mockLog = {
+        id: 'log-1',
+        confessionId: 'confession-1',
+        moderationScore: 0.9,
+        moderationFlags: ['hate_speech'],
+        moderationStatus: 'rejected',
+        createdAt: new Date(),
+        reviewedAt: new Date(),
+        reviewNotes: 'flagged by auto-mod, confirmed',
+        reviewedBy: 'mod-123',
+      };
+      const result = (service as any).redactModerationLogForExport(mockLog, { is_active: true });
+      expect(result.id).toBe('log-1');
+      expect(result.moderationScore).toBe(0.9);
+      expect(result.reviewedBy).toBe('[REDACTED]');
+      expect(result._redacted).toBe(true);
+      expect(result._reason).toBe('counterpart_privacy');
+    });
   });
 });

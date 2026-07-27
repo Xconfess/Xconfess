@@ -1,5 +1,30 @@
 # Full-Stack Smoke Test Checklist
 
+## Automated Smoke Script (Quick Start)
+
+Run the single command below after `docker compose up` and both servers are running:
+
+```bash
+./scripts/smoke-test.sh [--verbose]
+```
+
+Covers all five critical flows automatically. Exits non-zero if any critical flow fails.
+Failures include `requestId` and `route` in output. Tokens are redacted from logs.
+
+**Seeded credentials** (from `scripts/seed.ts`):
+| User | Email | Password |
+|------|-------|----------|
+| seed_alice | seed_alice@example.com | password123 |
+| seed_admin | seed_admin@example.com | password123 |
+
+**Playwright e2e suite** (mocked, for CI):
+```bash
+cd xconfess-frontend
+npx playwright test --project=smoke
+```
+
+---
+
 **Purpose:** Quick validation that core functionality is working across backend, frontend, authentication, and admin features.
 
 **Prerequisites:**
@@ -341,16 +366,19 @@
 
 ## Test Execution Checklist
 
-- [ ] Environment variables configured for both backend and frontend
-- [ ] Docker infrastructure running (Postgres, Redis)
-- [ ] Backend dev server started and healthchecks pass (sections 1.1–1.3)
-- [ ] Frontend dev server started and loading (section 2.1)
-- [ ] All API endpoints responding correctly (sections 1, 3.1, 4.1, 5.1)
-- [ ] All UI pages rendering without errors (sections 2, 3.2, 4.2, 6.4)
-- [ ] Authentication flow working (login redirects, protected routes)
-- [ ] Admin routes properly restricted (section 6.1–6.2 show failures as expected, 6.3 passes for admins)
-- [ ] Evidence captured and organized
-- [ ] No unexpected errors in browser console or server logs
+- [ ] Docker infrastructure running (`docker compose up -d`)
+- [ ] Seed data loaded (`npm run seed`)
+- [ ] Backend dev server started and healthchecks pass
+- [ ] Frontend dev server started and loading
+- [ ] **Flow 1 — Login / Session**: `POST /auth/login` returns 200, session persists on reload, unauthenticated redirect works
+- [ ] **Flow 2 — Confession Create**: `POST /confessions` returns 201, confession appears in feed
+- [ ] **Flow 3 — Comment**: `POST /confessions/:id/comments` returns 201, comment visible on detail page
+- [ ] **Flow 4 — Reaction**: `POST /reactions` returns 201/200, reaction count updates
+- [ ] **Flow 5 — Report**: `POST /reports` returns 201, confirmation shown to user
+- [ ] Smoke script exits 0 (no critical failures)
+- [ ] No tokens visible in `smoke-test-requests.log`
+- [ ] Failures (if any) include `requestId` and route in output
+- [ ] Admin routes reject unauthenticated requests with 401/403
 - [ ] PR description updated with smoke test results
 
 ---

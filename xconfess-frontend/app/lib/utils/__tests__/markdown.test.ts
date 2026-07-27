@@ -3,6 +3,7 @@ import {
   insertItalic,
   insertLink,
   insertEmoji,
+  sanitizeMarkdown,
 } from "../markdown";
 
 // Mock textarea element
@@ -56,6 +57,33 @@ describe("markdown utilities", () => {
       const textarea = createMockTextarea("Hello world", 6, 6);
       insertEmoji(textarea, "😀");
       expect(textarea.value).toBe("Hello 😀world");
+    });
+  });
+
+  describe("sanitizeMarkdown", () => {
+    it("should block script tags", () => {
+      const input = "Hello <script>alert(1)</script> World";
+      expect(sanitizeMarkdown(input)).toBe("Hello  World");
+    });
+
+    it("should block iframe tags", () => {
+      const input = "Video <iframe src='http://evil.com'></iframe>";
+      expect(sanitizeMarkdown(input)).toBe("Video ");
+    });
+
+    it("should block inline event handlers", () => {
+      const input = "Click <a href='#' onclick='alert(1)'>here</a>";
+      expect(sanitizeMarkdown(input)).toBe("Click <a href='#' >here</a>");
+    });
+
+    it("should block unsafe URL protocols", () => {
+      const input = "[link](javascript:alert(1))";
+      expect(sanitizeMarkdown(input)).toBe("[link](javascript_blocked:alert(1))");
+    });
+
+    it("should allow safe markdown formatting", () => {
+      const input = "**bold** and *italic* and [link](https://example.com)";
+      expect(sanitizeMarkdown(input)).toBe("**bold** and *italic* and [link](https://example.com)");
     });
   });
 });

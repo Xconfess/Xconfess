@@ -24,10 +24,17 @@ import * as request from 'supertest';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
 import * as bcrypt from 'bcrypt';
+import * as crypto from 'crypto';
 import { AppModule } from '../src/app.module';
 import { PasswordReset } from '../src/auth/entities/password-reset.entity';
 import { User } from '../src/user/entities/user.entity';
 import { EmailService } from '../src/email/email.service';
+
+// Mirrors PasswordResetService's private hashToken() — reset tokens are only
+// ever persisted as their SHA-256 hash, so tests that write/query rows
+// directly (bypassing the service) must hash the same way.
+const hashToken = (token: string) =>
+  crypto.createHash('sha256').update(token).digest('hex');
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
@@ -159,14 +166,15 @@ describe('Auth – Password Reset (e2e)', () => {
    * so we can test the expiration branch without sleeping.
    */
   async function seedExpiredToken(userId: number): Promise<string> {
+    const rawToken = `expired-token-${Date.now()}`;
     const expiredRecord = resetRepo.create({
-      token: `expired-token-${Date.now()}`,
+      tokenHash: hashToken(rawToken),
       expiresAt: new Date(Date.now() - 1), // 1 ms in the past
       used: false,
       user: { id: userId } as User,
     });
     await resetRepo.save(expiredRecord);
-    return expiredRecord.token;
+    return rawToken;
   }
 
   /**
@@ -174,7 +182,7 @@ describe('Auth – Password Reset (e2e)', () => {
    * without going through the normal reset flow (avoids coupling tests).
    */
   async function markTokenUsed(token: string): Promise<void> {
-    await resetRepo.update({ token }, { used: true });
+    await resetRepo.update({ tokenHash: hashToken(token) }, { used: true });
   }
 
   // ── 0. one-time user setup ─────────────────────────────────────────────────
@@ -196,7 +204,7 @@ describe('Auth – Password Reset (e2e)', () => {
         { email: BASE_EMAIL },
         { password: await bcrypt.hash(BASE_PASSWORD, 10) },
       );
-      await resetRepo.delete({ token: resetToken });
+      await resetRepo.delete({ tokenHash: hashToken(resetToken) });
     });
 
     it('POST /auth/forgot-password returns 200 for a known e-mail', async () => {
@@ -240,7 +248,7 @@ describe('Auth – Password Reset (e2e)', () => {
     });
 
     afterAll(async () => {
-      await resetRepo.delete({ token: expiredToken });
+      await resetRepo.delete({ tokenHash: hashToken(expiredToken) });
     });
 
     it('POST /auth/reset-password returns 422 for an expired token', async () => {
@@ -291,7 +299,7 @@ describe('Auth – Password Reset (e2e)', () => {
     });
 
     afterAll(async () => {
-      await resetRepo.delete({ token });
+      await resetRepo.delete({ tokenHash: hashToken(token) });
     });
 
     it('POST /auth/reset-password rejects an already-consumed token', async () => {
@@ -313,7 +321,7 @@ describe('Auth – Password Reset (e2e)', () => {
     });
 
     afterAll(async () => {
-      await resetRepo.delete({ token: validToken });
+      await resetRepo.delete({ tokenHash: hashToken(validToken) });
     });
 
     it('returns 400 when confirmPassword does not match password', async () => {
@@ -358,8 +366,8 @@ describe('Auth – Password Reset (e2e)', () => {
     });
 
     afterAll(async () => {
-      await resetRepo.delete({ token: firstToken });
-      await resetRepo.delete({ token: secondToken });
+      await resetRepo.delete({ tokenHash: hashToken(firstToken) });
+      await resetRepo.delete({ tokenHash: hashToken(secondToken) });
       // Restore password to original for any downstream tests
       await userRepo.update(
         { email: BASE_EMAIL },

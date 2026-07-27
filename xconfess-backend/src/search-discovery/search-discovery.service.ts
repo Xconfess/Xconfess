@@ -7,7 +7,6 @@ import { SearchHistory } from './entities/search-history.entity';
 import { CreateSavedSearchDto } from './dto/create-saved-search.dto';
 import { SearchConfessionDto } from '../confession/dto/search-confession.dto';
 
-// Augment or create a compound interface to satisfy your extended discovery filters
 interface ExtendedSearchDto extends SearchConfessionDto {
   dateFrom?: string;
   dateTo?: string;
@@ -53,6 +52,9 @@ export class SearchDiscoveryService {
     const parameters: any[] = [];
     let paramIndex = 1;
 
+    // Clamp limit to safe range [1, 100]; use 40 as default
+    const limit = Math.min(Math.max(Number(dto.limit) || 40, 1), 100);
+
     let selectFields = `id, title, body as "highlightedBody", category, reaction_count as "reactionCount", gender, created_at as "createdAt"`;
     let orderBy = `"createdAt" DESC`;
 
@@ -61,10 +63,10 @@ export class SearchDiscoveryService {
 
       // Native Postgres full-text vectors parsing with clean Tailwind highlight wrappers
       selectFields = `
-        id, 
-        title, 
-        category, 
-        reaction_count as "reactionCount", 
+        id,
+        title,
+        category,
+        reaction_count as "reactionCount",
         gender,
         created_at as "createdAt",
         ts_headline('english', body, plainto_tsquery('english', $${paramIndex}), 'StartSel=<mark class="bg-yellow-500/30 text-yellow-200 px-1 rounded font-semibold">, StopSel=</mark>, MaxWords=60') as "highlightedBody"
@@ -101,12 +103,13 @@ export class SearchDiscoveryService {
     if (dto.sort === 'oldest') orderBy = `"createdAt" ASC`;
     if (dto.sort === 'reactions') orderBy = `"reactionCount" DESC`;
 
+    parameters.push(limit);
     const rawQuery = `
       SELECT ${selectFields}
       FROM confessions
       WHERE ${conditions.join(' AND ')}
       ORDER BY ${orderBy}
-      LIMIT ${dto.limit || 40}
+      LIMIT $${paramIndex}
     `;
 
     const results = await manager.query(rawQuery, parameters);

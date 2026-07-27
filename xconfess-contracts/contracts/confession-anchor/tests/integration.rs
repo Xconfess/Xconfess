@@ -52,7 +52,11 @@ fn advance(env: &Env, delta: u32) {
 #[test]
 fn owner_is_set_after_initialize() {
     let (env, client, owner) = setup();
-    assert_eq!(client.get_owner(), Ok(owner), "owner must match the address passed to initialize");
+    assert_eq!(
+        client.get_owner(),
+        Ok(owner),
+        "owner must match the address passed to initialize"
+    );
 }
 
 #[test]
@@ -118,7 +122,10 @@ fn count_increments_only_for_unique_hashes() {
 fn two_anchors_at_different_ledger_heights_both_verifiable() {
     let (env, client, _owner) = setup();
 
-    env.ledger().set(LedgerInfo { sequence_number: 50, ..env.ledger().get() });
+    env.ledger().set(LedgerInfo {
+        sequence_number: 50,
+        ..env.ledger().get()
+    });
     client.anchor_confession(&hash(&env, 20), &1_000);
 
     advance(&env, 100);
@@ -236,7 +243,10 @@ fn migrate_is_idempotent() {
     let (env, client, owner) = setup();
     client.migrate(&owner).unwrap();
     let version = client.migrate(&owner).unwrap();
-    assert_eq!(version, 2, "second migrate() call must be a no-op returning current version");
+    assert_eq!(
+        version, 2,
+        "second migrate() call must be a no-op returning current version"
+    );
 }
 
 #[test]

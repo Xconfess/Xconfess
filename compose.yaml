@@ -29,6 +29,59 @@ services:
       timeout: 5s
       retries: 10
 
+  # Opt-in containerized backend. Start with:
+  # docker compose -f compose.yaml --profile app up --build
+  # Its health status uses the deployed backend readiness contract.
+  backend:
+    image: node:20-alpine
+    container_name: xconfess-backend
+    profiles: ["app"]
+    working_dir: /workspace/xconfess-backend
+    command: >-
+      sh -c "cd /workspace && npm install --no-package-lock && npm run dev:backend"
+    environment:
+      NODE_ENV: development
+      APP_ENV: local
+      PORT: "5000"
+      FRONTEND_URL: http://localhost:3000
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_USERNAME: postgres
+      DB_PASSWORD: postgres
+      DB_NAME: xconfess
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      ENABLE_BACKGROUND_JOBS: "true"
+      TYPEORM_SYNCHRONIZE: "true"
+      JWT_SECRET: local-development-jwt-secret
+      APP_SECRET: local-development-app-secret
+      CONFESSION_ENCRYPTION_KEY: "0000000000000000000000000000000000000000000000000000000000000000"
+      STELLAR_FEATURES_ENABLED: "false"
+      STELLAR_SERVER_SECRET: SCXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./:/workspace
+      - xconfess-node-modules:/workspace/node_modules
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      # Use Node rather than curl/wget so this works in the stock Node image.
+      test:
+        - CMD-SHELL
+        - >-
+          node -e "require('http').get('http://localhost:5000/api/health/ready',
+          response => process.exit(response.statusCode === 200 ? 0 : 1)).on('error',
+          () => process.exit(1))"
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 45s
+
 volumes:
   xconfess-postgres-data:
   xconfess-redis-data:
+  xconfess-node-modules:

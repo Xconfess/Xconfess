@@ -1,6 +1,6 @@
 import { normalizeApiError, type ApiError } from "./errors";
 import type { ReactionType, ReactionCounts } from "../types/reaction";
-import { isValidReactionType } from "../constants/reactions";
+import { isValidReactionType, REACTION_EMOJI_MAP } from "../constants/reactions";
 import { ANONYMOUS_USER_ID_KEY } from "./constants";
 
 const API_BASE = "";
@@ -65,7 +65,7 @@ export async function addReaction(
         },
         body: JSON.stringify({ 
           confessionId,
-          type,
+          emoji: REACTION_EMOJI_MAP[type],
         }),
         signal,
       }

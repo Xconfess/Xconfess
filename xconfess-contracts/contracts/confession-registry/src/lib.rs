@@ -22,7 +22,7 @@ mod error;
 #[path = "../../events.rs"]
 pub mod events;
 #[path = "../../governance/mod.rs"]
-mod governance;
+pub mod governance;
 // mod confession_reg_auth;
 
 // ─── Data Types ───
