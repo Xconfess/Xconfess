@@ -9,6 +9,7 @@ import { AnonymousUserService } from '../user/anonymous-user.service';
 import { AppLogger } from '../logger/logger.service';
 import { EncryptionService } from '../encryption/encryption.service';
 import { StellarService } from '../stellar/stellar.service';
+import { ContractService } from '../stellar/contract.service';
 import { CacheService } from '../cache/cache.service';
 import { TagService } from './tag.service';
 import { encryptConfession } from '../utils/confession-encryption';
@@ -51,6 +52,7 @@ describe('ConfessionService - View Count Logic', () => {
         { provide: AppLogger, useValue: { log: jest.fn(), error: jest.fn() } },
         { provide: EncryptionService, useValue: {} },
         { provide: StellarService, useValue: {} },
+        { provide: ContractService, useValue: {} },
         { provide: CacheService, useValue: {} },
         { provide: TagService, useValue: {} },
         {

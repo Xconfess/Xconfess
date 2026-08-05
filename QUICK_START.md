@@ -7,8 +7,7 @@ Get the full stack running locally in under 5 minutes.
 | Tool | Version | Required for |
 |------|---------|-------------|
 | Node.js | >= 18 | Backend + Frontend |
-| npm | >= 9 | Root workspace |
-| pnpm | >= 8 | Backend (xconfess-backend uses pnpm) |
+| npm | >= 9 | Root workspace and all JS packages |
 | Docker | any | Postgres + Redis |
 | Rust + cargo | stable | Contracts only — skip if not touching contracts |
 
@@ -22,11 +21,8 @@ cd Xconfess
 ## Step 2 — Install dependencies
 
 ```bash
-# Root workspace (frontend deps)
+# Root workspace dependencies
 npm install
-
-# Backend deps (uses pnpm)
-cd xconfess-backend && pnpm install && cd ..
 ```
 
 ## Step 3 — Start infrastructure (Postgres + Redis)
@@ -92,8 +88,6 @@ This starts backend and frontend concurrently. Once ready:
 **Backend won't start** — check that Postgres and Redis containers are running (`docker compose ps`) and that `.env` has all required keys set.
 
 **Frontend auth loop** — add `NEXT_PUBLIC_DEV_BYPASS_AUTH=true` to `xconfess-frontend/.env.local` to skip the auth flow during UI-only development.
-
-**pnpm not found** — install it with `npm install -g pnpm`.
 
 **Port conflicts** — Postgres uses 55432 (not 5432) to avoid clashing with a local Postgres install.
 

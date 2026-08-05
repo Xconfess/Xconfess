@@ -30,39 +30,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
 
   const refreshUser = async () => {
-    const token = localStorage.getItem('access_token');
-
-    if (!token) {
-      setUser(null);
-      setIsLoading(false);
-      return;
-    }
-
     try {
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL || ''}/auth/me`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        },
-      );
+      // Use the session proxy route — never call the backend directly from
+      // client-rendered code. The proxy reads the HttpOnly session cookie.
+      const response = await fetch('/api/auth/session');
 
       if (!response.ok) {
         console.error('Auth refresh failed:', {
           status: response.status,
-          path: '/auth/me',
+          path: '/api/auth/session',
         });
-        localStorage.removeItem('access_token');
         setUser(null);
         return;
       }
 
-      const userData = await response.json();
-      setUser(userData);
+      const data = await response.json();
+      setUser(data.user ?? null);
     } catch (error) {
       console.error('Auth refresh failed:', error);
-      localStorage.removeItem('access_token');
       setUser(null);
     } finally {
       setIsLoading(false);
@@ -73,13 +58,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     refreshUser();
   }, []);
 
-  const login = async (token: string) => {
-    localStorage.setItem('access_token', token);
+  const login = async (_token: string) => {
+    // Token is already stored in the HttpOnly session cookie by the /api/auth/session
+    // proxy when the login POST was made. Just refresh the user state here.
     await refreshUser();
   };
 
   const logout = () => {
-    localStorage.removeItem('access_token');
+    // Clear session cookie via the proxy route (fire-and-forget)
+    fetch('/api/auth/session', { method: 'DELETE' }).catch(() => {});
     setUser(null);
     router.push('/login');
   };

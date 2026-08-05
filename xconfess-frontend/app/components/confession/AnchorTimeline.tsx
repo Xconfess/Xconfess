@@ -87,15 +87,15 @@ function StepDot({ step }: { step: TimelineStep }) {
 
   return (
     <div className={dotClass} aria-hidden="true">
-      {step.state === "done" && <CheckCircle2 className="h-3 w-3" />}
+      {step.state === "done" && <CheckCircle2 className="h-3 w-3" aria-hidden="true" />}
       {step.state === "active" && step.key === "submitted" && (
-        <Loader2 className="h-3 w-3 animate-spin" />
+        <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" />
       )}
       {step.state === "active" && step.key !== "submitted" && (
-        <Clock className="h-3 w-3" />
+        <Clock className="h-3 w-3" aria-hidden="true" />
       )}
-      {step.state === "pending" && <div className="h-2 w-2 rounded-full bg-zinc-600" />}
-      {step.state === "error" && <XCircle className="h-3 w-3" />}
+      {step.state === "pending" && <div className="h-2 w-2 rounded-full bg-zinc-600" aria-hidden="true" />}
+      {step.state === "error" && <XCircle className="h-3 w-3" aria-hidden="true" />}
     </div>
   );
 }
@@ -111,16 +111,19 @@ export function AnchorTimeline({
 
   if (steps.length === 0) return null;
 
-  const activeIdx = steps.findIndex(
-    (s) => s.state === "active" || s.state === "error",
-  );
-
   return (
     <div
       className={cn("flex flex-col", className)}
-      role="group"
-      aria-label="Anchor transaction progress"
+      role="region"
+      aria-label="Anchor transaction progress timeline"
     >
+      <div className="sr-only" aria-live="polite" aria-atomic="true">
+        {status === "confirmed" && "Anchor transaction confirmed successfully."}
+        {status === "failed" && `Anchor transaction failed: ${error || "Unknown error"}`}
+        {status === "submitted" && "Anchor transaction submitted to the Stellar network."}
+        {status === "requested" && "Anchor transaction requested."}
+      </div>
+
       {steps.map((step, i) => {
         const isLast = i === steps.length - 1;
         const isConnectorActive = step.state === "done" || step.state === "active";
@@ -169,15 +172,16 @@ export function AnchorTimeline({
                   href={getStellarExplorerUrl(step.txHash) ?? "#"}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="mt-0.5 inline-flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300"
+                  className="mt-0.5 inline-flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 rounded"
+                  aria-label="View transaction on Stellar explorer (opens in a new tab)"
                 >
-                  <ExternalLink className="h-3 w-3" />
+                  <ExternalLink className="h-3 w-3" aria-hidden="true" />
                   View transaction
                 </a>
               )}
 
               {step.state === "error" && (
-                <div className="mt-1 space-y-1">
+                <div className="mt-1 space-y-1" role="alert">
                   {step.error ? (
                     <p className="text-xs text-red-400">{step.error}</p>
                   ) : (
@@ -189,9 +193,10 @@ export function AnchorTimeline({
                     <button
                       type="button"
                       onClick={step.onRetry}
-                      className="inline-flex items-center gap-1 text-xs font-medium text-amber-400 hover:text-amber-300"
+                      className="inline-flex items-center gap-1 text-xs font-medium text-amber-400 hover:text-amber-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 rounded px-1 py-0.5"
+                      aria-label="Retry anchoring transaction"
                     >
-                      <RotateCcw className="h-3 w-3" />
+                      <RotateCcw className="h-3 w-3" aria-hidden="true" />
                       Retry anchoring
                     </button>
                   ) : (

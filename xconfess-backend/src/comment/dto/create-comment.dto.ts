@@ -17,4 +17,14 @@ export class CreateCommentDto {
   @IsOptional()
   @IsNumber()
   parentId?: number;
+
+  /**
+   * Client-supplied idempotency key for replay safety.
+   * When provided, duplicate submissions return the original comment
+   * instead of creating a new one.
+   */
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  idempotencyKey?: string;
 }

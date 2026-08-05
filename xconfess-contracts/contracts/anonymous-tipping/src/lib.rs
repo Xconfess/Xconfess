@@ -74,7 +74,7 @@ impl Error {
     /// Human-readable message for this error
     pub fn message(&self) -> &'static str {
         match self {
-            Error::InvalidTipAmount => "tip amount must be positive",
+            Error::InvalidTipAmount => "tip amount must be between 0 and 10,000 XLM",
             Error::MetadataTooLong => "proof metadata too long",
             Error::TotalOverflow => "recipient total would overflow",
             Error::NonceOverflow => "settlement nonce would overflow",
@@ -212,6 +212,10 @@ impl AnonymousTipping {
     pub const DEFAULT_MAX_TIPS_PER_WINDOW: u32 = 1_000;
     pub const DEFAULT_RATE_WINDOW_SECONDS: u64 = 60;
 
+    /// Maximum tip amount in stroops (10,000 XLM * 10_000_000 stroops/XLM).
+    /// Must be consistent with backend and frontend MAX_TIP_AMOUNT.
+    pub const MAX_TIP_AMOUNT: i128 = 100_000_000_000;
+
     /// Initialize the tipping contract
     pub fn init(env: Env, xlm_token: Address) {
         if env.storage().instance().has(&DataKey::SettlementNonce) {
@@ -251,7 +255,7 @@ impl AnonymousTipping {
         proof_metadata: Option<SorobanString>,
     ) -> Result<u64, Error> {
         Self::assert_not_paused(&env)?;
-        if amount <= 0 {
+        if amount <= 0 || amount > Self::MAX_TIP_AMOUNT {
             return Err(Error::InvalidTipAmount);
         }
         sender.require_auth();

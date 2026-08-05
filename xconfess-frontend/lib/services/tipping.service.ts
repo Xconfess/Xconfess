@@ -13,7 +13,6 @@ import {
   BASE_FEE,
 } from "@stellar/stellar-sdk";
 import { ActivityStatus } from "@/app/lib/types/activity";
-import { getApiBaseUrl } from "@/app/lib/config";
 import {
   isFreighterInstalled,
   freighterGetPublicKey,
@@ -21,6 +20,8 @@ import {
 } from "../wallet/freighterAdapter";
 
 const MIN_TIP_AMOUNT = 0.1;
+const MAX_TIP_AMOUNT = 10_000;
+const TIP_PRECISION = 7;
 
 // -------------------- Types --------------------
 
@@ -99,10 +100,6 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function tippingApiUrl(path: string): string {
-  return `${getApiBaseUrl().replace(/\/$/, "")}${path}`;
-}
-
 function getResponseMessage(body: unknown): string | undefined {
   if (!body || typeof body !== "object") return undefined;
   const message = (body as { message?: unknown }).message;
@@ -162,6 +159,23 @@ export async function sendTip(
       return {
         success: false,
         error: `Minimum tip amount is ${MIN_TIP_AMOUNT} XLM`,
+      };
+    }
+
+    if (amount > MAX_TIP_AMOUNT) {
+      return {
+        success: false,
+        error: `Maximum tip amount is ${MAX_TIP_AMOUNT} XLM`,
+      };
+    }
+
+    // Validate precision: no more than TIP_PRECISION decimal places
+    const amountStr = amount.toString();
+    const decimalPart = amountStr.includes('.') ? amountStr.split('.')[1] : '';
+    if (decimalPart.length > TIP_PRECISION) {
+      return {
+        success: false,
+        error: `Tip amount cannot have more than ${TIP_PRECISION} decimal places`,
       };
     }
 
@@ -231,7 +245,7 @@ export async function verifyTip(
   for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
     try {
       const res = await fetch(
-        tippingApiUrl(`/confessions/${confessionId}/tips/verify`),
+        `/api/confessions/${confessionId}/tips/verify`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -271,7 +285,7 @@ export async function getTipStats(
 ): Promise<TipStats | null> {
   try {
     const res = await fetch(
-      tippingApiUrl(`/confessions/${confessionId}/tips/stats`),
+      `/api/confessions/${confessionId}/tips/stats`,
     );
     if (!res.ok) return null;
     return (await res.json()) as TipStats;

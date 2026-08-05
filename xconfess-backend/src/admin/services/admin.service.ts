@@ -2,35 +2,30 @@
   Injectable,
   NotFoundException,
   BadRequestException,
+  ForbiddenException,
   Logger,
-} from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { EntityManager, In, Repository, LessThan } from 'typeorm';
-import { Report, ReportStatus, ReportType } from '../entities/report.entity';
-import { AnonymousConfession } from '../../confession/entities/confession.entity';
-import { User, UserRole } from '../../user/entities/user.entity';
-import { ModerationService } from './moderation.service';
-import { ModerationTemplateService } from '../../comment/moderation-template.service';
-import { AuditActionType } from '../../audit-log/audit-log.entity';
-import { Request } from 'express';
-import { decryptConfession } from '../../utils/confession-encryption';
-import { EventEmitter2 } from '@nestjs/event-emitter';
-import { UserAnonymousUser } from '../../user/entities/user-anonymous-link.entity';
-import { ConfigService } from '@nestjs/config';
-import { Tip } from '../../tipping/entities/tip.entity';
-import { AuditLogService } from '../../audit-log/audit-log.service';
-import { JobManagementService } from '../../notifications/services/job-management.service';
-import { LockoutService } from '../../auth/lockout.service';
-import {
-  CursorPaginatedResponseDto,
-  PAGINATION,
-  decodeCursor,
-  encodeCursor,
-} from '../../common/pagination';
+} from "@nestjs/common";
+import { InjectRepository } from "@nestjs/typeorm";
+import { EntityManager, In, Repository, LessThan } from "typeorm";
+import { Report, ReportStatus, ReportType } from "../entities/report.entity";
+import { AnonymousConfession } from "../../confession/entities/confession.entity";
+import { User, UserRole } from "../../user/entities/user.entity";
+import { ModerationService } from "./moderation.service";
+import { ModerationTemplateService } from "../../comment/moderation-template.service";
+import { AuditActionType } from "../../audit-log/audit-log.entity";
+import { Request } from "express";
+import { decryptConfession } from "../../utils/confession-encryption";
+import { EventEmitter2 } from "@nestjs/event-emitter";
+import { UserAnonymousUser } from "../../user/entities/user-anonymous-link.entity";
+import { ConfigService } from "@nestjs/config";
+import { Tip } from "../../tipping/entities/tip.entity";
+import { AuditLogService } from "../../audit-log/audit-log.service";
+import { JobManagementService } from "../../notifications/services/job-management.service";
+import { LockoutService } from "../../auth/lockout.service";
 
 export interface BulkResolveOutcome {
   id: string;
-  outcome: 'resolved' | 'skipped' | 'not_found';
+  outcome: "resolved" | "skipped" | "not_found";
   previousStatus?: ReportStatus;
 }
 
@@ -42,8 +37,8 @@ export interface BulkResolveResult {
   outcomes: BulkResolveOutcome[];
 }
 
-type UserSortField = 'createdAt' | 'username' | 'role' | 'status';
-type SortOrder = 'ASC' | 'DESC';
+type UserSortField = "createdAt" | "username" | "role" | "status";
+type SortOrder = "ASC" | "DESC";
 
 @Injectable()
 export class AdminService {
@@ -55,7 +50,7 @@ export class AdminService {
     } catch (e) {
       this.logger.warn(
         `Failed to decrypt confession message (returning raw). Reason: ${
-          e instanceof Error ? e.message : 'unknown'
+          e instanceof Error ? e.message : "unknown"
         }`,
       );
       return message;
@@ -83,7 +78,7 @@ export class AdminService {
   ) {}
 
   private get aesKey(): string {
-    return this.configService.get<string>('app.confessionAesKey', '');
+    return this.configService.get<string>("app.confessionAesKey", "");
   }
 
   private async runInModerationTransaction<T>(
@@ -102,28 +97,28 @@ export class AdminService {
     offset = 0,
   ) {
     const query = this.reportRepository
-      .createQueryBuilder('report')
-      .leftJoinAndSelect('report.confession', 'confession')
-      .leftJoinAndSelect('report.reporter', 'reporter')
-      .leftJoinAndSelect('report.resolver', 'resolver')
-      .orderBy('report.createdAt', 'DESC')
+      .createQueryBuilder("report")
+      .leftJoinAndSelect("report.confession", "confession")
+      .leftJoinAndSelect("report.reporter", "reporter")
+      .leftJoinAndSelect("report.resolver", "resolver")
+      .orderBy("report.createdAt", "DESC")
       .take(limit)
       .skip(offset);
 
     if (status) {
-      query.andWhere('report.status = :status', { status });
+      query.andWhere("report.status = :status", { status });
     }
 
     if (type) {
-      query.andWhere('report.type = :type', { type });
+      query.andWhere("report.type = :type", { type });
     }
 
     if (startDate) {
-      query.andWhere('report.createdAt >= :startDate', { startDate });
+      query.andWhere("report.createdAt >= :startDate", { startDate });
     }
 
     if (endDate) {
-      query.andWhere('report.createdAt <= :endDate', { endDate });
+      query.andWhere("report.createdAt <= :endDate", { endDate });
     }
 
     const [reports, total] = await query.getManyAndCount();
@@ -141,11 +136,11 @@ export class AdminService {
   async getReportById(id: string): Promise<Report> {
     const report = await this.reportRepository.findOne({
       where: { id },
-      relations: ['confession', 'reporter', 'resolver'],
+      relations: ["confession", "reporter", "resolver"],
     });
 
     if (!report) {
-      throw new NotFoundException('Report not found');
+      throw new NotFoundException("Report not found");
     }
 
     if (report.confession?.message) {
@@ -174,11 +169,11 @@ export class AdminService {
       const report = await reportRepo.findOne({ where: { id } });
 
       if (!report) {
-        throw new NotFoundException('Report not found');
+        throw new NotFoundException("Report not found");
       }
 
       if (report.status === ReportStatus.RESOLVED) {
-        throw new BadRequestException('Report already resolved');
+        throw new BadRequestException("Report already resolved");
       }
 
       report.status = ReportStatus.RESOLVED;
@@ -192,7 +187,7 @@ export class AdminService {
       await this.moderationService.logAction(
         adminId,
         AuditActionType.REPORT_RESOLVED,
-        'report',
+        "report",
         id,
         {
           reportType: report.type,
@@ -208,7 +203,7 @@ export class AdminService {
       return updated;
     });
 
-    this.eventEmitter.emit('report.updated', saved);
+    this.eventEmitter.emit("report.updated", saved);
 
     return saved;
   }
@@ -224,11 +219,11 @@ export class AdminService {
       const report = await reportRepo.findOne({ where: { id } });
 
       if (!report) {
-        throw new NotFoundException('Report not found');
+        throw new NotFoundException("Report not found");
       }
 
-      if (report.status === ReportStatus.REJECTED) {
-        throw new BadRequestException('Report already dismissed');
+      if (report.status === ReportStatus.DISMISSED) {
+        throw new BadRequestException("Report already dismissed");
       }
 
       report.status = ReportStatus.REJECTED;
@@ -241,7 +236,7 @@ export class AdminService {
       await this.moderationService.logAction(
         adminId,
         AuditActionType.REPORT_DISMISSED,
-        'report',
+        "report",
         id,
         { reportType: report.type },
         notes,
@@ -252,7 +247,7 @@ export class AdminService {
       return updated;
     });
 
-    this.eventEmitter.emit('report.updated', saved);
+    this.eventEmitter.emit("report.updated", saved);
 
     return saved;
   }
@@ -281,14 +276,14 @@ export class AdminService {
         const report = foundById.get(id);
 
         if (!report) {
-          outcomes.push({ id, outcome: 'not_found' });
+          outcomes.push({ id, outcome: "not_found" });
           continue;
         }
 
         if (report.status !== ReportStatus.OPEN) {
           outcomes.push({
             id,
-            outcome: 'skipped',
+            outcome: "skipped",
             previousStatus: report.status,
           });
           continue;
@@ -300,7 +295,7 @@ export class AdminService {
         report.resolvedAt = now;
         report.resolutionNotes = notes;
         toSave.push(report);
-        outcomes.push({ id, outcome: 'resolved', previousStatus: before });
+        outcomes.push({ id, outcome: "resolved", previousStatus: before });
       }
 
       if (toSave.length > 0) {
@@ -313,13 +308,13 @@ export class AdminService {
         await this.moderationService.logAction(
           adminId,
           AuditActionType.BULK_ACTION,
-          'report',
+          "report",
           item.id,
           {
-            action: 'bulk_resolve',
+            action: "bulk_resolve",
             outcome: item.outcome,
             previousStatus: item.previousStatus ?? null,
-            resolvedAt: item.outcome === 'resolved' ? now.toISOString() : null,
+            resolvedAt: item.outcome === "resolved" ? now.toISOString() : null,
           },
           notes,
           request,
@@ -331,16 +326,16 @@ export class AdminService {
         toPublish: toSave,
         summary: {
           requested: ids.length,
-          resolved: outcomes.filter((o) => o.outcome === 'resolved').length,
-          skipped: outcomes.filter((o) => o.outcome === 'skipped').length,
-          notFound: outcomes.filter((o) => o.outcome === 'not_found').length,
+          resolved: outcomes.filter((o) => o.outcome === "resolved").length,
+          skipped: outcomes.filter((o) => o.outcome === "skipped").length,
+          notFound: outcomes.filter((o) => o.outcome === "not_found").length,
           outcomes,
         },
       };
     });
 
     if (result.toPublish.length > 0) {
-      this.eventEmitter.emit('reports.bulk.updated', result.toPublish);
+      this.eventEmitter.emit("reports.bulk.updated", result.toPublish);
     }
 
     return result.summary;
@@ -360,7 +355,7 @@ export class AdminService {
       });
 
       if (!confession) {
-        throw new NotFoundException('Confession not found');
+        throw new NotFoundException("Confession not found");
       }
 
       confession.isDeleted = true;
@@ -369,7 +364,7 @@ export class AdminService {
       await this.moderationService.logAction(
         adminId,
         AuditActionType.CONFESSION_DELETED,
-        'confession',
+        "confession",
         id,
         { reason },
         reason,
@@ -392,7 +387,7 @@ export class AdminService {
       });
 
       if (!confession) {
-        throw new NotFoundException('Confession not found');
+        throw new NotFoundException("Confession not found");
       }
 
       confession.isHidden = true;
@@ -401,7 +396,7 @@ export class AdminService {
       await this.moderationService.logAction(
         adminId,
         AuditActionType.CONFESSION_HIDDEN,
-        'confession',
+        "confession",
         id,
         { reason },
         reason,
@@ -425,7 +420,7 @@ export class AdminService {
       });
 
       if (!confession) {
-        throw new NotFoundException('Confession not found');
+        throw new NotFoundException("Confession not found");
       }
 
       confession.isHidden = false;
@@ -434,7 +429,7 @@ export class AdminService {
       await this.moderationService.logAction(
         adminId,
         AuditActionType.CONFESSION_UNHIDDEN,
-        'confession',
+        "confession",
         id,
         null,
         null,
@@ -465,11 +460,11 @@ export class AdminService {
       const user = await userRepo.findOne({ where: { id: userId } });
 
       if (!user) {
-        throw new NotFoundException('User not found');
+        throw new NotFoundException("User not found");
       }
 
       if (!user.is_active) {
-        throw new BadRequestException('User is already banned');
+        throw new BadRequestException("User is already banned");
       }
 
       user.is_active = false;
@@ -481,7 +476,7 @@ export class AdminService {
       await this.moderationService.logAction(
         adminId,
         AuditActionType.USER_BANNED,
-        'user',
+        "user",
         userId.toString(),
         {
           reason,
@@ -501,10 +496,20 @@ export class AdminService {
     userId: number,
     role: UserRole,
     adminId: number,
+    reason?: string,
     request?: Request,
   ): Promise<User> {
     if (!Object.values(UserRole).includes(role)) {
-      throw new BadRequestException('Invalid role');
+      throw new BadRequestException("Invalid role");
+    }
+
+    if (userId === adminId) {
+      await this.logSecurityEvent(adminId, "ROLE_SELF_ESCALATION_BLOCKED", {
+        targetUserId: userId,
+        attemptedRole: role,
+        reason: reason || null,
+      }, request);
+      throw new ForbiddenException("Self-escalation is not permitted");
     }
 
     return this.runInModerationTransaction(async (manager) => {
@@ -512,12 +517,18 @@ export class AdminService {
       const user = await userRepo.findOne({ where: { id: userId } });
 
       if (!user) {
-        throw new NotFoundException('User not found');
+        throw new NotFoundException("User not found");
       }
 
       const previousRole = user.role || UserRole.USER;
       if (previousRole === role) {
         return user;
+      }
+
+      if (role === UserRole.ADMIN && previousRole !== UserRole.ADMIN) {
+        if (!user.is_active) {
+          throw new BadRequestException("Cannot grant admin to a banned user");
+        }
       }
 
       user.role = role;
@@ -532,16 +543,49 @@ export class AdminService {
       await this.moderationService.logAction(
         adminId,
         action,
-        'user',
+        "user",
         userId.toString(),
-        { previousRole, role },
-        `Role changed from ${previousRole} to ${role}`,
+        {
+          previousRole,
+          newRole: role,
+          targetUserId: userId,
+          actorId: adminId,
+          reason: reason || null,
+          requestId: (request as any)?.requestId || null,
+        },
+        reason || `Role changed from ${previousRole} to ${role}`,
         request,
         manager,
       );
 
       return saved;
     });
+  }
+
+  private async logSecurityEvent(
+    adminId: number,
+    eventType: string,
+    metadata: Record<string, any>,
+    request?: Request,
+  ): Promise<void> {
+    try {
+      await this.moderationService.logAction(
+        adminId,
+        AuditActionType.MODERATION_ESCALATION,
+        "user",
+        metadata.targetUserId?.toString() || null,
+        {
+          eventType,
+          ...metadata,
+          requestId: (request as any)?.requestId || null,
+          ipAddress: request?.ip || null,
+        },
+        `Security event: ${eventType}`,
+        request,
+      );
+    } catch {
+      this.logger.warn(`Failed to log security event: ${eventType}`);
+    }
   }
 
   async unbanUser(
@@ -554,11 +598,11 @@ export class AdminService {
       const user = await userRepo.findOne({ where: { id: userId } });
 
       if (!user) {
-        throw new NotFoundException('User not found');
+        throw new NotFoundException("User not found");
       }
 
       if (user.is_active) {
-        throw new BadRequestException('User is not banned');
+        throw new BadRequestException("User is not banned");
       }
 
       user.is_active = true;
@@ -567,7 +611,7 @@ export class AdminService {
       await this.moderationService.logAction(
         adminId,
         AuditActionType.USER_UNBANNED,
-        'user',
+        "user",
         userId.toString(),
         null,
         null,
@@ -583,30 +627,30 @@ export class AdminService {
     query: string,
     limit = 50,
     offset = 0,
-    sortBy: UserSortField = 'createdAt',
-    sortOrder: SortOrder = 'DESC',
+    sortBy: UserSortField = "createdAt",
+    sortOrder: SortOrder = "DESC",
   ): Promise<[User[], number]> {
     const safeLimit = Math.min(Math.max(limit, 1), 100);
     const safeOffset = Math.max(offset, 0);
     const sortColumns: Record<UserSortField, string> = {
-      createdAt: 'user.createdAt',
-      username: 'user.username',
-      role: 'user.role',
-      status: 'user.is_active',
+      createdAt: "user.createdAt",
+      username: "user.username",
+      role: "user.role",
+      status: "user.is_active",
     };
     const sortColumn = sortColumns[sortBy] ?? sortColumns.createdAt;
-    const direction = sortOrder === 'ASC' ? 'ASC' : 'DESC';
+    const direction = sortOrder === "ASC" ? "ASC" : "DESC";
     const qb = this.userRepository
-      .createQueryBuilder('user')
+      .createQueryBuilder("user")
       .orderBy(sortColumn, direction)
       .take(safeLimit)
       .skip(safeOffset);
 
     const trimmed = query.trim();
     if (trimmed) {
-      qb.where('user.username ILIKE :query', {
+      qb.where("user.username ILIKE :query", {
         query: `%${trimmed}%`,
-      }).orWhere('user.emailHash = :hash', {
+      }).orWhere("user.emailHash = :hash", {
         hash: trimmed,
       });
     }
@@ -621,14 +665,14 @@ export class AdminService {
     });
 
     if (!user) {
-      throw new NotFoundException('User not found');
+      throw new NotFoundException("User not found");
     }
 
     // Get reports created by this user
     const reports = await this.reportRepository.find({
       where: { reporterId: userId },
-      relations: ['confession'],
-      order: { createdAt: 'DESC' },
+      relations: ["confession"],
+      order: { createdAt: "DESC" },
       take: 100,
     });
     for (const r of reports) {
@@ -642,17 +686,17 @@ export class AdminService {
     // Confessions are linked to AnonymousUser. We map User -> AnonymousUser sessions.
     const links = await this.userAnonRepository.find({
       where: { userId },
-      order: { createdAt: 'DESC' },
+      order: { createdAt: "DESC" },
       take: 200,
     });
 
     const anonIds = Array.from(new Set(links.map((l) => l.anonymousUserId)));
     const confessions = anonIds.length
       ? await this.confessionRepository
-          .createQueryBuilder('confession')
-          .leftJoin('confession.anonymousUser', 'anon')
-          .where('anon.id IN (:...anonIds)', { anonIds })
-          .orderBy('confession.created_at', 'DESC')
+          .createQueryBuilder("confession")
+          .leftJoin("confession.anonymousUser", "anon")
+          .where("anon.id IN (:...anonIds)", { anonIds })
+          .orderBy("confession.created_at", "DESC")
           .take(200)
           .getMany()
       : [];
@@ -668,15 +712,15 @@ export class AdminService {
     if (anonIds.length) {
       try {
         reportsReceived = await this.reportRepository
-          .createQueryBuilder('report')
-          .leftJoin('report.confession', 'confession')
-          .leftJoin('confession.anonymousUser', 'anon')
-          .where('anon.id IN (:...anonIds)', { anonIds })
+          .createQueryBuilder("report")
+          .leftJoin("report.confession", "confession")
+          .leftJoin("confession.anonymousUser", "anon")
+          .where("anon.id IN (:...anonIds)", { anonIds })
           .getCount();
       } catch (error) {
         this.logger.warn(
           `Failed to count reports received for user ${userId}: ${
-            error instanceof Error ? error.message : 'unknown'
+            error instanceof Error ? error.message : "unknown"
           }`,
         );
       }
@@ -685,15 +729,15 @@ export class AdminService {
     const activityTimeline = [
       ...confessions.slice(0, 20).map((confession: any) => ({
         id: confession.id,
-        type: 'confession',
-        label: 'Published confession',
+        type: "confession",
+        label: "Published confession",
         createdAt: confession.created_at || confession.createdAt,
         summary: confession.message,
       })),
       ...reports.slice(0, 20).map((report: any) => ({
         id: report.id,
-        type: 'report',
-        label: 'Submitted report',
+        type: "report",
+        label: "Submitted report",
         createdAt: report.createdAt,
         summary: report.reason || report.type,
       })),
@@ -724,8 +768,8 @@ export class AdminService {
       reports,
       activityTimeline,
       note: anonIds.length
-        ? 'Confessions derived from user session mappings (user_anonymous_users)'
-        : 'No anonymous session mappings found for this user yet',
+        ? "Confessions derived from user session mappings (user_anonymous_users)"
+        : "No anonymous session mappings found for this user yet",
     };
   }
 
@@ -755,7 +799,7 @@ export class AdminService {
 
     if (!txHash && !confessionId) {
       throw new BadRequestException(
-        'At least one of txHash or confessionId is required',
+        "At least one of txHash or confessionId is required",
       );
     }
 
@@ -767,11 +811,11 @@ export class AdminService {
       confession = await this.confessionRepository.findOne({
         where: { stellarTxHash: txHash },
         select: [
-          'id',
-          'stellarTxHash',
-          'stellarHash',
-          'isAnchored',
-          'anchoredAt',
+          "id",
+          "stellarTxHash",
+          "stellarHash",
+          "isAnchored",
+          "anchoredAt",
         ] as any,
       });
 
@@ -787,11 +831,11 @@ export class AdminService {
         confession = await this.confessionRepository.findOne({
           where: { id: confessionId },
           select: [
-            'id',
-            'stellarTxHash',
-            'stellarHash',
-            'isAnchored',
-            'anchoredAt',
+            "id",
+            "stellarTxHash",
+            "stellarHash",
+            "isAnchored",
+            "anchoredAt",
           ] as any,
         });
       }
@@ -800,7 +844,7 @@ export class AdminService {
       if (tips.length === 0) {
         tips = await this.tipRepository.find({
           where: { confessionId },
-          order: { createdAt: 'DESC' },
+          order: { createdAt: "DESC" },
         });
       }
     }
@@ -841,17 +885,17 @@ export class AdminService {
     const take = Math.min(limit + 1, PAGINATION.MAX_LIMIT);
 
     const query = this.reportRepository
-      .createQueryBuilder('report')
-      .leftJoinAndSelect('report.confession', 'confession')
-      .leftJoinAndSelect('report.reporter', 'reporter')
-      .leftJoinAndSelect('report.resolver', 'resolver')
-      .orderBy('report.createdAt', 'DESC')
-      .addOrderBy('report.id', 'DESC')
+      .createQueryBuilder("report")
+      .leftJoinAndSelect("report.confession", "confession")
+      .leftJoinAndSelect("report.reporter", "reporter")
+      .leftJoinAndSelect("report.resolver", "resolver")
+      .orderBy("report.createdAt", "DESC")
+      .addOrderBy("report.id", "DESC")
       .take(take);
 
     if (parsedCursor) {
       query.andWhere(
-        '(report.createdAt < :cursorDate OR (report.createdAt = :cursorDate AND report.id < :cursorId))',
+        "(report.createdAt < :cursorDate OR (report.createdAt = :cursorDate AND report.id < :cursorId))",
         {
           cursorDate: new Date(parsedCursor.createdAt),
           cursorId: parsedCursor.id,
@@ -860,16 +904,16 @@ export class AdminService {
     }
 
     if (status) {
-      query.andWhere('report.status = :status', { status });
+      query.andWhere("report.status = :status", { status });
     }
     if (type) {
-      query.andWhere('report.type = :type', { type });
+      query.andWhere("report.type = :type", { type });
     }
     if (startDate) {
-      query.andWhere('report.createdAt >= :startDate', { startDate });
+      query.andWhere("report.createdAt >= :startDate", { startDate });
     }
     if (endDate) {
-      query.andWhere('report.createdAt <= :endDate', { endDate });
+      query.andWhere("report.createdAt <= :endDate", { endDate });
     }
 
     const reports = await query.getMany();
@@ -907,15 +951,15 @@ export class AdminService {
     const take = Math.min(limit + 1, PAGINATION.MAX_LIMIT);
 
     const qb = this.userRepository
-      .createQueryBuilder('user')
-      .where('user.username ILIKE :query', { query: `%${query}%` })
-      .orderBy('user.createdAt', 'DESC')
-      .addOrderBy('user.id', 'DESC')
+      .createQueryBuilder("user")
+      .where("user.username ILIKE :query", { query: `%${query}%` })
+      .orderBy("user.createdAt", "DESC")
+      .addOrderBy("user.id", "DESC")
       .take(take);
 
     if (parsedCursor) {
       qb.andWhere(
-        '(user.createdAt < :cursorDate OR (user.createdAt = :cursorDate AND user.id < :cursorId))',
+        "(user.createdAt < :cursorDate OR (user.createdAt = :cursorDate AND user.id < :cursorId))",
         {
           cursorDate: new Date(parsedCursor.createdAt),
           cursorId: parsedCursor.id,
@@ -948,17 +992,17 @@ export class AdminService {
     });
 
     const oldestPending = await this.reportRepository.findOne({
-      where: { status: ReportStatus.OPEN },
-      order: { createdAt: 'ASC' },
+      where: { status: ReportStatus.PENDING },
+      order: { createdAt: "ASC" },
     });
 
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
 
     const resolvedToday = await this.reportRepository
-      .createQueryBuilder('report')
-      .where('report.status = :status', { status: ReportStatus.RESOLVED })
-      .andWhere('report.resolvedAt >= :todayStart', { todayStart })
+      .createQueryBuilder("report")
+      .where("report.status = :status", { status: ReportStatus.RESOLVED })
+      .andWhere("report.resolvedAt >= :todayStart", { todayStart })
       .getCount();
 
     return {
@@ -982,39 +1026,39 @@ export class AdminService {
 
     // Active users (last 30 days)
     const activeUsers = await this.userRepository
-      .createQueryBuilder('user')
-      .where('user.updatedAt >= :start', { start })
+      .createQueryBuilder("user")
+      .where("user.updatedAt >= :start", { start })
       .getCount();
 
     // Reports by status
     const reportsByStatus = await this.reportRepository
-      .createQueryBuilder('report')
-      .select('report.status', 'status')
-      .addSelect('COUNT(*)', 'count')
-      .where('report.createdAt >= :start', { start })
-      .andWhere('report.createdAt <= :end', { end })
-      .groupBy('report.status')
+      .createQueryBuilder("report")
+      .select("report.status", "status")
+      .addSelect("COUNT(*)", "count")
+      .where("report.createdAt >= :start", { start })
+      .andWhere("report.createdAt <= :end", { end })
+      .groupBy("report.status")
       .getRawMany();
 
     // Reports by type
     const reportsByType = await this.reportRepository
-      .createQueryBuilder('report')
-      .select('report.type', 'type')
-      .addSelect('COUNT(*)', 'count')
-      .where('report.createdAt >= :start', { start })
-      .andWhere('report.createdAt <= :end', { end })
-      .groupBy('report.type')
+      .createQueryBuilder("report")
+      .select("report.type", "type")
+      .addSelect("COUNT(*)", "count")
+      .where("report.createdAt >= :start", { start })
+      .andWhere("report.createdAt <= :end", { end })
+      .groupBy("report.type")
       .getRawMany();
 
     // Confessions over time (daily)
     const confessionsOverTime = await this.confessionRepository
-      .createQueryBuilder('confession')
-      .select("DATE_TRUNC('day', confession.created_at)", 'date')
-      .addSelect('COUNT(*)', 'count')
-      .where('confession.created_at >= :start', { start })
-      .andWhere('confession.created_at <= :end', { end })
+      .createQueryBuilder("confession")
+      .select("DATE_TRUNC('day', confession.created_at)", "date")
+      .addSelect("COUNT(*)", "count")
+      .where("confession.created_at >= :start", { start })
+      .andWhere("confession.created_at <= :end", { end })
       .groupBy("DATE_TRUNC('day', confession.created_at)")
-      .orderBy('date', 'ASC')
+      .orderBy("date", "ASC")
       .getRawMany();
 
     // Banned users

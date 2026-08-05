@@ -1,7 +1,7 @@
 "use client";
 
 import { memo, useEffect, useState } from "react";
-import Link from "next/link";
+import { ScrollRestorationLink } from "@/app/components/common/ScrollRestorationLink";
 import Image from "next/image";
 import { MessageSquare, Eye } from "lucide-react";
 import { ReactionButton } from "./ReactionButtons";
@@ -65,32 +65,37 @@ export const ConfessionCard = memo(({ confession }: Props) => {
     });
   };
 
+  const authorName = confession.author?.username || "Anonymous";
+
   return (
     <article
-      tabIndex={0}
       data-shortcut-confession={confession.id}
-      className="luxury-panel rounded-[30px] p-6 transition-all duration-300 hover:-translate-y-0.5 hover:bg-[var(--surface-strong)]"
+      className="luxury-panel rounded-[30px] p-6 transition-all duration-300 hover:-translate-y-0.5 hover:bg-[var(--surface-strong)] focus-within:ring-2 focus-within:ring-blue-500"
+      aria-label={`Confession by ${authorName}`}
     >
       <div className="mb-5 flex items-center justify-between border-b border-[var(--border)] pb-4">
         <div className="flex items-center gap-3">
           {confession.author?.avatar ? (
             <Image
               src={confession.author.avatar}
-              alt={confession.author?.username || "Anonymous"}
+              alt=""
               width={44}
               height={44}
               className="rounded-full border border-[var(--border)] bg-[var(--skeleton)] object-cover"
               loading="lazy"
             />
           ) : (
-            <div className="flex h-11 w-11 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--accent-soft)] text-sm font-semibold text-[var(--primary-deep)]">
+            <div
+              className="flex h-11 w-11 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--accent-soft)] text-sm font-semibold text-[var(--primary-deep)]"
+              aria-hidden="true"
+            >
               A
             </div>
           )}
 
           <div>
             <p className="font-editorial text-2xl text-[var(--foreground)]">
-              {confession.author?.username || "Anonymous"}
+              {authorName}
             </p>
             <p className="text-[11px] uppercase tracking-[0.18em] text-[var(--secondary)]">
               Community post
@@ -100,13 +105,14 @@ export const ConfessionCard = memo(({ confession }: Props) => {
 
         <div className="flex items-center gap-3">
           <p className="text-xs uppercase tracking-[0.16em] text-[var(--secondary)] sm:text-sm">
-            {timeAgo(confession.createdAt)}
+            <time dateTime={confession.createdAt}>{timeAgo(confession.createdAt)}</time>
           </p>
           <div className="flex items-center gap-2">
             <Checkbox
               id={`compare-${confession.id}`}
               checked={isSelected(confession.id)}
               onCheckedChange={handleCompareToggle}
+              aria-label={`Select ${authorName}'s confession for comparison`}
             />
             <label
               htmlFor={`compare-${confession.id}`}
@@ -118,20 +124,28 @@ export const ConfessionCard = memo(({ confession }: Props) => {
         </div>
       </div>
 
-      <Link href={`/confessions/${confession.id}`} className="group block">
+      <Link
+        href={`/confessions/${confession.id}`}
+        className="group block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 rounded-lg p-1"
+        aria-label={`Read full confession: ${confession.content.slice(0, 80)}...`}
+      >
+      <ScrollRestorationLink href={`/confessions/${confession.id}`} className="group block">
         <p className="mb-3 text-[0.72rem] font-semibold uppercase tracking-[0.24em] text-[var(--primary-deep)]">
           Confession
         </p>
         <p className="mb-5 font-editorial text-[1.65rem] leading-[1.5] text-[var(--foreground)] transition-colors group-hover:text-black">
           {confession.content}
         </p>
-      </Link>
+      </ScrollRestorationLink>
 
       <div className="mt-6 flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
         <div className="flex items-center gap-3 text-sm text-[var(--secondary)]">
           {confession.viewCount !== undefined && (
-            <div className="flex min-h-[44px] min-w-[44px] items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--surface-muted)] px-3">
-              <Eye className="h-4 w-4" />
+            <div
+              className="flex min-h-[44px] min-w-[44px] items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--surface-muted)] px-3"
+              aria-label={`${confession.viewCount} views`}
+            >
+              <Eye className="h-4 w-4" aria-hidden="true" />
               <span>{confession.viewCount}</span>
             </div>
           )}
@@ -139,9 +153,10 @@ export const ConfessionCard = memo(({ confession }: Props) => {
           {confession.commentCount !== undefined && (
             <Link
               href={`/confessions/${confession.id}#comments`}
-              className="flex min-h-[44px] min-w-[44px] items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--surface-muted)] px-3 transition-colors hover:text-[var(--foreground)]"
+              className="flex min-h-[44px] min-w-[44px] items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--surface-muted)] px-3 transition-colors hover:text-[var(--foreground)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+              aria-label={`View ${confession.commentCount} comments`}
             >
-              <MessageSquare className="h-4 w-4" />
+              <MessageSquare className="h-4 w-4" aria-hidden="true" />
               <span>{confession.commentCount}</span>
             </Link>
           )}

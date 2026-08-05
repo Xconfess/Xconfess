@@ -15,6 +15,8 @@ import {
 import { adminApi, AdminUserRole, User } from '@/app/lib/api/admin';
 import { queryKeys } from '@/app/lib/api/queryKeys';
 import { Button } from '@/app/components/ui/button';
+import { useStepUp } from '@/app/hooks/useStepUp';
+import StepUpModal from './StepUpModal';
 
 const roles: AdminUserRole[] = ['user', 'moderator', 'admin'];
 const limit = 20;
@@ -36,6 +38,7 @@ export default function UserManagement() {
   const [sortOrder, setSortOrder] = useState<SortOrder>('DESC');
   const [page, setPage] = useState(1);
 
+  const stepUp = useStepUp();
   const queryClient = useQueryClient();
   const filters = useMemo(
     () => ({ query: searchQuery, page, sortBy, sortOrder }),
@@ -64,13 +67,27 @@ export default function UserManagement() {
   };
 
   const roleMutation = useMutation({
-    mutationFn: ({ id, role }: { id: string; role: AdminUserRole }) =>
-      adminApi.updateUserRole(id, role),
+    mutationFn: ({
+      id,
+      role,
+      stepUpToken,
+    }: {
+      id: string;
+      role: AdminUserRole;
+      stepUpToken?: string;
+    }) => adminApi.updateUserRole(id, role, stepUpToken),
     onSuccess: (updated: User) => {
       invalidateUsers();
       setSelectedUser((current) =>
         current && current.id === updated.id ? { ...current, ...updated } : current,
       );
+    },
+    onError: (err: any, variables) => {
+      if (err?.response?.data?.code === 'AUTH_STEP_UP_REQUIRED' || err?.response?.data?.code === 'AUTH_STEP_UP_EXPIRED') {
+        stepUp.requestStepUp((token) => {
+          roleMutation.mutate({ ...variables, stepUpToken: token });
+        });
+      }
     },
   });
 
@@ -79,11 +96,13 @@ export default function UserManagement() {
       id,
       reason,
       durationDays,
+      stepUpToken,
     }: {
       id: string;
       reason?: string;
       durationDays?: number | null;
-    }) => adminApi.banUser(id, reason, durationDays),
+      stepUpToken?: string;
+    }) => adminApi.banUser(id, reason, durationDays, stepUpToken),
     onSuccess: (updated: User) => {
       invalidateUsers();
       setBanTarget(null);
@@ -92,6 +111,13 @@ export default function UserManagement() {
       setSelectedUser((current) =>
         current && current.id === updated.id ? { ...current, ...updated } : current,
       );
+    },
+    onError: (err: any, variables) => {
+      if (err?.response?.data?.code === 'AUTH_STEP_UP_REQUIRED' || err?.response?.data?.code === 'AUTH_STEP_UP_EXPIRED') {
+        stepUp.requestStepUp((token) => {
+          banMutation.mutate({ ...variables, stepUpToken: token });
+        });
+      }
     },
   });
 
@@ -128,7 +154,6 @@ export default function UserManagement() {
       durationDays: Number.isFinite(durationDays) ? durationDays : null,
     });
   };
-
   return (
     <div className="min-w-0 space-y-4">
       <div className="rounded-lg bg-white p-4 shadow dark:bg-gray-800">
@@ -301,8 +326,14 @@ export default function UserManagement() {
       </div>
 
       {banTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="w-full max-w-md rounded-lg bg-white p-5 shadow-xl dark:bg-gray-800">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Ban user dialog"
+          onKeyDown={(e) => e.key === 'Escape' && setBanTarget(null)}
+        >
+          <div className="w-full max-w-md rounded-lg bg-white p-5 shadow-xl outline-none dark:bg-gray-800">
             <div className="mb-4 flex items-center justify-between gap-3">
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
                 Ban {banTarget.username}
@@ -363,6 +394,14 @@ export default function UserManagement() {
           </div>
         </div>
       )}
+
+      <StepUpModal
+        isOpen={stepUp.isModalOpen}
+        onVerify={stepUp.verify}
+        onCancel={stepUp.cancel}
+        error={stepUp.error}
+        isVerifying={stepUp.isVerifying}
+      />
     </div>
   );
 }
@@ -407,7 +446,6 @@ function StatusBadge({ active }: { active: boolean }) {
     </span>
   );
 }
-
 function UserDetailPanel({ user }: { user: User | null }) {
   const userId = user?.id.toString();
   const { data, isLoading } = useQuery({
@@ -513,7 +551,7 @@ function InfoRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex justify-between gap-3 border-b border-gray-100 py-2 dark:border-gray-700">
       <span className="text-gray-500 dark:text-gray-400">{label}</span>
-      <span className="truncate text-right text-gray-900 dark:text-white">{value}</span>
+      <span className="max-w-[60%] truncate text-right text-gray-900 dark:text-white">{value}</span>
     </div>
   );
 }

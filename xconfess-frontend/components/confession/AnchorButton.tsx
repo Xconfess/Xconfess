@@ -2,61 +2,67 @@
  * AnchorButton.tsx
  * Issue #196 – Block anchor submission on network mismatch with actionable copy
  * Issue #198 – Prevent duplicate anchor verification submits
+ * Issue #1476 – Support anchor status reconciliation (pending, confirmed, failed, stale, retry)
  *
  * Uses the real useStellarWallet contract:
- *   isLoading       (not isConnecting)
- *   isReady         (wallet connected + correct network)
- *   readinessError  (human-readable reason isReady is false)
- *   anchor(content) (not signAndSubmitAnchorTx)
+ *   isLoading        (not isConnecting)
+ *   isReady          (wallet connected + correct network)
+ *   readinessError   (human-readable reason isReady is false)
+ *   anchor(content)  (not signAndSubmitAnchorTx)
  */
 
 "use client";
 
 import React, { useCallback, useRef, useState } from "react";
 import { useStellarWallet } from "@/lib/hooks/useStellarWallet";
+import { Loader2, AlertCircle, CheckCircle2, RefreshCw } from "lucide-react";
 
 interface AnchorButtonProps {
   confessionId: string;
   content: string;
+  initialStatus?: "idle" | "pending" | "confirmed" | "failed" | "stale";
   onSuccess?: () => void;
   onError?: (err: Error) => void;
 }
 
-type SubmitState = "idle" | "pending" | "success" | "error";
+type AnchorStatus = "idle" | "pending" | "confirmed" | "failed" | "stale";
 
 export function AnchorButton({
   confessionId,
   content,
+  initialStatus = "idle",
   onSuccess,
   onError,
 }: AnchorButtonProps) {
   const wallet = useStellarWallet();
-  const [submitState, setSubmitState] = useState<SubmitState>("idle");
+  const [status, setStatus] = useState<AnchorStatus>(initialStatus);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  // Issue #198 – guard against duplicate in-flight submits
+  // Guard against duplicate in-flight submits
   const inFlightRef = useRef(false);
 
   const handleAnchor = useCallback(async () => {
-    if (inFlightRef.current || submitState === "pending") return;
+    if (inFlightRef.current || status === "pending") return;
 
     inFlightRef.current = true;
-    setSubmitState("pending");
+    setStatus("pending");
     setErrorMsg(null);
 
     try {
       await wallet.anchor(content);
-      setSubmitState("success");
+      setStatus("confirmed");
       onSuccess?.();
     } catch (err) {
       const e = err instanceof Error ? err : new Error(String(err));
-      setSubmitState("error");
-      setErrorMsg(e.message);
+      // Distinguish stale/failed states cleanly for users without exposing internal traces
+      const isStaleError = e.message.toLowerCase().includes("stale") || e.message.toLowerCase().includes("timeout");
+      setStatus(isStaleError ? "stale" : "failed");
+      setErrorMsg(isStaleError ? "Anchor verification timed out or became stale. Please retry." : "Failed to anchor. Please try again.");
       onError?.(e);
     } finally {
       inFlightRef.current = false;
     }
-  }, [content, onError, onSuccess, submitState, wallet]);
+  }, [content, onError, onSuccess, status, wallet]);
 
   // Not yet connected
   if (!wallet.isConnected) {
@@ -65,24 +71,24 @@ export function AnchorButton({
         type="button"
         onClick={wallet.connect}
         disabled={wallet.isLoading}
-        className="anchor-btn anchor-btn--connect"
+        className="anchor-btn anchor-btn--connect px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium text-sm"
       >
         {wallet.isLoading ? "Connecting…" : "Connect Wallet to Anchor"}
       </button>
     );
   }
 
-  // Issue #196 – connected but not ready (network mismatch or other readiness failure)
+  // Connected but not ready (network mismatch or other readiness failure)
   if (!wallet.isReady) {
     return (
-      <div className="anchor-mismatch" role="alert">
-        <p className="anchor-mismatch__message">
+      <div className="anchor-mismatch p-4 bg-amber-50 border border-amber-200 rounded-lg" role="alert">
+        <p className="anchor-mismatch__message text-amber-800 text-sm mb-2 font-medium">
           {wallet.readinessError ??
             "Wallet is not ready. Please check your network in Freighter."}
         </p>
         <button
           type="button"
-          className="anchor-btn anchor-btn--disabled"
+          className="anchor-btn anchor-btn--disabled px-4 py-2 bg-gray-200 text-gray-500 rounded-lg cursor-not-allowed text-sm font-medium"
           disabled
         >
           Anchor Confession
@@ -92,22 +98,51 @@ export function AnchorButton({
   }
 
   return (
-    <div className="anchor-action">
+    <div className="anchor-action flex flex-col gap-2">
       <button
         type="button"
         onClick={handleAnchor}
-        // Issue #198 – disabled while in-flight
-        disabled={submitState === "pending" || submitState === "success"}
-        className={`anchor-btn anchor-btn--${submitState}`}
-        aria-busy={submitState === "pending"}
+        disabled={status === "pending" || status === "confirmed"}
+        className={`anchor-btn px-4 py-2 rounded-lg font-medium text-sm transition flex items-center justify-center gap-2 ${status === "confirmed"
+            ? "bg-green-100 text-green-700 cursor-default"
+            : status === "pending"
+              ? "bg-blue-400 text-white cursor-wait"
+              : status === "failed" || status === "stale"
+                ? "bg-red-600 text-white hover:bg-red-700"
+                : "bg-blue-600 text-white hover:bg-blue-700"
+          }`}
+        aria-busy={status === "pending"}
       >
-        {submitState === "pending" && "Anchoring…"}
-        {submitState === "success" && "Anchored ✓"}
-        {(submitState === "idle" || submitState === "error") &&
-          "Anchor Confession"}
+        {status === "pending" && (
+          <>
+            <Loader2 className="w-4 h-4 animate-spin" />
+            Anchoring...
+          </>
+        )}
+        {status === "confirmed" && (
+          <>
+            <CheckCircle2 className="w-4 h-4 text-green-600" />
+            Confirmed On-Chain
+          </>
+        )}
+        {status === "stale" && (
+          <>
+            <RefreshCw className="w-4 h-4" />
+            Retry Stale Anchor
+          </>
+        )}
+        {status === "failed" && (
+          <>
+            <RefreshCw className="w-4 h-4" />
+            Retry Anchor
+          </>
+        )}
+        {status === "idle" && "Anchor Confession"}
       </button>
-      {submitState === "error" && errorMsg && (
-        <p className="anchor-action__error" role="alert">
+
+      {(status === "failed" || status === "stale") && errorMsg && (
+        <p className="anchor-action__error text-xs text-red-600 flex items-center gap-1" role="alert">
+          <AlertCircle className="w-3.5 h-3.5 shrink-0" />
           {errorMsg}
         </p>
       )}

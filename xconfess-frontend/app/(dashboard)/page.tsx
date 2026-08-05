@@ -4,6 +4,7 @@ import Link from "next/link";
 import { ErrorBoundary } from "@/app/components/common/ErrorBoundary";
 import { ConfessionFeed } from "@/app/components/confession/ConfessionFeed";
 import Header from "@/app/components/layout/Header";
+import { useScrollRestoration } from "@/app/lib/hooks/useScrollRestoration";
 import { useAuthContext } from "../lib/providers/AuthProvider";
 import { useQuery } from "@tanstack/react-query";
 import { fetchUserStats } from "@/app/api/user.api";
@@ -157,6 +158,7 @@ function RecentConfessionsSection() {
 // ─── Page ──────────────────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
+  useScrollRestoration('feed');
   return (
     <div className="min-h-screen bg-white dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100">
       <Header />

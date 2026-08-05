@@ -21,6 +21,42 @@ env:
   SKIP_E2E: ${{ vars.SKIP_E2E || 'false' }}
 
 jobs:
+  audit:
+    name: Security / npm audit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Use repository npm version
+        run: npm install --global npm@10.9.3
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run security audit (fails on unapproved critical/high)
+        run: npm run audit:ci
+
+  secret-scan:
+    name: Security / Secret Scanning Preflight
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run secret scanning preflight self-test
+        run: ./scripts/secret-scanning-preflight.sh --self-test
+
+      - name: Run secret scanning preflight
+        run: ./scripts/secret-scanning-preflight.sh
+
   changes:
     name: Detect Changed Files
     runs-on: ubuntu-latest
@@ -50,7 +86,7 @@ jobs:
 
   backend:
     name: Backend / build and test
-    needs: changes
+    needs: [audit, secret-scan, changes]
     if: needs.changes.outputs.backend == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 25
@@ -80,7 +116,7 @@ jobs:
 
   frontend:
     name: Frontend / build and test
-    needs: changes
+    needs: [audit, secret-scan, changes]
     if: needs.changes.outputs.frontend == 'true'
     runs-on: ubuntu-latest
     steps:
@@ -100,6 +136,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Typecheck frontend
+        run: npm run frontend:typecheck
+
       - name: Build frontend
         run: npm run build --workspace=xconfess-frontend
 
@@ -114,7 +153,7 @@ jobs:
 
   contracts:
     name: Contracts / fmt clippy and test
-    needs: changes
+    needs: [audit, secret-scan, changes]
     if: needs.changes.outputs.contracts == 'true'
     runs-on: ubuntu-latest
     defaults:

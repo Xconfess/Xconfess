@@ -9,7 +9,7 @@ describe('Environment Validation', () => {
     DB_USERNAME: 'test',
     DB_PASSWORD: 'test',
     DB_NAME: 'test',
-    JWT_SECRET: 'testsecret123',
+    JWT_SECRET: 'a'.repeat(32),
   };
 
   const validKey =
@@ -91,4 +91,64 @@ describe('Environment Validation', () => {
     const { error } = envValidationSchema.validate(config);
     expect(error).toBeUndefined();
   });
+
+  it('should fail if JWT_SECRET is shorter than 32 characters', () => {
+    const config = {
+      ...baseConfig,
+      JWT_SECRET: 'short-secret',
+      CONFESSION_ENCRYPTION_KEY: validKey,
+    };
+    const { error } = envValidationSchema.validate(config);
+    expect(error).toBeDefined();
+    expect(error!.message).toContain(
+      'JWT_SECRET must be at least 32 characters long',
+    );
+  });
+
+  it('should fail boot in production if APP_SECRET is missing', () => {
+    const config = {
+      ...baseConfig,
+      NODE_ENV: 'production',
+      CONFESSION_ENCRYPTION_KEY: validKey,
+    };
+    const { error } = envValidationSchema.validate(config);
+    expect(error).toBeDefined();
+    expect(error!.message).toContain('APP_SECRET is required');
+  });
+
+  it('should fail boot in staging if APP_SECRET is too short', () => {
+    const config = {
+      ...baseConfig,
+      NODE_ENV: 'staging',
+      CONFESSION_ENCRYPTION_KEY: validKey,
+      APP_SECRET: 'too-short',
+    };
+    const { error } = envValidationSchema.validate(config);
+    expect(error).toBeDefined();
+    expect(error!.message).toContain(
+      'APP_SECRET must be at least 32 characters long',
+    );
+  });
+
+  it('should pass in production when APP_SECRET meets the minimum length', () => {
+    const config = {
+      ...baseConfig,
+      NODE_ENV: 'production',
+      CONFESSION_ENCRYPTION_KEY: validKey,
+      APP_SECRET: 'a'.repeat(32),
+    };
+    const { error } = envValidationSchema.validate(config);
+    expect(error).toBeUndefined();
+  });
+
+  it('should allow APP_SECRET to be omitted in development', () => {
+    const config = {
+      ...baseConfig,
+      NODE_ENV: 'development',
+      CONFESSION_ENCRYPTION_KEY: validKey,
+    };
+    const { error } = envValidationSchema.validate(config);
+    expect(error).toBeUndefined();
+  });
 });
+

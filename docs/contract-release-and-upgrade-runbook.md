@@ -16,6 +16,7 @@ This is the canonical runbook for planning, building, deploying, and upgrading x
 - [Deployment Phase](#deployment-phase)
 - [Post-Deployment Verification](#post-deployment-verification)
 - [Contract Reference](#contract-reference)
+- [Storage Migration Testing](#storage-migration-testing)
 - [Upgrade and Rollback](#upgrade-and-rollback)
 - [Troubleshooting](#troubleshooting)
 
@@ -622,6 +623,40 @@ Once contract IDs are confirmed:
 - `latest_settlement_nonce() -> u64` — Get the current settlement nonce.
 
 **No admin functions.** Contract is fully decentralized (no admin controls).
+
+---
+
+## Storage Migration Testing
+
+Before any release that touches contract storage layout, run the migration
+and storage-compatibility test suites and confirm they pass:
+
+```bash
+npm run contract:test
+```
+
+This runs `cargo test --workspace`, which includes:
+
+- **`xconfess-contracts/contracts/tests/storage_compat_tests.rs`** — pins
+  persisted state (confessions, reports, badges, reputation, tips, pause
+  flags) across a simulated upgrade: state is written through one client and
+  read back through a second client pointed at the same contract address,
+  mirroring what happens when new WASM is deployed over an existing address.
+- **`xconfess-contracts/contracts/**/tests/migration.rs`** (one per contract:
+  `confession-anchor`, `anonymous-tipping`, `confession-registry`,
+  `reputation-badges`) — exercises each contract's `schema_version()` /
+  `migrate()` handler pair: default version before migration, idempotent
+  re-migration, owner/admin-only authorization, and that pre-existing data
+  survives the migration untouched.
+
+**Assumption enforced by these tests:** every contract that stores versioned
+state must expose a `schema_version()` reader and a `migrate(caller)` handler.
+A contract with a missing or incomplete version handler fails its
+`migration.rs` suite immediately (`schema_version_is_initial_before_migration`
+or `migrate_bumps_schema_version_to_current` fails to compile/pass) rather
+than silently drifting at upgrade time. Schema bumps must only **add** storage
+keys — never rewrite or remove existing ones — so a rollback to the prior
+WASM build can safely ignore keys it doesn't understand.
 
 ---
 

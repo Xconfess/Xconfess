@@ -19,14 +19,30 @@ export class PasswordResetService {
     private passwordResetRepository: Repository<PasswordReset>,
   ) {}
 
+  /**
+   * Reset tokens are high-entropy (32 random bytes) single-use secrets, so a
+   * fast cryptographic hash is sufficient (no need for a slow, salted
+   * password hash) — this mirrors how most frameworks hash session/API
+   * tokens. Only the hash is ever written to the database.
+   */
+  private hashToken(token: string): string {
+    return crypto.createHash('sha256').update(token).digest('hex');
+  }
+
   async createResetToken(
     userId: number,
     ipAddress?: string,
     userAgent?: string,
   ): Promise<string> {
     try {
-      // Generate a secure random token
+      // Invalidate any outstanding tokens for this user first, so at most
+      // one reset token is ever valid at a time regardless of caller.
+      await this.invalidateUserTokens(userId);
+
+      // Generate a secure random token. This raw value is returned to the
+      // caller (for the reset email) and is NEVER persisted — only its hash is.
       const token = crypto.randomBytes(32).toString('hex');
+      const tokenHash = this.hashToken(token);
 
       // Set expiration to 15 minutes from now
       const expiresAt = new Date();
@@ -34,7 +50,7 @@ export class PasswordResetService {
 
       // Create password reset record
       const passwordReset = this.passwordResetRepository.create({
-        token,
+        tokenHash,
         userId,
         expiresAt,
         ipAddress,
@@ -63,22 +79,23 @@ export class PasswordResetService {
 
   async findValidToken(token: string): Promise<PasswordReset | null> {
     try {
+      const tokenHash = this.hashToken(token);
       const passwordReset = await this.passwordResetRepository.findOne({
         where: {
-          token,
+          tokenHash,
           used: false,
         },
         relations: ['user'],
       });
 
       if (!passwordReset) {
-        this.logger.debug(`No unused token found: ${token}`);
+        this.logger.debug(`No unused token found`);
         return null;
       }
 
       // Check if token has expired
       if (new Date() > passwordReset.expiresAt) {
-        this.logger.debug(`Token expired: ${token}`, {
+        this.logger.debug(`Token expired`, {
           tokenId: passwordReset.id,
           expiresAt: passwordReset.expiresAt,
         });
@@ -105,8 +122,10 @@ export class PasswordResetService {
     reset: PasswordReset | null;
     reason: PasswordResetConsumeReason;
   }> {
+    const tokenHash = this.hashToken(token);
+
     const existing = await this.passwordResetRepository.findOne({
-      where: { token },
+      where: { tokenHash },
       relations: ['user'],
     });
 
@@ -117,7 +136,7 @@ export class PasswordResetService {
     // Atomic consume:
     // Only the first concurrent consumer will get affected=1.
     const updateResult = await this.passwordResetRepository.update(
-      { token, used: false, expiresAt: MoreThan(now) },
+      { tokenHash, used: false, expiresAt: MoreThan(now) },
       { used: true, usedAt: now },
     );
 
@@ -127,7 +146,7 @@ export class PasswordResetService {
     }
 
     const consumed = await this.passwordResetRepository.findOne({
-      where: { token },
+      where: { tokenHash },
       relations: ['user'],
     });
 

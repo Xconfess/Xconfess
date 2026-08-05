@@ -17,3 +17,7 @@ soroban-sdk = { workspace = true, features = ["testutils"] }
 [[test]]
 name = "benchmarks"
 path = "tests/benchmarks.rs"
+
+[[test]]
+name = "migration"
+path = "tests/migration.rs"

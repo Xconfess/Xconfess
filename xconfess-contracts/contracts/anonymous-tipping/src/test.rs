@@ -104,3 +104,43 @@ fn non_positive_amounts_return_contract_error() {
     );
     assert_eq!(client.get_tip_balance(&recipient), 0);
 }
+
+#[test]
+fn overflow_amount_returns_contract_error() {
+    let (env, client, _token_id) = setup();
+    let sender = Address::generate(&env);
+    let recipient = Address::generate(&env);
+
+    // Amount exceeding MAX_TIP_AMOUNT (10,000 XLM = 100_000_000_000 stroops)
+    assert_eq!(
+        client.try_send_tip(&sender, &recipient, &(AnonymousTipping::MAX_TIP_AMOUNT + 1)),
+        Err(Ok(Error::InvalidTipAmount))
+    );
+    // i128::MAX should also be rejected
+    assert_eq!(
+        client.try_send_tip(&sender, &recipient, &i128::MAX),
+        Err(Ok(Error::InvalidTipAmount))
+    );
+    assert_eq!(client.get_tip_balance(&recipient), 0);
+}
+
+#[test]
+fn boundary_amounts_are_accepted() {
+    let (env, client, token_id) = setup();
+    let token = TestTokenClient::new(&env, &token_id);
+    let sender = Address::generate(&env);
+    let recipient = Address::generate(&env);
+
+    // Minimum valid amount (1 stroop)
+    token.mint(&sender, &1);
+    let id = client.send_tip(&sender, &recipient, &1);
+    assert_eq!(id, 1);
+    assert_eq!(client.get_tip_balance(&recipient), 1);
+
+    // Maximum valid amount (10,000 XLM)
+    let max_amount = AnonymousTipping::MAX_TIP_AMOUNT;
+    token.mint(&sender, &max_amount);
+    let id2 = client.send_tip(&sender, &recipient, &max_amount);
+    assert_eq!(id2, 2);
+    assert_eq!(client.get_tip_balance(&recipient), 1 + max_amount);
+}

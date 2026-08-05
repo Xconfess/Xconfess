@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { ToggleLeft, Plus, Trash2 } from "lucide-react";
+import { ToggleLeft, Plus, Trash2, RotateCcw } from "lucide-react";
 
 interface FeatureFlag {
   id: string;
@@ -10,6 +10,13 @@ interface FeatureFlag {
   enabled: boolean;
   percentage: number;
   userIds: string[];
+  lastChangedBy?: string | null;
+  lastChangedAt?: string | null;
+  updatedAt?: string | null;
+  rollbackMetadata?: {
+    previousState?: Partial<FeatureFlag>;
+    timestamp?: string;
+  } | null;
 }
 
 export default function FeatureFlagsPage() {
@@ -83,6 +90,24 @@ export default function FeatureFlagsPage() {
       }
     } catch (error) {
       console.error("Failed to update flag:", error);
+    }
+  };
+
+  const rollbackFlag = async (name: string) => {
+    try {
+      const res = await fetch(`/api/feature-flags/${name}/rollback`, {
+        method: "POST",
+        credentials: "include",
+      });
+
+      if (res.ok) {
+        await fetchFlags();
+      } else {
+        const data = await res.json();
+        alert(data.message || data.error || "Failed to rollback flag");
+      }
+    } catch (error) {
+      console.error("Failed to rollback flag:", error);
     }
   };
 
@@ -205,9 +230,9 @@ export default function FeatureFlagsPage() {
         {flags.map((flag) => (
           <div
             key={flag.id}
-            className="p-6 border rounded-lg bg-white dark:bg-gray-900"
+            className="p-6 border rounded-lg bg-white dark:bg-gray-900 space-y-4"
           >
-            <div className="flex items-start justify-between mb-4">
+            <div className="flex items-start justify-between">
               <div>
                 <h3 className="text-lg font-semibold">{flag.name}</h3>
                 <p className="text-sm text-gray-500">{flag.description}</p>
@@ -263,6 +288,33 @@ export default function FeatureFlagsPage() {
                   }
                   className="w-full"
                 />
+              </div>
+
+              <div className="flex items-center justify-between text-xs text-gray-500 pt-2 border-t border-gray-100 dark:border-gray-800">
+                <div>
+                  <span>Last changed by: </span>
+                  <span className="font-semibold text-gray-700 dark:text-gray-300">
+                    {flag.lastChangedBy || "System"}
+                  </span>
+                  {" at "}
+                  <span>
+                    {flag.lastChangedAt
+                      ? new Date(flag.lastChangedAt).toLocaleString()
+                      : flag.updatedAt
+                      ? new Date(flag.updatedAt).toLocaleString()
+                      : "N/A"}
+                  </span>
+                </div>
+                {flag.rollbackMetadata?.previousState && (
+                  <button
+                    onClick={() => rollbackFlag(flag.name)}
+                    className="flex items-center gap-1 text-amber-600 hover:text-amber-700 text-xs font-medium"
+                    title="Rollback to previous state"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" />
+                    Rollback
+                  </button>
+                )}
               </div>
 
               <div className="text-xs text-gray-500">

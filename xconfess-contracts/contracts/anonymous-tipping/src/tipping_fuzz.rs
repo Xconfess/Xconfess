@@ -9,10 +9,9 @@
 mod fuzz {
     extern crate std;
 
-    use soroban_sdk::{
-        testutils::{Address as _, Ledger},
-        Address, Env,
-    };
+    use soroban_sdk::{testutils::Address as _, Address, Env};
+
+    use crate::{AnonymousTipping, AnonymousTippingClient, Error, SettlementReceipt};
 
     use crate::{AnonymousTipping, AnonymousTippingClient, Error, SettlementReceipt};
 

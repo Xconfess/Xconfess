@@ -13,7 +13,7 @@
  *  • Named factories cover every recurring failure scenario so call-sites
  *    read like documentation rather than inline error-construction logic.
  */
-
+import { createApiErrorResponse } from "../../../lib/apiErrorHandler";
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const JSON_CONTENT_TYPE = { "Content-Type": "application/json" } as const;
@@ -88,23 +88,7 @@ function resolveCorrelationId(id: string | undefined): string | undefined {
  * @param httpStatus  The HTTP status code of the *proxy* response.
  * @param ctx         Optional contextual tags to embed in the body.
  */
-export function buildProxyErrorResponse(
-  message: string,
-  httpStatus: number,
-  ctx: Partial<ProxyErrorContext> = {},
-): Response {
-  const body: ProxyErrorBody = { message };
-
-  const cid = resolveCorrelationId(ctx.correlationId);
-  if (cid) body.correlationId = cid;
-
-  if (ctx.backendStatus !== undefined) body.backendStatus = ctx.backendStatus;
-
-  return new Response(JSON.stringify(body), {
-    status: httpStatus,
-    headers: JSON_CONTENT_TYPE,
-  });
-}
+// NOTE: buildProxyErrorResponse removed; using createApiErrorResponse from apiErrorHandler instead.
 
 // ─── Core primitive: structured logger ────────────────────────────────────────
 
@@ -154,9 +138,9 @@ export function logProxyError(
  * if (!process.env.BACKEND_API_URL) return misconfiguredBackendResponse();
  */
 export function misconfiguredBackendResponse(): Response {
-  return buildProxyErrorResponse(
-    "Server misconfiguration: BACKEND_API_URL is not set. Contact the system administrator.",
-    503,
+  return createApiErrorResponse(
+    { message: "Server misconfiguration: BACKEND_API_URL is not set. Contact the system administrator.", status: 503 },
+    { status: 503 }
   );
 }
 
@@ -194,7 +178,10 @@ export function backendHttpErrorResponse(
   const message = backendMessage || fallbackMessage;
   const enriched: ProxyErrorContext = { ...ctx, backendStatus };
   logProxyError("Backend error", enriched);
-  return buildProxyErrorResponse(message, backendStatus, enriched);
+  return createApiErrorResponse(
+    { message, status: backendStatus },
+    { status: backendStatus, route: ctx.route, correlationId: ctx.correlationId }
+  );
 }
 
 /**
@@ -221,10 +208,9 @@ export function backendUnreachableResponse(
   cause: unknown,
 ): Response {
   logProxyError("Failed to reach backend", ctx, cause);
-  return buildProxyErrorResponse(
-    "Backend service unavailable. Please try again later.",
-    503,
-    ctx,
+  return createApiErrorResponse(
+    { message: "Backend service unavailable. Please try again later.", status: 503 },
+    { status: 503, route: ctx.route, correlationId: ctx.correlationId }
   );
 }
 
@@ -256,5 +242,8 @@ export function internalProxyErrorResponse(
   const message =
     cause instanceof Error ? cause.message : "Internal server error";
   logProxyError("Internal error", ctx, cause);
-  return buildProxyErrorResponse(message, 500, ctx);
+  return createApiErrorResponse(
+    { message, status: 500 },
+    { status: 500, route: ctx.route, correlationId: ctx.correlationId }
+  );
 }

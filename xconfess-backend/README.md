@@ -196,7 +196,7 @@ See [HEALTH_CHECK_DOCUMENTATION.md](./HEALTH_CHECK_DOCUMENTATION.md) for full de
 | `GET /api/health/live` | Local smoke test — is the process up? |
 | `GET /api/health/ready` | Full stack check — are all dependencies ready? |
 
-Quick check after `pnpm start:dev`:
+Quick check after `npm run start:dev`:
 ```bash
 curl -s http://localhost:3000/api/health/live   # {"status":"ok"}
 curl -s http://localhost:3000/api/health/ready  # {"status":"ok",...}

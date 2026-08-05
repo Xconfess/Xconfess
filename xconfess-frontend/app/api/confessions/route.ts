@@ -9,7 +9,7 @@ export async function POST(request: Request) {
 
   try {
     const body = await request.json();
-    const { title, message, body: bodyContent, gender, stellarTxHash } = body;
+    const { title, message, body: bodyContent, gender, stellarTxHash, idempotencyKey } = body;
 
     if (!message && !bodyContent) {
       return createApiErrorResponse("Confession content is required", { 
@@ -29,14 +29,29 @@ export async function POST(request: Request) {
     if (title) backendBody.title = title;
     if (gender) backendBody.gender = gender;
     if (stellarTxHash) backendBody.stellarTxHash = stellarTxHash;
+    if (idempotencyKey) backendBody.idempotencyKey = idempotencyKey;
+
+    // Forward client-supplied Idempotency-Key header or fall back to body field.
+    const clientIdempotencyKey =
+      request.headers.get("idempotency-key") ||
+      request.headers.get("Idempotency-Key") ||
+      idempotencyKey;
+
+    const forwardHeaders: Record<string, string> = {
+      "Content-Type": "application/json",
+      "x-request-id": correlationId,
+    };
+
+    if (clientIdempotencyKey) {
+      forwardHeaders["Idempotency-Key"] = clientIdempotencyKey;
+      // Also include in body for backends that read it from there.
+      backendBody.idempotencyKey = clientIdempotencyKey;
+    }
 
     try {
       const response = await fetch(backendUrl, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-request-id": correlationId,
-        },
+        headers: forwardHeaders,
         body: JSON.stringify(backendBody),
       });
 

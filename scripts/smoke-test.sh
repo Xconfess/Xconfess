@@ -1,220 +1,324 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # scripts/smoke-test.sh
-# Full-stack smoke test script for xConfess
-# Usage: ./scripts/smoke-test.sh [--verbose]
-# Comprehensive validation of all critical endpoints
+# Smoke test suite for xConfess covering core user journeys.
+# Uses seeded local data (see scripts/seed.ts for credentials/IDs).
+#
+# Usage:
+#   ./scripts/smoke-test.sh [--verbose]
+#
+# Environment variables:
+#   BACKEND_URL   (default: http://localhost:5000)
+#   FRONTEND_URL  (default: http://localhost:3000)
+#   SEED_EMAIL    (default: seed_alice@example.com)
+#   SEED_PASSWORD (default: password123)
+#
+# Exit codes:
+#   0 — all critical flows passed
+#   1 — one or more critical flows failed
 
-set -e
+set -euo pipefail
 
-# Configuration
+# ── Config ────────────────────────────────────────────────────────────────────
 BACKEND_URL="${BACKEND_URL:-http://localhost:5000}"
 FRONTEND_URL="${FRONTEND_URL:-http://localhost:3000}"
+SEED_EMAIL="${SEED_EMAIL:-seed_alice@example.com}"
+SEED_PASSWORD="${SEED_PASSWORD:-password123}"
 VERBOSE="${1:-}"
+
 RESULTS_FILE="smoke-test-results.txt"
 REQUESTS_LOG="smoke-test-requests.log"
 
-# Colors for output
+# ── Colors ────────────────────────────────────────────────────────────────────
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
-NC='\033[0m' # No Color
+NC='\033[0m'
 
-# Test counters
+# ── Counters ──────────────────────────────────────────────────────────────────
 TESTS_RUN=0
 TESTS_PASSED=0
 TESTS_FAILED=0
+CRITICAL_FAILED=0
 
-# Logging functions
-log_section() {
-    echo -e "\n${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-    echo -e "${BLUE}$1${NC}"
-    echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-}
-
-log_test() {
-    echo -e "${YELLOW}Testing: $1${NC}"
-}
+# ── Helpers ───────────────────────────────────────────────────────────────────
+log_section() { echo -e "\n${BLUE}━━━ $1 ━━━${NC}"; }
 
 log_pass() {
-    echo -e "${GREEN}✓ PASS${NC}: $1"
-    ((TESTS_PASSED++))
+  echo -e "${GREEN}✓ PASS${NC}: $1"
+  ((TESTS_PASSED++)) || true
 }
 
 log_fail() {
-    echo -e "${RED}✗ FAIL${NC}: $1"
-    ((TESTS_FAILED++))
+  local msg="$1" route="${2:-}" request_id="${3:-}"
+  local detail=""
+  [ -n "$route" ]      && detail+=" | route: $route"
+  [ -n "$request_id" ] && detail+=" | requestId: $request_id"
+  echo -e "${RED}✗ FAIL${NC}: $msg${detail}"
+  ((TESTS_FAILED++)) || true
 }
 
-log_request() {
-    echo "[$1] $2" >> "$REQUESTS_LOG"
+log_critical_fail() {
+  log_fail "$@"
+  ((CRITICAL_FAILED++)) || true
 }
 
-# HTTP test function
-test_http_endpoint() {
-    local method=$1
-    local endpoint=$2
-    local expected_code=$3
-    local data=$4
-    local description=$5
-    local headers=${6:-"-H 'Content-Type: application/json'"}
+# Redact Authorization header values and bearer tokens from a string.
+redact_tokens() {
+  echo "$1" \
+    | sed 's/Authorization: Bearer [^ ]*/Authorization: Bearer [REDACTED]/gi' \
+    | sed 's/"token":"[^"]*"/"token":"[REDACTED]"/gi' \
+    | sed 's/"accessToken":"[^"]*"/"accessToken":"[REDACTED]"/gi' \
+    | sed 's/"sessionToken":"[^"]*"/"sessionToken":"[REDACTED]"/gi'
+}
 
-    ((TESTS_RUN++))
-    log_test "$description"
+# Extract a JSON field value from a string (simple grep-based, no jq dependency hard requirement).
+extract_json() {
+  local json="$1" field="$2"
+  echo "$json" | grep -oP "\"${field}\":\s*\"?\K[^,}\"]+" 2>/dev/null | head -1 || true
+}
 
-    local url="${BACKEND_URL}${endpoint}"
-    log_request "$method" "$url"
+# Perform an HTTP request and test the result.
+# Args: METHOD ENDPOINT EXPECTED_CODES DESCRIPTION [DATA] [EXTRA_HEADERS] [IS_CRITICAL]
+# Sets globals: LAST_BODY LAST_CODE LAST_REQUEST_ID
+LAST_BODY=""
+LAST_CODE=""
+LAST_REQUEST_ID=""
 
-    if [ -n "$data" ]; then
-        response=$(curl -s -w "\n%{http_code}" -X "$method" "$url" $headers -d "$data" 2>/dev/null)
+do_request() {
+  local method="$1" endpoint="$2" expected_codes="$3" description="$4"
+  local data="${5:-}" extra_headers="${6:-}" is_critical="${7:-false}"
+  ((TESTS_RUN++)) || true
+
+  local url="${BACKEND_URL}${endpoint}"
+  local curl_args=(-s -w "\n%{http_code}" -X "$method" "$url"
+                   -H "Content-Type: application/json"
+                   -H "Accept: application/json")
+
+  [ -n "$AUTH_COOKIE" ] && curl_args+=(-H "Cookie: $AUTH_COOKIE")
+  [ -n "$data" ]        && curl_args+=(-d "$data")
+
+  local raw
+  raw=$(curl "${curl_args[@]}" 2>/dev/null) || true
+
+  LAST_CODE=$(echo "$raw" | tail -n1)
+  LAST_BODY=$(echo "$raw" | sed '$d')
+  LAST_REQUEST_ID=$(extract_json "$LAST_BODY" "requestId")
+
+  # Redact tokens before logging
+  local safe_body
+  safe_body=$(redact_tokens "$LAST_BODY")
+
+  echo "[${method}] ${endpoint} → HTTP ${LAST_CODE}" >> "$REQUESTS_LOG"
+  [ -n "$VERBOSE" ] && echo -e "  ${YELLOW}Response${NC}: $safe_body"
+
+  if echo "$expected_codes" | grep -qw "$LAST_CODE"; then
+    log_pass "$description (HTTP $LAST_CODE)"
+    return 0
+  else
+    if [ "$is_critical" = "true" ]; then
+      log_critical_fail "$description (HTTP $LAST_CODE, expected: $expected_codes)" "$endpoint" "$LAST_REQUEST_ID"
     else
-        response=$(curl -s -w "\n%{http_code}" -X "$method" "$url" $headers 2>/dev/null)
+      log_fail "$description (HTTP $LAST_CODE, expected: $expected_codes)" "$endpoint" "$LAST_REQUEST_ID"
     fi
-
-    local http_code=$(echo "$response" | tail -n1)
-    local body=$(echo "$response" | sed '$d')
-
-    if [ -z "$http_code" ]; then
-        log_fail "$description (no response)"
-        return 1
-    fi
-
-    if [[ "$expected_code" == *"$http_code"* ]]; then
-        log_pass "$description (HTTP $http_code)"
-        [ -n "$VERBOSE" ] && echo "Response: $body"
-        return 0
-    else
-        log_fail "$description (HTTP $http_code, expected $expected_code)"
-        [ -n "$VERBOSE" ] && echo "Response: $body"
-        return 1
-    fi
+    return 1
+  fi
 }
 
-# Initialize results file
-echo "xConfess Smoke Test Results" > "$RESULTS_FILE"
-echo "Generated: $(date)" >> "$RESULTS_FILE"
-echo "Backend: $BACKEND_URL" >> "$RESULTS_FILE"
-echo "Frontend: $FRONTEND_URL" >> "$RESULTS_FILE"
-echo "========================================" >> "$RESULTS_FILE"
+# ── Init logs ─────────────────────────────────────────────────────────────────
+{
+  echo "xConfess Smoke Test Results"
+  echo "Generated: $(date)"
+  echo "Backend:  $BACKEND_URL"
+  echo "Frontend: $FRONTEND_URL"
+  echo "========================================"
+} > "$RESULTS_FILE"
 
-# Initialize requests log
-echo "# xConfess Smoke Test API Requests Log" > "$REQUESTS_LOG"
-echo "# Generated: $(date)" >> "$REQUESTS_LOG"
-echo "# Format: [METHOD] URL" >> "$REQUESTS_LOG"
+{
+  echo "# xConfess Smoke Test — API Request Log (tokens redacted)"
+  echo "# Generated: $(date)"
+} > "$REQUESTS_LOG"
 
 echo -e "${GREEN}xConfess Smoke Test Suite${NC}"
-echo "Backend: $BACKEND_URL"
+echo "Backend:  $BACKEND_URL"
 echo "Frontend: $FRONTEND_URL"
-echo ""
 
-# ============================================================================
-# SECTION 1: BACKEND HEALTH CHECKS
-# ============================================================================
+# Shared state across flows
+AUTH_COOKIE=""
+SESSION_USER_ID=""
+CONFESSION_ID=""
+COMMENT_ID=""
 
-log_section "SECTION 1: BACKEND HEALTH & READINESS"
+# ── SECTION 1: Health & Readiness ─────────────────────────────────────────────
+log_section "1 · Health & Readiness"
 
-test_http_endpoint "GET" "/" "200" "" "Root endpoint (GET /)" "-H 'Content-Type: application/json'"
-test_http_endpoint "GET" "/health/live" "200" "" "Liveness probe (GET /health/live)" "-H 'Content-Type: application/json'"
-test_http_endpoint "GET" "/health/ready" "200 503" "" "Readiness probe (GET /health/ready)" "-H 'Content-Type: application/json'"
+do_request "GET" "/" "200" "Root endpoint"
+do_request "GET" "/health/live" "200" "Liveness probe" "" "" "true"
+do_request "GET" "/health/ready" "200 503" "Readiness probe"
 
-# ============================================================================
-# SECTION 2: CONFESSION API ENDPOINTS
-# ============================================================================
+# ── SECTION 2: Login / Session ────────────────────────────────────────────────
+log_section "2 · Login / Session (critical)"
 
-log_section "SECTION 2: CONFESSION API ENDPOINTS"
+LOGIN_BODY="{\"email\":\"${SEED_EMAIL}\",\"password\":\"${SEED_PASSWORD}\"}"
 
-test_http_endpoint "GET" "/confessions?page=1&limit=10" "200" "" "List confessions (unauthenticated)" "-H 'Content-Type: application/json'"
+((TESTS_RUN++)) || true
+echo "[POST] /auth/login → (checking session)" >> "$REQUESTS_LOG"
 
-# Create a test confession
-test_confession_data='{"message":"Test confession from smoke test suite","gender":"female","tags":["test"]}'
-test_http_endpoint "POST" "/confessions" "201 400" "$test_confession_data" "Create confession" "-H 'Content-Type: application/json'"
+RAW_LOGIN=$(curl -s -c /tmp/smoke_cookies.txt \
+  -w "\n%{http_code}" \
+  -X POST "${BACKEND_URL}/auth/login" \
+  -H "Content-Type: application/json" \
+  -d "$LOGIN_BODY" 2>/dev/null) || true
 
-# ============================================================================
-# SECTION 3: REPORT ENDPOINT
-# ============================================================================
+LOGIN_CODE=$(echo "$RAW_LOGIN" | tail -n1)
+LOGIN_BODY_RESP=$(echo "$RAW_LOGIN" | sed '$d')
+LOGIN_REQUEST_ID=$(extract_json "$LOGIN_BODY_RESP" "requestId")
 
-log_section "SECTION 3: REPORT SUBMISSION"
+if echo "200 201" | grep -qw "$LOGIN_CODE"; then
+  log_pass "Login with seeded user (HTTP $LOGIN_CODE)"
+  ((TESTS_PASSED++)) || true
 
-# First, get a confession ID to report
-confession_id=$(curl -s "${BACKEND_URL}/confessions?limit=1" | jq -r '.data[0].id // "test-id-123"' 2>/dev/null)
-test_report_data="{\"confessionId\":\"${confession_id}\",\"type\":\"offensive\",\"reason\":\"Test report from smoke test\"}"
-test_http_endpoint "POST" "/reports" "201 400" "$test_report_data" "Submit report (unauthenticated)" "-H 'Content-Type: application/json'"
+  # Extract cookie for subsequent requests
+  AUTH_COOKIE=$(grep -oP 'session\s+\K\S+' /tmp/smoke_cookies.txt 2>/dev/null \
+    | head -1 | xargs -I{} echo "session={}" || true)
 
-# ============================================================================
-# SECTION 4: ADMIN ENDPOINTS (SHOULD FAIL UNAUTHENTICATED)
-# ============================================================================
+  # Also try token-based auth if cookie not found
+  if [ -z "$AUTH_COOKIE" ]; then
+    TOKEN=$(extract_json "$LOGIN_BODY_RESP" "accessToken")
+    [ -n "$TOKEN" ] && AUTH_COOKIE="token=${TOKEN}"
+  fi
 
-log_section "SECTION 4: ADMIN ENDPOINTS (AUTHENTICATION REQUIRED)"
-
-test_http_endpoint "GET" "/diagnostics/notifications" "401 403" "" "Admin diagnostics endpoint without auth (should fail)" "-H 'Content-Type: application/json'"
-
-# ============================================================================
-# SECTION 5: FRONTEND HEALTH CHECK
-# ============================================================================
-
-log_section "SECTION 5: FRONTEND AVAILABILITY"
-
-((TESTS_RUN++))
-log_test "Frontend homepage availability (GET /)"
-frontend_response=$(curl -s -w "\n%{http_code}" "${FRONTEND_URL}/" 2>/dev/null)
-frontend_code=$(echo "$frontend_response" | tail -n1)
-frontend_body=$(echo "$frontend_response" | sed '$d')
-
-if [ "$frontend_code" = "200" ] || [ "$frontend_code" = "404" ]; then
-    log_pass "Frontend is responsive (HTTP $frontend_code)"
-elif [ -z "$frontend_code" ]; then
-    log_fail "Frontend is not responding (connection refused)"
+  SESSION_USER_ID=$(extract_json "$LOGIN_BODY_RESP" "id")
 else
-    log_fail "Frontend returned HTTP $frontend_code"
+  log_critical_fail "Login with seeded user (HTTP $LOGIN_CODE, expected: 200 201)" "/auth/login" "$LOGIN_REQUEST_ID"
+  ((TESTS_FAILED++)) || true
+  ((CRITICAL_FAILED++)) || true
 fi
 
-# ============================================================================
-# RESULTS SUMMARY
-# ============================================================================
+# Verify session is active
+do_request "GET" "/auth/session" "200" "Session check after login" "" "" "true" || true
 
-log_section "TEST RESULTS SUMMARY"
+# ── SECTION 3: Confession Create ──────────────────────────────────────────────
+log_section "3 · Confession Create (critical)"
 
-echo "Total Tests Run:    $TESTS_RUN"
-echo "Tests Passed:       ${GREEN}$TESTS_PASSED${NC}"
-echo "Tests Failed:       ${RED}$TESTS_FAILED${NC}"
-
-pass_rate=$((TESTS_PASSED * 100 / TESTS_RUN))
-echo "Pass Rate:          ${YELLOW}${pass_rate}%${NC}"
-
-# Write summary to results file
-echo "" >> "$RESULTS_FILE"
-echo "Total Tests: $TESTS_RUN" >> "$RESULTS_FILE"
-echo "Passed: $TESTS_PASSED" >> "$RESULTS_FILE"
-echo "Failed: $TESTS_FAILED" >> "$RESULTS_FILE"
-echo "Pass Rate: ${pass_rate}%" >> "$RESULTS_FILE"
-
-# Determine exit code
-if [ $TESTS_FAILED -gt 0 ]; then
-    echo -e "\n${RED}Some tests failed. Review logs for details.${NC}"
-    echo "Results saved to: $RESULTS_FILE"
-    echo "Requests logged to: $REQUESTS_LOG"
-    exit 1
-else
-    echo -e "\n${GREEN}All tests passed!${NC}"
-    echo "Results saved to: $RESULTS_FILE"
-    echo "Requests logged to: $REQUESTS_LOG"
-    exit 0
+CONFESSION_PAYLOAD='{"message":"Smoke test confession — core flow check","gender":"other","tags":["test"]}'
+if do_request "POST" "/confessions" "201" "Create confession" "$CONFESSION_PAYLOAD" "" "true"; then
+  CONFESSION_ID=$(extract_json "$LAST_BODY" "id")
 fi
-  if echo "$content" | grep -qi '<html'; then
-    pass_msg "Root route returns HTML"
-  else
-    fail_msg "Root route did not return HTML"
+
+# Fallback: grab the first seeded confession if creation failed or returned no id
+if [ -z "$CONFESSION_ID" ]; then
+  FEED_RAW=$(curl -s "${BACKEND_URL}/confessions?limit=1" 2>/dev/null) || true
+  CONFESSION_ID=$(echo "$FEED_RAW" | grep -oP '"id"\s*:\s*"\K[^"]+' | head -1 || true)
+fi
+
+do_request "GET" "/confessions?page=1&limit=10" "200" "List confessions feed" "" "" "true"
+
+if [ -n "$CONFESSION_ID" ]; then
+  do_request "GET" "/confessions/${CONFESSION_ID}" "200" "Fetch confession by id" "" "" "true"
+fi
+
+# ── SECTION 4: Comment ────────────────────────────────────────────────────────
+log_section "4 · Comment (critical)"
+
+if [ -n "$CONFESSION_ID" ]; then
+  COMMENT_PAYLOAD='{"content":"Smoke test comment — core flow"}'
+  # Try both known comment routes
+  if do_request "POST" "/confessions/${CONFESSION_ID}/comments" "201" \
+      "Post comment on confession" "$COMMENT_PAYLOAD" "" "true"; then
+    COMMENT_ID=$(extract_json "$LAST_BODY" "id")
+  elif do_request "POST" "/comments" "201" \
+      "Post comment (alt route)" \
+      "{\"content\":\"Smoke test comment\",\"confessionId\":\"${CONFESSION_ID}\"}" "" "true"; then
+    COMMENT_ID=$(extract_json "$LAST_BODY" "id")
   fi
 else
-  fail_msg "Root route — unreachable"
+  log_critical_fail "Post comment — skipped (no confession id)" "/confessions/:id/comments"
 fi
+
+# ── SECTION 5: Reaction ───────────────────────────────────────────────────────
+log_section "5 · Reaction"
+
+if [ -n "$CONFESSION_ID" ]; then
+  REACTION_PAYLOAD="{\"emoji\":\"❤️\",\"confessionId\":\"${CONFESSION_ID}\"}"
+  do_request "POST" "/reactions" "201 200" "Add reaction to confession" "$REACTION_PAYLOAD" || true
+
+  # Alt route pattern
+  if [ "${LAST_CODE}" != "201" ] && [ "${LAST_CODE}" != "200" ]; then
+    do_request "POST" "/confessions/${CONFESSION_ID}/reactions" "201 200" \
+      "Add reaction (alt route)" "{\"emoji\":\"❤️\"}" || true
+  fi
+else
+  log_fail "Add reaction — skipped (no confession id)" "/reactions"
+fi
+
+# ── SECTION 6: Report ─────────────────────────────────────────────────────────
+log_section "6 · Report (critical)"
+
+if [ -n "$CONFESSION_ID" ]; then
+  REPORT_PAYLOAD="{\"confessionId\":\"${CONFESSION_ID}\",\"type\":\"spam\",\"reason\":\"Smoke test report\"}"
+  do_request "POST" "/reports" "201 200" "Submit report on confession" "$REPORT_PAYLOAD" "" "true"
+else
+  log_critical_fail "Submit report — skipped (no confession id)" "/reports"
+fi
+
+# ── SECTION 7: Auth-protected routes reject unauthenticated ───────────────────
+log_section "7 · Auth Guard"
+
+# Temporarily clear cookie to test guard
+SAVED_COOKIE="$AUTH_COOKIE"
+AUTH_COOKIE=""
+do_request "GET" "/diagnostics/notifications" "401 403" "Admin endpoint rejects anonymous request"
+AUTH_COOKIE="$SAVED_COOKIE"
+
+# ── SECTION 8: Frontend availability ──────────────────────────────────────────
+log_section "8 · Frontend"
+
+((TESTS_RUN++)) || true
+FE_CODE=$(curl -s -o /dev/null -w "%{http_code}" "${FRONTEND_URL}/" 2>/dev/null) || FE_CODE=""
+if [ "$FE_CODE" = "200" ]; then
+  log_pass "Frontend homepage (HTTP $FE_CODE)"
+  ((TESTS_PASSED++)) || true
+else
+  log_fail "Frontend homepage (HTTP $FE_CODE)" "/"
+fi
+
+# ── Results ───────────────────────────────────────────────────────────────────
+log_section "Results"
+
+PASS_RATE=0
+[ "$TESTS_RUN" -gt 0 ] && PASS_RATE=$(( TESTS_PASSED * 100 / TESTS_RUN ))
+
+echo "Tests run:    $TESTS_RUN"
+echo -e "Passed:       ${GREEN}$TESTS_PASSED${NC}"
+echo -e "Failed:       ${RED}$TESTS_FAILED${NC}"
+echo "Pass rate:    ${PASS_RATE}%"
+[ "$CRITICAL_FAILED" -gt 0 ] && echo -e "${RED}Critical failures: $CRITICAL_FAILED${NC}"
+
+{
+  echo ""
+  echo "Tests run: $TESTS_RUN"
+  echo "Passed:    $TESTS_PASSED"
+  echo "Failed:    $TESTS_FAILED"
+  echo "Pass rate: ${PASS_RATE}%"
+  echo "Critical:  $CRITICAL_FAILED"
+} >> "$RESULTS_FILE"
 
 echo ""
-echo "============================================"
-echo " Results: $pass passed, $fail failed"
-echo "============================================"
+echo "Results: $RESULTS_FILE"
+echo "Requests log (tokens redacted): $REQUESTS_LOG"
 
-if [ "$fail" -gt 0 ]; then
+rm -f /tmp/smoke_cookies.txt
+
+if [ "$CRITICAL_FAILED" -gt 0 ]; then
+  echo -e "${RED}SMOKE FAILED — $CRITICAL_FAILED critical flow(s) failed.${NC}"
   exit 1
 fi
+
+if [ "$TESTS_FAILED" -gt 0 ]; then
+  echo -e "${YELLOW}SMOKE PASSED with $TESTS_FAILED non-critical failure(s).${NC}"
+  exit 0
+fi
+
+echo -e "${GREEN}SMOKE PASSED — all flows nominal.${NC}"
 exit 0

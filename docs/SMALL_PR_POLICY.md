@@ -27,7 +27,7 @@ If your work naturally spans more than one of these categories, split it into se
 These are not hard limits, but PRs that exceed them **will be asked to split** before review begins:
 
 - **≤ 400 lines changed** (additions + deletions, excluding generated files and lockfiles)
-- **≤ 8 files touched** (excluding `package-lock.json`, `pnpm-lock.yaml`, and auto-generated files)
+- **≤ 8 files touched** (excluding lock files and auto-generated files)
 - **One logical concern** — a reviewer should be able to summarise the PR in a single sentence
 
 If your change is genuinely larger (e.g. a new module with its own tests and migration), leave a note explaining why it cannot be split. Maintainers will decide whether to proceed or request a split.

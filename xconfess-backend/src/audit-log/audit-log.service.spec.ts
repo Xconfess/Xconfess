@@ -203,6 +203,36 @@ describe('AuditLogService', () => {
     );
   });
 
+  it('records failed export download attempts with the dedicated audit action', async () => {
+    mockRepository.create.mockReturnValue({} as AuditLog);
+    mockRepository.save.mockResolvedValue({} as AuditLog);
+
+    await service.logExportLifecycleEvent({
+      action: 'download_failed',
+      actorType: 'system',
+      actorId: 'download-token-validator',
+      requestId: 'export-req-1',
+      exportId: 'export-req-1',
+      metadata: {
+        reason: 'invalid_or_used',
+      },
+    });
+
+    expect(mockRepository.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: AuditActionType.EXPORT_DOWNLOAD_FAILED,
+        metadata: expect.objectContaining({
+          entityType: 'data_export',
+          requestId: 'export-req-1',
+          actorType: 'system',
+          actorId: 'download-token-validator',
+          lifecycleAction: 'download_failed',
+          reason: 'invalid_or_used',
+        }),
+      }),
+    );
+  });
+
   it('records notification DLQ cleanup audit entries with target summaries', async () => {
     mockRepository.create.mockReturnValue({} as AuditLog);
     mockRepository.save.mockResolvedValue({} as AuditLog);

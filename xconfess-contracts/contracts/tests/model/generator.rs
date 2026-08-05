@@ -12,10 +12,7 @@ impl Lcg {
 
     fn next_u32(&mut self) -> u32 {
         // Deterministic LCG; stable across platforms.
-        self.state = self
-            .state
-            .wrapping_mul(6364136223846793005)
-            .wrapping_add(1);
+        self.state = self.state.wrapping_mul(6364136223846793005).wrapping_add(1);
         (self.state >> 32) as u32
     }
 
@@ -27,12 +24,17 @@ impl Lcg {
         }
     }
 
+    #[allow(dead_code)]
     fn next_i128_nonzero(&mut self) -> i128 {
         // Produce a nonzero signed value using two LCG words.
         let hi = self.next_u32() as i128;
         let lo = self.next_u32() as i128;
         let v = (hi << 32) | lo;
-        if v == 0 { 1 } else { v }
+        if v == 0 {
+            1
+        } else {
+            v
+        }
     }
 }
 
@@ -42,7 +44,7 @@ pub fn generate_actions(seed: u64, steps: usize) -> Vec<Action> {
     let mut max_conf_id_seen = 0_u32;
 
     for _ in 0..steps {
-        let pick = rng.bounded(4);
+        let pick = rng.bounded(5);
         let actor = rng.bounded(6);
         let confession_id = rng.bounded(max_conf_id_seen.saturating_add(3));
 
@@ -60,7 +62,11 @@ pub fn generate_actions(seed: u64, steps: usize) -> Vec<Action> {
                 confession_id,
                 reason_len: rng.bounded(160),
             },
-            _ => Action::Resolve {
+            3 => Action::Resolve {
+                admin: rng.bounded(3),
+                confession_id,
+            },
+            _ => Action::Escalate {
                 admin: rng.bounded(3),
                 confession_id,
             },
@@ -120,23 +126,33 @@ pub fn generate_tip_actions(seed: u64, steps: usize, pool: u32) -> Vec<TipAction
         let recipient_idx = rng.bounded(pool);
 
         let action = match kind {
-            0 | 1 | 2 => {
+            0..=2 => {
                 // Valid: amount in 1..=10_000, meta_len in 0..=128
                 let raw = rng.next_u32();
                 let amount = ((raw % 10_000) as i128) + 1;
                 let meta_len = rng.bounded(129); // 0 ..= 128
-                TipAction::Valid { recipient_idx, amount, meta_len }
+                TipAction::Valid {
+                    recipient_idx,
+                    amount,
+                    meta_len,
+                }
             }
             3 => {
                 // BadAmt: amount in -1_000..=0
                 let raw = rng.next_u32();
                 let amount = -((raw % 1_001) as i128); // in range [-1000, 0]
-                TipAction::BadAmt { recipient_idx, amount }
+                TipAction::BadAmt {
+                    recipient_idx,
+                    amount,
+                }
             }
             _ => {
                 // BigMeta: meta_len in 129..=512
                 let meta_len = rng.bounded(384) + 129; // 129 ..= 512
-                TipAction::BigMeta { recipient_idx, meta_len }
+                TipAction::BigMeta {
+                    recipient_idx,
+                    meta_len,
+                }
             }
         };
 
@@ -149,6 +165,7 @@ pub fn generate_tip_actions(seed: u64, steps: usize, pool: u32) -> Vec<TipAction
 /// Invariant helpers for `TipAction` sequences.
 impl TipAction {
     /// Returns true when the contract is expected to succeed.
+    #[allow(dead_code)]
     pub fn is_valid(&self) -> bool {
         matches!(self, TipAction::Valid { .. })
     }
@@ -249,8 +266,12 @@ mod generator_tests {
         // With enough steps at least one of each variant should appear.
         let actions = generate_tip_actions(0, 300, 8);
         let has_valid = actions.iter().any(|a| matches!(a, TipAction::Valid { .. }));
-        let has_bad = actions.iter().any(|a| matches!(a, TipAction::BadAmt { .. }));
-        let has_big = actions.iter().any(|a| matches!(a, TipAction::BigMeta { .. }));
+        let has_bad = actions
+            .iter()
+            .any(|a| matches!(a, TipAction::BadAmt { .. }));
+        let has_big = actions
+            .iter()
+            .any(|a| matches!(a, TipAction::BigMeta { .. }));
         assert!(has_valid, "expected at least one Valid action");
         assert!(has_bad, "expected at least one BadAmt action");
         assert!(has_big, "expected at least one BigMeta action");

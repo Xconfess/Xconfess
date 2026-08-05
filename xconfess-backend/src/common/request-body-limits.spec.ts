@@ -3,6 +3,7 @@ import {
   Controller,
   INestApplication,
   Param,
+  Patch,
   Post,
   Put,
   ValidationPipe,
@@ -15,14 +16,16 @@ import { UpdateConfessionDto } from '../confession/dto/update-confession.dto';
 import {
   COMMENT_REQUEST_MAX_BYTES,
   CONFESSION_REQUEST_MAX_BYTES,
+  DRAFT_REQUEST_MAX_BYTES,
+  MESSAGE_REQUEST_MAX_BYTES,
+  REPORT_REQUEST_MAX_BYTES,
   configureRequestBodyParsing,
 } from './request-body-limits';
 
+// ── Minimal stub services ────────────────────────────────────────────────────
+
 const confessionService = {
-  create: jest.fn((dto: CreateConfessionDto) => ({
-    id: 'confession-id',
-    ...dto,
-  })),
+  create: jest.fn((dto: CreateConfessionDto) => ({ id: 'confession-id', ...dto })),
   update: jest.fn((id: string, dto: UpdateConfessionDto) => ({ id, ...dto })),
 };
 
@@ -32,7 +35,26 @@ const commentService = {
     confessionId,
     content: body.content,
   })),
+  edit: jest.fn((id: string, body: { content: string }) => ({
+    id,
+    content: body.content,
+  })),
 };
+
+const reportService = {
+  create: jest.fn((confessionId: string, dto: unknown) => ({ id: 1, confessionId, ...dto })),
+};
+
+const draftService = {
+  create: jest.fn((dto: unknown) => ({ id: 'draft-id', ...dto })),
+  update: jest.fn((id: string, dto: unknown) => ({ id, ...dto })),
+};
+
+const messageService = {
+  send: jest.fn((dto: unknown) => ({ id: 1, ...dto })),
+};
+
+// ── Minimal test controllers ─────────────────────────────────────────────────
 
 @Controller('confessions')
 class TestConfessionController {
@@ -47,17 +69,58 @@ class TestConfessionController {
   }
 }
 
-@Controller('comments')
+/** Mirrors real CommentController at confessions/:confessionId/comments */
+@Controller('confessions/:confessionId/comments')
 class TestCommentController {
-  @Post(':confessionId')
+  @Post()
   create(
     @Param('confessionId') confessionId: string,
     @Body() body: { content: string },
   ) {
     return commentService.create(confessionId, body);
   }
+
+  @Patch(':id')
+  edit(@Param('id') id: string, @Body() body: { content: string }) {
+    return commentService.edit(id, body);
+  }
 }
 
+@Controller('confessions/:id')
+class TestReportController {
+  @Post('report')
+  create(@Param('id') confessionId: string, @Body() dto: unknown) {
+    return reportService.create(confessionId, dto);
+  }
+}
+
+@Controller('confessions/drafts')
+class TestDraftController {
+  @Post()
+  create(@Body() dto: unknown) {
+    return draftService.create(dto);
+  }
+
+  @Patch(':id')
+  update(@Param('id') id: string, @Body() dto: unknown) {
+    return draftService.update(id, dto);
+  }
+}
+
+@Controller('messages')
+class TestMessageController {
+  @Post()
+  send(@Body() dto: unknown) {
+    return messageService.send(dto);
+  }
+}
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+/**
+ * Build a JSON string whose byte length equals `targetBytes`.
+ * A `padding` field is appended to reach the exact target.
+ */
 function bodyAtByteSize(
   base: Record<string, unknown>,
   targetBytes: number,
@@ -66,18 +129,28 @@ function bodyAtByteSize(
   const paddingBytes = targetBytes - Buffer.byteLength(bodyWithEmptyPadding);
 
   if (paddingBytes < 0) {
-    throw new Error('Base body exceeds requested byte size');
+    throw new Error(
+      `Base body (${Buffer.byteLength(bodyWithEmptyPadding)} B) already exceeds requested ${targetBytes} B`,
+    );
   }
 
   return JSON.stringify({ ...base, padding: 'x'.repeat(paddingBytes) });
 }
+
+// ── Test suite ───────────────────────────────────────────────────────────────
 
 describe('request body limits', () => {
   let app: INestApplication;
 
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({
-      controllers: [TestConfessionController, TestCommentController],
+      controllers: [
+        TestConfessionController,
+        TestCommentController,
+        TestReportController,
+        TestDraftController,
+        TestMessageController,
+      ],
     }).compile();
 
     app = moduleRef.createNestApplication({ bodyParser: false });
@@ -86,9 +159,7 @@ describe('request body limits', () => {
     const requestIdMiddleware = new RequestIdMiddleware();
     app.use(requestIdMiddleware.use.bind(requestIdMiddleware));
     configureRequestBodyParsing(app);
-    app.useGlobalPipes(
-      new ValidationPipe({ whitelist: true, transform: true }),
-    );
+    app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
 
     await app.init();
   });
@@ -101,97 +172,340 @@ describe('request body limits', () => {
     jest.clearAllMocks();
   });
 
-  it('rejects an oversized confession before controller work', async () => {
-    const secret = 'CONFESSION_SECRET_SHOULD_NOT_BE_ECHOED';
-    const body = bodyAtByteSize(
-      { message: 'valid', secret },
-      CONFESSION_REQUEST_MAX_BYTES + 1,
-    );
+  // ── Confessions ────────────────────────────────────────────────────────────
 
-    const response = await request(app.getHttpServer())
-      .post('/api/confessions')
-      .set('Content-Type', 'application/json')
-      .send(body);
+  describe('confessions', () => {
+    it('rejects an oversized POST /confessions body with 413', async () => {
+      const secret = 'CONFESSION_SECRET_MUST_NOT_LEAK';
+      const body = bodyAtByteSize(
+        { message: 'valid', secret },
+        CONFESSION_REQUEST_MAX_BYTES + 1,
+      );
 
-    expect(response.status).toBe(413);
-    expect(response.body).toMatchObject({
-      status: 413,
-      code: 'REQUEST_TOO_LARGE',
-      message: 'Request body exceeds the allowed size',
-      path: '/api/confessions',
+      const res = await request(app.getHttpServer())
+        .post('/api/confessions')
+        .set('Content-Type', 'application/json')
+        .send(body);
+
+      expect(res.status).toBe(413);
+      expect(res.body).toMatchObject({
+        status: 413,
+        code: 'REQUEST_TOO_LARGE',
+        message: 'Request body exceeds the allowed size',
+        path: '/api/confessions',
+      });
+      expect(res.body).toHaveProperty('timestamp');
+      expect(res.body.requestId).not.toBe('unknown');
+      expect(JSON.stringify(res.body)).not.toContain(secret);
+      expect(confessionService.create).not.toHaveBeenCalled();
     });
-    expect(response.body).toHaveProperty('timestamp');
-    expect(response.body.requestId).not.toBe('unknown');
-    expect(JSON.stringify(response.body)).not.toContain(secret);
-    expect(confessionService.create).not.toHaveBeenCalled();
-  });
 
-  it('applies the confession limit to updates too', async () => {
-    const body = bodyAtByteSize(
-      { message: 'valid update' },
-      CONFESSION_REQUEST_MAX_BYTES + 1,
-    );
+    it('rejects an oversized PUT /confessions/:id body with 413', async () => {
+      const body = bodyAtByteSize(
+        { message: 'updated' },
+        CONFESSION_REQUEST_MAX_BYTES + 1,
+      );
 
-    const response = await request(app.getHttpServer())
-      .put('/api/confessions/confession-id')
-      .set('Content-Type', 'application/json')
-      .send(body);
+      const res = await request(app.getHttpServer())
+        .put('/api/confessions/abc-123')
+        .set('Content-Type', 'application/json')
+        .send(body);
 
-    expect(response.status).toBe(413);
-    expect(response.body.code).toBe('REQUEST_TOO_LARGE');
-    expect(confessionService.update).not.toHaveBeenCalled();
-  });
+      expect(res.status).toBe(413);
+      expect(res.body.code).toBe('REQUEST_TOO_LARGE');
+      expect(confessionService.update).not.toHaveBeenCalled();
+    });
 
-  it('rejects an oversized comment before controller work', async () => {
-    const secret = 'COMMENT_SECRET_SHOULD_NOT_BE_ECHOED';
-    const body = bodyAtByteSize(
-      { content: 'valid', secret },
-      COMMENT_REQUEST_MAX_BYTES + 1,
-    );
+    it('accepts a POST /confessions body exactly at the byte limit', async () => {
+      const body = bodyAtByteSize(
+        { message: 'boundary confession' },
+        CONFESSION_REQUEST_MAX_BYTES,
+      );
 
-    const response = await request(app.getHttpServer())
-      .post('/api/comments/confession-id')
-      .set('Content-Type', 'application/json')
-      .send(body);
+      const res = await request(app.getHttpServer())
+        .post('/api/confessions')
+        .set('Content-Type', 'application/json')
+        .send(body);
 
-    expect(response.status).toBe(413);
-    expect(response.body.code).toBe('REQUEST_TOO_LARGE');
-    expect(JSON.stringify(response.body)).not.toContain(secret);
-    expect(commentService.create).not.toHaveBeenCalled();
-  });
+      expect(res.status).toBe(201);
+      expect(confessionService.create).toHaveBeenCalled();
+    });
 
-  it('accepts a confession request exactly at the byte limit', async () => {
-    const body = bodyAtByteSize(
-      { message: 'boundary confession' },
-      CONFESSION_REQUEST_MAX_BYTES,
-    );
+    it('accepts a normal confession POST', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/api/confessions')
+        .send({ message: 'A normal confession', tags: ['life'] });
 
-    const response = await request(app.getHttpServer())
-      .post('/api/confessions')
-      .set('Content-Type', 'application/json')
-      .send(body);
-
-    expect(response.status).toBe(201);
-    expect(confessionService.create).toHaveBeenCalledWith({
-      message: 'boundary confession',
+      expect(res.status).toBe(201);
+      expect(res.body.message).toBe('A normal confession');
     });
   });
 
-  it('keeps a normal valid confession request working', async () => {
-    const response = await request(app.getHttpServer())
-      .post('/api/confessions')
-      .send({ message: 'A normal confession', tags: ['life'] });
+  // ── Comments ───────────────────────────────────────────────────────────────
 
-    expect(response.status).toBe(201);
-    expect(response.body.message).toBe('A normal confession');
+  describe('comments', () => {
+    it('rejects an oversized POST /confessions/:id/comments body with 413', async () => {
+      const secret = 'COMMENT_SECRET_MUST_NOT_LEAK';
+      const body = bodyAtByteSize(
+        { content: 'valid comment', secret },
+        COMMENT_REQUEST_MAX_BYTES + 1,
+      );
+
+      const res = await request(app.getHttpServer())
+        .post('/api/confessions/conf-123/comments')
+        .set('Content-Type', 'application/json')
+        .send(body);
+
+      expect(res.status).toBe(413);
+      expect(res.body).toMatchObject({
+        status: 413,
+        code: 'REQUEST_TOO_LARGE',
+        message: 'Request body exceeds the allowed size',
+        path: '/api/confessions/conf-123/comments',
+      });
+      expect(JSON.stringify(res.body)).not.toContain(secret);
+      expect(commentService.create).not.toHaveBeenCalled();
+    });
+
+    it('rejects an oversized PATCH /confessions/:id/comments/:commentId body with 413', async () => {
+      const body = bodyAtByteSize(
+        { content: 'edited comment' },
+        COMMENT_REQUEST_MAX_BYTES + 1,
+      );
+
+      const res = await request(app.getHttpServer())
+        .patch('/api/confessions/conf-123/comments/42')
+        .set('Content-Type', 'application/json')
+        .send(body);
+
+      expect(res.status).toBe(413);
+      expect(res.body.code).toBe('REQUEST_TOO_LARGE');
+      expect(commentService.edit).not.toHaveBeenCalled();
+    });
+
+    it('accepts a POST /confessions/:id/comments body exactly at the byte limit', async () => {
+      const body = bodyAtByteSize(
+        { content: 'boundary comment' },
+        COMMENT_REQUEST_MAX_BYTES,
+      );
+
+      const res = await request(app.getHttpServer())
+        .post('/api/confessions/conf-123/comments')
+        .set('Content-Type', 'application/json')
+        .send(body);
+
+      expect(res.status).toBe(201);
+      expect(commentService.create).toHaveBeenCalled();
+    });
+
+    it('accepts a normal comment POST', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/api/confessions/conf-123/comments')
+        .send({ content: 'A normal comment' });
+
+      expect(res.status).toBe(201);
+      expect(res.body.content).toBe('A normal comment');
+    });
   });
 
-  it('keeps a normal valid comment request working', async () => {
-    const response = await request(app.getHttpServer())
-      .post('/api/comments/confession-id')
-      .send({ content: 'A normal comment' });
+  // ── Reports ────────────────────────────────────────────────────────────────
 
-    expect(response.status).toBe(201);
-    expect(response.body.content).toBe('A normal comment');
+  describe('reports', () => {
+    it('rejects an oversized POST /confessions/:id/report body with 413', async () => {
+      const secret = 'REPORT_SECRET_MUST_NOT_LEAK';
+      const body = bodyAtByteSize(
+        { type: 'spam', reason: 'valid', secret },
+        REPORT_REQUEST_MAX_BYTES + 1,
+      );
+
+      const res = await request(app.getHttpServer())
+        .post('/api/confessions/conf-123/report')
+        .set('Content-Type', 'application/json')
+        .send(body);
+
+      expect(res.status).toBe(413);
+      expect(res.body).toMatchObject({
+        status: 413,
+        code: 'REQUEST_TOO_LARGE',
+        message: 'Request body exceeds the allowed size',
+      });
+      expect(JSON.stringify(res.body)).not.toContain(secret);
+      expect(reportService.create).not.toHaveBeenCalled();
+    });
+
+    it('accepts a POST /confessions/:id/report body exactly at the byte limit', async () => {
+      const body = bodyAtByteSize(
+        { type: 'spam', reason: 'valid reason' },
+        REPORT_REQUEST_MAX_BYTES,
+      );
+
+      const res = await request(app.getHttpServer())
+        .post('/api/confessions/conf-123/report')
+        .set('Content-Type', 'application/json')
+        .send(body);
+
+      expect(res.status).toBe(201);
+      expect(reportService.create).toHaveBeenCalled();
+    });
+
+    it('accepts a normal report POST', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/api/confessions/conf-123/report')
+        .send({ type: 'spam', reason: 'This is spam' });
+
+      expect(res.status).toBe(201);
+    });
+  });
+
+  // ── Confession drafts ──────────────────────────────────────────────────────
+
+  describe('confession drafts', () => {
+    it('rejects an oversized POST /confessions/drafts body with 413', async () => {
+      const secret = 'DRAFT_SECRET_MUST_NOT_LEAK';
+      const body = bodyAtByteSize(
+        { content: 'valid draft', secret },
+        DRAFT_REQUEST_MAX_BYTES + 1,
+      );
+
+      const res = await request(app.getHttpServer())
+        .post('/api/confessions/drafts')
+        .set('Content-Type', 'application/json')
+        .send(body);
+
+      expect(res.status).toBe(413);
+      expect(res.body).toMatchObject({
+        status: 413,
+        code: 'REQUEST_TOO_LARGE',
+        message: 'Request body exceeds the allowed size',
+      });
+      expect(JSON.stringify(res.body)).not.toContain(secret);
+      expect(draftService.create).not.toHaveBeenCalled();
+    });
+
+    it('rejects an oversized PATCH /confessions/drafts/:id body with 413', async () => {
+      const body = bodyAtByteSize(
+        { content: 'updated draft' },
+        DRAFT_REQUEST_MAX_BYTES + 1,
+      );
+
+      const res = await request(app.getHttpServer())
+        .patch('/api/confessions/drafts/draft-id')
+        .set('Content-Type', 'application/json')
+        .send(body);
+
+      expect(res.status).toBe(413);
+      expect(res.body.code).toBe('REQUEST_TOO_LARGE');
+      expect(draftService.update).not.toHaveBeenCalled();
+    });
+
+    it('accepts a POST /confessions/drafts body exactly at the byte limit', async () => {
+      const body = bodyAtByteSize(
+        { content: 'boundary draft' },
+        DRAFT_REQUEST_MAX_BYTES,
+      );
+
+      const res = await request(app.getHttpServer())
+        .post('/api/confessions/drafts')
+        .set('Content-Type', 'application/json')
+        .send(body);
+
+      expect(res.status).toBe(201);
+      expect(draftService.create).toHaveBeenCalled();
+    });
+
+    it('accepts a normal draft POST', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/api/confessions/drafts')
+        .send({ content: 'A normal draft', category: 'general' });
+
+      expect(res.status).toBe(201);
+    });
+  });
+
+  // ── Messages ───────────────────────────────────────────────────────────────
+
+  describe('messages', () => {
+    it('rejects an oversized POST /messages body with 413', async () => {
+      const secret = 'MESSAGE_SECRET_MUST_NOT_LEAK';
+      const body = bodyAtByteSize(
+        { confession_id: 'conf-id', content: 'hi', secret },
+        MESSAGE_REQUEST_MAX_BYTES + 1,
+      );
+
+      const res = await request(app.getHttpServer())
+        .post('/api/messages')
+        .set('Content-Type', 'application/json')
+        .send(body);
+
+      expect(res.status).toBe(413);
+      expect(res.body).toMatchObject({
+        status: 413,
+        code: 'REQUEST_TOO_LARGE',
+        message: 'Request body exceeds the allowed size',
+      });
+      expect(JSON.stringify(res.body)).not.toContain(secret);
+      expect(messageService.send).not.toHaveBeenCalled();
+    });
+
+    it('accepts a POST /messages body exactly at the byte limit', async () => {
+      const body = bodyAtByteSize(
+        { confession_id: 'conf-id', content: 'hello' },
+        MESSAGE_REQUEST_MAX_BYTES,
+      );
+
+      const res = await request(app.getHttpServer())
+        .post('/api/messages')
+        .set('Content-Type', 'application/json')
+        .send(body);
+
+      expect(res.status).toBe(201);
+      expect(messageService.send).toHaveBeenCalled();
+    });
+
+    it('accepts a normal message POST', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/api/messages')
+        .send({ confession_id: 'conf-id', content: 'Hello there!' });
+
+      expect(res.status).toBe(201);
+    });
+  });
+
+  // ── Response shape guarantees ──────────────────────────────────────────────
+
+  describe('413 response shape', () => {
+    it('always includes status, code, message, timestamp, path, and requestId', async () => {
+      const body = bodyAtByteSize(
+        { message: 'valid' },
+        CONFESSION_REQUEST_MAX_BYTES + 1,
+      );
+
+      const res = await request(app.getHttpServer())
+        .post('/api/confessions')
+        .set('Content-Type', 'application/json')
+        .send(body);
+
+      expect(res.status).toBe(413);
+      expect(typeof res.body.timestamp).toBe('string');
+      expect(typeof res.body.requestId).toBe('string');
+      expect(res.body.requestId).not.toBe('unknown');
+      expect(res.body.path).toBe('/api/confessions');
+    });
+
+    it('does not reflect raw request body content in the error response', async () => {
+      const sensitiveValue = 'SENSITIVE_PAYLOAD_REFLECTION_CHECK';
+      const body = bodyAtByteSize(
+        { message: sensitiveValue },
+        CONFESSION_REQUEST_MAX_BYTES + 1,
+      );
+
+      const res = await request(app.getHttpServer())
+        .post('/api/confessions')
+        .set('Content-Type', 'application/json')
+        .send(body);
+
+      expect(res.status).toBe(413);
+      expect(JSON.stringify(res.body)).not.toContain(sensitiveValue);
+    });
   });
 });

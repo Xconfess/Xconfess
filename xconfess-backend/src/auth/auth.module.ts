@@ -10,6 +10,8 @@ import { AuthController } from './auth.controller';
 import { JwtStrategy } from './jwt.strategy';
 import { OptionalJwtAuthGuard } from './optional-jwt-auth.guard';
 import { PasswordResetService } from './password-reset.service';
+import { StepUpService } from './step-up.service';
+import { StepUpGuard } from './guards/step-up.guard';
 import { UserModule } from '../user/user.module';
 import { EmailModule } from '../email/email.module';
 import { PasswordReset } from './entities/password-reset.entity';
@@ -36,8 +38,17 @@ import { PasswordReset } from './entities/password-reset.entity';
     AuthService,
     JwtStrategy,
     PasswordResetService,
+    StepUpService,
+    StepUpGuard,
     OptionalJwtAuthGuard,
   ],
-  exports: [AuthService, LockoutService, JwtModule, OptionalJwtAuthGuard],
+  exports: [
+    AuthService,
+    LockoutService,
+    JwtModule,
+    StepUpService,
+    StepUpGuard,
+    OptionalJwtAuthGuard,
+  ],
 })
 export class AuthModule {}

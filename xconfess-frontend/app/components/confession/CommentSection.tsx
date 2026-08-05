@@ -56,7 +56,7 @@ export function CommentSection({
     }
 
     return (
-      <ul className="mt-3 min-w-0 list-none space-y-3 p-0">
+      <ul className="mt-3 min-w-0 list-none space-y-3 p-0" role="list">
         {nestedReplies.map((reply) => (
           <li key={reply.id} className="min-w-0">
             <CommentItem comment={reply} onReply={handleReply} isReply />
@@ -126,11 +126,10 @@ export function CommentSection({
         id="comment-form"
         onSubmit={handleSubmit}
         className="mb-6"
-        role="form"
         aria-label="Add a comment"
       >
         {replyTo && (
-          <div className="mb-2 flex min-w-0 flex-wrap items-center justify-between gap-2 rounded bg-zinc-800/50 px-3 py-2 text-sm text-zinc-400">
+          <div className="mb-2 flex min-w-0 flex-wrap items-center justify-between gap-2 rounded bg-zinc-800/50 px-3 py-2 text-sm text-zinc-400" role="status">
             <span className="min-w-0 break-words [overflow-wrap:anywhere]">
               Replying to {replyTo.author || "Anonymous"}
             </span>
@@ -140,28 +139,34 @@ export function CommentSection({
                 setReplyTo(null);
                 setContent("");
               }}
-              className="min-h-10 shrink-0 touch-manipulation text-zinc-500 hover:text-zinc-300"
+              className="min-h-10 shrink-0 touch-manipulation text-zinc-500 hover:text-zinc-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 rounded px-1"
+              aria-label="Cancel reply"
             >
               Cancel
             </button>
           </div>
         )}
 
-        <textarea
-          value={content}
-          onChange={(event) => setContent(event.target.value)}
-          placeholder={
-            isAuthenticated ? "Write a comment..." : "Sign in to comment"
-          }
-          disabled={!isAuthenticated}
-          rows={3}
-          className="min-h-20 w-full min-w-0 resize-y rounded-lg border border-zinc-700 bg-zinc-800 px-4 py-3 text-zinc-200 placeholder-zinc-500 focus:border-zinc-600 focus:outline-none focus:ring-1 focus:ring-zinc-600 disabled:opacity-60"
-          maxLength={2000}
-          aria-label="Comment text"
-        />
+        <div className="flex flex-col gap-1">
+          <textarea
+            value={content}
+            onChange={(event) => setContent(event.target.value)}
+            placeholder={
+              isAuthenticated ? "Write a comment..." : "Sign in to comment"
+            }
+            disabled={!isAuthenticated}
+            rows={3}
+            className="min-h-20 w-full min-w-0 resize-y rounded-lg border border-zinc-700 bg-zinc-800 px-4 py-3 text-zinc-200 placeholder-zinc-500 focus:border-zinc-600 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-60"
+            maxLength={2000}
+            aria-label="Comment text"
+            aria-describedby="char-count-info"
+          />
+        </div>
 
         <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
-          <span className="text-xs text-zinc-500">{content.length}/2000</span>
+          <span id="char-count-info" className="text-xs text-zinc-500" aria-live="polite">
+            {content.length}/2000 characters
+          </span>
           <Button
             type="submit"
             disabled={
@@ -170,6 +175,8 @@ export function CommentSection({
               !isAuthenticated
             }
             size="sm"
+            className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+            aria-busy={createCommentMutation.isPending}
           >
             {createCommentMutation.isPending ? "Posting..." : "Post comment"}
           </Button>
@@ -182,15 +189,22 @@ export function CommentSection({
         )}
       </form>
 
-      {loading && comments.length === 0 && <CommentSectionSkeleton />}
+      {loading && comments.length === 0 && (
+        <div role="status" aria-label="Loading comments...">
+          <CommentSectionSkeleton />
+        </div>
+      )}
 
       {!loading && error && (
-        <div className="rounded-lg border border-red-900/50 bg-red-900/10 p-4 text-sm text-red-300">
-          {error.message || "Failed to load comments"}
+        <div
+          className="rounded-lg border border-red-900/50 bg-red-900/10 p-4 text-sm text-red-300"
+          role="alert"
+        >
+          <p>{error.message || "Failed to load comments"}</p>
           <Button
             variant="outline"
             size="sm"
-            className="mt-2"
+            className="mt-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
             onClick={() => {
               void refetch();
             }}
@@ -203,7 +217,7 @@ export function CommentSection({
 
       {!error && comments.length > 0 && (
         <>
-          <ul className="m-0 min-w-0 list-none space-y-3 p-0">
+          <ul className="m-0 min-w-0 list-none space-y-3 p-0" role="list">
             {topLevelComments.map((comment) => (
               <li key={comment.id} className="min-w-0">
                 <CommentItem
@@ -225,6 +239,8 @@ export function CommentSection({
                   void fetchNextPage();
                 }}
                 disabled={isFetchingNextPage}
+                className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                aria-busy={isFetchingNextPage}
               >
                 {isFetchingNextPage ? "Loading..." : "Load more comments"}
               </Button>
@@ -234,7 +250,7 @@ export function CommentSection({
       )}
 
       {!loading && !error && comments.length === 0 && (
-        <p className="py-4 text-sm text-zinc-500">
+        <p className="py-4 text-sm text-zinc-500" role="status">
           No comments yet. Be the first to comment.
         </p>
       )}

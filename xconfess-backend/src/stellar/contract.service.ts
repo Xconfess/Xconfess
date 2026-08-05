@@ -8,6 +8,7 @@ import {
 } from './interfaces/stellar-config.interface';
 import { handleStellarError } from './utils/stellar-error.handler';
 import { encodeContractArgs, ContractArg } from './utils/parameter.encoder';
+import { redactSecretStrings } from '../utils/redact-secrets';
 import { InvokeContractDto } from './dto/invoke-contract.dto';
 import { getStellarInvocationPolicy } from './stellar-invocation-policy';
 
@@ -74,8 +75,23 @@ export class ContractService {
         [operation],
       );
       const signedTx = this.txBuilder.signTransaction(tx, signerSecret);
-      const result: ITransactionResult =
-        await this.txBuilder.submitTransaction(signedTx);
+      const timeoutMs = this.stellarConfig.getConfig().rpcTimeoutMs;
+      let timeoutId: NodeJS.Timeout | undefined;
+      const timeout = new Promise<never>((_, reject) => {
+        timeoutId = setTimeout(
+          () => reject(new Error(`Contract invocation timeout after ${timeoutMs}ms`)),
+          timeoutMs,
+        );
+      });
+      let result: ITransactionResult;
+      try {
+        result = await Promise.race([
+          this.txBuilder.submitTransaction(signedTx),
+          timeout,
+        ]);
+      } finally {
+        if (timeoutId) clearTimeout(timeoutId);
+      }
       const decodedResult = this.decodeContractResult(result);
 
       return {
@@ -84,7 +100,11 @@ export class ContractService {
         result: decodedResult,
       };
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : String(error);
+      // Redacted defensively: this can be the signing path's error, which is
+      // derived from the server secret key and must never log it verbatim.
+      const message = redactSecretStrings(
+        error instanceof Error ? error.message : String(error),
+      );
       this.logger.error('Contract invocation failed: ' + String(message));
       throw handleStellarError(error);
     }
@@ -118,25 +138,50 @@ export class ContractService {
 
   /**
    * Verify a confession hash on-chain (read-only — no transaction).
+   * Uses bounded retries with exponential backoff for transient failures.
    */
   async verifyConfession(confessionHash: string): Promise<number | null> {
-    try {
-      const contractId = this.stellarConfig.getContractId('confessionAnchor');
-      const contract = new StellarSDK.Contract(contractId);
+    const rpcConfig = this.stellarConfig.getConfig();
+    const maxRetries = rpcConfig.rpcMaxRetries;
+    const baseDelay = rpcConfig.rpcRetryBaseDelayMs;
+    const maxDelay = rpcConfig.rpcRetryMaxDelayMs;
 
-      const result = await contract.call(
-        'verify_confession',
-        StellarSDK.nativeToScVal(confessionHash, { type: 'bytes' }),
-      );
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        const contractId = this.stellarConfig.getContractId('confessionAnchor');
+        const contract = new StellarSDK.Contract(contractId);
 
-      const timestamp = StellarSDK.scValToNative(result as any);
-      return timestamp || null;
-    } catch (_error) {
-      this.logger.warn(
-        'Confession not found on-chain: ' + String(confessionHash),
-      );
-      return null;
+        const result = await contract.call(
+          'verify_confession',
+          StellarSDK.nativeToScVal(confessionHash, { type: 'bytes' }),
+        );
+
+        const timestamp = StellarSDK.scValToNative(result as any);
+        return timestamp || null;
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : String(error);
+        const isRetryable =
+          message.toLowerCase().includes('timeout') ||
+          message.toLowerCase().includes('econnrefused') ||
+          message.toLowerCase().includes('econnreset') ||
+          message.toLowerCase().includes('network');
+
+        if (!isRetryable || attempt >= maxRetries) {
+          this.logger.warn(
+            'Confession not found on-chain: ' + String(confessionHash),
+          );
+          return null;
+        }
+
+        const delay = Math.min(baseDelay * Math.pow(2, attempt), maxDelay);
+        this.logger.warn(
+          `verifyConfession RPC failed (attempt ${attempt + 1}/${maxRetries + 1}), retrying in ${delay}ms: ${message}`,
+        );
+        await new Promise((res) => setTimeout(res, delay));
+      }
     }
+
+    return null;
   }
 
   /**

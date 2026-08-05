@@ -12,15 +12,24 @@ import { getApiBaseUrl } from '@/app/lib/config';
 
 const API_BASE_URL = getApiBaseUrl();
 
+import { getCsrfToken, CSRF_HEADER } from '@/app/lib/api/csrf';
+
 async function fetchApi<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
   const url = `${API_BASE_URL}${endpoint}`;
+
+  // Attach CSRF token if available
+  const csrfToken = getCsrfToken();
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...(options.headers as Record<string, string>),
+  };
+  if (csrfToken) {
+    headers[CSRF_HEADER] = csrfToken;
+  }
   
   const response = await fetch(url, {
     ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      ...options.headers,
-    },
+    headers,
   });
 
   if (!response.ok) {

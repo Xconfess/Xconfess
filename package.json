@@ -37,10 +37,15 @@
     "test:e2e": "npm run frontend:test:e2e",
     "seed": "npx ts-node --project tsconfig.seed.json scripts/seed.ts",
     "frontend:lint": "npm run lint --workspace=xconfess-frontend",
+    "frontend:typecheck": "npm run typecheck --workspace=xconfess-frontend",
     "ci:backend": "npm run backend:build && npm run backend:lint && npm run backend:test",
-    "ci:frontend": "npm run frontend:lint && npm run frontend:test && npm run frontend:build",
+    "ci:frontend": "npm run frontend:lint && npm run frontend:typecheck && npm run frontend:test && npm run frontend:build",
     "ci:contract": "npm run contract:fmt:check && npm run contract:lint && npm run contract:test && npm run contract:build:release",
-    "ci": "npm run ci:backend && npm run ci:frontend && npm run ci:contract"
+    "ci": "npm run ci:backend && npm run ci:frontend && npm run ci:contract",
+    "secret-scan": "./scripts/secret-scanning-preflight.sh",
+    "secret-scan:self-test": "./scripts/secret-scanning-preflight.sh --self-test",
+    "audit:ci": "npx audit-ci --config audit-ci.json",
+    "audit:report": "npm audit --json > audit-report.json 2>&1 || true"
   },
   "dependencies": {
     "@faker-js/faker": "^10.2.0",

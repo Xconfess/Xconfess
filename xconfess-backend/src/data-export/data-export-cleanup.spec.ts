@@ -1,8 +1,9 @@
-import { Test, TestingModule } from '@nestjs/testing';
+﻿import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { Repository, UpdateResult } from 'typeorm';
+import { Repository, UpdateResult, DeleteResult } from 'typeorm';
 import { DataCleanupService } from './data-export-cleanup';
 import { ExportRequest } from './entities/export-request.entity';
+import { ExportChunk } from './entities/export-chunk.entity';
 import { LessThan } from 'typeorm';
 import { ConfigService } from '@nestjs/config';
 import { AuditLogService } from '../audit-log/audit-log.service';
@@ -10,7 +11,8 @@ import { AuditLogService } from '../audit-log/audit-log.service';
 describe('DataCleanupService', () => {
   let service: DataCleanupService;
   let mockExportRepository: jest.Mocked<Repository<ExportRequest>>;
-  let mockAuditLogService: { log: jest.Mock };
+  let mockChunkRepository: jest.Mocked<Repository<ExportChunk>>;
+  let mockAuditLogService: { log: jest.Mock; logExportRetentionCleanup: jest.Mock };
   let loggerLogSpy: jest.SpyInstance;
   let loggerErrorSpy: jest.SpyInstance;
 
@@ -21,7 +23,14 @@ describe('DataCleanupService', () => {
       findOne: jest.fn(),
       delete: jest.fn(),
     } as any;
-    mockAuditLogService = { log: jest.fn().mockResolvedValue(undefined) };
+    mockChunkRepository = {
+      count: jest.fn().mockResolvedValue(0),
+      delete: jest.fn().mockResolvedValue({ affected: 0, raw: [] } as DeleteResult),
+    } as any;
+    mockAuditLogService = {
+      log: jest.fn().mockResolvedValue(undefined),
+      logExportRetentionCleanup: jest.fn().mockResolvedValue(undefined),
+    };
     mockExportRepository.find.mockResolvedValue([
       {
         id: 'export-1',
@@ -37,6 +46,10 @@ describe('DataCleanupService', () => {
         {
           provide: getRepositoryToken(ExportRequest),
           useValue: mockExportRepository,
+        },
+        {
+          provide: getRepositoryToken(ExportChunk),
+          useValue: mockChunkRepository,
         },
         {
           provide: ConfigService,
@@ -69,7 +82,7 @@ describe('DataCleanupService', () => {
     expect(service).toBeDefined();
   });
 
-  // ── Retention Policy Tests ───────────────────────────────────────────────────
+  // â”€â”€ Retention Policy Tests â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   describe('Retention Policy Enforcement', () => {
     it('should expire exports older than 7 days', async () => {
@@ -158,7 +171,7 @@ describe('DataCleanupService', () => {
     });
   });
 
-  // ── Cleanup Edge Cases ─────────────────────────────────────────────────────
+  // â”€â”€ Cleanup Edge Cases â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   describe('Cleanup Edge Cases', () => {
     it('should handle exports with null fileData', async () => {
@@ -203,10 +216,11 @@ describe('DataCleanupService', () => {
       const updateCall = mockExportRepository.update.mock.calls[0];
       const updateFields = updateCall[1];
 
-      expect(Object.keys(updateFields)).toHaveLength(3);
+      expect(Object.keys(updateFields)).toHaveLength(4);
       expect(updateFields.fileData).toBeNull();
       expect(updateFields.status).toBe('EXPIRED');
       expect(updateFields.expiredAt).toBeInstanceOf(Date);
+      expect(updateFields.downloadTokenHash).toBeNull();
     });
 
     it('should not affect exports with terminal status that are recent', async () => {
@@ -246,7 +260,7 @@ describe('DataCleanupService', () => {
     });
   });
 
-  // ── Cleanup Timing and Scheduling Tests ─────────────────────────────────────
+  // â”€â”€ Cleanup Timing and Scheduling Tests â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   describe('Cleanup Timing and Scheduling', () => {
     it('should run cleanup at midnight daily', () => {
@@ -273,7 +287,7 @@ describe('DataCleanupService', () => {
     });
   });
 
-  // ── Data Privacy Compliance Tests ───────────────────────────────────────────
+  // â”€â”€ Data Privacy Compliance Tests â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   describe('Data Privacy Compliance', () => {
     it('should ensure file data is completely removed', async () => {
@@ -329,6 +343,7 @@ describe('DataCleanupService', () => {
 
       expect(updateFields.status).toBe('EXPIRED');
       expect(updateFields.fileData).toBeNull();
+      expect(updateFields.downloadTokenHash).toBeNull();
     });
 
     it('should not log exported file data or user secrets during cleanup', async () => {
@@ -339,7 +354,7 @@ describe('DataCleanupService', () => {
           status: 'READY',
           createdAt: new Date('2026-03-01T00:00:00.000Z'),
           fileData: Buffer.from('secret exported file data'),
-          downloadToken: 'download-token-secret',
+          downloadTokenHash: 'download-token-secret',
         } as ExportRequest,
       ]);
       mockExportRepository.update.mockResolvedValue({
@@ -364,7 +379,7 @@ describe('DataCleanupService', () => {
     });
   });
 
-  // ── Integration with Export Lifecycle Tests ─────────────────────────────────
+  // â”€â”€ Integration with Export Lifecycle Tests â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   describe('Integration with Export Lifecycle', () => {
     it('should not interfere with active export processing', async () => {
@@ -435,6 +450,127 @@ describe('DataCleanupService', () => {
       expect(loggerErrorSpy).toHaveBeenCalledWith(
         expect.stringContaining('statusCounts={"READY":1}'),
       );
+    });
+  });
+  // -- Dry-Run Mode --
+
+  describe('Dry-Run Mode', () => {
+    it('should not mutate any data when dryRun is true', async () => {
+      const result = await service.runCleanup(true);
+
+      expect(mockExportRepository.update).not.toHaveBeenCalled();
+      expect(mockChunkRepository.delete).not.toHaveBeenCalled();
+      expect(result.dryRun).toBe(true);
+    });
+
+    it('should still report accurate eligible counts in dry-run', async () => {
+      mockChunkRepository.count.mockResolvedValue(3);
+
+      const result = await service.runCleanup(true);
+
+      expect(result.eligibleCount).toBe(1);
+      expect(result.chunkCount).toBe(3);
+      expect(result.expiredCount).toBe(0);
+      expect(result.requestIds).toEqual(['export-1']);
+    });
+
+    it('should log a DRY-RUN marker without performing deletion', async () => {
+      await service.runCleanup(true);
+
+      expect(loggerLogSpy).toHaveBeenCalledWith(
+        expect.stringContaining('[DRY-RUN]'),
+      );
+      expect(mockExportRepository.update).not.toHaveBeenCalled();
+    });
+
+    it('should still emit an audit summary in dry-run mode', async () => {
+      await service.runCleanup(true);
+
+      expect(
+        mockAuditLogService.logExportRetentionCleanup,
+      ).toHaveBeenCalledWith(
+        expect.objectContaining({
+          dryRun: true,
+          summary: expect.objectContaining({ eligibleCount: 1 }),
+        }),
+      );
+    });
+
+    it('should perform real deletion when dryRun is false', async () => {
+      mockExportRepository.update.mockResolvedValue({
+        affected: 1,
+        raw: [],
+        generatedMaps: [],
+      });
+      mockChunkRepository.count.mockResolvedValue(2);
+      mockChunkRepository.delete.mockResolvedValue({
+        affected: 2,
+        raw: [],
+      });
+
+      const result = await service.runCleanup(false);
+
+      expect(mockExportRepository.update).toHaveBeenCalled();
+      expect(mockChunkRepository.delete).toHaveBeenCalledWith({
+        exportRequestId: expect.anything(),
+      });
+      expect(result.dryRun).toBe(false);
+      expect(result.expiredCount).toBe(1);
+      expect(result.chunkCount).toBe(2);
+    });
+  });
+
+  // -- Audit Log Summary --
+
+  describe('Audit Log Summary', () => {
+    it('should emit exactly one summary audit entry per run, not one per record', async () => {
+      mockExportRepository.find.mockResolvedValue([
+        {
+          id: 'export-1',
+          status: 'READY',
+          createdAt: new Date('2026-03-01T00:00:00.000Z'),
+        } as ExportRequest,
+        {
+          id: 'export-2',
+          status: 'FAILED',
+          createdAt: new Date('2026-03-01T00:00:00.000Z'),
+        } as ExportRequest,
+      ]);
+      mockExportRepository.update.mockResolvedValue({
+        affected: 2,
+        raw: [],
+        generatedMaps: [],
+      });
+
+      await service.purgeOldExports();
+
+      expect(
+        mockAuditLogService.logExportRetentionCleanup,
+      ).toHaveBeenCalledTimes(1);
+      expect(
+        mockAuditLogService.logExportRetentionCleanup,
+      ).toHaveBeenCalledWith(
+        expect.objectContaining({
+          summary: expect.objectContaining({
+            eligibleCount: 2,
+            statusCounts: { READY: 1, FAILED: 1 },
+            requestIds: ['export-1', 'export-2'],
+          }),
+        }),
+      );
+    });
+
+    it('should not throw when audit logging fails', async () => {
+      mockExportRepository.update.mockResolvedValue({
+        affected: 1,
+        raw: [],
+        generatedMaps: [],
+      });
+      mockAuditLogService.logExportRetentionCleanup.mockRejectedValue(
+        new Error('audit sink unavailable'),
+      );
+
+      await expect(service.purgeOldExports()).resolves.toBeDefined();
     });
   });
 });

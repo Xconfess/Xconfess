@@ -18,13 +18,13 @@ interface DraftManagerProps {
     gender?: string;
   };
   onLoadDraft: (draft: Draft) => void;
-  autoSaveInterval?: number; // in milliseconds
+  autoSaveInterval?: number;
 }
 
 export const DraftManager: React.FC<DraftManagerProps> = ({
   currentDraft,
   onLoadDraft,
-  autoSaveInterval = 3000, // 3s, per acceptance criteria ("within 3s of typing stop")
+  autoSaveInterval = 3000,
 }) => {
   const {
     drafts,
@@ -49,13 +49,10 @@ export const DraftManager: React.FC<DraftManagerProps> = ({
   const lastSavedRef = useRef<string>("");
   const toast = useGlobalToast();
 
-  // Restore most recent draft on mount if one exists and the composer is empty.
-  // Acceptance criteria: "Restore draft on composer mount when user has
-  // saved drafts."
   const didAttemptRestoreRef = useRef(false);
   useEffect(() => {
     if (didAttemptRestoreRef.current) return;
-    if (isLoading) return; // wait for remote drafts to load before deciding
+    if (isLoading) return;
     didAttemptRestoreRef.current = true;
 
     if (!currentDraft.body.trim().length && drafts.length > 0) {
@@ -130,9 +127,9 @@ export const DraftManager: React.FC<DraftManagerProps> = ({
     setSaveStatus("failed");
     setSaveMessage(
       draftsError ??
-        (isRemote
-          ? "Failed to save draft. Check your connection and retry."
-          : "Failed to save draft."),
+      (isRemote
+        ? "Failed to save draft. Check your connection and retry."
+        : "Failed to save draft."),
     );
     return false;
   };
@@ -189,25 +186,6 @@ export const DraftManager: React.FC<DraftManagerProps> = ({
     toast.success("All drafts cleared.");
   };
 
-  /**
-   * Called by the composer on successful publish/submit, per acceptance
-   * criteria: "Publishing or submitting clears or archives draft per
-   * product rules." Exposed via a side-effect prop would be cleaner, but
-   * to minimize blast radius on this pass we expose it as a stable
-   * function consumers can call directly through a ref if needed.
-   * TODO(product): confirm clear vs archive semantics with product —
-   * this currently clears (deletes) rather than archiving.
-   */
-  const handlePublishCleanup = async () => {
-    if (currentDraftId) {
-      await deleteDraft(currentDraftId);
-      setCurrentDraftId(null);
-      lastSavedRef.current = "";
-      setSaveStatus("saved");
-      setSaveMessage(null);
-    }
-  };
-
   return (
     <>
       <ConfirmDialog
@@ -225,19 +203,19 @@ export const DraftManager: React.FC<DraftManagerProps> = ({
           variant="outline"
           size="sm"
           onClick={() => setIsModalOpen(true)}
-          aria-label="Manage drafts"
-          className="flex items-center gap-2"
+          aria-label={drafts.length > 0 ? `Manage drafts (${drafts.length} saved)` : "Manage drafts"}
+          className="flex items-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
         >
-          <FileText className="h-4 w-4" />
+          <FileText className="h-4 w-4" aria-hidden="true" />
           <span className="hidden sm:inline">Drafts</span>
           {drafts.length > 0 && (
-            <span className="rounded-full bg-zinc-700 px-2 py-0.5 text-xs">
+            <span className="rounded-full bg-zinc-700 px-2 py-0.5 text-xs" aria-hidden="true">
               {drafts.length}
             </span>
           )}
         </Button>
 
-        <div className="text-xs text-zinc-400">
+        <div className="text-xs text-zinc-400" aria-live="polite" aria-atomic="true">
           {saveStatus === "saved" && saveMessage && <span>{saveMessage}</span>}
           {saveStatus === "unsaved" && (
             <span className="text-amber-300">Unsaved changes</span>
@@ -249,7 +227,7 @@ export const DraftManager: React.FC<DraftManagerProps> = ({
               <button
                 type="button"
                 onClick={() => void persistDraft()}
-                className="underline"
+                className="underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500 rounded"
               >
                 Retry
               </button>
@@ -265,24 +243,29 @@ export const DraftManager: React.FC<DraftManagerProps> = ({
       >
         <div className="space-y-4">
           {isLoading ? (
-            <p className="text-center text-zinc-400 py-8">
+            <p className="text-center text-zinc-400 py-8" role="status">
               Loading your drafts…
             </p>
           ) : drafts.length === 0 ? (
-            <p className="text-center text-zinc-400 py-8">
+            <p className="text-center text-zinc-400 py-8" role="status">
               No saved drafts yet. Your drafts will be auto-saved every few
               seconds.
             </p>
           ) : (
             <>
-              <div className="space-y-2 max-h-96 overflow-y-auto">
+              <div
+                className="space-y-2 max-h-96 overflow-y-auto"
+                role="region"
+                aria-label="List of saved drafts"
+              >
                 {drafts.map((draft) => (
                   <div
                     key={draft.id}
-                    className="group flex items-start gap-3 rounded-lg border border-zinc-800 bg-zinc-900 p-4 hover:bg-zinc-800 transition-colors cursor-pointer"
+                    className="group flex items-start gap-3 rounded-lg border border-zinc-800 bg-zinc-900 p-4 hover:bg-zinc-800 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
                     onClick={() => handleLoadDraft(draft)}
                     role="button"
                     tabIndex={0}
+                    aria-label={`Load draft: ${draft.title || draft.body.slice(0, 40)}... saved on ${formatDate(new Date(draft.savedAt))}`}
                     onKeyDown={(e) => {
                       if (e.key === "Enter" || e.key === " ") {
                         e.preventDefault();
@@ -301,7 +284,7 @@ export const DraftManager: React.FC<DraftManagerProps> = ({
                       </p>
                       <div className="flex items-center gap-4 text-xs text-zinc-500">
                         <span className="flex items-center gap-1">
-                          <Clock className="h-3 w-3" />
+                          <Clock className="h-3 w-3" aria-hidden="true" />
                           {formatDate(new Date(draft.savedAt))}
                         </span>
                         <span>{draft.characterCount} characters</span>
@@ -312,9 +295,9 @@ export const DraftManager: React.FC<DraftManagerProps> = ({
                       size="sm"
                       onClick={(e) => handleDeleteDraft(draft.id, e)}
                       aria-label={`Delete draft from ${formatDate(new Date(draft.savedAt))}`}
-                      className="opacity-0 group-hover:opacity-100 transition-opacity"
+                      className="opacity-0 group-hover:opacity-100 group-focus:opacity-100 transition-opacity focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
                     >
-                      <Trash2 className="h-4 w-4 text-red-400" />
+                      <Trash2 className="h-4 w-4 text-red-400" aria-hidden="true" />
                     </Button>
                   </div>
                 ))}
@@ -324,6 +307,7 @@ export const DraftManager: React.FC<DraftManagerProps> = ({
                   variant="destructive"
                   size="sm"
                   onClick={() => setClearDraftsOpen(true)}
+                  className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
                 >
                   Clear All Drafts
                 </Button>

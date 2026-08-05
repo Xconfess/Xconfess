@@ -237,6 +237,17 @@ export class NotificationGateway
   // namespace, ensuring strict per-user isolation.
 
   async sendNotificationToUser(userId: string, notification: any) {
+    const shouldDeliver = await this.notificationService.shouldDeliverRealtime(
+      userId,
+      notification.type,
+    );
+    if (!shouldDeliver) {
+      this.logger.log(
+        `Realtime notification suppressed for user ${userId} (preference check)`,
+      );
+      return;
+    }
+
     const userRoom = `${USER_ROOM_PREFIX}${userId}`;
     this.server.to(userRoom).emit('new-notification', notification);
 

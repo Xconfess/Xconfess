@@ -245,6 +245,40 @@ describe('ContractService', () => {
   // ── Negative Paths & Error Handling ────────────────────────────────────────
 
   describe('Negative Paths & Error Handling', () => {
+    it('times out a stalled invocation without leaving a timer behind', async () => {
+      jest.useFakeTimers();
+      jest
+        .spyOn(StellarSDK.Contract.prototype, 'call')
+        .mockReturnValue(MOCK_OPERATION);
+      jest
+        .spyOn(txBuilderService, 'buildTransaction')
+        .mockResolvedValue({} as any);
+      jest
+        .spyOn(txBuilderService, 'signTransaction')
+        .mockReturnValue({} as any);
+      jest
+        .spyOn(txBuilderService, 'submitTransaction')
+        .mockReturnValue(new Promise(() => undefined));
+      jest
+        .spyOn(module.get(StellarConfigService), 'getConfig')
+        .mockReturnValue({ rpcTimeoutMs: 25 } as any);
+
+      const invocation = service.invokeContract(
+        {
+          contractId: VALID_CONTRACT_ID,
+          functionName: 'test',
+          args: [],
+          sourceAccount: VALID_SOURCE_ACCOUNT,
+        },
+        VALID_SIGNER_SECRET,
+      );
+
+      await jest.advanceTimersByTimeAsync(25);
+      await expect(invocation).rejects.toThrow(StellarTimeoutError);
+      expect(jest.getTimerCount()).toBe(0);
+      jest.useRealTimers();
+    });
+
     it('should throw StellarTimeoutError when transaction times out', async () => {
       jest
         .spyOn(StellarSDK.Contract.prototype, 'call')

@@ -102,13 +102,16 @@ export const EnhancedConfessionForm: React.FC<EnhancedConfessionFormProps> = ({
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitSuccess, setSubmitSuccess] = useState(false);
   const [newerCloudDraft, setNewerCloudDraft] = useState<{
+    id?: string;
     title?: string;
     body?: string;
     content?: string;
     gender?: Gender;
     scheduledFor?: string;
     updatedAt?: string;
+    version?: number;
   } | null>(null);
+
   const submitSuccessTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
     null
   );
@@ -117,6 +120,7 @@ export const EnhancedConfessionForm: React.FC<EnhancedConfessionFormProps> = ({
   const { anchor } = useStellarWallet();
   const toast = useGlobalToast();
   const { drafts } = useDrafts();
+
   const currentValidationErrors = validateConfessionForm({
     title,
     body,
@@ -339,7 +343,11 @@ export const EnhancedConfessionForm: React.FC<EnhancedConfessionFormProps> = ({
 
       <CardContent className="px-6 py-7 sm:px-8">
         {newerCloudDraft && (
-          <div className="mb-6 flex flex-col justify-between gap-4 rounded-[24px] border border-[var(--accent-border)] bg-[var(--accent-soft)] p-4 sm:flex-row sm:items-center">
+          <div
+            className="mb-6 flex flex-col justify-between gap-4 rounded-[24px] border border-[var(--accent-border)] bg-[var(--accent-soft)] p-4 sm:flex-row sm:items-center"
+            role="region"
+            aria-label="Newer draft recovered notification"
+          >
             <div>
               <p className="font-semibold text-[var(--foreground)]">
                 A newer draft was found from another device or tab.
@@ -353,18 +361,25 @@ export const EnhancedConfessionForm: React.FC<EnhancedConfessionFormProps> = ({
                 variant="ghost"
                 size="sm"
                 onClick={() => setNewerCloudDraft(null)}
+                aria-label="Dismiss recovered draft alert"
+                className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
               >
                 Dismiss
               </Button>
-              <Button size="sm" onClick={recoverCloudDraft}>
-                <CloudDownload className="h-4 w-4" />
+              <Button
+                size="sm"
+                onClick={recoverCloudDraft}
+                aria-label="Load newer cloud draft"
+                className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+              >
+                <CloudDownload className="h-4 w-4" aria-hidden="true" />
                 Load draft
               </Button>
             </div>
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-7">
+        <form onSubmit={handleSubmit} className="space-y-7" aria-label="Confession composition form">
           <div>
             <label
               htmlFor="confession-title"
@@ -385,6 +400,7 @@ export const EnhancedConfessionForm: React.FC<EnhancedConfessionFormProps> = ({
               maxLength={200}
               aria-describedby={`${TITLE_HINT_ID}${errors.title ? ` ${TITLE_ERROR_ID}` : ""} title-counter`}
               aria-required="false"
+              className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
             />
             <div className="mt-2 flex items-center justify-between">
               {errors.title ? (
@@ -408,7 +424,8 @@ export const EnhancedConfessionForm: React.FC<EnhancedConfessionFormProps> = ({
                 htmlFor="confession-body"
                 className="block text-sm font-medium text-[var(--foreground)]"
               >
-                Confession <span className="text-red-500">*</span>
+                Confession <span className="text-red-500" aria-hidden="true">*</span>
+                <span className="sr-only"> (required)</span>
               </label>
               <div className="flex items-center gap-2">
                 <DraftManager
@@ -425,15 +442,16 @@ export const EnhancedConfessionForm: React.FC<EnhancedConfessionFormProps> = ({
                       ? "Switch to edit mode"
                       : "Switch to preview mode"
                   }
+                  className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
                 >
                   {isPreviewMode ? (
                     <>
-                      <EyeOff className="h-4 w-4" />
+                      <EyeOff className="h-4 w-4" aria-hidden="true" />
                       <span className="hidden sm:inline">Edit</span>
                     </>
                   ) : (
                     <>
-                      <Eye className="h-4 w-4" />
+                      <Eye className="h-4 w-4" aria-hidden="true" />
                       <span className="hidden sm:inline">Preview</span>
                     </>
                   )}
@@ -442,7 +460,9 @@ export const EnhancedConfessionForm: React.FC<EnhancedConfessionFormProps> = ({
             </div>
 
             {isPreviewMode ? (
-              <PreviewPanel title={title} body={body} />
+              <div tabIndex={0} role="region" aria-label="Confession preview">
+                <PreviewPanel title={title} body={body} />
+              </div>
             ) : (
               <>
                 <p
@@ -494,17 +514,17 @@ export const EnhancedConfessionForm: React.FC<EnhancedConfessionFormProps> = ({
             )}
           </div>
 
-          <div>
-            <label className="mb-3 block text-sm font-medium text-[var(--foreground)]">
+          <fieldset className="border-0 p-0 m-0">
+            <legend className="mb-3 block text-sm font-medium text-[var(--foreground)]">
               Gender <span className="text-[var(--secondary)]">(optional)</span>
-            </label>
-            <div className="flex flex-wrap gap-3">
+            </legend>
+            <div className="flex flex-wrap gap-3" role="radiogroup" aria-label="Gender selection">
               {Object.values(Gender).map((g) => (
                 <label
                   key={g}
                   htmlFor={g}
                   className={cn(
-                    "cursor-pointer rounded-full border px-4 py-2 text-sm transition-colors",
+                    "cursor-pointer rounded-full border px-4 py-2 text-sm transition-colors focus-within:ring-2 focus-within:ring-blue-500",
                     gender === g
                       ? "border-[var(--accent-border)] bg-[var(--accent-soft)] text-[var(--foreground)]"
                       : "border-[var(--border)] bg-[var(--surface-muted)] text-[var(--secondary)] hover:bg-[var(--surface-strong)]"
@@ -518,12 +538,13 @@ export const EnhancedConfessionForm: React.FC<EnhancedConfessionFormProps> = ({
                     checked={gender === g}
                     onChange={() => setGender(g)}
                     className="sr-only"
+                    aria-label={g}
                   />
                   {g}
                 </label>
               ))}
             </div>
-          </div>
+          </fieldset>
 
           <div className="rounded-[26px] border border-[var(--border)] bg-[var(--surface-muted)] p-4">
             <StellarAnchorToggle
@@ -546,7 +567,8 @@ export const EnhancedConfessionForm: React.FC<EnhancedConfessionFormProps> = ({
           {submitSuccess && (
             <div
               className="rounded-[22px] border border-emerald-200 bg-emerald-50 px-4 py-3"
-              role="alert"
+              role="status"
+              aria-live="polite"
             >
               <p className="text-sm text-emerald-700">
                 Confession submitted successfully!
@@ -565,7 +587,8 @@ export const EnhancedConfessionForm: React.FC<EnhancedConfessionFormProps> = ({
                 resetComposerState();
               }}
               disabled={isSubmitting}
-              className="min-h-[44px]"
+              aria-label="Clear draft and reset form"
+              className="min-h-[44px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
             >
               Clear draft
             </Button>
@@ -573,16 +596,17 @@ export const EnhancedConfessionForm: React.FC<EnhancedConfessionFormProps> = ({
               type="submit"
               disabled={isSubmitting || hasValidationErrors}
               aria-busy={isSubmitting}
-              className="min-h-[48px] min-w-[160px]"
+              aria-label={isSubmitting ? "Publishing confession..." : "Publish confession"}
+              className="min-h-[48px] min-w-[160px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
             >
               {isSubmitting ? (
                 <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
                   Publishing confession...
                 </>
               ) : (
                 <>
-                  <Send className="mr-2 h-4 w-4" />
+                  <Send className="mr-2 h-4 w-4" aria-hidden="true" />
                   Publish confession
                 </>
               )}

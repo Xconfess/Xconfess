@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import { Request, Response } from 'express';
 import { ErrorCode } from '../errors/error-codes';
+import { redactSecretStrings } from '../../utils/redact-secrets';
 
 /**
  * Catch-all exception filter that handles any error not already caught by
@@ -53,11 +54,15 @@ export class AllExceptionsFilter implements ExceptionFilter {
     const request = ctx.getRequest<Request>();
     const requestId = (request as any).requestId ?? 'unknown';
 
+    // Redact secret-shaped content (Stellar signing seeds, signed XDR) before
+    // it ever reaches the log sink — an unexpected error from the Stellar SDK
+    // could otherwise echo sensitive material back through this catch-all.
+    const rawMessage = exception instanceof Error ? exception.message : String(exception);
+    const rawStack = exception instanceof Error ? exception.stack : undefined;
+
     this.logger.error(
-      `Unhandled exception on ${request.method} ${request.url} [requestId=${requestId}]: ${
-        exception instanceof Error ? exception.message : String(exception)
-      }`,
-      exception instanceof Error ? exception.stack : undefined,
+      `Unhandled exception on ${request.method} ${request.url} [requestId=${requestId}]: ${redactSecretStrings(rawMessage)}`,
+      rawStack ? redactSecretStrings(rawStack) : undefined,
     );
 
     response.status(HttpStatus.INTERNAL_SERVER_ERROR).json({

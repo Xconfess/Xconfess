@@ -3,6 +3,7 @@ import {
   Body,
   Controller,
   Get,
+  InternalServerErrorException,
   Logger,
   Param,
   Post,
@@ -28,6 +29,7 @@ import {
   buildAuditContextFromRequest,
   buildStellarInvocationAuditMetadata,
 } from './stellar-invocation-audit';
+import { redactSecretStrings } from '../utils/redact-secrets';
 
 @ApiTags('Stellar')
 @Controller('stellar')
@@ -151,7 +153,16 @@ export class StellarController {
       );
     }
 
-    const signerPk = StellarSDK.Keypair.fromSecret(signerSecret).publicKey();
+    let signerPk: string;
+    try {
+      signerPk = StellarSDK.Keypair.fromSecret(signerSecret).publicKey();
+    } catch {
+      // Never propagate the underlying SDK error — it takes the raw secret
+      // as input and its message content is not guaranteed to omit it.
+      throw new InternalServerErrorException(
+        'Stellar server signer secret is misconfigured',
+      );
+    }
     const invocation = this.contractService.invocationFromAllowlistedDto(
       dto,
       signerPk,
@@ -197,7 +208,9 @@ export class StellarController {
         contractId: invocation.contractId,
         functionName: invocation.functionName,
         sourceAccount: dto.sourceAccount,
-        errorMessage: message,
+        // Redacted defensively — this message can originate from the signing
+        // path and must never persist secret-shaped material to the audit log.
+        errorMessage: redactSecretStrings(message),
         authorizedScope: (req as any).stellarInvocationScopeMatch,
       });
       throw err;

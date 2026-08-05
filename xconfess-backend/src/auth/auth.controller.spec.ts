@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
+import { StepUpService } from './step-up.service';
 import { BadRequestException } from '@nestjs/common';
 
 describe('AuthController', () => {
@@ -12,6 +13,11 @@ describe('AuthController', () => {
     resetPassword: jest.fn(),
   };
 
+  const mockStepUpService = {
+    createProof: jest.fn(),
+    assertValidProof: jest.fn(),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [AuthController],
@@ -19,6 +25,10 @@ describe('AuthController', () => {
         {
           provide: AuthService,
           useValue: mockAuthService,
+        },
+        {
+          provide: StepUpService,
+          useValue: mockStepUpService,
         },
       ],
     }).compile();

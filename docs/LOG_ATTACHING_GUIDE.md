@@ -94,3 +94,36 @@ cat your-log-file.log | \
 ```
 
 This gives maintainers everything they need without exposing secrets.
+
+## Secret Scanning Preflight & Remediation
+
+To prevent accidental secret leaks in pull requests, documentation, sample environment files, or deployment metadata, run the preflight scanner locally before opening or updating a PR:
+
+```bash
+./scripts/secret-scanning-preflight.sh
+```
+
+Or run via npm:
+
+```bash
+npm run secret-scan
+```
+
+### Remediation Steps if a Secret is Detected
+
+If the preflight scan or CI check flags a potential secret:
+
+1. **Rotate Credentials Immediately**: If a real private key, API key, JWT, or database password was committed, immediately revoke and rotate the secret at the provider (Stellar wallet, OpenAI, Stripe, AWS, etc.).
+2. **Replace with Redacted Placeholders**: Replace the exposed secret in code, docs, or config with standard safe placeholders:
+   - Stellar Secret Keys: `STELLAR_SERVER_SECRET=SCXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX` or `SXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX`
+   - Encryption Keys (64 hex): `CONFESSION_ENCRYPTION_KEY=0000000000000000000000000000000000000000000000000000000000000000`
+   - JWT Tokens: `Bearer [REDACTED_JWT]`
+   - API Tokens: `sk-proj-[REDACTED]`
+   - Private Key Blocks: `[REDACTED_PRIVATE_KEY]`
+3. **Purge from Git History**: If the secret was committed to a git branch, scrub it from git history before pushing (e.g. using `git filter-repo` or `git rebase`).
+4. **Re-test**: Verify that the preflight scan passes cleanly:
+   ```bash
+   ./scripts/secret-scanning-preflight.sh --self-test
+   ./scripts/secret-scanning-preflight.sh
+   ```
+

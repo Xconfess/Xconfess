@@ -1,0 +1,7 @@
+{
+  "version": "0.0.0",
+  "event_schema_version": 1,
+  "error_registry_version": 1,
+  "functions": [],
+  "description": "ABI compatibility marker for reputation-badges contract."
+}

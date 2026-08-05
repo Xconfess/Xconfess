@@ -11,7 +11,7 @@ xConfess has three distinct packages: a NestJS backend (xconfess-backend), a Nex
 ## Options Considered
 
 - **Option A — Separate repositories**: Each package in its own repo. Clear boundaries but contributors must clone and coordinate multiple repos. Cross-cutting PRs are harder to review.
-- **Option B — npm workspaces monorepo**: Single repository with a root package.json defining workspaces. Each package manages its own dependencies, scripts, and lock file.
+- **Option B — npm workspaces monorepo**: Single repository with a root package.json defining workspaces. Each package manages its own dependencies and scripts through one root lock file.
 - **Option C — Turborepo or Nx**: Managed monorepo tooling with build caching and task orchestration. More powerful but adds tooling complexity for a project at this stage.
 
 ## Decision
@@ -26,12 +26,12 @@ A single repo makes cross-cutting changes (e.g. updating an API contract that af
 
 - Cross-cutting changes are reviewed in a single PR
 - Single git history makes it easy to correlate backend and frontend changes
-- No extra tooling required beyond npm/pnpm workspaces
+- No extra tooling required beyond npm workspaces
 
 ### Negative
 
 - CI pipelines must detect which packages changed and run only the relevant tests
-- Each package uses its own package manager (backend uses pnpm, root uses npm) — contributors must be aware of which to use where
+- All JavaScript packages share one root npm lock file, so contributors should run workspace commands from the root
 - No shared build cache — each package builds independently
 
 ## References

@@ -4,6 +4,7 @@ import { AdminService } from './services/admin.service';
 import { ModerationService } from './services/moderation.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { AdminGuard } from '../auth/admin.guard';
+import { StepUpGuard } from '../auth/guards/step-up.guard';
 import { ModerationTemplateService } from '../comment/moderation-template.service';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { StellarDiagnosticsService } from './services/stellar-diagnostics.service';
@@ -74,6 +75,8 @@ describe('AdminController', () => {
       .overrideGuard(JwtAuthGuard)
       .useValue({ canActivate: () => true })
       .overrideGuard(AdminGuard)
+      .useValue({ canActivate: () => true })
+      .overrideGuard(StepUpGuard)
       .useValue({ canActivate: () => true })
       .compile();
 
