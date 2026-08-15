@@ -40,7 +40,7 @@ export const CharacterCounter: React.FC<CharacterCounterProps> = ({
           ? `${remaining} characters remaining`
           : `${Math.abs(remaining)} characters over limit`}
       </span>
-      <span >
+      <span aria-hidden="true">
         {current} / {max} characters
         {warning === "error" && " (limit exceeded)"}
       </span>

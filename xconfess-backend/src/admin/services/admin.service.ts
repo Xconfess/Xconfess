@@ -2,6 +2,7 @@
   Injectable,
   NotFoundException,
   BadRequestException,
+  ForbiddenException,
   Logger,
 } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
@@ -21,6 +22,12 @@ import { Tip } from "../../tipping/entities/tip.entity";
 import { AuditLogService } from "../../audit-log/audit-log.service";
 import { JobManagementService } from "../../notifications/services/job-management.service";
 import { LockoutService } from "../../auth/lockout.service";
+import {
+  CursorPaginatedResponseDto,
+  PAGINATION,
+  decodeCursor,
+  encodeCursor,
+} from "../../common/pagination";
 
 export interface BulkResolveOutcome {
   id: string;
@@ -495,10 +502,20 @@ export class AdminService {
     userId: number,
     role: UserRole,
     adminId: number,
+    reason?: string,
     request?: Request,
   ): Promise<User> {
     if (!Object.values(UserRole).includes(role)) {
       throw new BadRequestException("Invalid role");
+    }
+
+    if (userId === adminId) {
+      await this.logSecurityEvent(adminId, "ROLE_SELF_ESCALATION_BLOCKED", {
+        targetUserId: userId,
+        attemptedRole: role,
+        reason: reason || null,
+      }, request);
+      throw new ForbiddenException("Self-escalation is not permitted");
     }
 
     return this.runInModerationTransaction(async (manager) => {
@@ -512,6 +529,12 @@ export class AdminService {
       const previousRole = user.role || UserRole.USER;
       if (previousRole === role) {
         return user;
+      }
+
+      if (role === UserRole.ADMIN && previousRole !== UserRole.ADMIN) {
+        if (!user.is_active) {
+          throw new BadRequestException("Cannot grant admin to a banned user");
+        }
       }
 
       user.role = role;
@@ -528,14 +551,47 @@ export class AdminService {
         action,
         "user",
         userId.toString(),
-        { previousRole, role },
-        `Role changed from ${previousRole} to ${role}`,
+        {
+          previousRole,
+          newRole: role,
+          targetUserId: userId,
+          actorId: adminId,
+          reason: reason || null,
+          requestId: (request as any)?.requestId || null,
+        },
+        reason || `Role changed from ${previousRole} to ${role}`,
         request,
         manager,
       );
 
       return saved;
     });
+  }
+
+  private async logSecurityEvent(
+    adminId: number,
+    eventType: string,
+    metadata: Record<string, any>,
+    request?: Request,
+  ): Promise<void> {
+    try {
+      await this.moderationService.logAction(
+        adminId,
+        AuditActionType.MODERATION_ESCALATION,
+        "user",
+        metadata.targetUserId?.toString() || null,
+        {
+          eventType,
+          ...metadata,
+          requestId: (request as any)?.requestId || null,
+          ipAddress: request?.ip || null,
+        },
+        `Security event: ${eventType}`,
+        request,
+      );
+    } catch {
+      this.logger.warn(`Failed to log security event: ${eventType}`);
+    }
   }
 
   async unbanUser(

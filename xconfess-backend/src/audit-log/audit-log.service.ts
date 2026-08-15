@@ -1074,6 +1074,31 @@ export class AuditLogService {
     }
   }
 
+  async getObservabilityMetrics(startDate?: Date, endDate?: Date) {
+    const [statistics, recentFailures] = await Promise.all([
+      this.getStatistics(startDate, endDate),
+      this.findAll({
+        startDate,
+        endDate,
+        search: 'failed',
+        limit: 10,
+        offset: 0,
+      }),
+    ]);
+
+    return {
+      audit: {
+        totalLogs: statistics.totalLogs,
+        actionTypeCounts: statistics.actionTypeCounts,
+      },
+      failures: {
+        total: recentFailures.total,
+        recent: recentFailures.logs,
+      },
+      generatedAt: new Date().toISOString(),
+    };
+  }
+
   async getTemplateRolloutHistory(options: {
     templateKey?: string;
     templateVersion?: string;

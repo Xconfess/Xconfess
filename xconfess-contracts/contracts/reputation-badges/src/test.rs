@@ -761,3 +761,137 @@ fn test_reputation_no_decay_when_active() {
     let rep = client.get_user_reputation(&user);
     assert_eq!(rep, 1000);
 }
+
+// ── Emergency pause (#1484) ─────────────────────────────────────────────
+
+#[test]
+fn test_pause_requires_admin_authorization() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(ReputationBadges, ());
+    let client = ReputationBadgesClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    client.initialize(&admin);
+
+    client.pause(&String::from_str(&env, "incident"));
+
+    // Pausing must authorize as the stored admin — no other address can
+    // satisfy this, even under mock_all_auths (which only removes the
+    // signature-verification step, not the "which address" requirement).
+    let auths = env.auths();
+    assert_eq!(auths.len(), 1);
+    assert_eq!(auths[0].0, admin);
+}
+
+#[test]
+fn test_pause_blocks_mutating_entry_points() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(ReputationBadges, ());
+    let client = ReputationBadgesClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let user = Address::generate(&env);
+    let other = Address::generate(&env);
+
+    client.initialize(&admin);
+    // Pre-seed a badge and reputation so revoke/transfer/adjust have a target.
+    client.award_badge(&user, &BadgeType::ConfessionStarter);
+    client.adjust_reputation(&user, &100i128, &String::from_str(&env, "seed"));
+
+    client.pause(&String::from_str(&env, "incident"));
+    assert!(client.is_paused());
+
+    assert!(client
+        .try_create_badge(
+            &BadgeType::PopularVoice,
+            &String::from_str(&env, "n"),
+            &String::from_str(&env, "d"),
+            &String::from_str(&env, "c"),
+        )
+        .is_err());
+    assert!(client
+        .try_award_badge(&user, &BadgeType::PopularVoice)
+        .is_err());
+    assert!(client
+        .try_adjust_reputation(&user, &10i128, &String::from_str(&env, "x"))
+        .is_err());
+    assert!(client
+        .try_mint_badge(&other, &BadgeType::GenerousSoul)
+        .is_err());
+    assert!(client.try_transfer_badge(&1u64, &other).is_err());
+    assert!(client.try_revoke_badge(&1u64).is_err());
+
+    let mut batch = Vec::new(&env);
+    batch.push_back(user.clone());
+    assert!(client.try_recalibrate_epoch(&batch).is_err());
+}
+
+#[test]
+fn test_pause_does_not_block_read_only_calls() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(ReputationBadges, ());
+    let client = ReputationBadgesClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let user = Address::generate(&env);
+
+    client.initialize(&admin);
+    client.award_badge(&user, &BadgeType::ConfessionStarter);
+    client.adjust_reputation(&user, &50i128, &String::from_str(&env, "seed"));
+
+    client.pause(&String::from_str(&env, "incident"));
+
+    // Read-only queries must remain available while paused.
+    assert_eq!(client.get_admin(), admin);
+    assert!(client.has_badge(&user, &BadgeType::ConfessionStarter));
+    assert_eq!(client.get_badge_count(&user), 1);
+    assert_eq!(client.get_user_reputation(&user), 50);
+    assert!(client.get_badge(&1u64).is_some());
+    assert_eq!(client.get_total_badges(), 1);
+}
+
+#[test]
+fn test_unpause_restores_mutations() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(ReputationBadges, ());
+    let client = ReputationBadgesClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let user = Address::generate(&env);
+
+    client.initialize(&admin);
+
+    client.pause(&String::from_str(&env, "incident"));
+    assert!(client.is_paused());
+    assert!(client
+        .try_award_badge(&user, &BadgeType::ConfessionStarter)
+        .is_err());
+
+    client.unpause(&String::from_str(&env, "resolved"));
+    assert!(!client.is_paused());
+
+    // Mutations succeed again once unpaused.
+    let badge_id = client.award_badge(&user, &BadgeType::ConfessionStarter);
+    assert_eq!(badge_id, 1);
+}
+
+#[test]
+fn test_pause_requires_initialized_contract() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register(ReputationBadges, ());
+    let client = ReputationBadgesClient::new(&env, &contract_id);
+
+    // No admin set yet — pause must fail rather than silently succeed.
+    let result = client.try_pause(&String::from_str(&env, "incident"));
+    assert!(result.is_err());
+}

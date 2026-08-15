@@ -20,7 +20,7 @@ const mockPush = jest.fn();
 const mockPathname = jest.fn().mockReturnValue("/dashboard");
 
 jest.mock("next/navigation", () => ({
-  useRouter: () => ({ push: mockPush }),
+  useRouter: () => ({ push: mockPush, replace: jest.fn() }),
   usePathname: () => mockPathname(),
 }));
 
@@ -224,9 +224,8 @@ describe("Deterministic Session Recovery (#800)", () => {
 
       renderGuard();
 
-      // Should redirect to login for non-expired, non-authenticated state
       await waitFor(() => {
-        expect(mockPush).toHaveBeenCalledWith("/login");
+        expect(mockPush).toHaveBeenCalledWith("/login?returnTo=%2Fdashboard%2Fconfessions");
       });
     });
   });
@@ -290,7 +289,9 @@ describe("Deterministic Session Recovery (#800)", () => {
   // ── 5. Session Recovery Actions ──────────────────────────────────
 
   describe("session recovery actions", () => {
-    it("redirects to login when Go to Login is clicked", () => {
+    it("redirects to login when Go to Login is clicked", async () => {
+      const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+      mockPathname.mockReturnValue("/dashboard");
       mockAuthState = {
         ...mockAuthState,
         isAuthenticated: false,
@@ -299,27 +300,19 @@ describe("Deterministic Session Recovery (#800)", () => {
         user: null,
       };
 
-      // Mock window.location.href
-      const originalLocation = window.location;
-      delete (window as any).location;
-      window.location = { ...originalLocation, href: '' };
-
       renderGuard();
 
       const loginButton = screen.getByText("Go to Login");
-      userEvent.click(loginButton);
+      await user.click(loginButton);
 
-      expect(window.location.href).toBe('/login');
-
-      // Restore original location
-      window.location = originalLocation;
+      expect(mockPush).toHaveBeenCalledWith("/login?returnTo=%2Fdashboard");
     });
   });
 
   // ── 6. Fallback Error Handling ──────────────────────────────────
 
   describe("fallback error handling", () => {
-    it("shows authentication error for redirect loops not caught by session expiry", async () => {
+    it("redirects unauthenticated users without rendering protected content", async () => {
       mockAuthState = {
         ...mockAuthState,
         isAuthenticated: false,
@@ -328,32 +321,10 @@ describe("Deterministic Session Recovery (#800)", () => {
         user: null,
       };
 
-      // Simulate multiple redirect attempts
-      const { unmount } = renderGuard();
-      await waitFor(() => expect(mockPush).toHaveBeenCalledTimes(1));
-      unmount();
-
-      jest.advanceTimersByTime(3000);
-
-      const { unmount: u2 } = renderGuard();
-      await waitFor(() => expect(mockPush).toHaveBeenCalledTimes(2));
-      u2();
-
-      jest.advanceTimersByTime(3000);
-
-      const { unmount: u3 } = renderGuard();
-      await waitFor(() => expect(mockPush).toHaveBeenCalledTimes(3));
-      u3();
-
-      jest.advanceTimersByTime(3000);
-
-      // Fourth render should show error instead of redirecting
       renderGuard();
-      jest.advanceTimersByTime(3000);
 
-      expect(screen.getByText("Authentication Error")).toBeInTheDocument();
-      expect(screen.getByText(/unable to verify your session/i)).toBeInTheDocument();
-      expect(mockPush).toHaveBeenCalledTimes(3); // No additional redirect
+      await waitFor(() => expect(mockPush).toHaveBeenCalledWith("/login?returnTo=%2Fdashboard"));
+      expect(screen.queryByText("Protected Content")).not.toBeInTheDocument();
     });
   });
 

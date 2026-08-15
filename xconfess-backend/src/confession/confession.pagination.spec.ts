@@ -10,11 +10,34 @@ import { AppLogger } from '../logger/logger.service';
 import { ConfigService } from '@nestjs/config';
 import { EncryptionService } from '../encryption/encryption.service';
 import { StellarService } from '../stellar/stellar.service';
+import { ContractService } from '../stellar/contract.service';
 import { CacheService } from '../cache/cache.service';
 import { TagService } from './tag.service';
 import { SortOrder } from './dto/get-confessions.dto';
 import { encryptConfession } from '../utils/confession-encryption';
 import { encodeCursor } from '../common/pagination';
+import { AnomalyDetectionService } from '../anomaly/anomaly-detection.service';
+import { ConfessionIdempotencyService } from './confession-idempotency.service';
+
+jest.mock('../utils/confession-encryption', () => ({
+  decryptConfession: jest.fn((value: string) => value ?? ''),
+  encryptConfession: jest.fn((value: string) => value),
+}));
+
+const anomalyDetectionProvider = {
+  provide: AnomalyDetectionService,
+  useValue: { getAdjustmentFactor: jest.fn().mockResolvedValue(1) },
+};
+
+const idempotencyServiceProvider = {
+  provide: ConfessionIdempotencyService,
+  useValue: {
+    computePayloadHash: jest.fn(),
+    check: jest.fn(),
+    commitSuccess: jest.fn(),
+    commitFailure: jest.fn(),
+  },
+};
 
 const AES_KEY = '12345678901234567890123456789012';
 
@@ -59,8 +82,11 @@ function buildProviders(qb: any, cacheService: any) {
       provide: StellarService,
       useValue: { processAnchorData: jest.fn(), getExplorerUrl: jest.fn(), verifyTransaction: jest.fn() },
     },
+    { provide: ContractService, useValue: { verifyConfession: jest.fn() } },
     { provide: CacheService, useValue: cacheService },
     { provide: TagService, useValue: { validateTags: jest.fn() } },
+    anomalyDetectionProvider,
+    idempotencyServiceProvider,
   ];
 }
 
@@ -74,6 +100,7 @@ describe('ConfessionService — feed pagination', () => {
     qb = {
       where: jest.fn().mockReturnThis(),
       andWhere: jest.fn().mockReturnThis(),
+      leftJoin: jest.fn().mockReturnThis(),
       leftJoinAndSelect: jest.fn().mockReturnThis(),
       select: jest.fn().mockReturnThis(),
       addSelect: jest.fn().mockReturnThis(),
@@ -244,6 +271,7 @@ function buildSearchProviders(repoValue: any) {
       provide: StellarService,
       useValue: { processAnchorData: jest.fn(), getExplorerUrl: jest.fn(), verifyTransaction: jest.fn() },
     },
+    { provide: ContractService, useValue: { verifyConfession: jest.fn() } },
     {
       provide: CacheService,
       useValue: {
@@ -254,6 +282,8 @@ function buildSearchProviders(repoValue: any) {
       },
     },
     { provide: TagService, useValue: { validateTags: jest.fn() } },
+    anomalyDetectionProvider,
+    idempotencyServiceProvider,
   ];
 }
 

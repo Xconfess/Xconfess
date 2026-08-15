@@ -91,4 +91,55 @@ describe('OutboxDispatcherService', () => {
 
     expect(outboxRepo.save).toHaveBeenCalled();
   });
+
+  it('should skip notification dispatch when idempotencyKey is already COMPLETED', async () => {
+    const duplicateEvent = {
+      id: 'event-2',
+      type: 'message_notification',
+      payload: { message: 'hello' },
+      status: OutboxStatus.PENDING,
+      idempotencyKey: 'ik-100',
+      retryCount: 0,
+    } as OutboxEvent;
+
+    const existingCompleted = {
+      id: 'event-1',
+      idempotencyKey: 'ik-100',
+      status: OutboxStatus.COMPLETED,
+    } as OutboxEvent;
+
+    outboxRepo.findOne = jest.fn().mockResolvedValue(existingCompleted);
+
+    const transactionManagerMock = {
+      createQueryBuilder: jest.fn().mockReturnThis(),
+      setLock: jest.fn().mockReturnThis(),
+      setOnLocked: jest.fn().mockReturnThis(),
+      where: jest.fn().mockReturnThis(),
+      orderBy: jest.fn().mockReturnThis(),
+      limit: jest.fn().mockReturnThis(),
+      getMany: jest.fn().mockResolvedValue([duplicateEvent]),
+      update: jest.fn().mockReturnThis(),
+      set: jest.fn().mockReturnThis(),
+      whereInIds: jest.fn().mockReturnThis(),
+      execute: jest.fn().mockResolvedValue({}),
+    };
+
+    (outboxRepo.manager.transaction as jest.Mock).mockImplementation(
+      async (cb) => {
+        return await cb(transactionManagerMock);
+      },
+    );
+
+    await service.handleOutbox();
+
+    expect(outboxRepo.findOne).toHaveBeenCalledWith({
+      where: {
+        idempotencyKey: 'ik-100',
+        status: OutboxStatus.COMPLETED,
+      },
+    });
+    expect(notificationService.enqueueNotification).not.toHaveBeenCalled();
+    expect(duplicateEvent.status).toBe(OutboxStatus.COMPLETED);
+    expect(outboxRepo.save).toHaveBeenCalledWith(duplicateEvent);
+  });
 });

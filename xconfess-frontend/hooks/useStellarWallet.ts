@@ -53,13 +53,13 @@ export function useStellarWallet(): UseStellarWalletReturn {
   const connect = useCallback(async () => {
     setState((s) => ({ ...s, isConnecting: true, error: null }));
     try {
-      // @ts-expect-error – freighter-api types may not be installed in all envs
       const freighter = await import("@stellar/freighter-api");
-      const isAllowed = await freighter.isConnected();
-      if (!isAllowed) {
-        await freighter.requestAccess();
+      const connection = await freighter.isConnected();
+      if (!connection.isConnected) {
+        throw new Error("Freighter wallet is not available.");
       }
-      const publicKey = await freighter.getPublicKey();
+      const access = await freighter.requestAccess();
+      const publicKey = access.address ?? (await freighter.getAddress()).address;
       const { networkPassphrase } = await freighter.getNetworkDetails();
       const network = detectNetwork(networkPassphrase);
       const networkMismatch = network !== "unknown" && network !== APP_NETWORK;
@@ -109,13 +109,16 @@ export function useStellarWallet(): UseStellarWalletReturn {
         );
       }
 
-      // @ts-expect-error – freighter-api types
       const freighter = await import("@stellar/freighter-api");
-      const { signedXDR } = await freighter.signTransaction(xdr, {
-        network: APP_NETWORK,
-        accountToSign: publicKey,
+      const networkPassphrase =
+        APP_NETWORK === "mainnet"
+          ? "Public Global Stellar Network ; September 2015"
+          : "Test SDF Network ; September 2015";
+      const { signedTxXdr } = await freighter.signTransaction(xdr, {
+        networkPassphrase,
+        address: publicKey,
       });
-      return signedXDR;
+      return signedTxXdr;
     },
     [],
   ); // stable – reads from stateRef, not reactive state

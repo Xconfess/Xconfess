@@ -31,10 +31,7 @@ import { LoginDto } from './dto/login.dto';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { GetUser } from './get-user.decorator';
 import { User } from '../user/entities/user.entity';
-import { CryptoUtil } from '../common/crypto.util';
 import { RateLimit } from './guard/rate-limit.decorator';
-import { AppException } from '../common/errors/app-exception';
-import { ErrorCode } from '../common/errors/error-codes';
 
 @ApiTags('Auth')
 @Controller('auth')
@@ -253,68 +250,6 @@ export class AuthController {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       throw new BadRequestException('Login failed: ' + errorMessage);
     }
-  }
-
-  @Post('step-up')
-  @UseGuards(JwtAuthGuard)
-  @HttpCode(HttpStatus.OK)
-  @Throttle({ default: { limit: 5, ttl: 60_000 } })
-  @RateLimit(5, 60)
-  @ApiBearerAuth()
-  @ApiOperation({ summary: 'Re-verify identity via password or TOTP for a short-lived step-up token' })
-  async stepUp(
-    @GetUser('id') userId: number,
-    @Body() body: { password?: string; totpToken?: string },
-  ): Promise<{ stepUpToken: string; expiresIn: number }> {
-    const { password, totpToken } = body;
-
-    if (!password && !totpToken) {
-      throw new AppException(
-        'Provide either password or a TOTP token to step up.',
-        ErrorCode.BAD_REQUEST,
-        HttpStatus.BAD_REQUEST,
-      );
-    }
-
-    const svc = (this as any).authService.userService;
-    const dbUser = await svc.findById(userId);
-    if (!dbUser) {
-      throw new UnauthorizedException('User not found');
-    }
-
-    let verified = false;
-
-    if (password) {
-      const bcrypt = require('bcryptjs');
-      verified = await bcrypt.compare(password, dbUser.password);
-    } else if (totpToken) {
-      if (!dbUser.totpSecretEncrypted || !dbUser.totpSecretIv || !dbUser.totpSecretTag) {
-        throw new UnauthorizedException('TOTP not configured');
-      }
-      const secretPlain = CryptoUtil.decrypt(
-        dbUser.totpSecretEncrypted,
-        dbUser.totpSecretIv,
-        dbUser.totpSecretTag,
-      );
-      verified = speakeasy.totp.verify({
-        secret: secretPlain,
-        encoding: 'base32',
-        token: totpToken,
-        window: 1,
-      });
-    }
-
-    if (!verified) {
-      throw new UnauthorizedException('Invalid password or TOTP token');
-    }
-
-    const expiresIn = 300; // 5 minutes
-    const stepUpToken = (this as any).authService.jwtService.sign(
-      { sub: userId, stepUp: true },
-      { expiresIn },
-    );
-
-    return { stepUpToken, expiresIn };
   }
 
   @Get('me')

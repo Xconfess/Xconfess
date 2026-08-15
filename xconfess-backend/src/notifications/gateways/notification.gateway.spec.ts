@@ -41,6 +41,7 @@ describe('Notification websocket auth regression coverage', () => {
       markAsRead: jest.fn(),
       markAllAsRead: jest.fn(),
       getUserNotifications: jest.fn(),
+      shouldDeliverRealtime: jest.fn().mockResolvedValue(true),
     };
     const configService = {
       get: jest.fn((_key: string, fallback: unknown) => fallback),
@@ -54,6 +55,7 @@ describe('Notification websocket auth regression coverage', () => {
       gateway: new NotificationGateway(
         notificationService as any,
         configService as any,
+        { verifyAsync: jest.fn() } as any,
         wsLogger as unknown as WebSocketLogger,
       ),
       wsLogger,

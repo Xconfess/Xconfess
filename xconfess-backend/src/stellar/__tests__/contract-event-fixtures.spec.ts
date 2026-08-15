@@ -14,9 +14,12 @@
 
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
+import { getRepositoryToken } from '@nestjs/typeorm';
 import { StellarService } from '../stellar.service';
 import { StellarConfigService } from '../stellar-config.service';
 import { TransactionBuilderService } from '../transaction-builder.service';
+import { DeploymentMetadataService } from '../services/deployment-metadata.service';
+import { AnonymousConfession } from '../../confession/entities/confession.entity';
 import {
   CONTRACT_ERROR_CODES,
   TIPPING_ERROR_CODES,
@@ -25,6 +28,69 @@ import {
   getHttpStatusForContractError,
   isRetryableContractError,
 } from '../utils/stellar-contract-errors';
+
+type ContractEventFixture = {
+  fixture_version: number;
+  event_name: string;
+  category: string;
+  topic: string;
+  data_format: 'single-value' | 'vec';
+  event_version: number;
+  field_order: string[];
+  data: Record<string, unknown>;
+};
+
+const CURRENT_EVENT_VERSION = 1;
+const CURRENT_FIXTURE_VERSION = 1;
+
+const PUBLIC_EVENT_SCHEMA_FIXTURES: ContractEventFixture[] = [
+  {
+    fixture_version: CURRENT_FIXTURE_VERSION,
+    event_name: 'ReportEvent',
+    category: 'report',
+    topic: 'report',
+    data_format: 'single-value',
+    event_version: CURRENT_EVENT_VERSION,
+    field_order: [
+      'event_version',
+      'confession_id',
+      'reporter',
+      'reason',
+      'nonce',
+      'timestamp',
+      'correlation_id',
+    ],
+    data: {
+      event_version: CURRENT_EVENT_VERSION,
+      confession_id: 42,
+      reporter: 'GREPORTER000000000000000000000000000000000000000000000000000',
+      reason: 'spam',
+      nonce: 1,
+      timestamp: 1_700_000_000_010,
+      correlation_id: 'corr1234',
+    },
+  },
+];
+
+function decodeContractEventFixture(fixture: ContractEventFixture) {
+  if (fixture.event_version !== CURRENT_EVENT_VERSION) {
+    throw new Error(`Unsupported event version: ${fixture.event_version}`);
+  }
+
+  const missingFields = fixture.field_order.filter(
+    (fieldName) => !(fieldName in fixture.data),
+  );
+  if (missingFields.length > 0) {
+    throw new Error(`Missing fixture fields: ${missingFields.join(', ')}`);
+  }
+
+  return {
+    topic: fixture.topic,
+    eventName: fixture.event_name,
+    category: fixture.category,
+    values: fixture.field_order.map((fieldName) => fixture.data[fieldName]),
+  };
+}
 
 describe('Contract Event Fixtures Compatibility', () => {
   let service: StellarService;
@@ -35,6 +101,17 @@ describe('Contract Event Fixtures Compatibility', () => {
         StellarService,
         StellarConfigService,
         TransactionBuilderService,
+        {
+          provide: DeploymentMetadataService,
+          useValue: {
+            getMetadata: jest.fn().mockReturnValue(null),
+            getAllContractIds: jest.fn().mockReturnValue({}),
+          },
+        },
+        {
+          provide: getRepositoryToken(AnonymousConfession),
+          useValue: {},
+        },
         {
           provide: ConfigService,
           useValue: {
@@ -349,6 +426,46 @@ describe('Contract Event Fixtures Compatibility', () => {
 
       // Fixture version should only increment when breaking changes occur
       // This test will fail if fixtures are updated incompatibly
+    });
+  });
+
+  describe('Public Event Schema Fixtures', () => {
+    it('should decode at least one contract fixture emitted by the public event registry', () => {
+      const reportFixture = PUBLIC_EVENT_SCHEMA_FIXTURES.find(
+        (fixture) => fixture.event_name === 'ReportEvent',
+      );
+
+      expect(reportFixture).toBeDefined();
+      const decoded = decodeContractEventFixture(reportFixture!);
+
+      expect(decoded).toEqual({
+        topic: 'report',
+        eventName: 'ReportEvent',
+        category: 'report',
+        values: [
+          1,
+          42,
+          'GREPORTER000000000000000000000000000000000000000000000000000',
+          'spam',
+          1,
+          1_700_000_000_010,
+          'corr1234',
+        ],
+      });
+    });
+
+    it('should fail when a public fixture drops a required decoder field', () => {
+      const fixture = {
+        ...PUBLIC_EVENT_SCHEMA_FIXTURES[0],
+        data: {
+          ...PUBLIC_EVENT_SCHEMA_FIXTURES[0].data,
+        },
+      };
+      delete fixture.data.reason;
+
+      expect(() => decodeContractEventFixture(fixture)).toThrow(
+        'Missing fixture fields: reason',
+      );
     });
   });
 

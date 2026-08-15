@@ -182,7 +182,9 @@ export const authApi = {
             path: '/api/auth/session',
             normalized,
           });
-          logError(appError, 'authApi.getCurrentUser', { status: response.status });
+          if (!isExpectedMissingSession(appError)) {
+            logError(appError, 'authApi.getCurrentUser', { status: response.status });
+          }
           throw appError;
         }
 
@@ -194,7 +196,9 @@ export const authApi = {
           path: '/api/auth/session',
           action: 'getCurrentUser',
         });
-        logError(appError, 'authApi.getCurrentUser', { status, url: '/api/auth/session' });
+        if (!(status === 401 && code === 'UNAUTHORIZED')) {
+          logError(appError, 'authApi.getCurrentUser', { status, url: '/api/auth/session' });
+        }
         throw appError;
       }
       const data = await response.json();
@@ -204,7 +208,9 @@ export const authApi = {
         error instanceof AppError
           ? error
           : toAppError(error, 'Failed to get user data');
-      logError(appError, 'authApi.getCurrentUser');
+      if (!(appError instanceof AppError && isExpectedMissingSession(appError))) {
+        logError(appError, 'authApi.getCurrentUser');
+      }
       throw appError;
     }
   },
@@ -230,6 +236,18 @@ function isNormalizedAuthError(body: any): body is NormalizedAuthError {
     'message' in body &&
     'retryable' in body &&
     (body.type === 'TRANSIENT' || body.type === 'TERMINAL')
+  );
+}
+
+function isExpectedMissingSession(error: AppError): boolean {
+  const normalized = (error.details as any)?.normalized as
+    | NormalizedAuthError
+    | undefined;
+
+  return (
+    error.statusCode === 401 &&
+    error.code === 'INVALID_SESSION' &&
+    normalized?.type === 'TERMINAL'
   );
 }
 

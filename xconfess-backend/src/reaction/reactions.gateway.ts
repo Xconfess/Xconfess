@@ -9,9 +9,16 @@ import {
   MessageBody,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
-import { Logger } from '@nestjs/common';
+import { Logger, Optional, UseGuards } from '@nestjs/common';
+import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
+import { WsJwtGuard } from '../auth/guards/ws-jwt.guard';
 import { WebSocketLogger } from '../websocket/websocket.logger';
+import {
+  WsAuthFailureReason,
+  classifyAuthError,
+  emitWsAuthFailure,
+} from '../auth/ws-auth-telemetry';
 
 const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
 
@@ -40,10 +47,27 @@ export class ReactionsGateway
 
   private connectionsPerIP = new Map<string, number>();
 
+  /**
+   * WsJwtGuard is injected directly so we can run token verification inside
+   * handleConnection — NestJS guards do not fire on lifecycle hooks, only on
+   * @SubscribeMessage handlers.  Performing auth here ensures unauthenticated
+   * clients are rejected before they can join any confession room.
+   */
+  private readonly wsJwtGuard: WsJwtGuard;
+
   constructor(
+    @Optional()
+    private readonly jwtService: JwtService = new JwtService(),
+    @Optional()
     private configService: ConfigService,
-    private readonly wsLogger: WebSocketLogger,
-  ) {}
+    @Optional()
+    private readonly wsLogger: WebSocketLogger = {
+      logSubscriptionRejected: () => undefined,
+      logSubscriptionGranted: () => undefined,
+    } as unknown as WebSocketLogger,
+  ) {
+    this.wsJwtGuard = new WsJwtGuard(this.jwtService);
+  }
 
   afterInit(_server: Server) {
     this.logger.log('ReactionsGateway initialized');
@@ -58,7 +82,39 @@ export class ReactionsGateway
     }, 300_000);
   }
 
-  handleConnection(client: Socket) {
+  async handleConnection(client: Socket) {
+    // ── 1. JWT authentication ────────────────────────────────────────────────
+    // Guards do not run on lifecycle hooks, so we verify the token manually.
+    // Any socket that cannot produce a valid JWT is disconnected immediately.
+    try {
+      const fakeContext = {
+        switchToWs: () => ({ getClient: () => client }),
+        getHandler: () => ReactionsGateway.prototype.handleConnection,
+        getClass: () => ReactionsGateway,
+      } as any;
+      await this.wsJwtGuard.canActivate(fakeContext);
+    } catch (err) {
+      const reason = classifyAuthError(err);
+      const correlationId = emitWsAuthFailure(
+        this.logger,
+        'ReactionsGateway',
+        reason,
+      );
+      this.wsLogger.logSubscriptionRejected({
+        socketId: client.id,
+        channel: '/reactions',
+        reason: `Auth rejected: ${reason}`,
+      });
+      client.emit('auth_error', {
+        reason,
+        correlationId,
+        timestamp: new Date().toISOString(),
+      });
+      client.disconnect(true);
+      return;
+    }
+
+    // ── 2. Per-IP connection cap ─────────────────────────────────────────────
     const clientIP = this.getClientIP(client);
     const currentConnections = this.connectionsPerIP.get(clientIP) || 0;
 
@@ -72,7 +128,9 @@ export class ReactionsGateway
     }
 
     this.connectionsPerIP.set(clientIP, currentConnections + 1);
-    this.logger.log(`Client connected: ${client.id} from IP: ${clientIP}`);
+    this.logger.log(
+      `Client connected: ${client.id} (userId: ${client.data?.userId}) from IP: ${clientIP}`,
+    );
 
     rateLimitMap.set(client.id, {
       count: 0,

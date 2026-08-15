@@ -14,6 +14,8 @@ export interface Report {
     id: string;
     message: string;
     created_at: string;
+    isDeleted?: boolean;
+    isHidden?: boolean;
   };
   reporterId: number | null;
   reporter?: {

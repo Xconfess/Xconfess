@@ -39,12 +39,15 @@ import { TagService } from './tag.service';
 import { EncryptionService } from '../encryption/encryption.service';
 import { AppLogger } from '../logger/logger.service';
 import { StellarService } from '../stellar/stellar.service';
+import { ContractService } from '../stellar/contract.service';
 import { AnomalyDetectionService } from '../anomaly/anomaly-detection.service';
 
 // ── Stable mocks for encryption so message comparisons are transparent ────────
 jest.mock('../utils/confession-encryption', () => ({
   decryptConfession: jest.fn((msg: string) => msg),
   encryptConfession: jest.fn((msg: string) => `enc:${msg}`),
+  assertEncryptedBeforeSave: jest.fn(),
+  safeDecryptConfession: jest.fn((msg: string) => msg),
 }));
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -378,6 +381,7 @@ describe('ConfessionService – idempotency integration', () => {
             verifyTransaction: jest.fn().mockResolvedValue(false),
           },
         },
+        { provide: ContractService, useValue: { verifyConfession: jest.fn() } },
         {
           provide: CacheService,
           useValue: {
@@ -576,6 +580,7 @@ describe('ConfessionService – idempotency integration', () => {
         { provide: AppLogger, useValue: { log: jest.fn(), error: jest.fn(), warn: jest.fn(), logWithUser: jest.fn() } },
         { provide: EncryptionService, useValue: {} },
         { provide: StellarService, useValue: { processAnchorData: jest.fn().mockReturnValue(null) } },
+        { provide: ContractService, useValue: { verifyConfession: jest.fn() } },
         { provide: CacheService, useValue: { get: jest.fn().mockResolvedValue(null), set: jest.fn(), del: jest.fn(), delPattern: jest.fn(), buildKey: jest.fn((...a: string[]) => a.join(':')) } },
         { provide: TagService, useValue: { validateTags: jest.fn().mockResolvedValue([]) } },
         { provide: AnomalyDetectionService, useValue: { getAdjustmentFactor: jest.fn().mockResolvedValue(1) } },

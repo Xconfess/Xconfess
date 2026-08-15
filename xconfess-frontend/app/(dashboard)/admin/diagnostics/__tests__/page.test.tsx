@@ -78,7 +78,7 @@ describe("DiagnosticsPage", () => {
     );
 
     renderWithProviders(<DiagnosticsPage />);
-    expect(screen.getByText("Stellar Diagnostics")).toBeInTheDocument();
+    expect(screen.getByText("System Diagnostics")).toBeInTheDocument();
   });
 
   it("shows network, contract IDs, and Horizon status on success", async () => {
@@ -163,7 +163,7 @@ describe("DiagnosticsPage", () => {
     await waitFor(() => {
       expect(
         screen.getByText(
-          "Failed to load admin observability metrics. Ensure the backend is running and accessible.",
+          "Failed to load queue metrics.",
         ),
       ).toBeInTheDocument();
     });
@@ -178,7 +178,7 @@ describe("DiagnosticsPage", () => {
     renderWithProviders(<DiagnosticsPage />);
 
     await waitFor(() => {
-      expect(screen.getByText("Admin Observability")).toBeInTheDocument();
+      expect(screen.getByText("Audit Activity")).toBeInTheDocument();
       expect(screen.getByText("42")).toBeInTheDocument();
       expect(screen.getByText("REPORT_RESOLVED")).toBeInTheDocument();
     });

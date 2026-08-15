@@ -29,6 +29,7 @@ describe("WalletButton", () => {
     const user = userEvent.setup();
     const wallet = createWalletMock({
       isConnected: true,
+      isReady: true,
       publicKey: "GABCDEFGHIJKLMNOPQRSTUV1234567890ABCDEF1234567890",
       network: "TESTNET",
     });
@@ -43,6 +44,7 @@ describe("WalletButton", () => {
   it("renders connected state immediately for restored sessions", () => {
     const wallet = createWalletMock({
       isConnected: true,
+      isReady: true,
       publicKey: "GRESTOREDSESSION1234567890ABCDEFGHIJKLMNOPQRSTUVWX",
     });
     renderWithWalletContext(wallet);

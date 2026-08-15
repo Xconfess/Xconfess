@@ -4,15 +4,22 @@ import { EncryptionService } from './encryption.service';
 
 describe('EncryptionService', () => {
   let service: EncryptionService;
-  const validEncryptionKey =
+  const validMasterKey =
     '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
 
   const mockConfigService = {
     get: jest.fn(),
+    getOrThrow: jest.fn(),
   };
 
   beforeEach(async () => {
-    mockConfigService.get.mockReturnValue(validEncryptionKey);
+    mockConfigService.get.mockImplementation((key: string) =>
+      key === 'ENCRYPTION_MASTER_KEY_v1' ? validMasterKey : undefined,
+    );
+    mockConfigService.getOrThrow.mockImplementation((key: string) => {
+      if (key === 'ENCRYPTION_CURRENT_KEY_VERSION') return 'v1';
+      throw new Error(`Missing configuration value: ${key}`);
+    });
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -36,68 +43,54 @@ describe('EncryptionService', () => {
   });
 
   it('should return empty string for empty input', () => {
-    expect(service.encrypt('')).toBe('');
-    expect(service.decrypt('')).toBe('');
+    const encrypted = service.encrypt('');
+    expect(service.decrypt(encrypted)).toBe('');
   });
 
   it('should produce different ciphertexts for same input', () => {
     const text = 'test@example.com';
     const encrypted1 = service.encrypt(text);
     const encrypted2 = service.encrypt(text);
-    expect(encrypted1).not.toBe(encrypted2);
-  });
-
-  it('should encrypt specified fields in object', () => {
-    const obj = { email: 'test@example.com', name: 'John' };
-    const encrypted = service.encryptFields(obj, ['email']);
-
-    expect(encrypted.email).not.toBe(obj.email);
-    expect(encrypted.name).toBe(obj.name);
-  });
-
-  it('should decrypt specified fields in object', () => {
-    const email = 'test@example.com';
-    const encrypted = service.encrypt(email);
-    const obj = { email: encrypted, name: 'John' };
-    const decrypted = service.decryptFields(obj, ['email']);
-
-    expect(decrypted.email).toBe(email);
-    expect(decrypted.name).toBe(obj.name);
+    expect(encrypted1.encryptedContent).not.toBe(encrypted2.encryptedContent);
+    expect(encrypted1.wrappedDek).not.toBe(encrypted2.wrappedDek);
   });
 
   it('should throw error for invalid encrypted format', () => {
-    expect(() => service.decrypt('invalid-format')).toThrow();
+    expect(() =>
+      service.decrypt({
+        encryptedContent: 'invalid-format',
+        wrappedDek: 'invalid-format',
+        keyVersion: 'v1',
+      }),
+    ).toThrow();
   });
 
   it('should reject ciphertext values with invalid payload shape', () => {
-    const invalidCiphertexts = [
-      'deadbeef',
-      'deadbeef:',
-      ':deadbeef:cafebabe',
-      'deadbeef:feedface:',
-      'deadbeef:feedface:cafebabe:extra',
-    ];
-
-    for (const ciphertext of invalidCiphertexts) {
-      expect(() => service.decrypt(ciphertext)).toThrow(
-        'Invalid encrypted data format',
-      );
-    }
+    expect(() =>
+      service.decrypt({
+        encryptedContent: '',
+        wrappedDek: '',
+        keyVersion: 'unknown',
+      }),
+    ).toThrow('Unknown key version: unknown');
   });
 
   it('should throw for malformed ciphertext parts with valid shape', () => {
-    const malformedCiphertexts = [
-      'not-hex:abcdef0123456789abcdef01234567:cafebabe',
-      '0011:invalid-tag:cafebabe',
-      '00112233445566778899aabbccddeeff:00112233445566778899aabbccddeeff:zz',
-    ];
-
-    for (const ciphertext of malformedCiphertexts) {
-      expect(() => service.decrypt(ciphertext)).toThrow();
-    }
+    expect(() =>
+      service.decrypt({
+        encryptedContent: Buffer.from('too-short').toString('base64'),
+        wrappedDek: Buffer.from('too-short').toString('base64'),
+        keyVersion: 'v1',
+      }),
+    ).toThrow();
   });
 
-  it('should enforce ENCRYPTION_KEY presence at construction time', async () => {
+  it('should keep an already-current DEK unchanged during rewrap', () => {
+    const encrypted = service.encrypt('rotate me');
+    expect(service.rewrapDek(encrypted)).toBe(encrypted);
+  });
+
+  it('should enforce master key presence at construction time', async () => {
     mockConfigService.get.mockReturnValue(undefined);
 
     await expect(
@@ -107,13 +100,13 @@ describe('EncryptionService', () => {
           { provide: ConfigService, useValue: mockConfigService },
         ],
       }).compile(),
-    ).rejects.toThrow(
-      'CONFESSION_ENCRYPTION_KEY must be set in environment variables',
-    );
+    ).rejects.toThrow('No ENCRYPTION_MASTER_KEY_* env variables configured');
   });
 
-  it('should enforce ENCRYPTION_KEY size at construction time', async () => {
-    mockConfigService.get.mockReturnValue('001122');
+  it('should enforce master key size at construction time', async () => {
+    mockConfigService.get.mockImplementation((key: string) =>
+      key === 'ENCRYPTION_MASTER_KEY_v1' ? '001122' : undefined,
+    );
 
     await expect(
       Test.createTestingModule({
@@ -122,8 +115,6 @@ describe('EncryptionService', () => {
           { provide: ConfigService, useValue: mockConfigService },
         ],
       }).compile(),
-    ).rejects.toThrow(
-      'CONFESSION_ENCRYPTION_KEY must be 32 bytes (64 hex characters)',
-    );
+    ).rejects.toThrow('Master key v1 must be 32 bytes (64 hex chars)');
   });
 });

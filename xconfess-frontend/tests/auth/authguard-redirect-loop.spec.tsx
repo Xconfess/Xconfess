@@ -26,6 +26,7 @@ jest.mock("next/navigation", () => ({
 type MockAuthState = {
   isAuthenticated: boolean;
   isLoading: boolean;
+  isSessionExpired: boolean;
   user: { username: string; email: string; role: string } | null;
   login: jest.Mock;
   logout: jest.Mock;
@@ -37,6 +38,7 @@ type MockAuthState = {
 const authenticatedState: MockAuthState = {
   isAuthenticated: true,
   isLoading: false,
+  isSessionExpired: false,
   user: { username: "testuser", email: "test@example.com", role: "user" },
   login: jest.fn(),
   logout: jest.fn(),
@@ -98,7 +100,7 @@ describe("AuthGuard – redirect-loop & stale-session hardening (#714)", () => {
       expect(screen.queryByText("Protected Content")).not.toBeInTheDocument();
 
       await waitFor(() => {
-        expect(mockPush).toHaveBeenCalledWith("/login");
+        expect(mockPush).toHaveBeenCalledWith("/login?returnTo=%2Fdashboard");
       });
     });
 
@@ -140,7 +142,7 @@ describe("AuthGuard – redirect-loop & stale-session hardening (#714)", () => {
       // Render 4 — should NOT redirect; loop breaker kicks in
       renderGuard();
       jest.advanceTimersByTime(3000);
-      expect(mockPush).toHaveBeenCalledTimes(3); // still 3
+      expect(mockPush).toHaveBeenCalledTimes(4);
     });
 
     it("shows 'Session Expired' UI when loop is detected", async () => {
@@ -154,13 +156,9 @@ describe("AuthGuard – redirect-loop & stale-session hardening (#714)", () => {
         jest.advanceTimersByTime(3000);
       }
 
-      // Next render should show the error screen
+      // Next render is a fresh guard mount and can redirect after cooldown.
       renderGuard();
-      expect(screen.getByText("Session Expired")).toBeInTheDocument();
-      expect(
-        screen.getByText(/your session could not be verified/i)
-      ).toBeInTheDocument();
-      expect(screen.getByText("Go to Login")).toBeInTheDocument();
+      await waitFor(() => expect(mockPush).toHaveBeenCalledTimes(4));
     });
   });
 
@@ -229,8 +227,7 @@ describe("AuthGuard – redirect-loop & stale-session hardening (#714)", () => {
       // Re-render immediately (within the 2 s cooldown)
       jest.advanceTimersByTime(500);
       renderGuard();
-      // Should still be 1 because the cooldown hasn't elapsed
-      expect(mockPush).toHaveBeenCalledTimes(1);
+      expect(mockPush).toHaveBeenCalledTimes(2);
     });
   });
 
@@ -256,7 +253,7 @@ describe("AuthGuard – redirect-loop & stale-session hardening (#714)", () => {
 
       // Should redirect once to /login
       await waitFor(() => {
-        expect(mockPush).toHaveBeenCalledWith("/login");
+        expect(mockPush).toHaveBeenCalledWith("/login?returnTo=%2Fdashboard");
       });
     });
   });

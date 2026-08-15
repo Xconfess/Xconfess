@@ -82,6 +82,144 @@ describe('Message E2E crypto', () => {
     ).rejects.toThrow();
   });
 
+  describe('malformed envelope rejection', () => {
+    it('rejects plaintext strings', () => {
+      expect(isEncryptedPayload('just a plain message')).toBe(false);
+      expect(parseEnvelope('just a plain message')).toBeNull();
+    });
+
+    it('rejects a JSON array instead of an envelope object', () => {
+      expect(parseEnvelope('[1,2,3]')).toBeNull();
+    });
+
+    it('rejects an envelope missing the ciphertext field', () => {
+      const envelope = { v: 1, alg: 'aes-256-gcm', iv: 'AAAAAAAAAAAAAAAA' };
+      expect(parseEnvelope(JSON.stringify(envelope))).toBeNull();
+    });
+
+    it('rejects an envelope with an unexpected extra field', async () => {
+      const sender = await generateMessageKeyPair();
+      const author = await generateMessageKeyPair();
+      const ciphertext = await encryptMessage(
+        'Hi',
+        sender.privateKey,
+        author.publicKey,
+        threadId,
+      );
+      const envelope = { ...JSON.parse(ciphertext), extra: 'unexpected' };
+      expect(parseEnvelope(JSON.stringify(envelope))).toBeNull();
+    });
+
+    it('rejects an unsupported algorithm', () => {
+      const envelope = {
+        v: 1,
+        alg: 'aes-128-cbc',
+        iv: 'AAAAAAAAAAAAAAAA',
+        ct: 'AAAAAAAAAAAAAAAAAAAAAAAA',
+      };
+      expect(parseEnvelope(JSON.stringify(envelope))).toBeNull();
+    });
+
+    it('rejects an unsupported protocol version', () => {
+      const envelope = {
+        v: 2,
+        alg: 'aes-256-gcm',
+        iv: 'AAAAAAAAAAAAAAAA',
+        ct: 'AAAAAAAAAAAAAAAAAAAAAAAA',
+      };
+      expect(parseEnvelope(JSON.stringify(envelope))).toBeNull();
+    });
+
+    it('rejects a nonce with the wrong byte length', () => {
+      // 8 bytes instead of the required 12-byte GCM nonce.
+      const envelope = {
+        v: 1,
+        alg: 'aes-256-gcm',
+        iv: 'AAAAAAAAAAA',
+        ct: 'AAAAAAAAAAAAAAAAAAAAAAAA',
+      };
+      expect(parseEnvelope(JSON.stringify(envelope))).toBeNull();
+    });
+
+    it('rejects ciphertext shorter than the GCM auth tag', () => {
+      const envelope = {
+        v: 1,
+        alg: 'aes-256-gcm',
+        iv: 'AAAAAAAAAAAAAAAA',
+        ct: 'AAAA',
+      };
+      expect(parseEnvelope(JSON.stringify(envelope))).toBeNull();
+    });
+
+    it('rejects a plaintext-like payload dressed up as an envelope', () => {
+      // Right shape and key names, but iv/ct are not valid base64url ciphertext.
+      const envelope = {
+        v: 1,
+        alg: 'aes-256-gcm',
+        iv: 'not base64!!',
+        ct: 'still not encrypted, just plain text',
+      };
+      expect(parseEnvelope(JSON.stringify(envelope))).toBeNull();
+    });
+  });
+
+  describe('replayed envelopes', () => {
+    it('validates and decrypts a replayed (resubmitted) envelope identically each time', async () => {
+      const sender = await generateMessageKeyPair();
+      const author = await generateMessageKeyPair();
+      const ciphertext = await encryptMessage(
+        'Resend me',
+        sender.privateKey,
+        author.publicKey,
+        threadId,
+      );
+
+      // Simulate the same envelope being submitted twice (e.g. client retry).
+      expect(isEncryptedPayload(ciphertext)).toBe(true);
+      expect(isEncryptedPayload(ciphertext)).toBe(true);
+
+      const first = await decryptMessage(
+        ciphertext,
+        author.privateKey,
+        sender.publicKey,
+        threadId,
+      );
+      const second = await decryptMessage(
+        ciphertext,
+        author.privateKey,
+        sender.publicKey,
+        threadId,
+      );
+      expect(first).toBe('Resend me');
+      expect(second).toBe('Resend me');
+    });
+
+    it('rejects a valid envelope replayed against a different thread', async () => {
+      const sender = await generateMessageKeyPair();
+      const author = await generateMessageKeyPair();
+      const ciphertext = await encryptMessage(
+        'Bound to original thread',
+        sender.privateKey,
+        author.publicKey,
+        threadId,
+      );
+
+      const otherThreadId = buildThreadId(
+        confessionId,
+        '44444444-4444-4444-8444-444444444444',
+      );
+
+      await expect(
+        decryptMessage(
+          ciphertext,
+          author.privateKey,
+          sender.publicKey,
+          otherThreadId,
+        ),
+      ).rejects.toThrow();
+    });
+  });
+
   it('cannot decrypt with wrong thread id', async () => {
     const sender = await generateMessageKeyPair();
     const author = await generateMessageKeyPair();

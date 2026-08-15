@@ -4,9 +4,10 @@ import {
   NotFoundException,
   ConflictException,
   ForbiddenException,
+  BadRequestException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DataSource } from 'typeorm';
+import { Repository, DataSource, QueryFailedError } from 'typeorm';
 import { CreateReactionDto } from './dto/create-reaction.dto';
 import { AnonymousConfession } from '../confession/entities/confession.entity';
 import { Reaction } from './entities/reaction.entity';
@@ -16,6 +17,7 @@ import {
   OutboxStatus,
 } from '../common/entities/outbox-event.entity';
 import { AnalyticsService } from '../analytics/analytics.service';
+import { ReactionsGateway } from './reactions.gateway';
 
 @Injectable()
 export class ReactionService {
@@ -32,12 +34,19 @@ export class ReactionService {
     private outboxRepo: Repository<OutboxEvent>,
     private readonly dataSource: DataSource,
     private readonly analyticsService: AnalyticsService,
+    private readonly reactionsGateway: ReactionsGateway,
   ) {}
 
   async createReaction(dto: CreateReactionDto): Promise<Reaction> {
-    // 1. Verify confession exists.
+    if (!dto.anonymousUserId) {
+      throw new BadRequestException('Anonymous user id is required');
+    }
+
+    const anonymousUserId = dto.anonymousUserId;
+
+    // 1. Verify confession exists and is not soft-deleted.
     const confession = await this.confessionRepo.findOne({
-      where: { id: dto.confessionId },
+      where: { id: dto.confessionId, isDeleted: false },
       relations: [
         'anonymousUser',
         'anonymousUser.userLinks',
@@ -57,7 +66,7 @@ export class ReactionService {
 
     // 2. Verify the reacting anonymous user exists.
     const anonymousUser = await this.anonymousUserRepo.findOne({
-      where: { id: dto.anonymousUserId },
+      where: { id: anonymousUserId },
     });
 
     if (!anonymousUser) {
@@ -73,20 +82,18 @@ export class ReactionService {
         const existing = await reactionRepo.findOne({
           where: {
             confession: { id: dto.confessionId },
-            anonymousUser: { id: dto.anonymousUserId },
+            anonymousUser: { id: anonymousUserId },
           },
         });
 
         if (existing) {
           if (existing.emoji === dto.emoji) {
-            return existing;
+            return { reaction: existing, isNew: false, isUpdate: false };
           }
 
           existing.emoji = dto.emoji;
           const updated = await reactionRepo.save(existing);
 
-          // Update outbox event for the change?
-          // Usually reactions are high volume, but let's notify the author.
           await this.createOutboxEvent(
             outboxRepo,
             confession,
@@ -94,7 +101,7 @@ export class ReactionService {
             'reaction_update',
           );
 
-          return updated;
+          return { reaction: updated, isNew: false, isUpdate: true };
         }
 
         // 4. Persist new reaction
@@ -104,16 +111,44 @@ export class ReactionService {
           anonymousUser,
         });
 
-        const savedReaction = await reactionRepo.save(reaction);
+        try {
+          const savedReaction = await reactionRepo.save(reaction);
 
-        await this.createOutboxEvent(
-          outboxRepo,
-          confession,
-          savedReaction,
-          'reaction_notification',
-        );
+          await this.createOutboxEvent(
+            outboxRepo,
+            confession,
+            savedReaction,
+            'reaction_notification',
+          );
 
-        return savedReaction;
+          return { reaction: savedReaction, isNew: true, isUpdate: false };
+        } catch (err) {
+          // Handle race condition: a concurrent request may have inserted the
+          // same reaction between our findOne and save. The DB unique
+          // constraint on (confession_id, anonymous_user_id) will reject the
+          // duplicate insert. In that case, re-fetch the existing row so the
+          // caller receives a stable idempotent response.
+          if (
+            err instanceof QueryFailedError &&
+            this.isUniqueViolation(err)
+          ) {
+            this.logger.debug(
+              `Race-condition duplicate detected for reaction ` +
+                `(confession=${dto.confessionId}, user=${anonymousUserId})`,
+            );
+            const raceExisting = await reactionRepo.findOne({
+              where: {
+                confession: { id: dto.confessionId },
+                anonymousUser: { id: anonymousUserId },
+              },
+            });
+
+            if (raceExisting) {
+              return { reaction: raceExisting, isNew: false, isUpdate: false };
+            }
+          }
+          throw err;
+        }
       })
       .then(async (result) => {
         // Invalidate analytics segments that are affected by a reaction change.
@@ -135,8 +170,41 @@ export class ReactionService {
               err,
             ),
           );
-        return result;
+
+        // 5. Broadcast canonical WebSocket event for new reactions only.
+        // Duplicate / idempotent requests must not emit extra events.
+        if (result.isNew) {
+          this.reactionsGateway.broadcastReactionAdded(confession.id, {
+            reactionId: result.reaction.id,
+            userId: anonymousUserId,
+            reactionType: result.reaction.emoji,
+            timestamp: result.reaction.createdAt,
+            totalCount: await this.getReactionCount(confession.id),
+          });
+        }
+
+        return result.reaction;
       });
+  }
+
+  /**
+   * Returns the total reaction count for a confession.
+   * Used after persisting a new reaction to include an accurate count in the
+   * WebSocket broadcast payload.
+   */
+  private async getReactionCount(confessionId: string): Promise<number> {
+    return this.reactionRepo.count({
+      where: { confession: { id: confessionId } },
+    });
+  }
+
+  /**
+   * Detects whether a TypeORM QueryFailedError wraps a Postgres unique
+   * constraint violation (SQLSTATE 23505).
+   */
+  private isUniqueViolation(err: QueryFailedError): boolean {
+    const driverError = err.driverError as { code?: string };
+    return driverError?.code === '23505';
   }
 
   private async createOutboxEvent(
@@ -168,7 +236,7 @@ export class ReactionService {
     if (!anonymousUser) return null;
     const link = anonymousUser.userLinks?.[0];
     if (link?.user) {
-      return link.user.getEmail();
+      return link.user.getEmail() ?? null;
     }
     return null;
   }

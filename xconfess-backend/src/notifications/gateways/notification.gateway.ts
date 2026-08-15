@@ -11,6 +11,7 @@ import {
 import { Server, Socket } from 'socket.io';
 import { Logger, UseGuards } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { JwtService } from '@nestjs/jwt';
 import { WsJwtGuard } from '../../auth/guards/ws-jwt.guard';
 import { NotificationService } from '../services/notification.service';
 import { WebSocketLogger } from '../../websocket/websocket.logger';
@@ -35,6 +36,7 @@ export class NotificationGateway
   constructor(
     private notificationService: NotificationService,
     private configService: ConfigService,
+    private readonly jwtService: JwtService,
     private readonly wsLogger: WebSocketLogger,
   ) {}
 
@@ -53,7 +55,43 @@ export class NotificationGateway
         'Socket.IO engine options are unavailable; using gateway CORS defaults',
       );
     }
+    if (typeof server.use === 'function') {
+      server.use(async (socket, next) => {
+        try {
+          const token = this.extractHandshakeToken(socket);
+          if (!token) {
+            return next(new Error('Authentication failed'));
+          }
+
+          const payload: any = await this.jwtService.verifyAsync(token);
+          if (!payload?.sub) {
+            return next(new Error('Authentication failed'));
+          }
+
+          socket.data = socket.data || {};
+          socket.data.userId = String(payload.sub);
+          socket.data.username = payload.username;
+          return next();
+        } catch {
+          return next(new Error('Authentication failed'));
+        }
+      });
+    }
     this.logger.log('Notification Gateway initialized');
+  }
+
+  private extractHandshakeToken(socket: Socket): string | null {
+    const auth = socket.handshake?.auth as any;
+    if (auth && typeof auth.token === 'string' && auth.token.trim()) {
+      return auth.token.trim();
+    }
+
+    const authHeader = socket.handshake?.headers?.authorization;
+    if (typeof authHeader === 'string' && authHeader.startsWith('Bearer ')) {
+      return authHeader.slice('Bearer '.length).trim();
+    }
+
+    return null;
   }
 
   // ─── Connection lifecycle ─────────────────────────────────────────────────
@@ -237,6 +275,17 @@ export class NotificationGateway
   // namespace, ensuring strict per-user isolation.
 
   async sendNotificationToUser(userId: string, notification: any) {
+    const shouldDeliver = await this.notificationService.shouldDeliverRealtime(
+      userId,
+      notification.type,
+    );
+    if (!shouldDeliver) {
+      this.logger.log(
+        `Realtime notification suppressed for user ${userId} (preference check)`,
+      );
+      return;
+    }
+
     const userRoom = `${USER_ROOM_PREFIX}${userId}`;
     this.server.to(userRoom).emit('new-notification', notification);
 

@@ -44,6 +44,7 @@ describe('NotificationGateway load test', () => {
           provide: NotificationService,
           useValue: {
             getUserNotifications: jest.fn().mockResolvedValue({ unreadCount: 5 }),
+            shouldDeliverRealtime: jest.fn().mockResolvedValue(true),
           },
         },
       ],
@@ -85,11 +86,27 @@ describe('NotificationGateway load test', () => {
     });
   }
 
+  function subscribeClient(socket: Socket, userId: string): Promise<void> {
+    return new Promise((resolve, reject) => {
+      socket.once('subscription:confirmed', () => resolve());
+      socket.once('subscription:rejected', (payload) =>
+        reject(new Error(`Subscription rejected: ${JSON.stringify(payload)}`)),
+      );
+      socket.emit('subscribe:user-notifications', { userId });
+      setTimeout(() => reject(new Error('Subscription timed out')), 5000);
+    });
+  }
+
   it('delivers notifications only to the targeted user room under concurrent connections', async () => {
     const clientA = await createClient('user-1');
     const clientB = await createClient('user-2');
 
     try {
+      await Promise.all([
+        subscribeClient(clientA, 'user-1'),
+        subscribeClient(clientB, 'user-2'),
+      ]);
+
       const eventsA: unknown[] = [];
       const eventsB: unknown[] = [];
       const countsA: unknown[] = [];
@@ -100,11 +117,9 @@ describe('NotificationGateway load test', () => {
       clientB.on('new-notification', (payload) => eventsB.push(payload));
       clientB.on('unread-count', (payload) => countsB.push(payload));
 
-      await new Promise((resolve) => setTimeout(resolve, 200));
-
       await gateway.sendNotificationToUser('user-1', { title: 'Private alert' });
 
-      await new Promise((resolve) => setTimeout(resolve, 200));
+      await new Promise((resolve) => setTimeout(resolve, 500));
 
       expect(eventsA).toEqual([{ title: 'Private alert' }]);
       expect(countsA).toEqual([{ count: 5 }]);

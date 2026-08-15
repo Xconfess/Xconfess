@@ -85,10 +85,23 @@ async function bootstrap() {
   app.use(cookieParserMiddleware);
 
   // ── 7. CSRF protection ────────────────────────────────────────────────────────
-  //    Webhooks are exempt — they use HMAC signature verification instead.
-  //    All other POST / PUT / PATCH / DELETE routes require a valid CSRF token.
+  //    Webhooks are exempt because they use HMAC signature verification instead.
+  //    Public account-entry routes are exempt because the Next.js proxy calls
+  //    them server-side before a browser CSRF cookie exists.
+  const csrfExemptRoutes = new Set([
+    'POST /api/auth/login',
+    'POST /api/auth/2fa/login',
+    'POST /api/auth/forgot-password',
+    'POST /api/auth/reset-password',
+    'POST /api/users/register',
+  ]);
+
   app.use((req, res, next) => {
-    if (req.path.startsWith('/api/webhooks/moderation')) {
+    const routeKey = `${req.method.toUpperCase()} ${req.path}`;
+    if (
+      req.path.startsWith('/api/webhooks/moderation') ||
+      csrfExemptRoutes.has(routeKey)
+    ) {
       return next();
     }
     csrfMiddleware(req as any, res as any, (err) => {
@@ -166,4 +179,3 @@ async function bootstrap() {
   );
 }
 bootstrap();
-

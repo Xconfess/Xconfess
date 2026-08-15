@@ -445,6 +445,7 @@ export class AdminController {
       parseInt(id, 10),
       dto.role,
       adminId,
+      (dto as any).reason || null,
       req,
     );
   }

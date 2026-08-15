@@ -1,6 +1,7 @@
-import { ExecutionContext, ForbiddenException } from '@nestjs/common';
+import { ExecutionContext } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { StepUpGuard } from './step-up.guard';
+import { AppException } from '../common/errors/app-exception';
 
 describe('StepUpGuard', () => {
   let guard: StepUpGuard;
@@ -44,7 +45,7 @@ describe('StepUpGuard', () => {
     } as ExecutionContext;
 
     expect(() => guard.canActivate(mockExecutionContext)).toThrow(
-      ForbiddenException,
+      AppException,
     );
   });
 
@@ -63,7 +64,7 @@ describe('StepUpGuard', () => {
     } as ExecutionContext;
 
     expect(() => guard.canActivate(mockExecutionContext)).toThrow(
-      ForbiddenException,
+      AppException,
     );
   });
 
@@ -83,7 +84,7 @@ describe('StepUpGuard', () => {
     } as ExecutionContext;
 
     expect(() => guard.canActivate(mockExecutionContext)).toThrow(
-      ForbiddenException,
+      AppException,
     );
   });
 });

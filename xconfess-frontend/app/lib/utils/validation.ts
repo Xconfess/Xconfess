@@ -43,10 +43,10 @@ export const registerSchema = z.object({
     .string()
     .min(1, "Username is required")
     .min(3, "Username must be at least 3 characters")
-    .max(50, "Username cannot exceed 50 characters")
+    .max(30, "Username cannot exceed 30 characters")
     .regex(
-      /^[a-zA-Z0-9_-]+$/,
-      "Username can only contain letters, numbers, underscores, and hyphens"
+      /^[a-zA-Z0-9_]+$/,
+      "Username can only contain letters, numbers, and underscores"
     ),
   email: z
     .string()
@@ -56,7 +56,11 @@ export const registerSchema = z.object({
     .string()
     .min(1, "Password is required")
     .min(8, "Password must be at least 8 characters")
-    .max(100, "Password cannot exceed 100 characters"),
+    .max(72, "Password cannot exceed 72 characters")
+    .regex(
+      /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?])/,
+      "Password must include uppercase, lowercase, number, and special character"
+    ),
   confirmPassword: z.string().min(1, "Please confirm your password"),
 }).refine((data) => data.password === data.confirmPassword, {
   message: "Passwords do not match",

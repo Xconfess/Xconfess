@@ -71,6 +71,18 @@ export class DataExportService {
 
   async requestExport(userId: string) {
     if (this.configService.get<string>('ENABLE_BACKGROUND_JOBS') !== 'true') {
+      this.auditLogService?.logExportLifecycleEvent({
+        action: 'request_created',
+        actorType: 'system',
+        actorId: 'data-export-service',
+        requestId: 'n/a',
+        exportId: 'n/a',
+        metadata: {
+          reason: 'background_jobs_disabled',
+          queue: EXPORT_QUEUE_NAME,
+          userId,
+        },
+      }).catch(() => undefined);
       throw new ServiceUnavailableException(
         'Data export requires background job processing. Set ENABLE_BACKGROUND_JOBS=true and ensure Redis is available.',
       );

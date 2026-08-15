@@ -1,19 +1,25 @@
 @import "tailwindcss";
 
 :root {
-  --background: #f3efe8;
-  --surface: rgba(255, 252, 247, 0.84);
-  --surface-strong: #fffdf9;
-  --surface-muted: rgba(249, 245, 238, 0.88);
-  --foreground: #1c2430;
-  --secondary: #65707c;
-  --primary: #7b8ea3;
-  --primary-deep: #58697d;
-  --accent-soft: rgba(123, 142, 163, 0.12);
-  --accent-border: rgba(123, 142, 163, 0.24);
-  --border: rgba(74, 86, 101, 0.17);
-  --skeleton: #ddd8d0;
-  --shadow: 0 28px 90px -52px rgba(28, 36, 48, 0.22);
+  --brand-ink: #0b1b33;
+  --brand-violet: #5b2eff;
+  --brand-purple: #7a19ff;
+  --brand-magenta: #d90ccb;
+  --brand-rose: #ff0f7b;
+  --brand-gradient: linear-gradient(135deg, var(--brand-violet) 0%, var(--brand-purple) 42%, var(--brand-magenta) 72%, var(--brand-rose) 100%);
+  --background: #f8f6fb;
+  --surface: rgba(255, 255, 255, 0.86);
+  --surface-strong: #ffffff;
+  --surface-muted: rgba(246, 242, 250, 0.9);
+  --foreground: #0b1b33;
+  --secondary: #657083;
+  --primary: #5b2eff;
+  --primary-deep: #3f25b7;
+  --accent-soft: rgba(91, 46, 255, 0.09);
+  --accent-border: rgba(91, 46, 255, 0.22);
+  --border: rgba(11, 27, 51, 0.12);
+  --skeleton: #e7e0f0;
+  --shadow: 0 28px 90px -52px rgba(11, 27, 51, 0.28);
   --font-sans:
     "Aptos", "Avenir Next", "Segoe UI Variable Text", "Inter", sans-serif;
   --font-display:
@@ -21,18 +27,18 @@
 }
 
 .dark {
-  --background: #121821;
-  --surface: rgba(24, 31, 40, 0.86);
-  --surface-strong: #1b2330;
-  --surface-muted: rgba(29, 38, 49, 0.92);
-  --foreground: #edf2f7;
-  --secondary: #a5b1bf;
-  --primary: #95a8bc;
-  --primary-deep: #71859c;
-  --accent-soft: rgba(149, 168, 188, 0.14);
-  --accent-border: rgba(149, 168, 188, 0.24);
-  --border: rgba(165, 177, 191, 0.13);
-  --skeleton: #33404f;
+  --background: #080b13;
+  --surface: rgba(15, 20, 33, 0.88);
+  --surface-strong: #111827;
+  --surface-muted: rgba(23, 28, 43, 0.92);
+  --foreground: #f6f4ff;
+  --secondary: #abb4c7;
+  --primary: #9a82ff;
+  --primary-deep: #c2b5ff;
+  --accent-soft: rgba(154, 130, 255, 0.13);
+  --accent-border: rgba(217, 12, 203, 0.24);
+  --border: rgba(218, 221, 232, 0.13);
+  --skeleton: #272f43;
   --shadow: 0 32px 100px -55px rgba(0, 0, 0, 0.62);
 }
 
@@ -62,13 +68,13 @@ body {
   background: var(--background);
   color: var(--foreground);
   background-image:
-    radial-gradient(circle at top, var(--accent-soft), transparent 24%),
-    radial-gradient(circle at 15% 15%, rgba(255, 255, 255, 0.7), transparent 20%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.28), transparent 28%),
-    linear-gradient(135deg, rgba(101, 112, 124, 0.03) 25%, transparent 25%),
-    linear-gradient(225deg, rgba(101, 112, 124, 0.03) 25%, transparent 25%);
-  background-size: auto, auto, auto, 26px 26px, 26px 26px;
-  background-position: center top, left top, center top, 0 0, 13px 13px;
+    linear-gradient(180deg, rgba(255, 255, 255, 0.7), transparent 30%),
+    linear-gradient(135deg, rgba(91, 46, 255, 0.045), transparent 36%),
+    linear-gradient(225deg, rgba(255, 15, 123, 0.035), transparent 38%),
+    linear-gradient(135deg, rgba(11, 27, 51, 0.025) 25%, transparent 25%),
+    linear-gradient(225deg, rgba(11, 27, 51, 0.025) 25%, transparent 25%);
+  background-size: auto, auto, auto, 28px 28px, 28px 28px;
+  background-position: center top, left top, right top, 0 0, 14px 14px;
   font-family: var(--font-sans);
   transition: background-color 0.3s ease, color 0.3s ease;
   text-rendering: optimizeLegibility;
@@ -82,7 +88,7 @@ h5,
 h6,
 .font-editorial {
   font-family: var(--font-display);
-  letter-spacing: -0.03em;
+  letter-spacing: 0;
 }
 
 p,
@@ -94,7 +100,7 @@ textarea {
 }
 
 ::selection {
-  background: rgba(123, 142, 163, 0.24);
+  background: rgba(91, 46, 255, 0.2);
 }
 
 .editorial-shell {
@@ -107,8 +113,8 @@ textarea {
   inset: 0;
   pointer-events: none;
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.32), transparent 18%),
-    radial-gradient(circle at top right, var(--accent-soft), transparent 22%);
+    linear-gradient(180deg, rgba(255, 255, 255, 0.38), transparent 18%),
+    linear-gradient(120deg, transparent 0%, var(--accent-soft) 48%, transparent 100%);
   mask-image: linear-gradient(180deg, black 0%, transparent 100%);
 }
 

@@ -66,7 +66,7 @@ describe("AnchorButton Duplicate Submission", () => {
     resolveAnchor!(successfulAnchorResult);
 
     await waitFor(() => {
-      expect(screen.getByText(/anchored/i)).toBeInTheDocument();
+      expect(screen.getByText("Anchored")).toBeInTheDocument();
     });
   });
 });

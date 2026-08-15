@@ -8,14 +8,14 @@ function validateEnv() {
   const required: Array<{ name: string; description: string }> = [
     {
       name: "BACKEND_API_URL",
-      description: "Server-side base URL for the NestJS backend (e.g. http://localhost:5000)",
+      description: "Server-side base URL for the NestJS API (e.g. http://localhost:5000/api)",
     },
   ];
 
   const optional: Array<{ name: string; description: string }> = [
     {
       name: "NEXT_PUBLIC_API_URL",
-      description: "Client-side base URL for the NestJS backend (same host, public)",
+      description: "Client-side base URL for the NestJS API (same host, public)",
     },
     {
       name: "NEXT_PUBLIC_WS_URL",

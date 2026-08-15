@@ -33,6 +33,7 @@ export enum ReportStatus {
 @Index(['reporterId'])
 @Index(['status'])
 @Index(['createdAt'])
+@Index(['idempotencyKey'])
 export class Report {
   @PrimaryGeneratedColumn('uuid')
   id: string;
@@ -96,7 +97,6 @@ export class Report {
     length: 255,
     nullable: true,
   })
-  @Index(['idempotency_key'])
   idempotencyKey: string | null;
 
   @CreateDateColumn()

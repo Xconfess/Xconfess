@@ -10,6 +10,8 @@ describe('Environment Validation', () => {
     DB_PASSWORD: 'test',
     DB_NAME: 'test',
     JWT_SECRET: 'a'.repeat(32),
+    ENCRYPTION_MASTER_KEY_v1:
+      '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
   };
 
   const validKey =
@@ -151,4 +153,3 @@ describe('Environment Validation', () => {
     expect(error).toBeUndefined();
   });
 });
-

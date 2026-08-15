@@ -37,12 +37,7 @@ export interface LoginResponse {
  * Response from register endpoint
  */
 export interface RegisterResponse {
-  id: string;
-  email: string;
-  username: string;
-  is_active: boolean;
-  createdAt: string;
-  updatedAt: string;
+  user: User;
 }
 
 /**

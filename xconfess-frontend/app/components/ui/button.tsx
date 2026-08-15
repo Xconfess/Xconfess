@@ -22,7 +22,7 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2",
           "focus-visible:ring-[var(--primary)] focus-visible:ring-offset-[var(--background)] disabled:pointer-events-none disabled:opacity-50 cursor-pointer",
           {
-            "border border-[var(--accent-border)] bg-[linear-gradient(135deg,var(--primary),var(--primary-deep))] text-white shadow-[0_18px_40px_-22px_rgba(88,105,125,0.55)] hover:-translate-y-0.5 hover:brightness-105":
+            "border border-[var(--accent-border)] bg-[var(--brand-gradient)] text-white shadow-[0_18px_42px_-22px_rgba(91,46,255,0.58)] hover:-translate-y-0.5 hover:brightness-105":
               variant === "default",
             "border border-[var(--border)] bg-[var(--surface)] text-[var(--foreground)] hover:bg-[var(--surface-strong)]":
               variant === "outline",

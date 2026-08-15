@@ -44,6 +44,7 @@ export class CommentController {
       confessionId,
       dto.anonymousContextId,
       dto.parentId,
+      dto.idempotencyKey,
     );
   }
 

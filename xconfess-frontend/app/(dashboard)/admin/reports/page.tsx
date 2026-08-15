@@ -6,10 +6,10 @@ export default function ReportsPage() {
   return (
     <div className="min-w-0 space-y-6">
       <div>
-        <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Reports</h2>
-        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-          Review and manage user reports
-        </p>
+        <p className="eyebrow">Moderation</p>
+        <h1 className="mt-2 text-2xl font-bold text-[var(--foreground)]">
+          Reports
+        </h1>
       </div>
       <ReportList />
     </div>

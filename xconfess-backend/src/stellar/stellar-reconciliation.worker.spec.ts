@@ -8,6 +8,7 @@ import { AuditLogService } from '../audit-log/audit-log.service';
 import { ConfigService } from '@nestjs/config';
 import { AnonymousConfession } from '../confession/entities/confession.entity';
 import { AuditActionType } from '../audit-log/audit-log.entity';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 
 // Mock decryptConfession
 jest.mock('../utils/confession-encryption', () => ({
@@ -40,7 +41,10 @@ describe('StellarReconciliationWorker', () => {
 
     contractService = {
       anchorConfession: jest.fn(),
+      verifyConfession: jest.fn(),
     };
+
+    stellarService.verifyTransaction = jest.fn();
 
     auditService = {
       log: jest.fn(),
@@ -65,6 +69,7 @@ describe('StellarReconciliationWorker', () => {
         { provide: ContractService, useValue: contractService },
         { provide: AuditLogService, useValue: auditService },
         { provide: ConfigService, useValue: configService },
+        { provide: EventEmitter2, useValue: { emit: jest.fn() } },
       ],
     }).compile();
 
@@ -75,13 +80,13 @@ describe('StellarReconciliationWorker', () => {
     jest.clearAllMocks();
   });
 
-  it('Test 1: Success on second attempt', async () => {
+  it('Test 1: Success on submission moves status to OBSERVED', async () => {
     const oldDate = new Date(Date.now() - 10 * 60 * 1000);
     const anchor = {
       id: 'a1',
       status: AnchorStatus.PENDING,
       retryCount: 1,
-      lastRetryAt: new Date(Date.now() - 3 * 60 * 1000), // > 2 min ago (2^1 = 2m)
+      lastRetryAt: new Date(Date.now() - 5 * 60 * 1000), // > 4 min ago (2^1 * 2 = 4m)
       createdAt: oldDate,
       confessionId: 'c1',
     } as StellarAnchor;
@@ -89,32 +94,34 @@ describe('StellarReconciliationWorker', () => {
     anchorRepository.find.mockResolvedValue([anchor]);
     confessionRepository.findOne.mockResolvedValue({ id: 'c1', message: 'enc' } as AnonymousConfession);
 
-    // mock success
     contractService.anchorConfession.mockResolvedValue({ hash: 'txhash123' });
 
     await worker.reconcilePendingAnchors();
 
-    // expect status = anchored
-    expect(anchor.status).toBe(AnchorStatus.ANCHORED);
-    // expect retryCount reset
+    // On initial submission, status transitions to OBSERVED (provisional)
+    expect(anchor.status).toBe(AnchorStatus.OBSERVED);
     expect(anchor.retryCount).toBe(0);
-    // expect audit log written
-    expect(auditService.log).toHaveBeenCalledWith({
-      actionType: AuditActionType.STELLAR_ANCHOR_RETRY,
-      metadata: { entityId: 'a1', attempt_number: 2 },
-    });
-    // expect repo saved
+    expect(auditService.log).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actionType: AuditActionType.STELLAR_ANCHOR_RETRY,
+        metadata: expect.objectContaining({
+          entityId: 'a1',
+          confessionId: 'c1',
+          result: 'observed',
+          txHash: 'txhash123',
+        }),
+      }),
+    );
     expect(anchorRepository.save).toHaveBeenCalledWith(anchor);
-    expect(confessionRepository.save).toHaveBeenCalled();
   });
 
   it('Test 2: Retry exhaustion', async () => {
-    const oldDate = new Date(Date.now() - 10 * 60 * 1000);
+    const oldDate = new Date(Date.now() - 40 * 60 * 1000);
     const anchor = {
       id: 'a2',
       status: AnchorStatus.PENDING,
       retryCount: 4,
-      lastRetryAt: new Date(Date.now() - 17 * 60 * 1000), // > 16 min ago (2^4 = 16m)
+      lastRetryAt: new Date(Date.now() - 35 * 60 * 1000), // > 32 min ago (2^4 * 2 = 32m)
       createdAt: oldDate,
       confessionId: 'c2',
     } as StellarAnchor;
@@ -126,25 +133,31 @@ describe('StellarReconciliationWorker', () => {
 
     await worker.reconcilePendingAnchors();
 
-    // expect retryCount = 5
     expect(anchor.retryCount).toBe(5);
-    // expect status = failed
     expect(anchor.status).toBe(AnchorStatus.FAILED);
-    // expect audit entries written for retry AND fail
-    expect(auditService.log).toHaveBeenCalledWith({
-      actionType: AuditActionType.STELLAR_ANCHOR_RETRY,
-      metadata: { entityId: 'a2', attempt_number: 5, error_message: 'Horizon failed' },
-    });
-    expect(auditService.log).toHaveBeenCalledWith({
-      actionType: AuditActionType.STELLAR_ANCHOR_FAILED,
-      metadata: { entityId: 'a2' },
-    });
+    expect(auditService.log).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actionType: AuditActionType.STELLAR_ANCHOR_RETRY,
+        metadata: expect.objectContaining({
+          entityId: 'a2',
+          confessionId: 'c2',
+          error_message: 'Horizon failed',
+        }),
+      }),
+    );
+    expect(auditService.log).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actionType: AuditActionType.STELLAR_ANCHOR_FAILED,
+        metadata: expect.objectContaining({
+          entityId: 'a2',
+          confessionId: 'c2',
+        }),
+      }),
+    );
   });
 
   it('Test 3: Only old records processed', async () => {
-    // This tests the behavior of find() using LessThan, but here we can mock it 
-    // or test the exponential backoff if lastRetryAt is recent
-    const recentDate = new Date(Date.now() - 2 * 60 * 1000); // 2 minutes ago
+    const recentDate = new Date(Date.now() - 1 * 60 * 1000);
     const anchor = {
       id: 'a3',
       status: AnchorStatus.PENDING,
@@ -158,12 +171,6 @@ describe('StellarReconciliationWorker', () => {
 
     await worker.reconcilePendingAnchors();
 
-    // The delay for count 1 is 2 mins. If timeSinceLastRetry is < 2 mins, it skips.
-    // wait, timeSinceLastRetry is ~2 min. Let's make lastRetryAt 1 minute ago so it clearly skips.
-    anchor.lastRetryAt = new Date(Date.now() - 1 * 60 * 1000);
-    
-    await worker.reconcilePendingAnchors();
-
     expect(anchor.retryCount).toBe(1); // skipped
     expect(contractService.anchorConfession).not.toHaveBeenCalled();
   });
@@ -174,7 +181,7 @@ describe('StellarReconciliationWorker', () => {
       id: 'a5',
       status: AnchorStatus.PENDING,
       retryCount: 1,
-      lastRetryAt: new Date(Date.now() - 3 * 60 * 1000),
+      lastRetryAt: new Date(Date.now() - 5 * 60 * 1000),
       createdAt: oldDate,
       confessionId: 'c5',
     } as StellarAnchor;
@@ -184,7 +191,7 @@ describe('StellarReconciliationWorker', () => {
     contractService.anchorConfession.mockResolvedValue({ hash: 'txhash456' });
 
     await expect(worker.reconcilePendingAnchors()).resolves.not.toThrow();
-    expect(anchor.status).toBe(AnchorStatus.ANCHORED);
+    expect(anchor.status).toBe(AnchorStatus.OBSERVED);
   });
 
   it('Test 4: Audit log payload', async () => {
@@ -192,7 +199,7 @@ describe('StellarReconciliationWorker', () => {
       id: 'a4',
       status: AnchorStatus.PENDING,
       retryCount: 2,
-      lastRetryAt: new Date(Date.now() - 5 * 60 * 1000), // > 4 min ago (2^2 = 4m)
+      lastRetryAt: new Date(Date.now() - 10 * 60 * 1000), // > 8 min ago (2^2 * 2 = 8m)
       createdAt: new Date(),
       confessionId: 'c4',
     } as StellarAnchor;
@@ -204,13 +211,82 @@ describe('StellarReconciliationWorker', () => {
 
     await worker.reconcilePendingAnchors();
 
-    expect(auditService.log).toHaveBeenCalledWith({
-      actionType: AuditActionType.STELLAR_ANCHOR_RETRY,
-      metadata: {
-        entityId: 'a4',
-        attempt_number: 3,
-        error_message: 'Test Error',
-      },
+    expect(auditService.log).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actionType: AuditActionType.STELLAR_ANCHOR_RETRY,
+        metadata: expect.objectContaining({
+          entityId: 'a4',
+          confessionId: 'c4',
+          error_message: 'Test Error',
+        }),
+      }),
+    );
+  });
+
+  describe('anchor payload verification (#1474)', () => {
+    it('graduates an OBSERVED anchor to ANCHORED when the on-chain hash matches confession state', async () => {
+      const anchor = {
+        id: 'a6',
+        status: AnchorStatus.OBSERVED,
+        retryCount: 0,
+        lastRetryAt: new Date(),
+        createdAt: new Date(),
+        confessionId: 'c6',
+        stellarTxHash: 'txhash789',
+      } as StellarAnchor;
+
+      anchorRepository.find.mockResolvedValue([anchor]);
+      const confession = {
+        id: 'c6',
+        message: 'enc',
+        stellarHash: 'expectedHash',
+        isAnchored: false,
+      } as unknown as AnonymousConfession;
+      confessionRepository.findOne.mockResolvedValue(confession);
+
+      stellarService.verifyTransaction.mockResolvedValue(true);
+      contractService.verifyConfession.mockResolvedValue(1_700_000_000_000);
+
+      await worker.reconcilePendingAnchors();
+
+      expect(contractService.verifyConfession).toHaveBeenCalledWith('expectedHash');
+      expect(anchor.status).toBe(AnchorStatus.ANCHORED);
+      expect(confessionRepository.save).toHaveBeenCalledWith(
+        expect.objectContaining({ isAnchored: true }),
+      );
+    });
+
+    it('rejects graduation to ANCHORED when the on-chain hash does not match confession state', async () => {
+      const anchor = {
+        id: 'a7',
+        status: AnchorStatus.OBSERVED,
+        retryCount: 0,
+        lastRetryAt: new Date(),
+        createdAt: new Date(),
+        confessionId: 'c7',
+        stellarTxHash: 'txhash999',
+      } as StellarAnchor;
+
+      anchorRepository.find.mockResolvedValue([anchor]);
+      const confession = {
+        id: 'c7',
+        message: 'enc',
+        stellarHash: 'expectedHash',
+        isAnchored: false,
+      } as unknown as AnonymousConfession;
+      confessionRepository.findOne.mockResolvedValue(confession);
+
+      stellarService.verifyTransaction.mockResolvedValue(true);
+      // The transaction succeeded on Horizon, but the contract never recorded
+      // this confession's hash — i.e. the tx hash points at unrelated data.
+      contractService.verifyConfession.mockResolvedValue(null);
+
+      await worker.reconcilePendingAnchors();
+
+      expect(anchor.status).toBe(AnchorStatus.OBSERVED);
+      expect(anchor.lastError).toMatch(/hash mismatch/i);
+      expect(confession.isAnchored).toBe(false);
+      expect(confessionRepository.save).not.toHaveBeenCalled();
     });
   });
 });

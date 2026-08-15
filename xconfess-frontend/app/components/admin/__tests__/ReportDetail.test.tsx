@@ -79,6 +79,82 @@ beforeEach(() => {
   (adminApi.getAuditLogs as jest.Mock).mockResolvedValue({ logs: [] });
 });
 
+describe('ReportDetail — confession content states', () => {
+  it('renders the confession content and reason for a reported confession', () => {
+    renderDetail({
+      report: {
+        ...mockReport,
+        confession: {
+          id: 'confession-1',
+          message: 'This is the reported confession text.',
+          created_at: '2024-01-01T00:00:00Z',
+        },
+      },
+    });
+
+    expect(screen.getByText('This is the reported confession text.')).toBeInTheDocument();
+    expect(screen.getByText('Test spam reason')).toBeInTheDocument();
+  });
+
+  it('shows a fallback message when confession content is missing', () => {
+    renderDetail({ report: { ...mockReport, confession: undefined } });
+
+    expect(screen.getByText('Confession not available')).toBeInTheDocument();
+  });
+
+  it('shows a deleted-confession notice when the confession has been deleted', () => {
+    renderDetail({
+      report: {
+        ...mockReport,
+        confession: {
+          id: 'confession-1',
+          message: 'Content preserved for moderation context.',
+          created_at: '2024-01-01T00:00:00Z',
+          isDeleted: true,
+        },
+      },
+    });
+
+    expect(screen.getByText(/this confession has been deleted/i)).toBeInTheDocument();
+    expect(screen.getByText('Content preserved for moderation context.')).toBeInTheDocument();
+  });
+
+  it('shows a hidden-confession notice when the confession is hidden but not deleted', () => {
+    renderDetail({
+      report: {
+        ...mockReport,
+        confession: {
+          id: 'confession-1',
+          message: 'Still visible to moderators.',
+          created_at: '2024-01-01T00:00:00Z',
+          isHidden: true,
+        },
+      },
+    });
+
+    expect(screen.getByText(/currently hidden from other users/i)).toBeInTheDocument();
+  });
+
+  it('renders confession message and reason as inert text without executing embedded markup', () => {
+    const { container } = renderDetail({
+      report: {
+        ...mockReport,
+        reason: '<img src=x onerror=alert(1)>',
+        confession: {
+          id: 'confession-1',
+          message: '<script>window.__xss = true;</script>Hello',
+          created_at: '2024-01-01T00:00:00Z',
+        },
+      },
+    });
+
+    expect(container.querySelector('script')).not.toBeInTheDocument();
+    expect(container.querySelector('img')).not.toBeInTheDocument();
+    expect(screen.getByText(/<script>window\.__xss = true;<\/script>Hello/)).toBeInTheDocument();
+    expect(screen.getByText('<img src=x onerror=alert(1)>')).toBeInTheDocument();
+  });
+});
+
 describe('ReportDetail — resolve flow', () => {
   it('opens the resolve confirmation dialog when Resolve Report is clicked', async () => {
     const user = userEvent.setup();
@@ -119,7 +195,7 @@ describe('ReportDetail — resolve flow', () => {
     await user.click(screen.getByRole('button', { name: /^resolve$/i }));
 
     await waitFor(() => expect(onActionSuccess).toHaveBeenCalledTimes(1));
-    expect(mockToast.success).toHaveBeenCalledWith('Report resolved.');
+    expect(mockToast.success).toHaveBeenCalledWith('Report resolved.', undefined);
   });
 
   it('shows an error toast and does not call onActionSuccess when resolve fails', async () => {
@@ -131,7 +207,7 @@ describe('ReportDetail — resolve flow', () => {
     await user.click(screen.getByRole('button', { name: /resolve report/i }));
     await user.click(screen.getByRole('button', { name: /^resolve$/i }));
 
-    await waitFor(() => expect(mockToast.error).toHaveBeenCalledWith('Failed to resolve report'));
+    await waitFor(() => expect(mockToast.error).toHaveBeenCalledWith('Failed to resolve report', undefined));
     expect(onActionSuccess).not.toHaveBeenCalled();
   });
 
@@ -192,7 +268,7 @@ describe('ReportDetail — dismiss flow', () => {
     await user.click(screen.getByRole('button', { name: /^dismiss$/i }));
 
     await waitFor(() => expect(onActionSuccess).toHaveBeenCalledTimes(1));
-    expect(mockToast.success).toHaveBeenCalledWith('Report dismissed.');
+    expect(mockToast.success).toHaveBeenCalledWith('Report dismissed.', undefined);
   });
 
   it('shows an error toast and does not call onActionSuccess when dismiss fails', async () => {
@@ -204,7 +280,7 @@ describe('ReportDetail — dismiss flow', () => {
     await user.click(screen.getByRole('button', { name: /dismiss report/i }));
     await user.click(screen.getByRole('button', { name: /^dismiss$/i }));
 
-    await waitFor(() => expect(mockToast.error).toHaveBeenCalledWith('Failed to dismiss report'));
+    await waitFor(() => expect(mockToast.error).toHaveBeenCalledWith('Failed to dismiss report', undefined));
     expect(onActionSuccess).not.toHaveBeenCalled();
   });
 

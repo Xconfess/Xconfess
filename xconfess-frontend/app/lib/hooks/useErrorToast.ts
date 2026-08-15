@@ -4,7 +4,7 @@ import {
   normalizeError, 
   getUserFriendlyMessage, 
   shouldRetry 
-} from '../lib/api/errorHandler';
+} from '../api/errorHandler';
 
 export function useErrorToast() {
   const showError = useCallback((error: unknown, options?: { 
@@ -21,11 +21,11 @@ export function useErrorToast() {
           label: 'Retry',
           onClick: options.retryAction,
         },
-        duration: options.duration || 5000,
+        duration: options?.duration ?? 5000,
       });
     } else {
       toast.error(message, {
-        duration: options.duration || 4000,
+        duration: options?.duration ?? 4000,
       });
     }
   }, []);

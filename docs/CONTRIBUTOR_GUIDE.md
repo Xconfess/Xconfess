@@ -1,20 +1,15 @@
-# GrantFox Contributor Guide
+# Contributor Guide
 
-This guide is the starting point for external contributors working on xConfess
-GrantFox campaign issues. It ties together local setup, issue selection, branch
-names, pull request linking, and validation commands.
+This guide is the starting point for external contributors working on xConfess.
+It ties together local setup, issue selection, branch names, pull request
+linking, validation commands, and review handoff.
 
-## Campaign Labels
+## Choosing Work
 
-GrantFox campaign issues should include these labels:
-
-- `Official Campaign`
-- `GrantFox OSS`
-- `Maybe Rewarded`
-
-Before starting work, choose an open issue with the campaign labels, check that
-it is not already assigned, and look for an existing pull request that mentions
-the same issue number or title.
+Before starting work, choose an open issue, check that it is not already
+assigned, and look for an existing pull request that mentions the same issue
+number or title. If the issue is unclear or broad, ask a maintainer to confirm
+scope before opening a large PR.
 
 ## Local Setup
 
@@ -80,7 +75,7 @@ Default local URLs:
 Use a small, issue-focused branch name:
 
 ```bash
-git checkout -b docs/grantfox-contributor-guide
+git checkout -b docs/contributor-guide
 git checkout -b fix/comment-search-proxy
 git checkout -b test/wave-demo-journey-smoke
 ```
@@ -126,17 +121,17 @@ Your pull request should include:
 - The validation commands you ran and their results.
 - Screenshots for visible UI changes.
 - Any known limitations or follow-up work.
-- A closing keyword that links the GrantFox issue.
+- A closing keyword that links the issue.
 
-Use this format in the pull request body so GrantFox and GitHub can connect the
-work to the issue:
+Use this format in the pull request body so GitHub can connect the work to the
+issue:
 
 ```md
 Closes #1118
 ```
 
 Replace `1118` with the actual issue number you are solving. Do not omit the
-closing keyword on GrantFox campaign PRs.
+closing keyword when the PR resolves an issue.
 
 ## Review Handoff
 

@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useAuth } from "@/app/lib/hooks/useAuth";
 import { Draft, DraftInput, DraftUpdate } from "@/app/lib/types/draft";
+export type { Draft } from "@/app/lib/types/draft";
 import {
   fetchDrafts,
   createDraft,

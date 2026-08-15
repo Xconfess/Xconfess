@@ -4,6 +4,13 @@ import { getOrCreateRequestId } from "@/app/lib/utils/requestId";
 
 const BASE_API_URL = getApiBaseUrl();
 
+async function sha256Hex(input: string): Promise<string> {
+  const data = new TextEncoder().encode(input);
+  const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
 export async function POST(
   request: Request,
   context: { params: Promise<{ confessionId: string }> },
@@ -40,12 +47,19 @@ export async function POST(
       });
     }
 
+    // Generate a deterministic idempotency key from content + context
+    // to deduplicate retried submissions
+    const idempotencyKey = await sha256Hex(
+      `${confessionId}:${anonymousContextId}:${content.trim()}:${parentId ?? ""}`,
+    );
+
     const authHeader = request.headers.get("Authorization");
     const cookieHeader = request.headers.get("Cookie");
     const url = `${BASE_API_URL}/comments/${confessionId}`;
     const payload: Record<string, unknown> = {
       content: content.trim(),
       anonymousContextId,
+      idempotencyKey,
     };
     if (parentId != null) payload.parentId = parentId;
 

@@ -3,6 +3,7 @@
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { cn } from "@/app/lib/utils/cn";
+import { sanitizeMarkdown } from "@/app/lib/utils/markdown";
 
 interface PreviewPanelProps {
   title?: string;
@@ -94,7 +95,7 @@ export const PreviewPanel: React.FC<PreviewPanelProps> = ({
             ),
           }}
         >
-          {body || "*No content to preview*"}
+          {sanitizeMarkdown(body) || "*No content to preview*"}
         </ReactMarkdown>
       </div>
     </div>

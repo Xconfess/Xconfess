@@ -22,10 +22,10 @@ export function CommentItem({
 
   return (
     <article
-      className={`min-w-0 rounded-lg border border-zinc-800 bg-zinc-900/50 p-3 sm:p-4 ${
-        isReply ? "ml-3 border-l-2 border-l-zinc-700 pl-3 sm:ml-6 sm:pl-4" : ""
-      } ${comment.isOptimistic ? "opacity-80" : ""}`}
+      className={`min-w-0 rounded-lg border border-zinc-800 bg-zinc-900/50 p-3 sm:p-4 ${isReply ? "ml-3 border-l-2 border-l-zinc-700 pl-3 sm:ml-6 sm:pl-4" : ""
+        } ${comment.isOptimistic ? "opacity-80" : ""}`}
       data-comment-id={comment.id}
+      aria-label={`Comment by ${comment.author || "Anonymous"}`}
     >
       <div className="mb-2 flex min-w-0 flex-wrap items-start justify-between gap-2">
         <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
@@ -33,7 +33,10 @@ export function CommentItem({
             {comment.author || "Anonymous"}
           </span>
           {comment.isOptimistic && (
-            <span className="shrink-0 rounded-full bg-zinc-800 px-2 py-0.5 text-[10px] uppercase tracking-[0.18em] text-zinc-400">
+            <span
+              className="shrink-0 rounded-full bg-zinc-800 px-2 py-0.5 text-[10px] uppercase tracking-[0.18em] text-zinc-400"
+              role="status"
+            >
               Sending
             </span>
           )}
@@ -57,10 +60,10 @@ export function CommentItem({
           <button
             type="button"
             onClick={() => onReply(comment)}
-            className="flex min-h-[44px] min-w-[44px] touch-manipulation items-center gap-1.5 text-xs text-zinc-500 transition-colors hover:text-zinc-300"
+            className="flex min-h-[44px] min-w-[44px] touch-manipulation items-center gap-1.5 text-xs text-zinc-500 transition-colors hover:text-zinc-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 rounded px-1"
             aria-label={`Reply to comment by ${comment.author || "Anonymous"}`}
           >
-            <MessageCircle className="h-3.5 w-3.5 shrink-0" />
+            <MessageCircle className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
             <span>Reply</span>
           </button>
         </div>

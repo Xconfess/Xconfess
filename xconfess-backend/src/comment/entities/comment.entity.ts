@@ -62,4 +62,10 @@ export class Comment {
   // Extracted @mention usernames stored for notification lookup.
   @Column("simple-array", { nullable: true })
   mentionedUsernames?: string[];
+
+  // Client-supplied idempotency key for replay safety.
+  // Unique index ensures only one comment per key.
+  @Column({ nullable: true })
+  @Index({ unique: true })
+  idempotencyKey?: string;
 }

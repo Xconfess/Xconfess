@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160" role="img" aria-labelledby="title desc">
+<title id="title">Xconfess icon</title>
+<desc id="desc">Gradient X with a white anonymous chat bubble</desc>
+
+<defs>
+  <linearGradient id="xGrad" x1="0%" y1="100%" x2="100%" y2="0%">
+    <stop offset="0%" stop-color="#5B2EFF"/>
+    <stop offset="45%" stop-color="#7A19FF"/>
+    <stop offset="75%" stop-color="#D90CCB"/>
+    <stop offset="100%" stop-color="#FF0F7B"/>
+  </linearGradient>
+  <linearGradient id="dotGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+    <stop offset="0%" stop-color="#5B2EFF"/>
+    <stop offset="50%" stop-color="#D90CCB"/>
+    <stop offset="100%" stop-color="#FF0F7B"/>
+  </linearGradient>
+</defs>
+
+
+<g>
+  <path d="M31 19 H62 L80 50 L98 19 H129 L96 79 L131 141 H100 L80 108 L60 141 H29 L64 79 Z"
+        fill="url(#xGrad)"/>
+  <g>
+    <path d="M46 56
+             C46 43 58 34 74 34
+             H88
+             C106 34 119 44 119 59
+             V78
+             C119 94 106 104 88 104
+             H75
+             L60 115
+             L64 102
+             C53 98 46 89 46 78 Z"
+          fill="#FFFFFF"/>
+    <circle cx="68" cy="70" r="5.7" fill="#5B2EFF"/>
+    <circle cx="82" cy="70" r="5.7" fill="#D90CCB"/>
+    <circle cx="96" cy="70" r="5.7" fill="#FF0F7B"/>
+  </g>
+</g>
+
+</svg>

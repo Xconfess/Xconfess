@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { Button } from '@/app/components/ui/button';
+import { useFocusTrap } from '@/app/lib/hooks/useFocusTrap';
 
 interface StepUpModalProps {
   isOpen: boolean;
@@ -22,6 +23,8 @@ export default function StepUpModal({
   const [totpToken, setTotpToken] = useState('');
   const [mode, setMode] = useState<'password' | 'totp'>('password');
 
+  const { containerRef } = useFocusTrap({ isOpen, onClose: onCancel, dialog: true });
+
   if (!isOpen) return null;
 
   const handleSubmit = () => {
@@ -33,8 +36,17 @@ export default function StepUpModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="w-full max-w-md rounded-lg bg-white p-5 shadow-xl dark:bg-gray-800">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Confirm your identity"
+    >
+      <div
+        ref={containerRef}
+        tabIndex={-1}
+        className="w-full max-w-md rounded-lg bg-white p-5 shadow-xl outline-none dark:bg-gray-800"
+      >
         <h3 className="mb-2 text-lg font-semibold text-gray-900 dark:text-white">
           Confirm your identity
         </h3>

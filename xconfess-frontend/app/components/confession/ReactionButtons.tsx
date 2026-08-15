@@ -31,7 +31,7 @@ export const ReactionButton = ({
   // roll back cleanly if the server rejects the request. Fall back to the
   // live websocket count when there's no optimistic state in flight, so the
   // number doesn't revert to a stale prop after a reconnect resyncs it.
-  const displayCount = optimisticState?.counts[type] ?? liveCounts[type] ?? count;
+  const displayCount = optimisticState?.counts?.[type] ?? liveCounts?.[type] ?? count;
   const computedIsActive = optimisticState?.userReaction === type || isActive;
   const statusLabel = `Reaction live status: ${connectionState}`;
 

@@ -20,6 +20,8 @@ import {
 } from "../wallet/freighterAdapter";
 
 const MIN_TIP_AMOUNT = 0.1;
+const MAX_TIP_AMOUNT = 10_000;
+const TIP_PRECISION = 7;
 
 // -------------------- Types --------------------
 
@@ -130,7 +132,7 @@ function shouldPollVerification(status: number, message = ""): boolean {
 /**
  * Fake status checker — replace with actual backend or Stellar SDK call
  */
-export const checkTransactionStatus = async (): Promise<ActivityStatus> => {
+export const checkTransactionStatus = async (_txHash?: string): Promise<ActivityStatus> => {
   await sleep(2000);
 
   const random = Math.random();
@@ -157,6 +159,23 @@ export async function sendTip(
       return {
         success: false,
         error: `Minimum tip amount is ${MIN_TIP_AMOUNT} XLM`,
+      };
+    }
+
+    if (amount > MAX_TIP_AMOUNT) {
+      return {
+        success: false,
+        error: `Maximum tip amount is ${MAX_TIP_AMOUNT} XLM`,
+      };
+    }
+
+    // Validate precision: no more than TIP_PRECISION decimal places
+    const amountStr = amount.toString();
+    const decimalPart = amountStr.includes('.') ? amountStr.split('.')[1] : '';
+    if (decimalPart.length > TIP_PRECISION) {
+      return {
+        success: false,
+        error: `Tip amount cannot have more than ${TIP_PRECISION} decimal places`,
       };
     }
 
