@@ -14,6 +14,12 @@ import * as bcrypt from 'bcryptjs';
 import { AnonymousUserService } from '../user/anonymous-user.service';
 import { CryptoUtil } from '../common/crypto.util';
 import { ConfigService } from '@nestjs/config';
+import { LockoutService } from './lockout.service';
+import { StepUpService } from './step-up.service';
+import * as crypto from 'crypto';
+
+const hashToken = (token: string) =>
+  crypto.createHash('sha256').update(token).digest('hex');
 
 // Mock bcrypt module
 jest.mock('bcryptjs', () => ({
@@ -74,6 +80,23 @@ describe('Auth Integration Tests - Forgot Password Flow', () => {
           },
         },
         {
+          provide: LockoutService,
+          useValue: {
+            getStatus: jest.fn().mockResolvedValue({ isLocked: false }),
+            recordFailedAttempt: jest
+              .fn()
+              .mockResolvedValue({ isLocked: false }),
+            clearLockout: jest.fn().mockResolvedValue(undefined),
+          },
+        },
+        {
+          provide: StepUpService,
+          useValue: {
+            issueStepUpToken: jest.fn(),
+            verifyStepUpToken: jest.fn(),
+          },
+        },
+        {
           provide: getRepositoryToken(User),
           useValue: {
             findOne: jest.fn(),
@@ -123,7 +146,7 @@ describe('Auth Integration Tests - Forgot Password Flow', () => {
       const mockPasswordReset = {
         id: 1,
         userId: 1,
-        token: 'reset-token-123',
+        tokenHash: hashToken('reset-token-123'),
         expiresAt: new Date(Date.now() + 3600000),
         used: false,
         usedAt: null,
@@ -176,7 +199,7 @@ describe('Auth Integration Tests - Forgot Password Flow', () => {
       // Step 5: Mock finding the reset token for password reset using the actual token
       const mockPasswordResetForLookup = {
         ...mockPasswordReset,
-        token: actualToken,
+        tokenHash: hashToken(actualToken),
       };
       jest
         .spyOn(passwordResetRepository, 'findOne')
@@ -211,10 +234,10 @@ describe('Auth Integration Tests - Forgot Password Flow', () => {
         }),
       );
 
-      // Verify that the token was marked as used
+      // Verify that the token was marked as used, looked up by hash
       expect(passwordResetRepository.update).toHaveBeenCalledWith(
         expect.objectContaining({
-          token: actualToken,
+          tokenHash: hashToken(actualToken),
           used: false,
         }),
         {
@@ -241,7 +264,7 @@ describe('Auth Integration Tests - Forgot Password Flow', () => {
       const expiredToken = {
         id: 1,
         userId: 1,
-        token: 'expired-token-123',
+        tokenHash: hashToken('expired-token-123'),
         expiresAt: new Date(Date.now() - 3600000), // Expired 1 hour ago
         used: false,
         usedAt: null,
@@ -267,7 +290,7 @@ describe('Auth Integration Tests - Forgot Password Flow', () => {
       const usedToken = {
         id: 1,
         userId: 1,
-        token: 'used-token-123',
+        tokenHash: hashToken('used-token-123'),
         expiresAt: new Date(Date.now() + 3600000),
         used: true, // Already used
         usedAt: new Date(),
@@ -353,6 +376,16 @@ describe('AuthService Integration', () => {
             createResetToken: jest.fn(),
             validateResetToken: jest.fn(),
             invalidateUserTokens: jest.fn(),
+          },
+        },
+        {
+          provide: LockoutService,
+          useValue: {
+            getStatus: jest.fn().mockResolvedValue({ isLocked: false }),
+            recordFailedAttempt: jest
+              .fn()
+              .mockResolvedValue({ isLocked: false }),
+            clearLockout: jest.fn().mockResolvedValue(undefined),
           },
         },
         {

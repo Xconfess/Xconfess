@@ -125,7 +125,29 @@ export class OutboxDispatcherService {
 
   private async processEvent(event: OutboxEvent) {
     try {
-      // Dispatch based on type
+      // 1. Enforce outbox event idempotency by idempotencyKey if set
+      if (event.idempotencyKey) {
+        const existingCompleted = await this.outboxRepo.findOne({
+          where: {
+            idempotencyKey: event.idempotencyKey,
+            status: OutboxStatus.COMPLETED,
+          },
+        });
+
+        if (existingCompleted && existingCompleted.id !== event.id) {
+          this.logger.log(
+            `Outbox event ${event.id} skipped (idempotencyKey '${event.idempotencyKey}' already completed by event ${existingCompleted.id})`,
+          );
+          event.status = OutboxStatus.COMPLETED;
+          event.processedAt = new Date();
+          await this.outboxRepo.save(event);
+          return;
+        }
+      }
+
+      // 2. Dispatch based on type
+      const dispatchIdempotencyKey = event.idempotencyKey || event.id;
+
       switch (event.type) {
         case 'comment_notification':
         case 'message_notification':
@@ -136,7 +158,7 @@ export class OutboxDispatcherService {
           await this.notificationService.enqueueNotification(
             event.type,
             event.payload,
-            event.id,
+            dispatchIdempotencyKey,
           );
           break;
         default:

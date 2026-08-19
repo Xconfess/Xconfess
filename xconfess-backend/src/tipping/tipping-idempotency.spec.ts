@@ -7,6 +7,8 @@ import { Tip, TipVerificationStatus } from './entities/tip.entity';
 import { AnonymousConfession } from '../confession/entities/confession.entity';
 import { StellarService } from '../stellar/stellar.service';
 import { VerifyTipDto } from './dto/verify-tip.dto';
+import { EventEmitter2 } from '@nestjs/event-emitter';
+import { AuditLogService } from '../audit-log/audit-log.service';
 
 describe('TippingService - Issue #170: Idempotent Tip Verification', () => {
   let service: TippingService;
@@ -34,9 +36,12 @@ describe('TippingService - Issue #170: Idempotent Tip Verification', () => {
           useValue: {
             findOne: jest.fn(),
             find: jest.fn(),
-            create: jest.fn(),
-            save: jest.fn(),
+            create: jest.fn((value) => ({ id: 'tip-sentinel', ...value })),
+            save: jest.fn((value) =>
+              Promise.resolve({ id: value?.id || 'tip-sentinel', ...value }),
+            ),
             update: jest.fn(),
+            delete: jest.fn().mockResolvedValue({ affected: 1 }),
             createQueryBuilder: jest.fn(() => ({
               update: jest.fn().mockReturnThis(),
               set: jest.fn().mockReturnThis(),
@@ -58,6 +63,11 @@ describe('TippingService - Issue #170: Idempotent Tip Verification', () => {
             verifyTransactionFull: jest.fn(),
             getHorizonTxUrl: jest.fn(),
           },
+        },
+        { provide: EventEmitter2, useValue: { emit: jest.fn() } },
+        {
+          provide: AuditLogService,
+          useValue: { createLog: jest.fn(), log: jest.fn() },
         },
       ],
     }).compile();
@@ -248,8 +258,8 @@ describe('TippingService - Issue #170: Idempotent Tip Verification', () => {
 
       expect(result2.isIdempotent).toBe(true);
       expect(result2.tip.id).toBe(newTip.id);
-      // save should only be called once
-      expect(saveSpy).toHaveBeenCalledTimes(1);
+      // Initial verification creates a sentinel and finalizes it; replay does not save again.
+      expect(saveSpy).toHaveBeenCalledTimes(2);
     });
   });
 

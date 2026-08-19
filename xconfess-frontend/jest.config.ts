@@ -12,13 +12,18 @@ const config = {
     "**/tests/**/*.spec.ts",
     "**/tests/**/*.spec.tsx",
   ],
+  testPathIgnorePatterns: [
+    "<rootDir>/node_modules/",
+    "<rootDir>/tests/e2e/",
+    "<rootDir>/tests/mobile/",
+  ],
   moduleNameMapper: {
     "^@/(.*)$": "<rootDir>/$1",
     "^rettime$": "<rootDir>/tests/mocks/__rettime-stub.js",
     "^@open-draft/deferred-promise$": "<rootDir>/tests/mocks/__deferred-promise-stub.js",
-    "^react$": "<rootDir>/node_modules/react",
-    "^react-dom$": "<rootDir>/node_modules/react-dom",
-    "^react-dom/(.*)$": "<rootDir>/node_modules/react-dom/$1",
+    "^react$": "<rootDir>/../node_modules/react",
+    "^react-dom$": "<rootDir>/../node_modules/react-dom",
+    "^react-dom/(.*)$": "<rootDir>/../node_modules/react-dom/$1",
   },
   setupFilesAfterEnv: ["<rootDir>/jest.setup.ts"],
   transform: {

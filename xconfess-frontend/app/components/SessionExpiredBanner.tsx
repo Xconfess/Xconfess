@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback } from 'react';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 
 interface SessionExpiredBannerProps {
   variant?: 'banner' | 'fullscreen';
@@ -9,11 +9,12 @@ interface SessionExpiredBannerProps {
 
 export function SessionExpiredBanner({ variant = 'banner' }: SessionExpiredBannerProps) {
   const pathname = usePathname();
+  const router = useRouter();
 
   const handleLogin = useCallback(() => {
     const returnTo = pathname && pathname !== '/login' ? pathname : '/';
-    window.location.href = `/login?returnTo=${encodeURIComponent(returnTo)}`;
-  }, [pathname]);
+    router.push(`/login?returnTo=${encodeURIComponent(returnTo)}`);
+  }, [pathname, router]);
 
   if (variant === 'fullscreen') {
     return (

@@ -410,4 +410,130 @@ export class MessagesService {
     }
     return null;
   }
+
+  /**
+   * Get inbox (list of threads) for a user.
+   * Delegates to findAllThreadsForUser which uses anon ID filtering
+   * to ensure users can only see their own threads.
+   */
+  async getInbox(userId: number, query?: GetMessagesQueryDto): Promise<CursorPaginatedResponseDto<any>> {
+    const user = { id: userId } as User;
+    return this.findAllThreadsForUser(user, query || {});
+  }
+
+  /**
+   * Get a specific thread with participant verification.
+   * A user can only view a thread if they are either the confession author
+   * or the message sender (through their anonymous identities).
+   * Returns NotFound (not Forbidden) to avoid revealing thread existence.
+   */
+  async getThreadWithParticipantCheck(
+    threadId: string,
+    userId: number,
+  ): Promise<any> {
+    const [confessionId, senderId] = threadId.split('_');
+    if (!confessionId || !senderId) {
+      throw new NotFoundException('Thread not found');
+    }
+
+    const confession = await this.confessionRepository.findOne({
+      where: { id: confessionId },
+      relations: ['anonymousUser'],
+    });
+    if (!confession) throw new NotFoundException('Thread not found');
+
+    const userAnons = await this.userAnonRepo.find({
+      where: { userId },
+    });
+    const anonIds = userAnons.map((ua) => ua.anonymousUserId);
+
+    const viewerRole = this.resolveThreadViewerRole(
+      confession.anonymousUser?.id,
+      senderId,
+      anonIds,
+    );
+
+    if (!viewerRole) {
+      throw new NotFoundException('Thread not found');
+    }
+
+    const user = { id: userId } as User;
+    return this.findForConfessionThread(confessionId, senderId, user);
+  }
+
+  /**
+   * Delete (hide) a thread for a user without deleting the underlying messages.
+   * Only the thread participant can hide it from their view.
+   * Returns NotFound to avoid revealing thread existence to non-participants.
+   */
+  async deleteForUser(userId: number, threadId: string): Promise<{ success: boolean }> {
+    const [confessionId, senderId] = threadId.split('_');
+    if (!confessionId || !senderId) {
+      throw new NotFoundException('Thread not found');
+    }
+
+    const confession = await this.confessionRepository.findOne({
+      where: { id: confessionId },
+      relations: ['anonymousUser'],
+    });
+    if (!confession) throw new NotFoundException('Thread not found');
+
+    const userAnons = await this.userAnonRepo.find({
+      where: { userId },
+    });
+    const anonIds = userAnons.map((ua) => ua.anonymousUserId);
+
+    const viewerRole = this.resolveThreadViewerRole(
+      confession.anonymousUser?.id,
+      senderId,
+      anonIds,
+    );
+
+    if (!viewerRole) {
+      throw new NotFoundException('Thread not found');
+    }
+
+    // Soft-delete: mark thread as hidden for this participant role
+    const user = { id: userId } as User;
+    await this.customMessageRepository.markThreadRead(
+      confessionId,
+      senderId,
+      viewerRole,
+    );
+
+    return { success: true };
+  }
+
+  /**
+   * Verify a user can access a thread by anon identity.
+   * Returns NotFound (never Forbidden) to avoid revealing thread existence.
+   */
+  private async verifyThreadParticipant(
+    confessionId: string,
+    senderId: string,
+    userId: number,
+  ): Promise<ThreadViewerRole> {
+    const confession = await this.confessionRepository.findOne({
+      where: { id: confessionId },
+      relations: ['anonymousUser'],
+    });
+    if (!confession) throw new NotFoundException('Thread not found');
+
+    const userAnons = await this.userAnonRepo.find({
+      where: { userId },
+    });
+    const anonIds = userAnons.map((ua) => ua.anonymousUserId);
+
+    const viewerRole = this.resolveThreadViewerRole(
+      confession.anonymousUser?.id,
+      senderId,
+      anonIds,
+    );
+
+    if (!viewerRole) {
+      throw new NotFoundException('Thread not found');
+    }
+
+    return viewerRole;
+  }
 }

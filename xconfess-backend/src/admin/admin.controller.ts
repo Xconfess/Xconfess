@@ -304,11 +304,11 @@ export class AdminController {
       req,
     );
   }
-
   // Confessions
   @Delete('confessions/:id')
   @UseGuards(StepUpGuard)
   @HttpCode(HttpStatus.OK)
+  @UseGuards(StepUpGuard)
   @ApiOperation({ summary: 'Admin-delete a confession' })
   @ApiParam({ name: 'id', description: 'Confession UUID' })
   @ApiBody({ schema: { example: { reason: 'Violates community standards.' } } })
@@ -339,6 +339,7 @@ export class AdminController {
   @Patch('confessions/:id/hide')
   @UseGuards(StepUpGuard)
   @HttpCode(HttpStatus.OK)
+  @UseGuards(StepUpGuard)
   @ApiOperation({ summary: 'Hide a confession from public view (admin only)' })
   @ApiParam({ name: 'id', description: 'Confession UUID' })
   @ApiResponse({ status: 200, description: 'Confession hidden.' })
@@ -413,6 +414,7 @@ export class AdminController {
 
   @Post('users/unlock-account')
   @HttpCode(HttpStatus.OK)
+  @UseGuards(StepUpGuard)
   @ApiOperation({ summary: 'Unlock a locked account by email' })
   @ApiBody({ schema: { example: { email: 'user@example.com' } } })
   @ApiResponse({ status: 200, description: 'Account unlocked.' })
@@ -424,6 +426,7 @@ export class AdminController {
   @Patch('users/:id/role')
   @UseGuards(StepUpGuard)
   @HttpCode(HttpStatus.OK)
+  @UseGuards(StepUpGuard)
   @ApiOperation({ summary: 'Change a user role' })
   @ApiParam({ name: 'id', description: 'User numeric ID' })
   @ApiBody({ schema: { example: { role: UserRole.MODERATOR } } })
@@ -442,6 +445,7 @@ export class AdminController {
       parseInt(id, 10),
       dto.role,
       adminId,
+      (dto as any).reason || null,
       req,
     );
   }
@@ -449,6 +453,7 @@ export class AdminController {
   @Patch('users/:id/ban')
   @UseGuards(StepUpGuard)
   @HttpCode(HttpStatus.OK)
+  @UseGuards(StepUpGuard)
   @ApiOperation({ summary: 'Ban a user account' })
   @ApiParam({ name: 'id', description: 'User numeric ID' })
   @ApiBody({
@@ -571,7 +576,6 @@ export class AdminController {
   ) {
     return this.adminService.lookupAnchorAndTip({ txHash, confessionId });
   }
-
   // Analytics
   @Get('analytics')
   @ApiOperation({ summary: 'Get platform analytics (optionally date-bounded)' })
@@ -714,22 +718,6 @@ export class AdminController {
   @ApiResponse({
     status: 200,
     description: 'Aggregated observability metrics for admin review.',
-    schema: {
-      example: {
-        audit: {
-          totalLogs: 128,
-          actionTypeCounts: [
-            { actionType: 'REPORT_RESOLVED', count: 56 },
-            { actionType: 'USER_BANNED', count: 12 },
-          ],
-        },
-        notifications: {
-          main: { active: 5, waiting: 10, failed: 2 },
-          dlq: { failed: 2, waiting: 0, delayed: 0 },
-        },
-        generatedAt: '2026-06-01T12:00:00.000Z',
-      },
-    },
   })
   async getObservability(
     @Query('startDate') startDate?: string,
@@ -737,41 +725,6 @@ export class AdminController {
   ) {
     const start = startDate ? new Date(startDate) : undefined;
     const end = endDate ? new Date(endDate) : undefined;
-
-    return this.adminService.getObservability(start, end);
-  }
-
-  // Audit Logs by requestId (dedicated endpoint for incident reviews)
-  @Get('audit-logs/by-request/:requestId')
-  async getAuditLogsByRequestId(
-    @Param('requestId') requestId: string,
-    @Query('limit') limit?: string,
-    @Query('offset') offset?: string,
-  ) {
-    const result = await this.auditLogService.findAll({
-      requestId,
-      limit: parseInt(limit || '100', 10),
-      offset: parseInt(offset || '0', 10),
-    });
-
-    return result;
-  }
-
-  // Audit Logs by entity (for reviewing actions on a specific target)
-  @Get('audit-logs/by-entity/:entityType/:entityId')
-  async getAuditLogsByEntity(
-    @Param('entityType') entityType: string,
-    @Param('entityId') entityId: string,
-    @Query('limit') limit?: string,
-    @Query('offset') offset?: string,
-  ) {
-    const result = await this.auditLogService.findAll({
-      entityType,
-      entityId,
-      limit: parseInt(limit || '100', 10),
-      offset: parseInt(offset || '0', 10),
-    });
-
-    return result;
+    return this.auditLogService.getObservabilityMetrics(start, end);
   }
 }

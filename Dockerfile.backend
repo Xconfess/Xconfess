@@ -1,0 +1,29 @@
+FROM node:22-alpine AS deps
+WORKDIR /app
+
+COPY package.json package-lock.json ./
+COPY xconfess-backend/package.json ./xconfess-backend/package.json
+COPY xconfess-contracts/package.json ./xconfess-contracts/package.json
+COPY xconfess-frontend/package.json ./xconfess-frontend/package.json
+RUN npm ci --include=optional --no-audit --no-fund
+
+FROM deps AS build
+COPY . .
+RUN npm run backend:build
+
+FROM node:22-alpine AS runner
+WORKDIR /app
+ENV NODE_ENV=production
+
+COPY package.json package-lock.json ./
+COPY xconfess-backend/package.json ./xconfess-backend/package.json
+COPY xconfess-contracts/package.json ./xconfess-contracts/package.json
+COPY xconfess-frontend/package.json ./xconfess-frontend/package.json
+COPY --from=deps /app/node_modules ./node_modules
+COPY --from=build /app/xconfess-backend/dist ./xconfess-backend/dist
+COPY --from=build /app/xconfess-backend/migrations ./xconfess-backend/migrations
+
+WORKDIR /app/xconfess-backend
+EXPOSE 5000
+HEALTHCHECK --interval=30s --timeout=5s --start-period=45s --retries=3 CMD node -e "require('http').get('http://127.0.0.1:' + (process.env.PORT || 5000) + '/api/health/live', r => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))"
+CMD ["npm", "run", "start:prod"]

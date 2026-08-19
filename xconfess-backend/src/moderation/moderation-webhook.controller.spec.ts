@@ -1,5 +1,6 @@
 import { UnauthorizedException } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
+import * as crypto from 'crypto';
 import { ModerationStatus } from './ai-moderation.service';
 import { ModerationWebhookController } from './moderation-webhook.controller';
 
@@ -19,6 +20,9 @@ describe('ModerationWebhookController', () => {
   let eventEmitter: {
     emit: jest.Mock;
   };
+  let auditLogService: {
+    log: jest.Mock;
+  };
 
   const confession = {
     id: 'conf-123',
@@ -31,12 +35,19 @@ describe('ModerationWebhookController', () => {
     isHidden: false,
   } as any;
 
-  const buildSignature = (payload: unknown) => {
-    const crypto = require('crypto') as typeof import('crypto');
-    return crypto
-      .createHmac('sha256', webhookSecret)
-      .update(JSON.stringify(payload))
+  /**
+   * Builds a timestamped signature header: "t=<unix_ts>,v1=<hmac>"
+   * HMAC computed over "<timestamp>.<serialized_payload>"
+   */
+  const buildSignature = (payload: unknown, secret = webhookSecret) => {
+    const timestamp = Math.floor(Date.now() / 1000).toString();
+    const serialized = JSON.stringify(payload);
+    const signedMessage = `${timestamp}.${serialized}`;
+    const hmac = crypto
+      .createHmac('sha256', secret)
+      .update(signedMessage)
       .digest('hex');
+    return `t=${timestamp},v1=${hmac}`;
   };
 
   beforeEach(() => {
@@ -65,23 +76,34 @@ describe('ModerationWebhookController', () => {
     eventEmitter = {
       emit: jest.fn(),
     };
+    auditLogService = {
+      log: jest.fn().mockResolvedValue(undefined),
+    };
 
     controller = new ModerationWebhookController(
-      { get: jest.fn().mockReturnValue(webhookSecret) } as any,
+      {
+        get: jest.fn((key: string, def?: any) => {
+          if (key === 'WEBHOOK_SECRET') return webhookSecret;
+          if (key === 'WEBHOOK_TIMESTAMP_TOLERANCE_SECONDS') return 300;
+          return def;
+        }),
+      } as any,
       eventEmitter as unknown as EventEmitter2,
       confessionRepo as any,
       moderationRepoService as any,
+      auditLogService as any,
     );
   });
 
   it('updates the confession and emits requires-review for flagged results', async () => {
     const payload = {
+      eventId: crypto.randomUUID(),
       confessionId: 'conf-123',
       moderationScore: 0.71,
       moderationFlags: ['harassment'],
       moderationStatus: ModerationStatus.FLAGGED,
       details: { harassment: 0.71 },
-      timestamp: '2026-03-25T10:00:00.000Z',
+      timestamp: new Date().toISOString(),
     };
 
     const result = await controller.handleModerationResults(
@@ -124,12 +146,13 @@ describe('ModerationWebhookController', () => {
 
   it('emits high-severity for rejected results', async () => {
     const payload = {
+      eventId: crypto.randomUUID(),
       confessionId: 'conf-123',
       moderationScore: 0.99,
       moderationFlags: ['violence'],
       moderationStatus: ModerationStatus.REJECTED,
       details: { violence: 0.99 },
-      timestamp: '2026-03-25T10:05:00.000Z',
+      timestamp: new Date().toISOString(),
     };
 
     await controller.handleModerationResults(payload, buildSignature(payload));
@@ -147,43 +170,44 @@ describe('ModerationWebhookController', () => {
     );
   });
 
-  it('treats a duplicate delivery as idempotent and skips side effects', async () => {
+  it('treats a duplicate delivery (same eventId) as idempotent and skips side effects', async () => {
     const payload = {
+      eventId: crypto.randomUUID(),
       confessionId: 'conf-123',
       moderationScore: 0.71,
       moderationFlags: ['harassment'],
       moderationStatus: ModerationStatus.FLAGGED,
       details: { harassment: 0.71 },
-      timestamp: '2026-03-25T10:00:00.000Z',
+      timestamp: new Date().toISOString(),
     };
-    moderationRepoService.syncWebhookResult.mockResolvedValueOnce({
-      log: { id: 'log-1' },
-      isIdempotent: true,
-    });
 
-    const result = await controller.handleModerationResults(
+    // First call processes normally
+    const result1 = await controller.handleModerationResults(
       payload,
       buildSignature(payload),
     );
+    expect(result1.isIdempotent).toBe(false);
 
-    expect(confessionRepo.save).not.toHaveBeenCalled();
-    expect(eventEmitter.emit).not.toHaveBeenCalled();
-    expect(result).toEqual({
-      success: true,
-      confessionId: 'conf-123',
-      status: ModerationStatus.FLAGGED,
-      isIdempotent: true,
-    });
+    // Second call with same eventId — replayed
+    const result2 = await controller.handleModerationResults(
+      payload,
+      buildSignature(payload),
+    );
+    expect(result2.isIdempotent).toBe(true);
+
+    // Confession save should only happen once (first call)
+    expect(confessionRepo.save).toHaveBeenCalledTimes(1);
   });
 
   it('rolls back staged webhook log updates when confession save fails', async () => {
     const payload = {
+      eventId: crypto.randomUUID(),
       confessionId: 'conf-123',
       moderationScore: 0.85,
       moderationFlags: ['harassment'],
       moderationStatus: ModerationStatus.FLAGGED,
       details: { harassment: 0.85 },
-      timestamp: '2026-03-25T10:00:00.000Z',
+      timestamp: new Date().toISOString(),
     };
 
     const committed = {
@@ -227,16 +251,36 @@ describe('ModerationWebhookController', () => {
 
   it('rejects webhook requests with an invalid signature', async () => {
     const payload = {
+      eventId: crypto.randomUUID(),
       confessionId: 'conf-123',
       moderationScore: 0.71,
       moderationFlags: ['harassment'],
       moderationStatus: ModerationStatus.FLAGGED,
       details: { harassment: 0.71 },
-      timestamp: '2026-03-25T10:00:00.000Z',
+      timestamp: new Date().toISOString(),
+    };
+
+    const timestamp = Math.floor(Date.now() / 1000).toString();
+    const invalidHeader = `t=${timestamp},v1=${'f'.repeat(64)}`;
+
+    await expect(
+      controller.handleModerationResults(payload, invalidHeader),
+    ).rejects.toThrow(UnauthorizedException);
+  });
+
+  it('rejects webhook requests with missing signature header', async () => {
+    const payload = {
+      eventId: crypto.randomUUID(),
+      confessionId: 'conf-123',
+      moderationScore: 0.71,
+      moderationFlags: ['harassment'],
+      moderationStatus: ModerationStatus.FLAGGED,
+      details: { harassment: 0.71 },
+      timestamp: new Date().toISOString(),
     };
 
     await expect(
-      controller.handleModerationResults(payload, 'invalid-signature'),
+      controller.handleModerationResults(payload, ''),
     ).rejects.toThrow(UnauthorizedException);
   });
 });

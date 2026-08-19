@@ -2,13 +2,15 @@
 "use client";
 
 import { createContext, useContext, ReactNode } from "react";
-import { useNotifications } from "@/lib/hooks/useNotifications";
-import { Notification } from "@/types/notifications";
+import { useNotifications, ConnectionState } from "@/app/lib/hooks/useNotifications";
+import { Notification } from "@/app/types/notifications";
 
 interface NotificationContextType {
   notifications: Notification[];
   unreadCount: number;
   isConnected: boolean;
+  connectionState: ConnectionState;
+  reconnectAttempts: number;
   loading: boolean;
   markAsRead: (notificationId: string) => Promise<void>;
   markAllAsRead: () => Promise<void>;

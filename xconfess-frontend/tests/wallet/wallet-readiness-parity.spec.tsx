@@ -69,14 +69,14 @@ describe("Wallet readiness parity – AnchorButton vs TipButton", () => {
     renderBoth();
 
     const anchorSection = screen.getByTestId("anchor-section");
-    expect(anchorSection).toHaveTextContent(/Install Freighter/i);
+    expect(anchorSection).toHaveTextContent(/Freighter browser extension/i);
 
     const tipSection = screen.getByTestId("tip-section");
     const tipToggle = within(tipSection).getByRole("button");
     await user.click(tipToggle);
 
-    expect(tipSection).toHaveTextContent(/Install Freighter/i);
-    const tipAction = within(tipSection).getByRole("button", { name: /send.*xlm tip|connect wallet to tip/i });
+    expect(tipSection).toHaveTextContent(/Freighter browser extension/i);
+    const tipAction = within(tipSection).getByRole("button", { name: /wallet required.*install freighter/i });
     expect(tipAction).toBeDisabled();
   });
 

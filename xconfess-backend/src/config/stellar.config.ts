@@ -18,4 +18,10 @@ export default registerAs('stellar', () => ({
   maxFeeBudget: Number(process.env.STELLAR_MAX_FEE_BUDGET) || 100, // in stroops
   feeBackoffMs: Number(process.env.STELLAR_FEE_BACKOFF_MS) || 5000, // ms
   maxFeeRetries: Number(process.env.STELLAR_MAX_FEE_RETRIES) || 3,
+
+  // RPC call timeout and retry settings
+  rpcTimeoutMs: Number(process.env.STELLAR_RPC_TIMEOUT_MS) || 15000, // 15s default
+  rpcMaxRetries: Number(process.env.STELLAR_RPC_MAX_RETRIES) || 3,
+  rpcRetryBaseDelayMs: Number(process.env.STELLAR_RPC_RETRY_BASE_DELAY_MS) || 1000,
+  rpcRetryMaxDelayMs: Number(process.env.STELLAR_RPC_RETRY_MAX_DELAY_MS) || 10000,
 }));

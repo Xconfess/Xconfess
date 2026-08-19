@@ -9,6 +9,8 @@ import {
 import { NotificationPreference } from '../entities/notification-preference.entity';
 import { NOTIFICATION_QUEUE } from '../processors/notification.processor';
 import { AppLogger } from '../../logger/logger.service';
+import { ConfigService } from '@nestjs/config';
+import { User } from '../../user/entities/user.entity';
 
 describe('NotificationService', () => {
   let service: NotificationService;
@@ -20,6 +22,7 @@ describe('NotificationService', () => {
   };
   let notificationRepoMock: { create: jest.Mock; save: jest.Mock };
   let appLoggerMock: { incrementCounter: jest.Mock };
+  let userRepoMock: { findOne: jest.Mock };
 
   beforeEach(async () => {
     queueMock = {
@@ -41,6 +44,10 @@ describe('NotificationService', () => {
       save: jest.fn().mockImplementation(async (n) => n),
     };
 
+    userRepoMock = {
+      findOne: jest.fn().mockResolvedValue(null),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         NotificationService,
@@ -53,6 +60,10 @@ describe('NotificationService', () => {
           useValue: preferenceRepoMock,
         },
         {
+          provide: getRepositoryToken(User),
+          useValue: userRepoMock,
+        },
+        {
           provide: getQueueToken(NOTIFICATION_QUEUE),
           useValue: queueMock,
         },
@@ -60,6 +71,15 @@ describe('NotificationService', () => {
           provide: AppLogger,
           useValue: {
             incrementCounter: jest.fn(),
+            warn: jest.fn(),
+          },
+        },
+        {
+          provide: ConfigService,
+          useValue: {
+            get: jest.fn((key: string) =>
+              key === 'ENABLE_BACKGROUND_JOBS' ? 'true' : undefined,
+            ),
           },
         },
       ],

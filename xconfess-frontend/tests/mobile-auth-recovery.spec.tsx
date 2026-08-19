@@ -6,6 +6,7 @@ const mockPush = jest.fn();
 type MockAuthState = {
   isAuthenticated: boolean;
   isLoading: boolean;
+  isSessionExpired: boolean;
   user: { username: string; email: string; role: string } | null;
   logout: jest.Mock;
 };
@@ -13,6 +14,7 @@ type MockAuthState = {
 const defaultAuthState: MockAuthState = {
   isAuthenticated: true,
   isLoading: false,
+  isSessionExpired: false,
   user: { username: "testuser", email: "test@example.com", role: "user" },
   logout: jest.fn(),
 };
@@ -21,6 +23,7 @@ let mockAuthState: MockAuthState = defaultAuthState;
 
 jest.mock("next/navigation", () => ({
   useRouter: () => ({ push: mockPush }),
+  usePathname: () => "/dashboard",
 }));
 
 jest.mock("@/app/lib/hooks/useAuth", () => ({
@@ -70,7 +73,7 @@ describe("Mobile Auth Recovery Regression Coverage", () => {
     expect(screen.queryByText("Protected Content")).not.toBeInTheDocument();
 
     await waitFor(() => {
-      expect(mockPush).toHaveBeenCalledWith("/login");
+      expect(mockPush).toHaveBeenCalledWith("/login?returnTo=%2Fdashboard");
     });
   });
 

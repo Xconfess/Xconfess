@@ -17,6 +17,8 @@ interface TipButtonProps {
 }
 
 const MIN_TIP_AMOUNT = 0.1;
+const MAX_TIP_AMOUNT = 10_000;
+const TIP_PRECISION = 7;
 const TIP_STEP = 0.1;
 const TIP_UNIT = "XLM";
 
@@ -33,6 +35,13 @@ function getTipAmountValidationError(value: string): string | null {
   if (amount === 0) return "Tip amount must be greater than zero.";
   if (amount < 0) return "Tip amount cannot be negative.";
   if (amount < MIN_TIP_AMOUNT) return `Minimum tip is ${MIN_TIP_AMOUNT} ${TIP_UNIT}.`;
+  if (amount > MAX_TIP_AMOUNT) return `Maximum tip is ${MAX_TIP_AMOUNT} ${TIP_UNIT}.`;
+  // Validate precision
+  const amountStr = amount.toString();
+  const decimalPart = amountStr.includes(".") ? amountStr.split(".")[1] : "";
+  if (decimalPart.length > TIP_PRECISION) {
+    return `Tip amount cannot have more than ${TIP_PRECISION} decimal places.`;
+  }
   return null;
 }
 
@@ -57,7 +66,7 @@ export const TipButton = ({ confessionId, recipientAddress, initialStats }: TipB
   const wallet = useWallet();
   const { isConnected, connect } = wallet;
 
-  const { info, submit, retryVerify, reset } = useTipStateMachine({
+  const { info, submit, retryVerify, cancel, reset } = useTipStateMachine({
     confessionId,
     recipientAddress,
     onConfirmed: (hash, amount) => {
@@ -78,7 +87,11 @@ export const TipButton = ({ confessionId, recipientAddress, initialStats }: TipB
   const walletCTA = getWalletCTAState(wallet, { extraDisabled: isBusy });
 
   useEffect(() => {
-    getTipStats(confessionId).then((s) => { if (s) setStats(s); });
+    Promise.resolve(getTipStats(confessionId))
+      .then((s) => { if (s) setStats(s); })
+      .catch(() => {
+        // Stats are supplemental; tipping should remain usable if they fail.
+      });
   }, [confessionId]);
 
   const refreshStats = async () => {
@@ -116,6 +129,7 @@ export const TipButton = ({ confessionId, recipientAddress, initialStats }: TipB
     verifying: "Verifying with backend…",
     confirmed: null,
     failed: null,
+    stale: null,
   }[info.state];
 
   return (
@@ -185,6 +199,46 @@ export const TipButton = ({ confessionId, recipientAddress, initialStats }: TipB
                   Tx: {info.txHash}
                 </p>
               )}
+              <button
+                onClick={cancel}
+                className="mt-2 text-xs text-yellow-300 underline hover:text-yellow-200"
+                aria-label="Cancel"
+              >
+                Cancel
+              </button>
+            </div>
+          )}
+
+          {/* Stale — a submitted tx was recovered after a reload but is too old to auto-verify */}
+          {info.state === "stale" && info.txHash && (
+            <div className="mb-3 rounded-lg border border-orange-700/50 bg-orange-900/30 p-3">
+              <div className="flex items-center gap-2 text-orange-400 text-sm font-medium">
+                <span>Verification link expired</span>
+              </div>
+              <p className="text-xs text-orange-400 mt-1">
+                This tip was submitted a while ago. It may have completed — check the explorer or retry verification.
+              </p>
+              <p className="mt-1 truncate font-mono text-xs text-zinc-400">Tx: {info.txHash}</p>
+              <div className="mt-2 flex gap-2">
+                <button
+                  onClick={retryVerify}
+                  disabled={isBusy}
+                  className="flex-1 rounded py-1.5 text-xs text-white bg-orange-700 hover:bg-orange-600 transition-colors disabled:opacity-50"
+                  aria-label="Retry verification"
+                >
+                  Retry Verification
+                </button>
+                {info.explorerUrl && (
+                  <a
+                    href={info.explorerUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="rounded bg-zinc-700 px-2 py-1.5 text-xs text-zinc-300 hover:bg-zinc-600"
+                  >
+                    View on Explorer
+                  </a>
+                )}
+              </div>
             </div>
           )}
 

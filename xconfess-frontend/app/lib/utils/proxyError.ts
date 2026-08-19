@@ -13,7 +13,6 @@
  *  • Named factories cover every recurring failure scenario so call-sites
  *    read like documentation rather than inline error-construction logic.
  */
-
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const JSON_CONTENT_TYPE = { "Content-Type": "application/json" } as const;
@@ -91,14 +90,17 @@ function resolveCorrelationId(id: string | undefined): string | undefined {
 export function buildProxyErrorResponse(
   message: string,
   httpStatus: number,
-  ctx: Partial<ProxyErrorContext> = {},
+  ctx: Partial<Pick<ProxyErrorContext, "correlationId" | "backendStatus">> = {},
 ): Response {
   const body: ProxyErrorBody = { message };
+  const correlationId = resolveCorrelationId(ctx.correlationId);
 
-  const cid = resolveCorrelationId(ctx.correlationId);
-  if (cid) body.correlationId = cid;
-
-  if (ctx.backendStatus !== undefined) body.backendStatus = ctx.backendStatus;
+  if (correlationId) {
+    body.correlationId = correlationId;
+  }
+  if (ctx.backendStatus !== undefined) {
+    body.backendStatus = ctx.backendStatus;
+  }
 
   return new Response(JSON.stringify(body), {
     status: httpStatus,

@@ -5,6 +5,7 @@ import {
   LoggerService as NestLoggerService,
 } from '@nestjs/common';
 import { UserIdMasker } from '../utils/mask-user-id';
+import { redactSecretsDeep } from '../utils/redact-secrets';
 
 type MetricLabels = Record<string, string | number | boolean>;
 type EventSeverity = 'info' | 'warning' | 'alert';
@@ -35,9 +36,9 @@ export class AppLogger implements NestLoggerService {
 
   private sanitize(message: any): any {
     if (typeof message === 'string')
-      return UserIdMasker.maskObject({ msg: message }).msg;
+      return redactSecretsDeep(UserIdMasker.maskObject({ msg: message }).msg);
     if (typeof message === 'object' && message !== null) {
-      return UserIdMasker.maskObject(message);
+      return redactSecretsDeep(UserIdMasker.maskObject(message));
     }
     return message;
   }

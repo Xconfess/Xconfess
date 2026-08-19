@@ -30,7 +30,8 @@ jest.mock("@/app/lib/config", () => ({
   getApiBaseUrl: () => "",
 }));
 
-import { authApi } from "../authService";
+import { AppError } from "@/app/lib/utils/errorHandler";
+import { authApi, getAuthFieldError } from "../authService";
 
 describe("authApi.register — proxy routing", () => {
   let fetchSpy: jest.SpyInstance;
@@ -69,14 +70,31 @@ describe("authApi.register — proxy routing", () => {
   it("throws on non-ok response", async () => {
     fetchSpy.mockResolvedValueOnce(
       new Response(
-        JSON.stringify({ message: "Email already taken" }),
+        JSON.stringify({
+          message: "An account with this email already exists.",
+          code: "ALREADY_EXISTS",
+          details: { field: "email" },
+        }),
         { status: 409 },
       ),
     );
 
-    await expect(
-      authApi.register({ email: "dup@b.com", password: "pass", username: "bob" }),
-    ).rejects.toThrow();
+    let thrown: unknown;
+    try {
+      await authApi.register({
+        email: "dup@b.com",
+        password: "pass",
+        username: "bob",
+      });
+    } catch (error) {
+      thrown = error;
+    }
+
+    expect(thrown).toBeInstanceOf(AppError);
+    expect((thrown as AppError).message).toBe(
+      "An account with this email already exists.",
+    );
+    expect(getAuthFieldError(thrown)).toBe("email");
   });
 
   it("throws on network failure", async () => {

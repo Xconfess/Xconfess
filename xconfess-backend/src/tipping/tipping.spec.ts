@@ -8,6 +8,8 @@ describe('Tipping Service Tests with Seed Helpers', () => {
   let tipRepository: any;
   let confessionRepository: any;
   let stellarService: any;
+  let eventEmitter: any;
+  let auditLogService: any;
 
   beforeEach(() => {
     tipRepository = {
@@ -37,11 +39,15 @@ describe('Tipping Service Tests with Seed Helpers', () => {
       verifyTransaction: jest.fn(),
       getHorizonTxUrl: jest.fn().mockReturnValue('https://horizon.example/tx'),
     };
+    eventEmitter = { emit: jest.fn() };
+    auditLogService = { createLog: jest.fn(), log: jest.fn() };
 
     service = new TippingService(
       tipRepository,
       confessionRepository,
       stellarService,
+      eventEmitter,
+      auditLogService,
     );
   });
 
@@ -95,7 +101,7 @@ describe('Tipping Service Tests with Seed Helpers', () => {
             {
               type: 'payment',
               asset_type: 'native',
-              amount: String(pendingTip.amount),
+              amount: pendingTip.amount.toFixed(7),
               from: pendingTip.senderAddress,
             },
           ],

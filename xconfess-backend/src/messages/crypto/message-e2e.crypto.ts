@@ -5,6 +5,13 @@ export const MESSAGE_E2E_VERSION = 1;
 export const MESSAGE_E2E_INFO = 'xconfess-e2e-v1';
 export const ENCRYPTED_PREVIEW = '[Encrypted message]';
 
+/** AES-256-GCM nonce size in bytes (96 bits, per NIST SP 800-38D). */
+const GCM_NONCE_BYTES = 12;
+/** AES-256-GCM auth tag size in bytes — the minimum possible ciphertext length. */
+const GCM_TAG_BYTES = 16;
+const BASE64URL_RE = /^[A-Za-z0-9_-]+$/;
+const ENVELOPE_KEYS = ['v', 'alg', 'iv', 'ct'] as const;
+
 export interface MessageCiphertextEnvelope {
   v: number;
   alg: 'aes-256-gcm';
@@ -42,21 +49,57 @@ export function serializeEnvelope(envelope: MessageCiphertextEnvelope): string {
   return JSON.stringify(envelope);
 }
 
+/** Decoded byte length of a base64url string, or -1 if the string is not valid base64url. */
+function base64UrlByteLength(value: string): number {
+  if (typeof value !== 'string' || value.length === 0 || !BASE64URL_RE.test(value)) {
+    return -1;
+  }
+  return fromBase64Url(value).length;
+}
+
 export function parseEnvelope(payload: string): MessageCiphertextEnvelope | null {
-  try {
-    const parsed = JSON.parse(payload) as MessageCiphertextEnvelope;
-    if (
-      parsed?.v === MESSAGE_E2E_VERSION &&
-      parsed.alg === 'aes-256-gcm' &&
-      typeof parsed.iv === 'string' &&
-      typeof parsed.ct === 'string'
-    ) {
-      return parsed;
-    }
+  if (typeof payload !== 'string') {
     return null;
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(payload);
   } catch {
     return null;
   }
+
+  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+    return null;
+  }
+
+  // Reject envelopes carrying unexpected fields — a strict shape prevents
+  // smuggling extra data through a payload that otherwise looks valid.
+  const keys = Object.keys(parsed);
+  if (
+    keys.length !== ENVELOPE_KEYS.length ||
+    !ENVELOPE_KEYS.every((key) => keys.includes(key))
+  ) {
+    return null;
+  }
+
+  const candidate = parsed as MessageCiphertextEnvelope;
+  if (
+    candidate.v !== MESSAGE_E2E_VERSION ||
+    candidate.alg !== 'aes-256-gcm'
+  ) {
+    return null;
+  }
+
+  if (base64UrlByteLength(candidate.iv) !== GCM_NONCE_BYTES) {
+    return null;
+  }
+
+  if (base64UrlByteLength(candidate.ct) < GCM_TAG_BYTES) {
+    return null;
+  }
+
+  return candidate;
 }
 
 export function isEncryptedPayload(payload: string): boolean {

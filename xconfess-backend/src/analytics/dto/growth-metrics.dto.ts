@@ -6,6 +6,12 @@ export class DailyGrowthDto {
 
   @ApiProperty({ description: 'Number of confessions created' })
   count: number;
+
+  @ApiProperty({
+    description: 'Privacy flag: true if count is below minimum cohort threshold',
+    required: false,
+  })
+  suppressed?: boolean;
 }
 
 export class NumericDeltaDto {

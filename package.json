@@ -11,8 +11,10 @@
     "npm": ">=9.0.0"
   },
   "scripts": {
-    "dev": "concurrently \"npm run dev --workspace=xconfess-backend\" \"npm run dev --workspace=xconfess-frontend\"",
-    "dev:backend": "npm run dev --workspace=xconfess-backend",
+    "dev": "npm run dev:check && concurrently \"npm run dev --workspace=xconfess-backend\" \"npm run dev --workspace=xconfess-frontend\"",
+    "dev:check": "node scripts/check-local-services.js",
+    "dev:services": "docker compose up -d postgres redis",
+    "dev:backend": "npm run dev:check && npm run dev --workspace=xconfess-backend",
     "dev:frontend": "npm run dev --workspace=xconfess-frontend",
     "backend:build": "npm run build --workspace=xconfess-backend",
     "backend:test": "npm run test --workspace=xconfess-backend",
@@ -27,7 +29,10 @@
     "contract:fmt:check": "npm run fmt:check --workspace=xconfess-contracts",
     "contract:clean": "npm run clean --workspace=xconfess-contracts",
     "contract:deploy:testnet": "npm run deploy:testnet --workspace=xconfess-contracts",
-    "build": "npm run backend:build && npm run contract:build:release",
+    "build": "npm run backend:build && npm run frontend:build && npm run contract:build:release",
+    "build:apps": "npm run backend:build && npm run frontend:build",
+    "start:backend": "npm run start:prod --workspace=xconfess-backend",
+    "start:frontend": "npm run start --workspace=xconfess-frontend",
     "test": "npm run backend:test && npm run contract:test",
     "lint": "npm run backend:lint && npm run contract:lint",
     "frontend:build": "npm run build --workspace=xconfess-frontend",
@@ -35,12 +40,18 @@
     "frontend:test:smoke": "npm run test:smoke --workspace=xconfess-frontend",
     "frontend:test:e2e": "npm run test:e2e --workspace=xconfess-frontend",
     "test:e2e": "npm run frontend:test:e2e",
-    "seed": "npx ts-node --project tsconfig.seed.json scripts/seed.ts",
+    "seed": "npx ts-node -r tsconfig-paths/register --project tsconfig.seed.json scripts/seed.ts",
     "frontend:lint": "npm run lint --workspace=xconfess-frontend",
+    "frontend:typecheck": "npm run typecheck --workspace=xconfess-frontend",
     "ci:backend": "npm run backend:build && npm run backend:lint && npm run backend:test",
-    "ci:frontend": "npm run frontend:lint && npm run frontend:test && npm run frontend:build",
+    "ci:frontend": "npm run frontend:lint && npm run frontend:typecheck && npm run frontend:test && npm run frontend:build",
     "ci:contract": "npm run contract:fmt:check && npm run contract:lint && npm run contract:test && npm run contract:build:release",
-    "ci": "npm run ci:backend && npm run ci:frontend && npm run ci:contract"
+    "ci:apps": "npm run backend:build && npm run backend:lint && npm run frontend:lint && npm run frontend:build",
+    "ci": "npm run ci:backend && npm run ci:frontend && npm run ci:contract",
+    "secret-scan": "./scripts/secret-scanning-preflight.sh",
+    "secret-scan:self-test": "./scripts/secret-scanning-preflight.sh --self-test",
+    "audit:ci": "npx audit-ci --config audit-ci.json",
+    "audit:report": "npm audit --json > audit-report.json 2>&1 || true"
   },
   "dependencies": {
     "@faker-js/faker": "^10.2.0",
@@ -77,11 +88,14 @@
     "jest": "^30.0.5",
     "lodash": "^4.17.21",
     "minimatch": "^9.0.5",
+    "sqlite3": "^6.0.1",
     "ts-jest": "^29.4.0",
     "ts-node": "^10.9.2"
   },
   "packageManager": "npm@10.9.3",
   "overrides": {
+    "js-yaml": "4.3.1",
+    "nanoid": "3.3.18",
     "rxjs": "7.8.2"
   }
 }

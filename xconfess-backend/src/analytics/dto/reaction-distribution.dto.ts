@@ -9,6 +9,12 @@ export class ReactionTypeDto {
 
   @ApiProperty({ description: 'Percentage of total reactions' })
   percentage: string;
+
+  @ApiProperty({
+    description: 'Privacy flag: true if count is below minimum cohort threshold',
+    required: false,
+  })
+  suppressed?: boolean;
 }
 
 export class ReactionDistributionDto {

@@ -44,26 +44,26 @@ Integration tests that verify:
 ### Run Unit Tests
 ```bash
 cd xconfess-backend
-pnpm test reaction.module.spec.ts
+npm test reaction.module.spec.ts
 ```
 
 ### Run Integration Tests
 ```bash
 cd xconfess-backend
-pnpm test reactions-gateway-boot.spec.ts
+npm test reactions-gateway-boot.spec.ts
 ```
 
 ### Run Existing E2E Tests
 ```bash
 cd xconfess-backend
-pnpm test reactions.gateway.spec.ts
+npm test reactions.gateway.spec.ts
 ```
 
 ### Manual Testing
 1. Start the backend:
    ```bash
    cd xconfess-backend
-   pnpm run start:dev
+   npm run start:dev
    ```
 
 2. Connect a WebSocket client to `http://localhost:3000/reactions`

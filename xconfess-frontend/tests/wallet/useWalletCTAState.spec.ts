@@ -21,7 +21,7 @@ describe("getWalletCTAState", () => {
     expect(getWalletCTAState(walletNotInstalled())).toEqual({
       status: "not-installed",
       disabled: true,
-      guidance: "Install Freighter wallet to continue.",
+      guidance: "Install the Freighter browser extension to connect your Stellar wallet.",
     });
   });
 
@@ -29,7 +29,7 @@ describe("getWalletCTAState", () => {
     expect(getWalletCTAState(disconnectedWallet())).toEqual({
       status: "not-connected",
       disabled: false,
-      guidance: null,
+      guidance: "Connect your Freighter wallet to perform on-chain actions.",
     });
   });
 

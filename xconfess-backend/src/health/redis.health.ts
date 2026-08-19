@@ -17,6 +17,22 @@ function resolveDisabledReason(rawValue: unknown): string {
   return `ENABLE_BACKGROUND_JOBS is set to "${String(rawValue)}" (expected "true" to enable)`;
 }
 
+function resolveActionableHint(errorMessage: string): string {
+  const lower = errorMessage.toLowerCase();
+
+  if (lower.includes('econnrefused')) {
+    return 'Redis server is not running or not accepting connections. Verify REDIS_HOST and REDIS_PORT, and ensure Redis is started.';
+  }
+  if (lower.includes('timeout') || lower.includes('timed out')) {
+    return 'Connection timed out. Check network connectivity between the application and Redis host.';
+  }
+  if (lower.includes('noauth') || lower.includes('auth')) {
+    return 'Authentication failed. If Redis requires a password, set the REDIS_PASSWORD environment variable.';
+  }
+
+  return 'Check backend logs for the full error. Verify REDIS_HOST and REDIS_PORT environment variables.';
+}
+
 @Injectable()
 export class RedisHealthIndicator extends HealthIndicator {
   private readonly logger = new Logger(RedisHealthIndicator.name);
@@ -53,15 +69,41 @@ export class RedisHealthIndicator extends HealthIndicator {
 
     try {
       await client.connect();
+
+      const start = Date.now();
       await client.ping();
-      return this.getStatus(key, true, { host, port });
+      const latencyMs = Date.now() - start;
+
+      // Retrieve server version and connected client count
+      const infoRaw = await client.info('server');
+      const versionMatch = infoRaw.match(/redis_version:([\d.]+)/);
+      const version = versionMatch ? versionMatch[1] : undefined;
+
+      const clientsRaw = await client.info('clients');
+      const clientsMatch = clientsRaw.match(/connected_clients:(\d+)/);
+      const connectedClients = clientsMatch
+        ? parseInt(clientsMatch[1], 10)
+        : undefined;
+
+      return this.getStatus(key, true, {
+        host,
+        port,
+        latencyMs,
+        version,
+        connectedClients,
+      });
     } catch (error: unknown) {
       const message =
         error instanceof Error ? error.message : String(error);
       this.logger.error(`Redis health check failed: ${message}`);
       throw new HealthCheckError(
         'Redis is unreachable',
-        this.getStatus(key, false, { host, port, error: message }),
+        this.getStatus(key, false, {
+          host,
+          port,
+          error: message,
+          hint: resolveActionableHint(message),
+        }),
       );
     } finally {
       try {

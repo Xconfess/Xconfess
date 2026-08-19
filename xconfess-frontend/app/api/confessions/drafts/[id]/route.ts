@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getApiBaseUrl } from "@/app/lib/config";
 
 /**
  * ASSUMPTION: see app/api/confessions/drafts/route.ts — same proxy
  * pattern, scoped to a single draft id.
  */
-const BACKEND_URL = process.env.BACKEND_URL ?? "http://localhost:4000";
+const BACKEND_URL = getApiBaseUrl();
+
+type RouteContext = { params: Promise<{ id: string }> };
 
 function forwardAuth(req: NextRequest): HeadersInit {
   const auth = req.headers.get("authorization");
@@ -13,8 +16,9 @@ function forwardAuth(req: NextRequest): HeadersInit {
 
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: { id: string } },
+  { params }: RouteContext,
 ) {
+  const { id } = await params;
   const auth = req.headers.get("authorization");
   if (!auth) {
     return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
@@ -23,7 +27,7 @@ export async function PATCH(
   try {
     const body = await req.json();
     const res = await fetch(
-      `${BACKEND_URL}/confessions/drafts/${params.id}`,
+      `${BACKEND_URL}/confessions/drafts/${id}`,
       {
         method: "PATCH",
         headers: {
@@ -45,8 +49,9 @@ export async function PATCH(
 
 export async function POST(
   req: NextRequest,
-  { params }: { params: { id: string } },
+  { params }: RouteContext,
 ) {
+  const { id } = await params;
   const auth = req.headers.get("authorization");
   if (!auth) {
     return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
@@ -55,7 +60,7 @@ export async function POST(
   try {
     const body = await req.json();
     const res = await fetch(
-      `${BACKEND_URL}/confessions/drafts/${params.id}/autosave`,
+      `${BACKEND_URL}/confessions/drafts/${id}/autosave`,
       {
         method: "PATCH",
         headers: {
@@ -77,8 +82,9 @@ export async function POST(
 
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: { id: string } },
+  { params }: RouteContext,
 ) {
+  const { id } = await params;
   const auth = req.headers.get("authorization");
   if (!auth) {
     return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
@@ -86,7 +92,7 @@ export async function DELETE(
 
   try {
     const res = await fetch(
-      `${BACKEND_URL}/confessions/drafts/${params.id}`,
+      `${BACKEND_URL}/confessions/drafts/${id}`,
       {
         method: "DELETE",
         headers: forwardAuth(req),

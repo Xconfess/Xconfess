@@ -19,6 +19,7 @@ describe('MessagesService', () => {
   let userAnonRepo: Repository<UserAnonymousUser>;
   let anonUserService: AnonymousUserService;
   let customMessageRepository: MessageRepository;
+  let dataSource: DataSource;
   let messageQueryBuilder: any;
 
   const mockUser: User = { id: 1 } as User;
@@ -124,6 +125,70 @@ describe('MessagesService', () => {
     );
     anonUserService = module.get<AnonymousUserService>(AnonymousUserService);
     customMessageRepository = module.get<MessageRepository>(MessageRepository);
+    dataSource = module.get<DataSource>(DataSource);
+  });
+
+  describe('create', () => {
+    it('should reject plaintext content', async () => {
+      await expect(
+        service.create(
+          { confession_id: mockConfessionId, content: 'plaintext leak' },
+          mockUser,
+        ),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should reject a malformed envelope (missing ciphertext field)', async () => {
+      const malformed = JSON.stringify({ v: 1, alg: 'aes-256-gcm', iv: 'AAAAAAAAAAAAAAAA' });
+      await expect(
+        service.create(
+          { confession_id: mockConfessionId, content: malformed },
+          mockUser,
+        ),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should reject an envelope with an unexpected extra field', async () => {
+      const tampered = JSON.stringify({
+        ...JSON.parse(encryptedReply),
+        extra: 'unexpected',
+      });
+      await expect(
+        service.create(
+          { confession_id: mockConfessionId, content: tampered },
+          mockUser,
+        ),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should persist a valid E2E envelope', async () => {
+      const confession = {
+        id: mockConfessionId,
+        anonymousUser: { id: mockAnonId, userLinks: [] },
+      };
+      jest.spyOn(confessionRepo, 'findOne').mockResolvedValue(confession as any);
+      jest
+        .spyOn(anonUserService, 'getOrCreateForUserSession')
+        .mockResolvedValue({ id: mockSenderId } as any);
+
+      const mockSave = jest.fn().mockImplementation((m) => Promise.resolve({ id: 1, ...m }));
+      const mockManager = {
+        getRepository: jest.fn((entity) =>
+          entity === Message
+            ? { create: jest.fn((value) => value), save: mockSave }
+            : { create: jest.fn((value) => value), save: jest.fn() },
+        ),
+      };
+      jest.spyOn(dataSource, 'transaction').mockImplementation(async (fn: any) => fn(mockManager));
+
+      const result = await service.create(
+        { confession_id: mockConfessionId, content: encryptedReply },
+        mockUser,
+      );
+
+      expect(result.content).toBe(encryptedReply);
+      expect(result.isEncrypted).toBe(true);
+    });
   });
 
   describe('findForConfessionThread', () => {

@@ -11,8 +11,19 @@ import { ConfigService } from '@nestjs/config';
 import { AnonymousUserService } from '../user/anonymous-user.service';
 import { EncryptionService } from '../encryption/encryption.service';
 import { StellarService } from '../stellar/stellar.service';
+import { ContractService } from '../stellar/contract.service';
 import { CacheService } from '../cache/cache.service';
 import { TagService } from './tag.service';
+import { AnomalyDetectionService } from '../anomaly/anomaly-detection.service';
+import { ConfessionIdempotencyService } from './confession-idempotency.service';
+import { encryptConfession } from '../utils/confession-encryption';
+
+jest.mock('../utils/confession-encryption', () => ({
+  decryptConfession: jest.fn((value: string) => value ?? ''),
+  encryptConfession: jest.fn((value: string) => value),
+}));
+
+const AES_KEY = '12345678901234567890123456789012';
 
 describe('ConfessionService - Search Functionality', () => {
   let service: ConfessionService;
@@ -72,7 +83,7 @@ describe('ConfessionService - Search Functionality', () => {
             get: jest.fn((key: string, defaultVal?: unknown) => {
               if (key === 'app.searchSlowQueryThresholdMs') return 500;
               if (key === 'app.searchSampleRate') return 1; // always sample in tests
-              if (key === 'app.confessionAesKey') return '';
+              if (key === 'app.confessionAesKey') return AES_KEY;
               return defaultVal;
             }),
           },
@@ -89,6 +100,7 @@ describe('ConfessionService - Search Functionality', () => {
             verifyTransaction: jest.fn(),
           },
         },
+        { provide: ContractService, useValue: { verifyConfession: jest.fn() } },
         {
           provide: CacheService,
           useValue: {
@@ -101,6 +113,19 @@ describe('ConfessionService - Search Functionality', () => {
         {
           provide: TagService,
           useValue: { validateTags: jest.fn(), getTagByName: jest.fn() },
+        },
+        {
+          provide: AnomalyDetectionService,
+          useValue: { getAdjustmentFactor: jest.fn().mockResolvedValue(1) },
+        },
+        {
+          provide: ConfessionIdempotencyService,
+          useValue: {
+            computePayloadHash: jest.fn(),
+            check: jest.fn(),
+            commitSuccess: jest.fn(),
+            commitFailure: jest.fn(),
+          },
         },
       ],
     }).compile();
@@ -134,7 +159,13 @@ describe('ConfessionService - Search Functionality', () => {
 
       const result = await service.search(searchDto);
 
-      expect(result.data).toEqual(mockResult.confessions);
+      expect(result.data).toEqual([
+        expect.objectContaining({
+          id: '1',
+          message: 'I love programming',
+          reactions: [],
+        }),
+      ]);
       expect(result.meta.total).toBe(1);
       expect(result.meta.searchTerm).toBe('love');
     });
@@ -218,7 +249,13 @@ describe('ConfessionService - Search Functionality', () => {
 
       const result = await service.fullTextSearch(searchDto);
 
-      expect(result.data).toEqual(mockResult.confessions);
+      expect(result.data).toEqual([
+        expect.objectContaining({
+          id: '1',
+          message: 'Need relationship advice',
+          reactions: [],
+        }),
+      ]);
       expect(result.meta.searchType).toBe('fulltext');
     });
 

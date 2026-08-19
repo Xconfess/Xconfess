@@ -34,8 +34,6 @@ function ProtectedContent() {
 
 beforeEach(() => {
   jest.clearAllMocks();
-  delete (window as any).location;
-  (window as any).location = { href: "" };
   mockAuthState = {
     isAuthenticated: false,
     isLoading: false,
@@ -69,21 +67,21 @@ describe("SessionExpiredBanner", () => {
     mockPathname.mockReturnValue("/dashboard");
     render(<SessionExpiredBanner variant="banner" />);
     await userEvent.click(screen.getByRole("button", { name: /log in/i }));
-    expect(window.location.href).toContain("/login?returnTo=%2Fdashboard");
+    expect(mockPush).toHaveBeenCalledWith("/login?returnTo=%2Fdashboard");
   });
 
   it("preserves return destination on login click from profile", async () => {
     mockPathname.mockReturnValue("/profile");
     render(<SessionExpiredBanner variant="fullscreen" />);
     await userEvent.click(screen.getByRole("button", { name: /go to login/i }));
-    expect(window.location.href).toContain("/login?returnTo=%2Fprofile");
+    expect(mockPush).toHaveBeenCalledWith("/login?returnTo=%2Fprofile");
   });
 
   it("preserves return destination on login click from admin", async () => {
     mockPathname.mockReturnValue("/admin/dashboard");
     render(<SessionExpiredBanner variant="banner" />);
     await userEvent.click(screen.getByRole("button", { name: /log in/i }));
-    expect(window.location.href).toContain("/login?returnTo=%2Fadmin%2Fdashboard");
+    expect(mockPush).toHaveBeenCalledWith("/login?returnTo=%2Fadmin%2Fdashboard");
   });
 });
 

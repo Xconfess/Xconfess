@@ -7,8 +7,12 @@ import {
   ManyToOne,
   JoinColumn,
   CreateDateColumn,
+  Index,
 } from 'typeorm';
 
+@Index('uq_reaction_confession_user', ['confession', 'anonymousUser'], {
+  unique: true,
+})
 @Entity()
 export class Reaction {
   @PrimaryGeneratedColumn('uuid')

@@ -113,6 +113,21 @@ export class DataExportController {
     const secret = this.configService.get<string>('app.appSecret', '');
     const chunkIndex = chunk !== undefined ? parseInt(chunk) : undefined;
 
+    if (!userId || !signature) {
+      if (chunkIndex === undefined) {
+        await this.exportService.recordFailedDownloadAttempt(
+          id,
+          'invalid_signature',
+        );
+      }
+      throw new UnauthorizedException('Invalid download link.');
+    }
+
+    if (chunkIndex === undefined && !token) {
+      await this.exportService.recordFailedDownloadAttempt(id, 'missing_token');
+      throw new UnauthorizedException('Invalid download link.');
+    }
+
     const dataToVerify =
       chunkIndex !== undefined
         ? `${id}:${userId}:${chunkIndex}:${expires}`
@@ -123,19 +138,23 @@ export class DataExportController {
       .update(dataToVerify)
       .digest('hex');
 
-    if (signature !== expectedSignature) {
-      throw new UnauthorizedException('Invalid download signature.');
+    if (!this.secureCompare(signature, expectedSignature)) {
+      if (chunkIndex === undefined) {
+        await this.exportService.recordFailedDownloadAttempt(
+          id,
+          'invalid_signature',
+        );
+      }
+      throw new UnauthorizedException('Invalid download link.');
     }
 
     // 3. Validate one-time token (single-file downloads only)
     if (chunkIndex === undefined) {
-      if (!token) {
-        throw new UnauthorizedException('Download token missing.');
-      }
+      const singleFileToken = token as string;
       const valid = await this.exportService.validateAndConsumeToken(
         id,
         userId,
-        token,
+        singleFileToken,
       );
       if (!valid) {
         throw new GoneException({
@@ -198,5 +217,15 @@ export class DataExportController {
     });
 
     res.send(exportReq.fileData);
+  }
+
+  private secureCompare(expected: string, actual: string): boolean {
+    const expectedBuffer = Buffer.from(expected);
+    const actualBuffer = Buffer.from(actual);
+
+    return (
+      expectedBuffer.length === actualBuffer.length &&
+      crypto.timingSafeEqual(expectedBuffer, actualBuffer)
+    );
   }
 }

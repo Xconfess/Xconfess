@@ -49,20 +49,34 @@ export class FeatureFlagsController {
 
   @Post()
   @UseGuards(JwtAuthGuard, AdminGuard)
-  async create(@Body() dto: CreateFeatureFlagDto) {
-    return this.featureFlagsService.create(dto);
+  async create(@Body() dto: CreateFeatureFlagDto, @GetUser() user: any) {
+    const actorId = user?.username || user?.email || String(user?.id || '');
+    return this.featureFlagsService.create(dto, actorId);
   }
 
   @Put(':name')
   @UseGuards(JwtAuthGuard, AdminGuard)
-  async update(@Param('name') name: string, @Body() dto: UpdateFeatureFlagDto) {
-    return this.featureFlagsService.update(name, dto);
+  async update(
+    @Param('name') name: string,
+    @Body() dto: UpdateFeatureFlagDto,
+    @GetUser() user: any,
+  ) {
+    const actorId = user?.username || user?.email || String(user?.id || '');
+    return this.featureFlagsService.update(name, dto, actorId);
+  }
+
+  @Post(':name/rollback')
+  @UseGuards(JwtAuthGuard, AdminGuard)
+  async rollback(@Param('name') name: string, @GetUser() user: any) {
+    const actorId = user?.username || user?.email || String(user?.id || '');
+    return this.featureFlagsService.rollback(name, actorId);
   }
 
   @Delete(':name')
   @UseGuards(JwtAuthGuard, AdminGuard)
-  async delete(@Param('name') name: string) {
-    await this.featureFlagsService.delete(name);
+  async delete(@Param('name') name: string, @GetUser() user: any) {
+    const actorId = user?.username || user?.email || String(user?.id || '');
+    await this.featureFlagsService.delete(name, actorId);
     return { message: 'Feature flag deleted' };
   }
 }

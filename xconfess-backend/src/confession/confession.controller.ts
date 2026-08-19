@@ -15,6 +15,7 @@ import {
   Patch,
   UseGuards,
   UseInterceptors,
+  Optional,
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { Request } from 'express';
@@ -36,6 +37,7 @@ import { UpdateConfessionDto } from './dto/update-confession.dto';
 import { OptionalJwtAuthGuard } from '../auth/optional-jwt-auth.guard';
 import { SearchDiscoveryService } from '../search-discovery/search-discovery.service';
 import { SparseFieldsetsInterceptor } from '../common/interceptors/sparse-fieldsets.interceptor';
+import { ConfessionSchedulerService } from './confession-scheduler.service';
 
 const flattenValidationErrors = (
   errors: ValidationError[],
@@ -82,6 +84,8 @@ export class ConfessionController {
   constructor(
     private readonly service: ConfessionService,
     private readonly searchDiscoveryService: SearchDiscoveryService,
+    @Optional()
+    private readonly schedulerService: ConfessionSchedulerService,
   ) {}
 
   @Post()
@@ -242,10 +246,7 @@ export class ConfessionController {
     @Param('id') id: string,
     @Body('publishAt') publishAt: string,
   ) {
-    const schedulerService = new (
-      await import('./confession-scheduler.service')
-    ).ConfessionSchedulerService(this.service['confessionRepository']);
-    return schedulerService.scheduleConfession(id, new Date(publishAt));
+    return this.schedulerService.scheduleConfession(id, new Date(publishAt));
   }
 
   @Delete(':id/schedule')
@@ -253,10 +254,7 @@ export class ConfessionController {
   @ApiOperation({ summary: 'Cancel scheduled confession' })
   @ApiParam({ name: 'id', description: 'Confession UUID' })
   async cancelSchedule(@Param('id') id: string) {
-    const schedulerService = new (
-      await import('./confession-scheduler.service')
-    ).ConfessionSchedulerService(this.service['confessionRepository']);
-    return schedulerService.cancelSchedule(id);
+    return this.schedulerService.cancelSchedule(id);
   }
 
   @Get('user/scheduled')
@@ -267,10 +265,7 @@ export class ConfessionController {
     if (!userId) {
       return [];
     }
-    const schedulerService = new (
-      await import('./confession-scheduler.service')
-    ).ConfessionSchedulerService(this.service['confessionRepository']);
-    return schedulerService.getScheduledConfessions(userId);
+    return this.schedulerService.getScheduledConfessions(String(userId));
   }
 
   /**

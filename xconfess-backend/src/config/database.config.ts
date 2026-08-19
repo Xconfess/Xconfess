@@ -15,6 +15,9 @@ export const getTypeOrmConfig = (
   const migrationsRunSetting = configService.get<string>(
     'TYPEORM_MIGRATIONS_RUN',
   );
+  const loggingSetting = (
+    configService.get<string>('TYPEORM_LOGGING') || ''
+  ).toLowerCase();
 
   const isLocalDevEnv =
     nodeEnv === 'development' ||
@@ -84,6 +87,6 @@ export const getTypeOrmConfig = (
       idleTimeoutMillis: 30000,
       connectionTimeoutMillis: 2000,
     },
-    logging: nodeEnv === 'development',
+    logging: TRUE_VALUES.has(loggingSetting),
   };
 };

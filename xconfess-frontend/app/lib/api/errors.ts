@@ -83,7 +83,10 @@ export async function normalizeApiError(
     message: appError.message,
     code: appError.code,
     status: appError.statusCode,
-    retryAfter: appError.retryAfter ?? null,
+    retryAfter:
+      typeof (appError.details as { retryAfter?: unknown } | undefined)?.retryAfter === 'number'
+        ? (appError.details as { retryAfter: number }).retryAfter
+        : null,
   };
 }
 

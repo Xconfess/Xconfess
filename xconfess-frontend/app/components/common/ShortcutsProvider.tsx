@@ -195,16 +195,16 @@ export const ShortcutsProvider: React.FC<{ children: React.ReactNode }> = ({
       {children}
 
       <Modal isOpen={helpOpen} onClose={() => setHelpOpen(false)} title="Keyboard Shortcuts">
-        <div className="space-y-3">
-          <ShortcutRow keys="j / k">Navigate down / up in feed</ShortcutRow>
-          <ShortcutRow keys="Enter">Open selected confession</ShortcutRow>
-          <ShortcutRow keys="r">React to selected confession</ShortcutRow>
-          <ShortcutRow keys="c">Open comment box (detail)</ShortcutRow>
-          <ShortcutRow keys="n">New confession — focus composer</ShortcutRow>
-          <ShortcutRow keys="/">Focus search</ShortcutRow>
-          <ShortcutRow keys="g then h / p / s">Go Home / Profile / Settings</ShortcutRow>
-          <ShortcutRow keys="?">Open this shortcuts help</ShortcutRow>
-          <ShortcutRow keys="Esc">Close modals / help</ShortcutRow>
+        <div className="space-y-3" role="list" aria-label="Keyboard shortcut list">
+          <ShortcutRow keys={["j", "k"]}>Navigate down / up in feed</ShortcutRow>
+          <ShortcutRow keys={["Enter"]}>Open selected confession</ShortcutRow>
+          <ShortcutRow keys={["r"]}>React to selected confession</ShortcutRow>
+          <ShortcutRow keys={["c"]}>Open comment box (detail)</ShortcutRow>
+          <ShortcutRow keys={["n"]}>New confession — focus composer</ShortcutRow>
+          <ShortcutRow keys={["/"]}>Focus search</ShortcutRow>
+          <ShortcutRow keys={["g", "h"]} alternatives={[["g", "p"], ["g", "s"]]}>Go Home / Profile / Settings</ShortcutRow>
+          <ShortcutRow keys={["?"]}>Open this shortcuts help</ShortcutRow>
+          <ShortcutRow keys={["Esc"]}>Close modals / help</ShortcutRow>
         </div>
         <div className="mt-6 flex justify-end">
           <Button onClick={() => setHelpOpen(false)}>Close</Button>
@@ -214,14 +214,32 @@ export const ShortcutsProvider: React.FC<{ children: React.ReactNode }> = ({
   );
 };
 
-const ShortcutRow: React.FC<{ keys: string; children: React.ReactNode }> = ({
+const ShortcutRow: React.FC<{ keys: string[]; alternatives?: string[][]; children: React.ReactNode }> = ({
   keys,
+  alternatives = [],
   children,
-}) => (
-  <div className="flex items-start justify-between gap-4">
-    <div className="text-sm text-zinc-300">{children}</div>
-    <div className="text-xs text-zinc-500 font-mono">{keys}</div>
-  </div>
-);
+}) => {
+  const formatKeys = (k: string[]) => k.map((key, i) => (
+    <React.Fragment key={key}>
+      {i > 0 && <span className="mx-1 text-zinc-500">then</span>}
+      <kbd className="inline-flex items-center justify-center min-w-[24px] h-6 px-1.5 rounded border border-zinc-600 bg-zinc-800 text-xs text-zinc-200 font-mono">{key}</kbd>
+    </React.Fragment>
+  ));
+
+  return (
+    <div className="flex items-start justify-between gap-4 py-1" role="listitem">
+      <div className="text-sm text-zinc-300">{children}</div>
+      <div className="flex items-center shrink-0 text-xs text-zinc-400">
+        {formatKeys(keys)}
+        {alternatives.map((alternative) => (
+          <React.Fragment key={alternative.join("-")}>
+            <span className="mx-1 text-zinc-500">or</span>
+            {formatKeys(alternative)}
+          </React.Fragment>
+        ))}
+      </div>
+    </div>
+  );
+};
 
 export default ShortcutsProvider;

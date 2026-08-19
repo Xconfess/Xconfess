@@ -1,11 +1,14 @@
-'use client';
+"use client";
 
-import { useState, useCallback } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { fetchStellarDiagnostics } from '@/app/lib/api/stellar';
-import { adminApi, SystemHealthResponse } from '@/app/lib/api/admin';
-import { queryKeys } from '@/app/lib/api/queryKeys';
-import type { StellarDiagnosticsResponse, HorizonStatus } from '@/app/lib/api/stellar';
+import { useState, useCallback } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { fetchStellarDiagnostics } from "@/app/lib/api/stellar";
+import { adminApi, SystemHealthResponse } from "@/app/lib/api/admin";
+import { queryKeys } from "@/app/lib/api/queryKeys";
+import type {
+  StellarDiagnosticsResponse,
+  HorizonStatus,
+} from "@/app/lib/api/stellar";
 
 function ConfigRow({
   label,
@@ -25,7 +28,7 @@ function ConfigRow({
           {label}
         </dt>
         <dd
-          className={`text-sm text-gray-900 dark:text-white break-all ${mono ? 'font-mono text-xs text-teal-600 dark:text-teal-400' : ''}`}
+          className={`text-sm text-gray-900 dark:text-white break-all ${mono ? "font-mono text-xs text-teal-600 dark:text-teal-400" : ""}`}
         >
           {value || (
             <span className="text-amber-500 dark:text-amber-400 italic bg-amber-50 dark:bg-amber-950/40 px-2 py-0.5 rounded text-xs border border-amber-200 dark:border-amber-900/50">
@@ -53,28 +56,36 @@ function Skeleton() {
   );
 }
 
-const STATUS_STYLES: Record<string, { badge: string; icon: string; label: string }> = {
+const STATUS_STYLES: Record<
+  string,
+  { badge: string; icon: string; label: string }
+> = {
   up: {
-    badge: 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300 border border-green-200 dark:border-green-800',
-    icon: '●',
-    label: 'Healthy',
+    badge:
+      "bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300 border border-green-200 dark:border-green-800",
+    icon: "●",
+    label: "Healthy",
   },
   down: {
-    badge: 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300 border border-red-200 dark:border-red-800',
-    icon: '✕',
-    label: 'Down',
+    badge:
+      "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300 border border-red-200 dark:border-red-800",
+    icon: "✕",
+    label: "Down",
   },
   unknown: {
-    badge: 'bg-gray-100 text-gray-800 dark:bg-gray-900/40 dark:text-gray-300 border border-gray-200 dark:border-gray-800',
-    icon: '?',
-    label: 'Unknown',
+    badge:
+      "bg-gray-100 text-gray-800 dark:bg-gray-900/40 dark:text-gray-300 border border-gray-200 dark:border-gray-800",
+    icon: "?",
+    label: "Unknown",
   },
 };
 
 function StatusBadge({ status }: { status: string }) {
   const cfg = STATUS_STYLES[status] || STATUS_STYLES.unknown;
   return (
-    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${cfg.badge}`}>
+    <span
+      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${cfg.badge}`}
+    >
       <span>{cfg.icon}</span>
       {cfg.label}
     </span>
@@ -90,21 +101,29 @@ function ServiceStatusCard({
   status: string;
   details?: Record<string, any>;
 }) {
-  const resolvedStatus = status === 'up' ? 'up' : 'down';
+  const resolvedStatus = status === "up" ? "up" : "down";
   return (
     <div className="rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-5 shadow-sm">
       <div className="flex items-center justify-between mb-3">
-        <h4 className="text-sm font-semibold text-gray-900 dark:text-white">{name}</h4>
+        <h4 className="text-sm font-semibold text-gray-900 dark:text-white">
+          {name}
+        </h4>
         <StatusBadge status={resolvedStatus} />
       </div>
       {details && Object.keys(details).length > 0 && (
         <dl className="space-y-1">
-          {Object.entries(details).filter(([k]) => k !== 'status').map(([key, value]) => (
-            <div key={key} className="flex justify-between text-xs">
-              <dt className="text-gray-500 dark:text-gray-400 capitalize">{key.replace(/([A-Z])/g, ' $1').trim()}</dt>
-              <dd className="text-gray-900 dark:text-white font-mono">{String(value)}</dd>
-            </div>
-          ))}
+          {Object.entries(details)
+            .filter(([k]) => k !== "status")
+            .map(([key, value]) => (
+              <div key={key} className="flex justify-between text-xs">
+                <dt className="text-gray-500 dark:text-gray-400 capitalize">
+                  {key.replace(/([A-Z])/g, " $1").trim()}
+                </dt>
+                <dd className="text-gray-900 dark:text-white font-mono">
+                  {String(value)}
+                </dd>
+              </div>
+            ))}
         </dl>
       )}
     </div>
@@ -116,27 +135,27 @@ const HORIZON_STATUS_CONFIG: Record<
   { label: string; badgeClass: string; bannerClass: string; icon: string }
 > = {
   ok: {
-    label: 'Reachable',
+    label: "Reachable",
     badgeClass:
-      'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300 border border-green-200 dark:border-green-800',
-    bannerClass: '',
-    icon: '●',
+      "bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300 border border-green-200 dark:border-green-800",
+    bannerClass: "",
+    icon: "●",
   },
   degraded: {
-    label: 'Degraded',
+    label: "Degraded",
     badgeClass:
-      'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300 border border-amber-200 dark:border-amber-800',
+      "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300 border border-amber-200 dark:border-amber-800",
     bannerClass:
-      'rounded-lg border border-amber-200 dark:border-amber-900 bg-amber-50 dark:bg-amber-950/40 p-3 mt-4',
-    icon: '▲',
+      "rounded-lg border border-amber-200 dark:border-amber-900 bg-amber-50 dark:bg-amber-950/40 p-3 mt-4",
+    icon: "▲",
   },
   unreachable: {
-    label: 'Unreachable',
+    label: "Unreachable",
     badgeClass:
-      'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300 border border-red-200 dark:border-red-800',
+      "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300 border border-red-200 dark:border-red-800",
     bannerClass:
-      'rounded-lg border border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-950/40 p-3 mt-4',
-    icon: '✕',
+      "rounded-lg border border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-950/40 p-3 mt-4",
+    icon: "✕",
   },
 };
 
@@ -159,7 +178,9 @@ function HorizonStatusCard({
         <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
           Horizon RPC Status
         </h3>
-        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${cfg.badgeClass}`}>
+        <span
+          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${cfg.badgeClass}`}
+        >
           <span>{cfg.icon}</span>
           {cfg.label}
         </span>
@@ -167,16 +188,22 @@ function HorizonStatusCard({
 
       <dl className="divide-y divide-gray-100 dark:divide-gray-800">
         <ConfigRow label="Endpoint" value={horizonUrl} mono />
-        <ConfigRow label="Latency" value={latencyMs !== null ? `${latencyMs} ms` : 'N/A'} />
-        <ConfigRow label="Checked at" value={new Date(checkedAt).toLocaleString()} />
+        <ConfigRow
+          label="Latency"
+          value={latencyMs !== null ? `${latencyMs} ms` : "N/A"}
+        />
+        <ConfigRow
+          label="Checked at"
+          value={new Date(checkedAt).toLocaleString()}
+        />
       </dl>
 
-      {status !== 'ok' && (
+      {status !== "ok" && (
         <div className={cfg.bannerClass}>
           <p className="text-sm font-medium text-gray-800 dark:text-gray-200">
-            {status === 'unreachable'
-              ? 'Horizon is unreachable. Anchoring and on-chain operations will fail until connectivity is restored.'
-              : 'Horizon returned a non-success response. Some operations may be impaired.'}
+            {status === "unreachable"
+              ? "Horizon is unreachable. Anchoring and on-chain operations will fail until connectivity is restored."
+              : "Horizon returned a non-success response. Some operations may be impaired."}
           </p>
         </div>
       )}
@@ -193,9 +220,9 @@ export default function DiagnosticsPage() {
     error: healthError,
     refetch: refetchHealth,
   } = useQuery<SystemHealthResponse>({
-    queryKey: ['admin', 'system-health'],
+    queryKey: ["admin", "system-health"],
     queryFn: () => adminApi.getSystemHealth(),
-    retry: 1,
+    retry: false,
     staleTime: 30_000,
     refetchInterval: autoRefresh ? 30_000 : false,
   });
@@ -206,9 +233,9 @@ export default function DiagnosticsPage() {
     error,
     refetch: refetchDiagnostics,
   } = useQuery<StellarDiagnosticsResponse>({
-    queryKey: ['stellar', 'diagnostics'],
+    queryKey: ["stellar", "diagnostics"],
     queryFn: fetchStellarDiagnostics,
-    retry: 2,
+    retry: false,
     staleTime: 60_000,
     refetchInterval: autoRefresh ? 30_000 : false,
   });
@@ -222,7 +249,7 @@ export default function DiagnosticsPage() {
     queryKey: queryKeys.admin.observability.all(),
     queryFn: () => adminApi.getObservability(),
     staleTime: 60_000,
-    retry: 2,
+    retry: false,
     refetchInterval: autoRefresh ? 30_000 : false,
   });
 
@@ -287,7 +314,7 @@ export default function DiagnosticsPage() {
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <ServiceStatusCard
               name="Backend"
-              status={health.status === 'ok' ? 'up' : 'down'}
+              status={health.status === "ok" ? "up" : "down"}
               details={{ overall: health.status }}
             />
             {serviceStatuses.map((svc) => (
@@ -301,9 +328,12 @@ export default function DiagnosticsPage() {
             {diagnostics && (
               <ServiceStatusCard
                 name="Stellar Horizon"
-                status={diagnostics.horizonStatus === 'ok' ? 'up' : 'down'}
+                status={diagnostics.horizonStatus === "ok" ? "up" : "down"}
                 details={{
-                  latency: diagnostics.horizonLatencyMs !== null ? `${diagnostics.horizonLatencyMs}ms` : 'N/A',
+                  latency:
+                    diagnostics.horizonLatencyMs !== null
+                      ? `${diagnostics.horizonLatencyMs}ms`
+                      : "N/A",
                   network: diagnostics.network,
                 }}
               />
@@ -328,18 +358,38 @@ export default function DiagnosticsPage() {
           </h3>
           <dl className="grid grid-cols-2 gap-4 sm:grid-cols-3">
             {[
-              { label: 'Active', value: observability.notifications.main.active },
-              { label: 'Waiting', value: observability.notifications.main.waiting },
-              { label: 'Failed', value: observability.notifications.main.failed },
-              { label: 'DLQ Failed', value: observability.notifications.dlq.failed },
-              { label: 'DLQ Waiting', value: observability.notifications.dlq.waiting },
-              { label: 'DLQ Delayed', value: observability.notifications.dlq.delayed },
+              {
+                label: "Active",
+                value: observability.notifications.main.active,
+              },
+              {
+                label: "Waiting",
+                value: observability.notifications.main.waiting,
+              },
+              {
+                label: "Failed",
+                value: observability.notifications.main.failed,
+              },
+              {
+                label: "DLQ Failed",
+                value: observability.notifications.dlq.failed,
+              },
+              {
+                label: "DLQ Waiting",
+                value: observability.notifications.dlq.waiting,
+              },
+              {
+                label: "DLQ Delayed",
+                value: observability.notifications.dlq.delayed,
+              },
             ].map(({ label, value }) => (
               <div
                 key={label}
                 className="rounded-xl border border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-950 p-4"
               >
-                <dt className="text-sm text-gray-500 dark:text-gray-400">{label}</dt>
+                <dt className="text-sm text-gray-500 dark:text-gray-400">
+                  {label}
+                </dt>
                 <dd className="mt-2 text-2xl font-semibold text-gray-900 dark:text-white">
                   {value}
                 </dd>
@@ -357,7 +407,9 @@ export default function DiagnosticsPage() {
           </h3>
           <dl className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             <div className="rounded-xl border border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-950 p-4">
-              <dt className="text-sm text-gray-500 dark:text-gray-400">Total logs</dt>
+              <dt className="text-sm text-gray-500 dark:text-gray-400">
+                Total logs
+              </dt>
               <dd className="mt-2 text-2xl font-semibold text-gray-900 dark:text-white">
                 {observability.audit.totalLogs}
               </dd>
@@ -387,7 +439,8 @@ export default function DiagnosticsPage() {
             Failed to load Stellar diagnostics.
           </p>
           <p className="text-xs text-red-700 dark:text-red-300/80">
-            Ensure the backend is running and accessible, and that your session has admin permissions.
+            Ensure the backend is running and accessible, and that your session
+            has admin permissions.
           </p>
         </div>
       )}
@@ -406,9 +459,21 @@ export default function DiagnosticsPage() {
               Network Profile
             </h3>
             <dl className="divide-y divide-gray-100 dark:divide-gray-800">
-              <ConfigRow label="Target Network" value={diagnostics.network} mono />
-              <ConfigRow label="Horizon URL" value={diagnostics.horizonUrl} mono />
-              <ConfigRow label="Soroban RPC URL" value={diagnostics.sorobanRpcUrl} mono />
+              <ConfigRow
+                label="Target Network"
+                value={diagnostics.network}
+                mono
+              />
+              <ConfigRow
+                label="Horizon URL"
+                value={diagnostics.horizonUrl}
+                mono
+              />
+              <ConfigRow
+                label="Soroban RPC URL"
+                value={diagnostics.sorobanRpcUrl}
+                mono
+              />
             </dl>
           </div>
 
@@ -417,9 +482,21 @@ export default function DiagnosticsPage() {
               Smart Contract Deployments
             </h3>
             <dl className="divide-y divide-gray-100 dark:divide-gray-800">
-              <ConfigRow label="Confession Anchor" value={diagnostics.contractIds?.confessionAnchor} mono />
-              <ConfigRow label="Reputation Badges" value={diagnostics.contractIds?.reputationBadges} mono />
-              <ConfigRow label="Tipping System" value={diagnostics.contractIds?.tippingSystem} mono />
+              <ConfigRow
+                label="Confession Anchor"
+                value={diagnostics.contractIds?.confessionAnchor}
+                mono
+              />
+              <ConfigRow
+                label="Reputation Badges"
+                value={diagnostics.contractIds?.reputationBadges}
+                mono
+              />
+              <ConfigRow
+                label="Tipping System"
+                value={diagnostics.contractIds?.tippingSystem}
+                mono
+              />
             </dl>
           </div>
 
@@ -428,11 +505,30 @@ export default function DiagnosticsPage() {
               Deployment Metadata
             </h3>
             <dl className="divide-y divide-gray-100 dark:divide-gray-800">
-              <ConfigRow label="Loaded" value={diagnostics.deploymentMetadata.loaded ? 'Yes' : 'No'} />
-              <ConfigRow label="Generated at (UTC)" value={diagnostics.deploymentMetadata.generatedAtUtc} mono />
-              <ConfigRow label="Age (days)" value={diagnostics.deploymentMetadata.ageDays?.toString() ?? null} />
-              <ConfigRow label="Stale" value={diagnostics.deploymentMetadata.isStale ? 'Yes' : 'No'} />
-              <ConfigRow label="Load error" value={diagnostics.deploymentMetadata.loadError} mono />
+              <ConfigRow
+                label="Loaded"
+                value={diagnostics.deploymentMetadata.loaded ? "Yes" : "No"}
+              />
+              <ConfigRow
+                label="Generated at (UTC)"
+                value={diagnostics.deploymentMetadata.generatedAtUtc}
+                mono
+              />
+              <ConfigRow
+                label="Age (days)"
+                value={
+                  diagnostics.deploymentMetadata.ageDays?.toString() ?? null
+                }
+              />
+              <ConfigRow
+                label="Stale"
+                value={diagnostics.deploymentMetadata.isStale ? "Yes" : "No"}
+              />
+              <ConfigRow
+                label="Load error"
+                value={diagnostics.deploymentMetadata.loadError}
+                mono
+              />
             </dl>
             {diagnostics.deploymentMetadata.loadError && (
               <div className="mt-4 rounded-lg border border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-950 p-3 text-sm text-red-700 dark:text-red-300">
@@ -444,7 +540,8 @@ export default function DiagnosticsPage() {
       )}
 
       <div className="text-[11px] font-medium tracking-wide text-gray-400 dark:text-slate-500 text-center bg-gray-50 dark:bg-gray-950/60 py-3 rounded-lg border border-gray-100 dark:border-gray-800/60">
-        Signer keys, seed phrases, and operational secrets are never exposed in this panel.
+        Signer keys, seed phrases, and operational secrets are never exposed in
+        this panel.
       </div>
     </div>
   );

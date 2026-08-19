@@ -18,8 +18,11 @@ import { AnonymousUserService } from '../user/anonymous-user.service';
 import { AppLogger } from '../logger/logger.service';
 import { EncryptionService } from '../encryption/encryption.service';
 import { StellarService } from '../stellar/stellar.service';
+import { ContractService } from '../stellar/contract.service';
 import { CacheService } from '../cache/cache.service';
 import { TagService } from './tag.service';
+import { AnomalyDetectionService } from '../anomaly/anomaly-detection.service';
+import { ConfessionIdempotencyService } from './confession-idempotency.service';
 
 jest.mock('../utils/confession-encryption', () => ({
   decryptConfession: jest.fn((value: string) => value),
@@ -113,6 +116,7 @@ describe('ConfessionService Gas Regression Tests', () => {
             verifyTransaction: jest.fn(),
           },
         },
+        { provide: ContractService, useValue: { verifyConfession: jest.fn() } },
         {
           provide: CacheService,
           useValue: {
@@ -130,6 +134,11 @@ describe('ConfessionService Gas Regression Tests', () => {
             getAllTags: jest.fn(),
           },
         },
+        {
+          provide: AnomalyDetectionService,
+          useValue: { getAdjustmentFactor: jest.fn().mockResolvedValue(1) },
+        },
+        { provide: ConfessionIdempotencyService, useValue: {} },
         { provide: ConfigService, useValue: configService },
       ],
     }).compile();
@@ -144,6 +153,7 @@ describe('ConfessionService Gas Regression Tests', () => {
         const mockQueryBuilder = {
           where: jest.fn().mockReturnThis(),
           andWhere: jest.fn().mockReturnThis(),
+          leftJoin: jest.fn().mockReturnThis(),
           leftJoinAndSelect: jest.fn().mockReturnThis(),
           select: jest.fn().mockReturnThis(),
           orderBy: jest.fn().mockReturnThis(),
@@ -173,7 +183,8 @@ describe('ConfessionService Gas Regression Tests', () => {
         expect(mockQueryBuilder.andWhere).toHaveBeenCalledWith(
           'confession.isHidden = false',
         );
-        expect(mockQueryBuilder.leftJoinAndSelect).toHaveBeenCalledTimes(5); // author/link and reaction graph
+        expect(mockQueryBuilder.leftJoin).toHaveBeenCalledTimes(3);
+        expect(mockQueryBuilder.leftJoinAndSelect).toHaveBeenCalledTimes(1);
         expect(mockQueryBuilder.getCount).not.toHaveBeenCalled();
         expect(mockQueryBuilder.skip).not.toHaveBeenCalled();
         expect(mockQueryBuilder.take).toHaveBeenCalledWith(11);
@@ -199,6 +210,7 @@ describe('ConfessionService Gas Regression Tests', () => {
         const mockQueryBuilder = {
           where: jest.fn().mockReturnThis(),
           andWhere: jest.fn().mockReturnThis(),
+          leftJoin: jest.fn().mockReturnThis(),
           leftJoinAndSelect: jest.fn().mockReturnThis(),
           select: jest.fn().mockReturnThis(),
           orderBy: jest.fn().mockReturnThis(),
@@ -237,6 +249,7 @@ describe('ConfessionService Gas Regression Tests', () => {
         const mockQueryBuilder = {
           where: jest.fn().mockReturnThis(),
           andWhere: jest.fn().mockReturnThis(),
+          leftJoin: jest.fn().mockReturnThis(),
           leftJoinAndSelect: jest.fn().mockReturnThis(),
           select: jest.fn().mockReturnThis(),
           orderBy: jest.fn().mockReturnThis(),
@@ -272,6 +285,7 @@ describe('ConfessionService Gas Regression Tests', () => {
         const mockQueryBuilder = {
           where: jest.fn().mockReturnThis(),
           andWhere: jest.fn().mockReturnThis(),
+          leftJoin: jest.fn().mockReturnThis(),
           leftJoinAndSelect: jest.fn().mockReturnThis(),
           select: jest.fn().mockReturnThis(),
           orderBy: jest.fn().mockReturnThis(),
@@ -429,6 +443,7 @@ describe('ConfessionService Gas Regression Tests', () => {
       const mockQueryBuilder = {
         where: jest.fn().mockReturnThis(),
         andWhere: jest.fn().mockReturnThis(),
+        leftJoin: jest.fn().mockReturnThis(),
         leftJoinAndSelect: jest.fn().mockReturnThis(),
         select: jest.fn().mockReturnThis(),
         orderBy: jest.fn().mockReturnThis(),
@@ -477,6 +492,7 @@ describe('ConfessionService Gas Regression Tests', () => {
       const mockQueryBuilder = {
         where: jest.fn().mockReturnThis(),
         andWhere: jest.fn().mockReturnThis(),
+        leftJoin: jest.fn().mockReturnThis(),
         leftJoinAndSelect: jest.fn().mockReturnThis(),
         select: jest.fn().mockReturnThis(),
         orderBy: jest.fn().mockReturnThis(),
@@ -514,6 +530,7 @@ describe('ConfessionService Gas Regression Tests', () => {
       // 1. User browses confessions (pagination)
       const mockQueryBuilder1 = {
         andWhere: jest.fn().mockReturnThis(),
+        leftJoin: jest.fn().mockReturnThis(),
         leftJoinAndSelect: jest.fn().mockReturnThis(),
         select: jest.fn().mockReturnThis(),
         orderBy: jest.fn().mockReturnThis(),
@@ -552,6 +569,7 @@ describe('ConfessionService Gas Regression Tests', () => {
       // 3. User searches for confessions
       const mockQueryBuilder2 = {
         andWhere: jest.fn().mockReturnThis(),
+        leftJoin: jest.fn().mockReturnThis(),
         leftJoinAndSelect: jest.fn().mockReturnThis(),
         select: jest.fn().mockReturnThis(),
         orderBy: jest.fn().mockReturnThis(),

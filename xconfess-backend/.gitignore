@@ -18,6 +18,9 @@ lerna-debug.log*
 # Tests
 /coverage
 /.nyc_output
+test_output.txt
+unit_test_output*.txt
+*.tsbuildinfo
 
 # IDEs and editors
 /.idea
@@ -58,5 +61,3 @@ report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 # Swagger API documentation
 swagger-ui/
 swagger-spec.yaml
-package-lock.json
-

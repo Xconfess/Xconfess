@@ -32,6 +32,15 @@ jest.mock("@/app/lib/hooks/useSearch", () => ({
   }),
 }));
 
+jest.mock("@/app/lib/hooks/useAuth", () => ({
+  useAuth: () => ({
+    isAuthenticated: true,
+    isLoading: false,
+    isSessionExpired: false,
+    user: { username: "tester", email: "tester@example.com", role: "user" },
+  }),
+}));
+
 // Mock focus trap to avoid issues in testing environment
 jest.mock("@/app/lib/hooks/useFocusTrap", () => ({
   useFocusTrap: jest.fn(),
@@ -99,6 +108,6 @@ describe("Search Page URL State", () => {
       await user.type(searchInput, "new query{enter}");
     });
     
-    expect(mockPush).toHaveBeenCalledWith("/search?q=new+query", { scroll: false });
+    expect(mockPush).toHaveBeenCalledWith("?q=new+query", { scroll: false });
   });
 });

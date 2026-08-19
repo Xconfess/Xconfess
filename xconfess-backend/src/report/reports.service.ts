@@ -57,6 +57,12 @@ export class ReportsService {
     },
     idempotencyKey?: string,
   ): Promise<Report> {
+    if (reporterId === null && !context?.anonymousUserId) {
+      throw new BadRequestException(
+        'Anonymous reports require a valid anonymous identity',
+      );
+    }
+
     // ── Idempotency replay ────────────────────────────────────────────────────
     // Only attempt lookup when a key was supplied AND we have a stable user ID.
     if (idempotencyKey && reporterId !== null) {
@@ -106,11 +112,6 @@ export class ReportsService {
         qb.andWhere('report.anonymousReporterId = :anonymousReporterId', {
           anonymousReporterId: context.anonymousUserId,
         });
-      } else {
-        // Issue #1012: Anonymous reports MUST have an identity to enforce rate limits/deduplication
-        throw new BadRequestException(
-          'Anonymous reports require a valid anonymous identity',
-        );
       }
 
       const existingReport = await qb.getOne();

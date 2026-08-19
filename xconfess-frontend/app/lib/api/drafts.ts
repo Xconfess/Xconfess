@@ -1,23 +1,23 @@
 import { Draft, DraftDTO, DraftInput, DraftUpdate } from "@/app/lib/types/draft";
 
 /**
- * ASSUMPTION (no backend exists yet at /app/api/confessions/drafts):
- * REST contract is:
+ * REST contract for Drafts with revision/version safety & conflict handling:
  *   GET    /api/confessions/drafts        -> DraftDTO[]
- *   POST   /api/confessions/drafts        -> DraftDTO        body: DraftInput
- *   PATCH  /api/confessions/drafts/:id    -> DraftDTO        body: DraftUpdate
+ *   POST   /api/confessions/drafts        -> DraftDTO        body: DraftInput & { version?: number }
+ *   PATCH  /api/confessions/drafts/:id    -> DraftDTO        body: DraftUpdate & { version?: number }
  *   DELETE /api/confessions/drafts/:id    -> 204
- *
- * These hit Next.js route handlers (app/api/confessions/drafts/**) which
- * proxy to the real backend. If the actual backend contract differs,
- * only this file and the route handlers need to change — DraftManager
- * and useDrafts are insulated from it via the Draft type.
  */
+
+export interface DraftConflictErrorData {
+  message: string;
+  currentDraft: DraftDTO;
+}
 
 export class DraftApiError extends Error {
   constructor(
     message: string,
     public status?: number,
+    public data?: DraftConflictErrorData,
   ) {
     super(message);
     this.name = "DraftApiError";
@@ -35,6 +35,7 @@ function toDraft(dto: DraftDTO): Draft {
     characterCount: dto.characterCount ?? body.length,
     scheduledFor: dto.scheduledFor,
     timezone: dto.timezone,
+    version: dto.version ?? 1,
   };
 }
 
@@ -44,19 +45,24 @@ function toApiBody(draft: DraftInput | DraftUpdate) {
     category: draft.gender,
     scheduledFor: "scheduledFor" in draft ? draft.scheduledFor : undefined,
     timezone: "timezone" in draft ? draft.timezone : undefined,
+    version: "version" in draft ? draft.version : undefined,
   };
 }
 
 async function parseJsonOrThrow(res: Response) {
   if (!res.ok) {
     let message = `Request failed with status ${res.status}`;
+    let errorData: any = undefined;
     try {
       const body = await res.json();
       if (body?.message) message = body.message;
+      if (res.status === 409) {
+        errorData = body;
+      }
     } catch {
       // response wasn't JSON; fall back to status-based message
     }
-    throw new DraftApiError(message, res.status);
+    throw new DraftApiError(message, res.status, errorData);
   }
   if (res.status === 204) return null;
   return res.json();
@@ -73,7 +79,7 @@ export async function fetchDrafts(token: string): Promise<Draft[]> {
 
 export async function createDraft(
   token: string,
-  draft: DraftInput,
+  draft: DraftInput & { version?: number },
 ): Promise<Draft> {
   const res = await fetch("/api/confessions/drafts", {
     method: "POST",
@@ -90,7 +96,7 @@ export async function createDraft(
 export async function patchDraft(
   token: string,
   id: string,
-  updates: DraftUpdate,
+  updates: DraftUpdate & { version?: number },
 ): Promise<Draft> {
   const res = await fetch(`/api/confessions/drafts/${id}/autosave`, {
     method: "PATCH",

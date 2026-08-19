@@ -6,6 +6,12 @@ export class DailyActivityDto {
 
   @ApiProperty({ description: 'Number of active users' })
   activeUsers: number;
+
+  @ApiProperty({
+    description: 'Privacy flag: true if count is below minimum cohort threshold',
+    required: false,
+  })
+  suppressed?: boolean;
 }
 
 export class UserActivityDto {

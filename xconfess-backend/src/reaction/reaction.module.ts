@@ -12,10 +12,12 @@ import { WebSocketLogger } from '../websocket/websocket.logger';
 import { ReactionsGateway } from './reactions.gateway';
 import { WebSocketHealthController } from '../websocket/websocket-health.controller';
 import { WebSocketHealthService } from '../websocket/websocket-health.service';
+import { AuthModule } from '../auth/auth.module';
 
 @Module({
   imports: [
     forwardRef(() => ConfessionModule),
+    forwardRef(() => AuthModule),
     TypeOrmModule.forFeature([
       Reaction,
       AnonymousConfession,

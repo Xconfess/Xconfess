@@ -52,7 +52,13 @@ Stored in `messages.content` and `messages.replyContent`:
 }
 ```
 
-The API rejects plaintext bodies for create/reply operations.
+The API rejects plaintext bodies for create/reply operations. Envelope parsing
+is strict: the payload must be a JSON object with exactly the four fields
+above (no extra fields), `iv` must be base64url and decode to exactly 12
+bytes, and `ct` must be base64url and decode to at least 16 bytes (the
+minimum possible AES-GCM auth tag). Payloads that are well-formed JSON but
+fail any of these checks — wrong algorithm, wrong nonce length, truncated
+ciphertext, or unexpected fields — are rejected the same as plaintext.
 
 ## Key exchange flow
 
@@ -105,9 +111,11 @@ Restore on a new device:
 
 ### New device, no backup
 
-- A fresh key pair is generated and registered (`messageKeyVersion` increments if public key changes).
+- If this identity has never registered a public key, a fresh key pair is generated and registered automatically (nothing to lose).
+- If a public key is **already registered** for this identity (e.g. the user messaged from another device) but this device has no matching local private key, the client does **not** silently generate and register a replacement key — doing so would overwrite the registered public key and make existing messages permanently unreadable. Instead the UI shows a blocking notice offering to restore from a passphrase backup or to explicitly "start fresh" (with a confirmation, since it is irreversible).
 - **Historical messages remain ciphertext** — the UI shows: `[Unable to decrypt — wrong device or missing recovery key]`.
 - New messages work after both parties fetch the new public keys.
+- If no recovery backup has been configured yet, the Messages page shows a persistent reminder to set one up before it's needed.
 
 ### New device, with backup
 
@@ -139,8 +147,10 @@ Restore on a new device:
 
 ## Tests
 
-- **Unit**: `xconfess-backend/src/messages/crypto/message-e2e.crypto.spec.ts` — ECDH, encrypt/decrypt, tampering, backup wrap/unwrap, lost-key simulation.
+- **Unit**: `xconfess-backend/src/messages/crypto/message-e2e.crypto.spec.ts` — ECDH, encrypt/decrypt, tampering, malformed/replayed envelope rejection, backup wrap/unwrap, lost-key simulation.
+- **Unit**: `xconfess-backend/src/messages/messages.service.spec.ts` — rejects plaintext and malformed envelopes on `create`, persists valid envelopes.
 - **E2E**: `xconfess-backend/test/message-e2e-key-exchange.e2e-spec.ts` — key registration, encrypted send/reply through the HTTP layer.
+- **Frontend**: `xconfess-frontend/app/lib/hooks/__tests__/useMessageE2E.test.ts` — first-run key generation, lost-key recovery prompt (no silent overwrite), restore-from-backup, start-fresh confirmation, and that the recovery passphrase is never logged.
 
 Run:
 

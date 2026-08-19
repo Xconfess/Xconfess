@@ -40,7 +40,10 @@ async function fetchBackendWithRetry(
       });
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
+        const errorData =
+          typeof response.json === "function"
+            ? await response.json().catch(() => ({}))
+            : {};
         const normalized = normalizeAuthError({
           ...errorData,
           status: response.status,
@@ -216,8 +219,10 @@ export async function DELETE() {
  * Output shape matches NormalizedAuthError so AuthProvider can consume it directly.
  */
 function createErrorResponse(normalized: NormalizedAuthError): Response {
-  // Log for debugging
-  if (process.env.NODE_ENV === "development") {
+  const isExpectedMissingSession =
+    normalized.code === "INVALID_SESSION" && normalized.originalStatus === 401;
+
+  if (process.env.NODE_ENV === "development" && !isExpectedMissingSession) {
     console.error(
       `[Auth Error] ${normalized.code} (${normalized.originalStatus || "N/A"})`,
       {

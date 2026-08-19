@@ -4,6 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { Button } from '@/app/components/ui/button';
 import { Input } from '@/app/components/ui/input';
+import { BrandLogo } from '@/app/components/brand/BrandLogo';
 import {
   validateForgotPasswordForm,
   parseForgotPasswordForm,
@@ -65,12 +66,14 @@ export default function ForgotPasswordPage() {
       <div className="mx-auto flex min-h-[calc(100vh-5rem)] w-full max-w-5xl items-center justify-center">
         <div className="grid w-full gap-8 lg:grid-cols-[0.95fr_1.05fr] lg:items-center">
           <div className="space-y-5">
+            <BrandLogo priority imageClassName="w-[168px] dark:hidden" />
+            <BrandLogo priority tone="light" imageClassName="hidden w-[168px] dark:block" />
             <p className="eyebrow">Password reset</p>
             <h1 className="font-editorial text-5xl leading-[0.96] text-[var(--foreground)] sm:text-6xl">
-              Reset your access.
+              Reset password.
             </h1>
             <p className="max-w-md text-base leading-8 text-[var(--secondary)]">
-              Enter the email address for your account and we&apos;ll send a link with instructions to reset your password.
+              Enter your email to receive a reset link.
             </p>
           </div>
 

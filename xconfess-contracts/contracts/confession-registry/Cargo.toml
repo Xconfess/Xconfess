@@ -27,3 +27,19 @@ path = "../tests/event_nonce_ordering.test.rs"
 [[test]]
 name = "pagination"
 path = "../tests/pagination.rs"
+
+[[test]]
+name = "emergency_pause"
+path = "../tests/emergency_pause.test.rs"
+
+[[test]]
+name = "migration"
+path = "tests/migration.rs"
+
+[[test]]
+name = "report_lifecycle"
+path = "../tests/report_lifecycle.test.rs"
+
+[[test]]
+name = "model_based_state_machine"
+path = "../tests/model_based_state_machine.test.rs"

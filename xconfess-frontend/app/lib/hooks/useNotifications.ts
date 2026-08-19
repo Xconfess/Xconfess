@@ -12,10 +12,18 @@ import { getWsUrl } from "@/app/lib/config";
 
 const WS_URL = getWsUrl();
 
+const MAX_RECONNECT_ATTEMPTS = 10;
+const RECONNECT_BASE_DELAY_MS = 1000;
+const RECONNECT_MAX_DELAY_MS = 30000;
+
+export type ConnectionState = 'connecting' | 'connected' | 'disconnected' | 'reconnecting';
+
 interface UseNotificationsReturn {
   notifications: Notification[];
   unreadCount: number;
   isConnected: boolean;
+  connectionState: ConnectionState;
+  reconnectAttempts: number;
   loading: boolean;
   markAsRead: (notificationId: string) => Promise<void>;
   markAllAsRead: () => Promise<void>;
@@ -28,17 +36,20 @@ export function useNotifications(userId: string): UseNotificationsReturn {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [isConnected, setIsConnected] = useState(false);
+  const [connectionState, setConnectionState] = useState<ConnectionState>('disconnected');
+  const [reconnectAttempts, setReconnectAttempts] = useState(0);
   const [loading, setLoading] = useState(false);
   const socketRef = useRef<Socket | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  // True after the first successful connect; subsequent connects are reconnects
   const hasConnectedRef = useRef(false);
+  const reconnectAttemptRef = useRef(0);
+  const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const subscribedUserRef = useRef<string | null>(null);
   const { handleError } = useApiError({ context: 'Notifications' });
   const debugNotifications =
     process.env.NODE_ENV === 'development' &&
     process.env.NEXT_PUBLIC_DEBUG_NOTIFICATIONS === 'true';
 
-  // Initialize notification sound
   useEffect(() => {
     if (typeof window !== "undefined") {
       audioRef.current = new Audio("/sounds/notification.mp3");
@@ -78,12 +89,105 @@ export function useNotifications(userId: string): UseNotificationsReturn {
     [handleError]
   );
 
-  // Stable ref so socket/visibility effects can call the latest fetchNotifications
-  // without being listed as deps (which would tear down and recreate the socket).
   const fetchNotificationsRef = useRef(fetchNotifications);
   useEffect(() => {
     fetchNotificationsRef.current = fetchNotifications;
   });
+
+  const clearReconnectTimer = useCallback(() => {
+    if (reconnectTimerRef.current !== null) {
+      clearTimeout(reconnectTimerRef.current);
+      reconnectTimerRef.current = null;
+    }
+  }, []);
+
+  const scheduleReconnectRef = useRef<() => void>(() => {});
+
+  const attachSocketListeners = useCallback((socket: Socket) => {
+    socket.on("connect", () => {
+      if (debugNotifications) {
+        console.debug('Notifications websocket connected');
+      }
+      setIsConnected(true);
+      setConnectionState('connected');
+      reconnectAttemptRef.current = 0;
+      setReconnectAttempts(0);
+      clearReconnectTimer();
+
+      if (subscribedUserRef.current !== userId) {
+        socket.emit("join-notifications", userId);
+        subscribedUserRef.current = userId;
+      }
+
+      if (hasConnectedRef.current) {
+        fetchNotificationsRef.current();
+      }
+      hasConnectedRef.current = true;
+    });
+
+    socket.on("disconnect", () => {
+      if (debugNotifications) {
+        console.debug('Notifications websocket disconnected');
+      }
+      setIsConnected(false);
+      setConnectionState('disconnected');
+    });
+
+    socket.on("notification", (notification: Notification) => {
+      setNotifications((prev) => [notification, ...prev]);
+      setUnreadCount((prev) => prev + 1);
+
+      playNotificationSound();
+
+      if ("Notification" in window && Notification.permission === "granted") {
+        new Notification(notification.title, {
+          body: notification.message,
+          icon: "/icons/notification-icon.png",
+          badge: "/icons/badge-icon.png",
+        });
+      }
+    });
+
+    socket.on("connect_error", (error) => {
+      if (debugNotifications) {
+        console.debug('Notifications websocket connection error', error);
+      }
+      setIsConnected(false);
+      setConnectionState('reconnecting');
+      scheduleReconnectRef.current();
+    });
+  }, [userId, playNotificationSound, debugNotifications, clearReconnectTimer]);
+
+  const scheduleReconnect = useCallback(() => {
+    clearReconnectTimer();
+    const attempt = reconnectAttemptRef.current;
+    if (attempt >= MAX_RECONNECT_ATTEMPTS) {
+      setConnectionState('disconnected');
+      return;
+    }
+    setConnectionState('reconnecting');
+    const delay = Math.min(
+      RECONNECT_BASE_DELAY_MS * Math.pow(2, attempt),
+      RECONNECT_MAX_DELAY_MS,
+    );
+    reconnectTimerRef.current = setTimeout(() => {
+      reconnectAttemptRef.current += 1;
+      setReconnectAttempts(reconnectAttemptRef.current);
+      const token = localStorage.getItem("auth_token");
+      const socket = io(WS_URL, {
+        auth: { token },
+        transports: ["websocket", "polling"],
+        withCredentials: true,
+        reconnection: false,
+      });
+      attachSocketListeners(socket);
+      socketRef.current = socket;
+    }, delay);
+  }, [clearReconnectTimer, attachSocketListeners]);
+
+  useEffect(() => {
+    scheduleReconnectRef.current = scheduleReconnect;
+  }, [scheduleReconnect]);
 
   const markAsRead = useCallback(async (notificationId: string) => {
     try {
@@ -125,77 +229,29 @@ export function useNotifications(userId: string): UseNotificationsReturn {
     }
   }, [handleError]);
 
-  // WebSocket connection
+  // Initial WebSocket connection
   useEffect(() => {
     if (!userId) return;
 
-    // get auth token from our client or cookies - we'll just omit it if the socket relies on cookies
-    // Or we keep AUTH_TOKEN_KEY usage ONLY for websocket
     const token = localStorage.getItem("auth_token");
-
     const socket = io(WS_URL, {
       auth: { token },
       transports: ["websocket", "polling"],
       withCredentials: true,
+      reconnection: false,
     });
 
     socketRef.current = socket;
+    attachSocketListeners(socket);
 
-    socket.on("connect", () => {
-      if (debugNotifications) {
-        console.debug('Notifications websocket connected');
-      }
-      setIsConnected(true);
-      socket.emit("join-notifications", userId);
-
-      // On reconnect, pull fresh state from the API to catch any notifications
-      // that arrived while the socket was down.
-      if (hasConnectedRef.current) {
-        fetchNotificationsRef.current();
-      }
-      hasConnectedRef.current = true;
-    });
-
-    socket.on("disconnect", () => {
-      if (debugNotifications) {
-        console.debug('Notifications websocket disconnected');
-      }
-      setIsConnected(false);
-    });
-
-    socket.on("notification", (notification: Notification) => {
-      // Add to notifications list
-      setNotifications((prev) => [notification, ...prev]);
-      setUnreadCount((prev) => prev + 1);
-
-      // Play sound and show browser notification
-      playNotificationSound();
-
-      // Show browser notification if permitted
-      if ("Notification" in window && Notification.permission === "granted") {
-        new Notification(notification.title, {
-          body: notification.message,
-          icon: "/icons/notification-icon.png",
-          badge: "/icons/badge-icon.png",
-        });
-      }
-    });
-
-    socket.on("connect_error", (error) => {
-      if (debugNotifications) {
-        console.debug('Notifications websocket connection error', error);
-      }
-      setIsConnected(false);
-    });
-
-    // Cleanup
     return () => {
+      clearReconnectTimer();
+      subscribedUserRef.current = null;
       socket.disconnect();
     };
-  }, [userId, playNotificationSound, debugNotifications]);
+  }, [userId, attachSocketListeners, clearReconnectTimer]);
 
-  // Reconcile when the tab becomes visible again — covers the multi-tab read-all
-  // case and any drift that built up while the tab was in the background.
+  // Reconcile when the tab becomes visible again
   useEffect(() => {
     if (!userId) return;
 
@@ -209,7 +265,6 @@ export function useNotifications(userId: string): UseNotificationsReturn {
     return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
   }, [userId]);
 
-  // Request browser notification permission
   useEffect(() => {
     if ("Notification" in window && Notification.permission === "default") {
       Notification.requestPermission();
@@ -220,6 +275,8 @@ export function useNotifications(userId: string): UseNotificationsReturn {
     notifications,
     unreadCount,
     isConnected,
+    connectionState,
+    reconnectAttempts,
     loading,
     markAsRead,
     markAllAsRead,

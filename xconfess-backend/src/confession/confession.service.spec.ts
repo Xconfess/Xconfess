@@ -14,9 +14,12 @@ import { ConfigService } from '@nestjs/config';
 import { AppLogger } from 'src/logger/logger.service';
 import { EncryptionService } from 'src/encryption/encryption.service';
 import { StellarService } from '../stellar/stellar.service';
+import { ContractService } from '../stellar/contract.service';
 import { CacheService, CACHE_TTL } from '../cache/cache.service';
 import { TagService } from './tag.service';
 import { encryptConfession } from '../utils/confession-encryption';
+import { AnomalyDetectionService } from '../anomaly/anomaly-detection.service';
+import { ConfessionIdempotencyService } from './confession-idempotency.service';
 
 describe('ConfessionService', () => {
   let service: ConfessionService;
@@ -29,6 +32,7 @@ describe('ConfessionService', () => {
     qb = {
       where: jest.fn().mockReturnThis(),
       andWhere: jest.fn().mockReturnThis(),
+      leftJoin: jest.fn().mockReturnThis(),
       leftJoinAndSelect: jest.fn().mockReturnThis(),
       select: jest.fn().mockReturnThis(),
       orderBy: jest.fn().mockReturnThis(),
@@ -92,6 +96,10 @@ describe('ConfessionService', () => {
           },
         },
         {
+          provide: ContractService,
+          useValue: { verifyConfession: jest.fn() },
+        },
+        {
           provide: CacheService,
           useValue: {
             buildKey: jest.fn((...parts: string[]) => parts.join(':')),
@@ -101,6 +109,19 @@ describe('ConfessionService', () => {
           },
         },
         { provide: TagService, useValue: { validateTags: jest.fn() } },
+        {
+          provide: AnomalyDetectionService,
+          useValue: { getAdjustmentFactor: jest.fn().mockResolvedValue(1) },
+        },
+        {
+          provide: ConfessionIdempotencyService,
+          useValue: {
+            computePayloadHash: jest.fn(),
+            check: jest.fn(),
+            commitSuccess: jest.fn(),
+            commitFailure: jest.fn(),
+          },
+        },
       ],
     }).compile();
 
@@ -162,6 +183,44 @@ describe('ConfessionService', () => {
     }
   });
 
+  describe('Soft-delete consistency (#1449)', () => {
+    it('findAll() excludes soft-deleted confessions', async () => {
+      repo.find = jest.fn().mockResolvedValue([]);
+
+      await service.findAll();
+
+      expect(repo.find).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { isDeleted: false } }),
+      );
+    });
+
+    it('findOne() excludes soft-deleted confessions', async () => {
+      repo.findOne.mockResolvedValue(null);
+
+      await expect(service.findOne('deleted-id')).rejects.toThrow(
+        NotFoundException,
+      );
+      expect(repo.findOne).toHaveBeenCalledWith({
+        where: { id: 'deleted-id', isDeleted: false },
+      });
+    });
+
+    it('getFlaggedConfessions() excludes soft-deleted confessions from both branches', async () => {
+      repo.findAndCount = jest.fn().mockResolvedValue([[], 0]);
+
+      await service.getFlaggedConfessions();
+
+      expect(repo.findAndCount).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: [
+            { requiresReview: true, isDeleted: false },
+            expect.objectContaining({ isDeleted: false }),
+          ],
+        }),
+      );
+    });
+  });
+
   describe('Cache TTL values (#1247)', () => {
     it('CACHE_TTL constants are correctly defined', () => {
       expect(CACHE_TTL.CONFESSION_SINGLE).toBe(1800);
@@ -208,6 +267,7 @@ describe('ConfessionService — anchor pending-state guard (#776)', () => {
   let service: ConfessionService;
   let confessionRepo: any;
   let stellarService: any;
+  let contractService: any;
 
   beforeEach(async () => {
     confessionRepo = {
@@ -229,6 +289,12 @@ describe('ConfessionService — anchor pending-state guard (#776)', () => {
       verifyTransaction: jest.fn().mockResolvedValue(true),
     };
 
+    contractService = {
+      // Defaults to "matches" so existing chain-verification tests keep
+      // exercising the happy path without every test needing to stub this.
+      verifyConfession: jest.fn().mockResolvedValue(1_700_000_000_000),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         ConfessionService,
@@ -242,19 +308,34 @@ describe('ConfessionService — anchor pending-state guard (#776)', () => {
         { provide: EventEmitter2, useValue: { emit: jest.fn() } },
         { provide: AnonymousUserService, useValue: { create: jest.fn(), getAnonIdsForUser: jest.fn() } },
         { provide: ConfigService, useValue: { get: jest.fn().mockReturnValue('12345678901234567890123456789012') } },
-        { provide: AppLogger, useValue: { log: jest.fn(), error: jest.fn() } },
+        { provide: AppLogger, useValue: { log: jest.fn(), error: jest.fn(), warn: jest.fn() } },
         { provide: EncryptionService, useValue: { encrypt: jest.fn(), decrypt: jest.fn() } },
         { provide: StellarService, useValue: stellarService },
+        { provide: ContractService, useValue: contractService },
         {
           provide: CacheService,
           useValue: {
             buildKey: jest.fn((...parts: string[]) => parts.join(':')),
             get: jest.fn().mockResolvedValue(null),
             set: jest.fn(),
+            del: jest.fn(),
             delPattern: jest.fn(),
           },
         },
         { provide: TagService, useValue: { validateTags: jest.fn() } },
+        {
+          provide: AnomalyDetectionService,
+          useValue: { getAdjustmentFactor: jest.fn().mockResolvedValue(1) },
+        },
+        {
+          provide: ConfessionIdempotencyService,
+          useValue: {
+            computePayloadHash: jest.fn(),
+            check: jest.fn(),
+            commitSuccess: jest.fn(),
+            commitFailure: jest.fn(),
+          },
+        },
       ],
     }).compile();
 
@@ -275,8 +356,11 @@ describe('ConfessionService — anchor pending-state guard (#776)', () => {
 
       const result = await service.anchorConfession('conf-p1', { stellarTxHash: 'e'.repeat(64) });
 
-      expect(result).toMatchObject({ anchorPending: true, isAnchored: false, stellarTxHash: existingTx });
-      expect(confessionRepo.update).not.toHaveBeenCalled();
+      expect(result).toMatchObject({ anchorPending: true, isAnchored: false });
+      expect(confessionRepo.update).toHaveBeenCalledWith(
+        'conf-p1',
+        expect.objectContaining({ stellarTxHash: 'a'.repeat(64) }),
+      );
     });
 
     it('does not overwrite the pending tx hash with a new submission', async () => {
@@ -390,6 +474,49 @@ describe('ConfessionService — anchor pending-state guard (#776)', () => {
 
       expect(result.isAnchored).toBe(false);
       expect(result.anchorPending).toBe(false);
+    });
+
+    it('rejects verification when the transaction succeeds but the on-chain hash does not match the confession (#1474)', async () => {
+      const txHash = 'o'.repeat(64);
+      confessionRepo.findOne.mockResolvedValue({
+        id: 'conf-v4',
+        isAnchored: false,
+        stellarTxHash: txHash,
+        stellarHash: 'p'.repeat(64),
+        anchoredAt: null,
+        isDeleted: false,
+      });
+      stellarService.verifyTransaction.mockResolvedValue(true);
+      // Transaction succeeded on Horizon, but the contract never recorded
+      // this confession's hash — the tx hash points at unrelated data.
+      contractService.verifyConfession.mockResolvedValue(null);
+
+      const result = await service.verifyStellarAnchor('conf-v4');
+
+      expect(contractService.verifyConfession).toHaveBeenCalledWith('p'.repeat(64));
+      expect(result.isAnchored).toBe(false);
+      expect(result.anchorPending).toBe(true);
+      expect(result.isVerified).toBe(false);
+      expect(confessionRepo.update).not.toHaveBeenCalled();
+    });
+
+    it('does not promote an already-anchored confession even if a later check reveals a hash mismatch', async () => {
+      const txHash = 'q'.repeat(64);
+      confessionRepo.findOne.mockResolvedValue({
+        id: 'conf-v5',
+        isAnchored: true,
+        stellarTxHash: txHash,
+        stellarHash: 'r'.repeat(64),
+        anchoredAt: new Date('2026-01-01T00:00:00.000Z'),
+        isDeleted: false,
+      });
+      stellarService.verifyTransaction.mockResolvedValue(true);
+      contractService.verifyConfession.mockResolvedValue(1_700_000_000_000);
+
+      const result = await service.verifyStellarAnchor('conf-v5');
+
+      expect(result.isAnchored).toBe(true);
+      expect(confessionRepo.update).not.toHaveBeenCalled();
     });
   });
 });

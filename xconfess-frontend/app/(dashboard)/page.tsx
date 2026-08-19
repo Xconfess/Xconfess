@@ -1,14 +1,12 @@
 "use client";
 
 import Link from "next/link";
+import { useQuery } from "@tanstack/react-query";
 import { ErrorBoundary } from "@/app/components/common/ErrorBoundary";
 import { ConfessionFeed } from "@/app/components/confession/ConfessionFeed";
-import Header from "@/app/components/layout/Header";
+import { useScrollRestoration } from "@/app/lib/hooks/useScrollRestoration";
 import { useAuthContext } from "../lib/providers/AuthProvider";
-import { useQuery } from "@tanstack/react-query";
 import { fetchUserStats } from "@/app/api/user.api";
-
-// ─── Helpers ───────────────────────────────────────────────────────────────────
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString(undefined, {
@@ -17,8 +15,6 @@ function formatDate(iso: string) {
     day: "numeric",
   });
 }
-
-// ─── Stat Badge ────────────────────────────────────────────────────────────────
 
 function StatBadge({
   label,
@@ -32,26 +28,26 @@ function StatBadge({
   if (loading) {
     return (
       <div
-        className="flex flex-col items-center rounded-xl border border-zinc-700 bg-white dark:bg-zinc-900 px-6 py-4 text-center shadow-sm animate-pulse"
+        className="flex flex-col items-center rounded-2xl border border-[var(--border)] bg-[var(--surface-muted)] px-6 py-4 text-center animate-pulse"
         aria-hidden="true"
       >
-        <div className="h-8 w-12 bg-zinc-200 dark:bg-zinc-800 rounded mb-2" />
-        <div className="h-3 w-16 bg-zinc-100 dark:bg-zinc-800 rounded" />
+        <div className="mb-2 h-8 w-12 rounded bg-[var(--skeleton)]" />
+        <div className="h-3 w-16 rounded bg-[var(--surface)]" />
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col items-center rounded-xl border border-zinc-700 bg-white dark:bg-zinc-900 px-6 py-4 text-center shadow-sm">
-      <span className="text-2xl font-bold">{value ?? "—"}</span>
-      <span className="mt-1 text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+    <div className="flex flex-col items-center rounded-2xl border border-[var(--border)] bg-[var(--surface-muted)] px-6 py-4 text-center">
+      <span className="text-2xl font-bold text-[var(--foreground)]">
+        {value ?? "-"}
+      </span>
+      <span className="mt-1 text-xs font-medium uppercase tracking-wide text-[var(--secondary)]">
         {label}
       </span>
     </div>
   );
 }
-
-// ─── User Summary ──────────────────────────────────────────────────────────────
 
 function UserSummarySection() {
   const { user } = useAuthContext();
@@ -69,35 +65,36 @@ function UserSummarySection() {
   const displayName = user?.username
     ? `@${user.username}`
     : user?.email ?? "there";
-
   const joinedAt = user?.createdAt ? formatDate(user.createdAt) : null;
 
   return (
-    <section className="rounded-xl border border-zinc-700 bg-white dark:bg-zinc-900 shadow-md p-6 space-y-4">
-      <div className="flex items-start justify-between">
+    <section className="luxury-panel space-y-5 rounded-[28px] p-6">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h2 className="text-xl md:text-2xl font-bold">
-            Welcome back,{" "}
-            <span className="text-violet-500 dark:text-violet-400">
-              {displayName}
-            </span>
-          </h2>
+          <p className="eyebrow">Dashboard</p>
+          <h1 className="mt-2 text-2xl font-bold text-[var(--foreground)]">
+            Welcome back, <span className="text-[var(--primary)]">{displayName}</span>
+          </h1>
           {joinedAt && (
-            <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
+            <p className="mt-1 text-sm text-[var(--secondary)]">
               Member since {joinedAt}
             </p>
           )}
         </div>
+        <Link
+          href="/#composer"
+          className="inline-flex items-center justify-center rounded-full bg-[var(--brand-gradient)] px-5 py-2.5 text-sm font-semibold text-white shadow-[0_18px_42px_-22px_rgba(91,46,255,0.58)] transition-transform hover:-translate-y-0.5"
+        >
+          New confession
+        </Link>
       </div>
 
       {isError ? (
-        <div className="rounded-lg bg-red-50 dark:bg-red-900/20 p-4 text-center">
-          <p className="text-sm text-red-600 dark:text-red-400 mb-2">
-            Failed to load stats
-          </p>
+        <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-center">
+          <p className="mb-2 text-sm text-red-700">Failed to load stats</p>
           <button
             onClick={() => void refetch()}
-            className="text-xs font-semibold text-red-700 dark:text-red-300 hover:underline"
+            className="text-xs font-semibold text-red-700 hover:underline"
           >
             Retry
           </button>
@@ -121,29 +118,19 @@ function UserSummarySection() {
           />
         </div>
       )}
-
-      <Link
-        href="/confess"
-        className="inline-block rounded-lg bg-violet-600 hover:bg-violet-700 text-white text-sm font-semibold px-5 py-2.5 transition-colors"
-      >
-        + New Confession
-      </Link>
     </section>
   );
 }
-
-// ─── Recent Confessions ────────────────────────────────────────────────────────
 
 function RecentConfessionsSection() {
   return (
     <section className="space-y-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-xl font-bold">Recent Confessions</h2>
-        <Link
-          href="/confessions"
-          className="text-sm font-medium text-violet-500 hover:underline"
-        >
-          View all →
+        <h2 className="text-xl font-bold text-[var(--foreground)]">
+          Recent confessions
+        </h2>
+        <Link href="/" className="text-sm font-medium text-[var(--primary)] hover:underline">
+          View all
         </Link>
       </div>
 
@@ -154,16 +141,13 @@ function RecentConfessionsSection() {
   );
 }
 
-// ─── Page ──────────────────────────────────────────────────────────────────────
-
 export default function DashboardPage() {
+  useScrollRestoration("feed");
+
   return (
-    <div className="min-h-screen bg-white dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100">
-      <Header />
-      <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 md:px-8 lg:px-10 flex flex-col gap-8">
-        <UserSummarySection />
-        <RecentConfessionsSection />
-      </main>
-    </div>
+    <main className="mx-auto flex max-w-5xl flex-col gap-8 px-4 py-8 sm:px-6 md:px-8 lg:px-10">
+      <UserSummarySection />
+      <RecentConfessionsSection />
+    </main>
   );
 }

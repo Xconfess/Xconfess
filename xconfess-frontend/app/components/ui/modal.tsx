@@ -4,6 +4,7 @@ import * as React from "react";
 import { X } from "lucide-react";
 import { cn } from "@/app/lib/utils/cn";
 import { Button } from "./button";
+import { useFocusTrap } from "@/app/lib/hooks/useFocusTrap";
 
 interface ModalProps {
   isOpen: boolean;
@@ -20,94 +21,7 @@ export const Modal: React.FC<ModalProps> = ({
   children,
   className,
 }) => {
-  const modalRef = React.useRef<HTMLDivElement>(null);
-  const previousActiveElementRef = React.useRef<HTMLElement | null>(null);
-
-  React.useEffect(() => {
-    if (isOpen) {
-      const previousOverflow = document.body.style.overflow;
-      document.body.style.overflow = "hidden";
-      return () => {
-        document.body.style.overflow = previousOverflow;
-      };
-    }
-  }, [isOpen]);
-
-  React.useEffect(() => {
-    if (!isOpen) return;
-
-    previousActiveElementRef.current = document.activeElement as HTMLElement;
-
-    const findFocusableElements = (container: HTMLElement): HTMLElement[] => {
-      const focusableSelectors = [
-        "a[href]",
-        "button:not([disabled])",
-        "textarea:not([disabled])",
-        "input:not([disabled])",
-        "select:not([disabled])",
-        '[tabindex]:not([tabindex="-1"])',
-      ].join(", ");
-      return Array.from(
-        container.querySelectorAll(focusableSelectors),
-      ) as HTMLElement[];
-    };
-
-    const focusFirstElement = () => {
-      if (modalRef.current) {
-        const focusableElements = findFocusableElements(modalRef.current);
-        if (focusableElements.length > 0) {
-          focusableElements[0].focus();
-        } else {
-          modalRef.current.focus();
-        }
-      }
-    };
-
-    const timeoutId = setTimeout(focusFirstElement, 0);
-
-    const handleTabKey = (e: KeyboardEvent) => {
-      if (e.key !== "Tab" || !modalRef.current) return;
-
-      const focusableElements = findFocusableElements(modalRef.current);
-      if (focusableElements.length === 0) return;
-
-      const firstElement = focusableElements[0];
-      const lastElement = focusableElements[focusableElements.length - 1];
-
-      if (e.shiftKey) {
-        if (document.activeElement === firstElement) {
-          e.preventDefault();
-          lastElement.focus();
-        }
-      } else {
-        if (document.activeElement === lastElement) {
-          e.preventDefault();
-          firstElement.focus();
-        }
-      }
-    };
-
-    const modalElement = modalRef.current;
-    modalElement?.addEventListener("keydown", handleTabKey);
-
-    return () => {
-      clearTimeout(timeoutId);
-      modalElement?.removeEventListener("keydown", handleTabKey);
-      if (previousActiveElementRef.current) {
-        previousActiveElementRef.current.focus();
-      }
-    };
-  }, [isOpen]);
-
-  React.useEffect(() => {
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && isOpen) {
-        onClose();
-      }
-    };
-    document.addEventListener("keydown", handleEscape);
-    return () => document.removeEventListener("keydown", handleEscape);
-  }, [isOpen, onClose]);
+  const { containerRef } = useFocusTrap({ isOpen, onClose, dialog: true });
 
   if (!isOpen) return null;
 
@@ -116,6 +30,7 @@ export const Modal: React.FC<ModalProps> = ({
       className="fixed inset-0 z-50 flex items-center justify-center"
       role="dialog"
       aria-modal="true"
+      aria-label={title || "Dialog"}
       aria-labelledby={title ? "modal-title" : undefined}
     >
       {/* Backdrop */}
@@ -127,7 +42,7 @@ export const Modal: React.FC<ModalProps> = ({
 
       {/* Modal Content */}
       <div
-        ref={modalRef}
+        ref={containerRef}
         tabIndex={-1}
         className={cn(
           "relative z-50 w-full max-w-lg rounded-xl border border-zinc-800 bg-zinc-900 shadow-xl",

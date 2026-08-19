@@ -8,7 +8,7 @@ interface Props {
     totalReactions: number;
     totalUsers: number;
   };
-  period: '7days' | '30days';
+  period: '24h' | '7days' | '30days' | 'all';
 }
 
 export const MetricsOverview = ({ metrics, period }: Props) => {
@@ -36,7 +36,14 @@ export const MetricsOverview = ({ metrics, period }: Props) => {
     }
   ];
 
-  const periodLabel = period === '7days' ? 'Last 7 Days' : 'Last 30 Days';
+  const periodLabel =
+    period === '24h'
+      ? 'Last 24 Hours'
+      : period === '7days'
+        ? 'Last 7 Days'
+        : period === '30days'
+          ? 'Last 30 Days'
+          : 'All Time';
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">

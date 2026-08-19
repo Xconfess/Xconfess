@@ -7,7 +7,11 @@ use model::observed::ObservedMachine;
 use model::reference::ModelState;
 use model::replay::format_action_trace;
 
-fn run_model_comparison(seed: u64, steps: usize, inject_fault_at: Option<usize>) -> Result<(), String> {
+fn run_model_comparison(
+    seed: u64,
+    steps: usize,
+    inject_fault_at: Option<usize>,
+) -> Result<(), String> {
     let actions = generate_actions(seed, steps);
     let mut reference = ModelState::new();
     let mut observed = ObservedMachine::new();
@@ -42,7 +46,10 @@ fn fixed_seed_replay_is_deterministic() {
     let run_a = generate_actions(seed, steps);
     let run_b = generate_actions(seed, steps);
 
-    assert_eq!(run_a, run_b, "same seed must produce identical action sequence");
+    assert_eq!(
+        run_a, run_b,
+        "same seed must produce identical action sequence"
+    );
     assert!(run_model_comparison(seed, steps, None).is_ok());
 }
 

@@ -22,7 +22,26 @@ curl http://localhost:5000/api/health/live
 curl http://localhost:5000/api/health/ready
 ```
 
-### Kubernetes / Docker health checks
+### Docker Compose health checks
+
+The default Compose stack runs Postgres and Redis only. Their container health
+checks verify that each dependency accepts connections; they do not prove that
+the application can serve traffic.
+
+Start the opt-in backend profile when you need Docker to report the same
+readiness decision as the deployed backend:
+
+```bash
+docker compose -f compose.yaml --profile app up --build
+docker compose -f compose.yaml --profile app ps
+```
+
+`xconfess-backend` is healthy only when `GET /api/health/ready` returns `200`.
+Its healthcheck therefore includes database connectivity, Redis and BullMQ
+health (when enabled), and the confession-schema check. A `503` response leaves
+the container unhealthy; use the response body to identify the failed check.
+
+### Kubernetes health checks
 
 ```yaml
 # Liveness — restart the pod if the process is unresponsive
@@ -52,6 +71,20 @@ The readiness probe (`/api/health/ready`) checks:
    - Measures lightweight latency using a Redis ping on each queue client.
    - Configurable latency threshold via `REDIS_QUEUE_LATENCY_THRESHOLD_MS` (defaults to `250` ms). Latencies exceeding this threshold will mark the queue as `'degraded'` and fail the readiness check (returning 503).
 4. **Schema** — Confession table exists and matches expected schema
+
+## Degraded dependency behavior
+
+| Dependency or configuration | Readiness result | Operator action |
+| --- | --- | --- |
+| Postgres unavailable | `503`; `database` is down | Restore Postgres connectivity and confirm migrations/schema are current. |
+| Redis unavailable with `ENABLE_BACKGROUND_JOBS=true` | `503`; `redis` is down | Restore Redis before accepting traffic that relies on jobs. |
+| Queue workers absent or Redis latency exceeds the configured threshold | `503`; `queues` is down/degraded | Start the workers or correct the Redis/queue problem. |
+| `ENABLE_BACKGROUND_JOBS` is not exactly `true` | Redis and queue checks report `mode: disabled` and do not fail readiness | Appropriate only when background jobs are intentionally disabled. Set it to `true` in deployed environments that use jobs. |
+
+The Compose backend profile sets `ENABLE_BACKGROUND_JOBS=true`, so a Redis or
+queue failure makes its Docker health state unhealthy. This matches the
+production readiness contract instead of treating Redis merely as a running
+container.
 
 ## Response examples
 
