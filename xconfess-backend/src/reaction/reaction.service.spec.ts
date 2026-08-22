@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { DataSource } from 'typeorm';
+import { DataSource, QueryFailedError } from 'typeorm';
 import { NotFoundException } from '@nestjs/common';
 import { ReactionService } from './reaction.service';
 import { Reaction } from './entities/reaction.entity';
@@ -8,6 +8,8 @@ import { AnonymousConfession } from '../confession/entities/confession.entity';
 import { AnonymousUser } from '../user/entities/anonymous-user.entity';
 import { OutboxEvent } from '../common/entities/outbox-event.entity';
 import { AnalyticsService } from '../analytics/analytics.service';
+import { ReactionsGateway } from './reactions.gateway';
+import { createAnonymousOwnershipFixture } from '../../test/utils/anonymous-ownership.factory';
 
 // ─── Factories ───────────────────────────────────────────────────────────────
 
@@ -49,6 +51,7 @@ const repoMock = () => ({
   create: jest.fn(),
   save: jest.fn(),
   remove: jest.fn(),
+  count: jest.fn().mockResolvedValue(1),
 });
 
 // ─── Suite ───────────────────────────────────────────────────────────────────
@@ -61,10 +64,17 @@ describe('ReactionService', () => {
   // inner manager repo shared so transaction-based calls can be asserted
   let managerReactionRepo: ReturnType<typeof repoMock>;
   let managerOutboxRepo: ReturnType<typeof repoMock>;
+  let gatewayMock: jest.Mocked<ReactionsGateway>;
 
   beforeEach(async () => {
     managerReactionRepo = repoMock();
     managerOutboxRepo = repoMock();
+
+    gatewayMock = {
+      broadcastReactionAdded: jest.fn(),
+      broadcastReactionRemoved: jest.fn(),
+      broadcastConfessionUpdated: jest.fn(),
+    } as any;
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -98,6 +108,7 @@ describe('ReactionService', () => {
               .mockResolvedValue(undefined),
           },
         },
+        { provide: ReactionsGateway, useValue: gatewayMock },
       ],
     }).compile();
 
@@ -129,12 +140,15 @@ describe('ReactionService', () => {
       managerReactionRepo.findOne.mockResolvedValue(null);
       managerReactionRepo.create.mockReturnValue(reaction);
       managerReactionRepo.save.mockResolvedValue(reaction);
+      managerReactionRepo.count.mockResolvedValue(1);
 
       const result = await service.createReaction(dto);
 
-      // Confession loaded with relations for notification lookup
+      // Confession loaded with relations for notification lookup, excluding soft-deleted
       expect(confessionRepo.findOne).toHaveBeenCalledWith(
-        expect.objectContaining({ where: { id: dto.confessionId } }),
+        expect.objectContaining({
+          where: { id: dto.confessionId, isDeleted: false },
+        }),
       );
 
       expect(managerReactionRepo.create).toHaveBeenCalledWith({
@@ -194,6 +208,26 @@ describe('ReactionService', () => {
       expect(reactionRepo.create).not.toHaveBeenCalled();
     });
 
+    // ── Soft-delete consistency (#1449) ─────────────────────────────────────
+
+    it('throws NotFoundException when confession is soft-deleted', async () => {
+      // The repository query filters isDeleted: false, so a soft-deleted
+      // confession resolves as "not found" here, the same as a missing one.
+      confessionRepo.findOne.mockResolvedValue(null);
+
+      await expect(service.createReaction(dto)).rejects.toThrow(
+        NotFoundException,
+      );
+
+      expect(confessionRepo.findOne).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: dto.confessionId, isDeleted: false },
+        }),
+      );
+      expect(anonymousUserRepo.findOne).not.toHaveBeenCalled();
+      expect(reactionRepo.create).not.toHaveBeenCalled();
+    });
+
     it('throws NotFoundException when anonymous user does not exist', async () => {
       confessionRepo.findOne.mockResolvedValue(makeConfession());
       anonymousUserRepo.findOne.mockResolvedValue(null);
@@ -206,6 +240,59 @@ describe('ReactionService', () => {
       );
 
       expect(reactionRepo.create).not.toHaveBeenCalled();
+    });
+
+    it('allows an authenticated user to react with their linked anonymous identity', async () => {
+      const fixture = createAnonymousOwnershipFixture();
+      const user = fixture.ownerLinkedAnon;
+      const reaction = makeReaction({ anonymousUser: user });
+
+      confessionRepo.findOne.mockResolvedValue(makeConfession());
+      anonymousUserRepo.findOne.mockResolvedValue(user);
+      managerReactionRepo.findOne.mockResolvedValue(null);
+      managerReactionRepo.create.mockReturnValue(reaction);
+      managerReactionRepo.save.mockResolvedValue(reaction);
+
+      const result = await service.createReaction(
+        { ...dto, anonymousUserId: fixture.ownerLinkedAnonId },
+        fixture.ownerUserId,
+      );
+
+      expect(result).toBe(reaction);
+    });
+
+    it('returns 404 when a user forges another account linked anonymous identity', async () => {
+      const fixture = createAnonymousOwnershipFixture();
+
+      confessionRepo.findOne.mockResolvedValue(makeConfession());
+      anonymousUserRepo.findOne.mockResolvedValue(fixture.otherLinkedAnon);
+
+      await expect(
+        service.createReaction(
+          { ...dto, anonymousUserId: fixture.otherLinkedAnonId },
+          fixture.ownerUserId,
+        ),
+      ).rejects.toBeInstanceOf(NotFoundException);
+
+      expect(managerReactionRepo.create).not.toHaveBeenCalled();
+    });
+
+    it('keeps public reactions working for unlinked anonymous identities', async () => {
+      const fixture = createAnonymousOwnershipFixture();
+      const reaction = makeReaction({ anonymousUser: fixture.publicAnon });
+
+      confessionRepo.findOne.mockResolvedValue(makeConfession());
+      anonymousUserRepo.findOne.mockResolvedValue(fixture.publicAnon);
+      managerReactionRepo.findOne.mockResolvedValue(null);
+      managerReactionRepo.create.mockReturnValue(reaction);
+      managerReactionRepo.save.mockResolvedValue(reaction);
+
+      const result = await service.createReaction({
+        ...dto,
+        anonymousUserId: fixture.publicAnonId,
+      });
+
+      expect(result).toBe(reaction);
     });
 
     // ── Schema alignment guard ──────────────────────────────────────────────
@@ -225,6 +312,7 @@ describe('ReactionService', () => {
       managerReactionRepo.findOne.mockResolvedValue(null);
       managerReactionRepo.create.mockReturnValue(makeReaction());
       managerReactionRepo.save.mockResolvedValue(makeReaction());
+      managerReactionRepo.count.mockResolvedValue(1);
 
       await service.createReaction(dto);
 
@@ -241,6 +329,7 @@ describe('ReactionService', () => {
       managerReactionRepo.findOne.mockResolvedValue(null);
       managerReactionRepo.create.mockReturnValue(reaction);
       managerReactionRepo.save.mockResolvedValue(reaction);
+      managerReactionRepo.count.mockResolvedValue(1);
 
       await service.createReaction(dto);
 
@@ -251,6 +340,112 @@ describe('ReactionService', () => {
       expect(managerReactionRepo.create).not.toHaveBeenCalledWith(
         expect.objectContaining({ user: expect.anything() }),
       );
+    });
+
+    // ── Race condition: concurrent duplicate insert ────────────────────────
+
+    it('handles race condition by returning existing reaction on unique violation', async () => {
+      const confession = makeConfession();
+      const user = makeAnonymousUser();
+      const existing = makeReaction({ confession, anonymousUser: user });
+
+      confessionRepo.findOne.mockResolvedValue(confession);
+      anonymousUserRepo.findOne.mockResolvedValue(user);
+
+      // First findOne inside transaction returns null (race window open)
+      managerReactionRepo.findOne.mockResolvedValueOnce(null);
+
+      // save throws unique-violation (SQLSTATE 23505)
+      const uniqueError = new QueryFailedError(
+        'INSERT',
+        [],
+        Object.assign(new Error('duplicate key'), { code: '23505' }),
+      );
+      managerReactionRepo.save.mockRejectedValueOnce(uniqueError);
+
+      // Re-fetch after constraint violation returns the winning row
+      managerReactionRepo.findOne.mockResolvedValueOnce(existing);
+
+      const result = await service.createReaction(dto);
+
+      expect(result).toBe(existing);
+      expect(managerReactionRepo.save).toHaveBeenCalledTimes(1);
+      // findOne called twice: once before save, once after constraint violation
+      expect(managerReactionRepo.findOne).toHaveBeenCalledTimes(2);
+    });
+
+    it('re-throws non-unique-violation QueryFailedErrors', async () => {
+      const confession = makeConfession();
+      const user = makeAnonymousUser();
+
+      confessionRepo.findOne.mockResolvedValue(confession);
+      anonymousUserRepo.findOne.mockResolvedValue(user);
+      managerReactionRepo.findOne.mockResolvedValue(null);
+
+      // save throws a different DB error (not unique violation)
+      const dbError = new QueryFailedError(
+        'INSERT',
+        [],
+        Object.assign(new Error('connection refused'), { code: '08006' }),
+      );
+      managerReactionRepo.save.mockRejectedValue(dbError);
+
+      await expect(service.createReaction(dto)).rejects.toThrow(dbError);
+    });
+
+    // ── WebSocket broadcast ────────────────────────────────────────────────
+
+    it('broadcasts reaction:added via gateway for a new reaction', async () => {
+      const confession = makeConfession();
+      const user = makeAnonymousUser();
+      const reaction = makeReaction({ confession, anonymousUser: user });
+
+      confessionRepo.findOne.mockResolvedValue(confession);
+      anonymousUserRepo.findOne.mockResolvedValue(user);
+      managerReactionRepo.findOne.mockResolvedValue(null);
+      managerReactionRepo.create.mockReturnValue(reaction);
+      managerReactionRepo.save.mockResolvedValue(reaction);
+      managerReactionRepo.count.mockResolvedValue(3);
+      reactionRepo.count.mockResolvedValue(3);
+
+      await service.createReaction(dto);
+
+      expect(gatewayMock.broadcastReactionAdded).toHaveBeenCalledWith(
+        confession.id,
+        expect.objectContaining({
+          reactionId: reaction.id,
+          userId: dto.anonymousUserId,
+          reactionType: reaction.emoji,
+          totalCount: 3,
+        }),
+      );
+    });
+
+    it('does NOT broadcast when reaction is idempotent (same emoji)', async () => {
+      const existing = makeReaction({ emoji: '❤️' });
+
+      confessionRepo.findOne.mockResolvedValue(makeConfession());
+      anonymousUserRepo.findOne.mockResolvedValue(makeAnonymousUser());
+      managerReactionRepo.findOne.mockResolvedValue(existing);
+
+      await service.createReaction(dto);
+
+      expect(gatewayMock.broadcastReactionAdded).not.toHaveBeenCalled();
+      expect(gatewayMock.broadcastReactionRemoved).not.toHaveBeenCalled();
+    });
+
+    it('does NOT broadcast when emoji is updated (existing reaction changes)', async () => {
+      const existing = makeReaction({ emoji: '😂' });
+      const updated = { ...existing, emoji: '❤️' } as Reaction;
+
+      confessionRepo.findOne.mockResolvedValue(makeConfession());
+      anonymousUserRepo.findOne.mockResolvedValue(makeAnonymousUser());
+      managerReactionRepo.findOne.mockResolvedValue(existing);
+      managerReactionRepo.save.mockResolvedValue(updated);
+
+      await service.createReaction({ ...dto, emoji: '❤️' });
+
+      expect(gatewayMock.broadcastReactionAdded).not.toHaveBeenCalled();
     });
   });
 });
@@ -270,6 +465,7 @@ describe('ReactionService – analytics cache invalidation', () => {
     findOne: jest.fn().mockResolvedValue(null),
     create: jest.fn().mockReturnValue({ id: 'r1', emoji: '❤️' }),
     save: jest.fn().mockResolvedValue({ id: 'r1', emoji: '❤️' }),
+    count: jest.fn().mockResolvedValue(1),
   });
 
   const confession = {
@@ -307,7 +503,7 @@ describe('ReactionService – analytics cache invalidation', () => {
         ReactionService,
         {
           provide: getRepositoryToken(Reaction),
-          useValue: { findOne: jest.fn(), create: jest.fn(), save: jest.fn() },
+          useValue: { findOne: jest.fn(), create: jest.fn(), save: jest.fn(), count: jest.fn() },
         },
         {
           provide: getRepositoryToken(AnonymousConfession),
@@ -323,6 +519,14 @@ describe('ReactionService – analytics cache invalidation', () => {
         },
         { provide: DataSource, useValue: dataSourceMock },
         { provide: AnalyticsService, useValue: analyticsService },
+        {
+          provide: ReactionsGateway,
+          useValue: {
+            broadcastReactionAdded: jest.fn(),
+            broadcastReactionRemoved: jest.fn(),
+            broadcastConfessionUpdated: jest.fn(),
+          },
+        },
       ],
     }).compile();
 
@@ -370,6 +574,14 @@ describe('ReactionService – analytics cache invalidation', () => {
         },
         { provide: DataSource, useValue: { transaction: jest.fn() } },
         { provide: AnalyticsService, useValue: analyticsService },
+        {
+          provide: ReactionsGateway,
+          useValue: {
+            broadcastReactionAdded: jest.fn(),
+            broadcastReactionRemoved: jest.fn(),
+            broadcastConfessionUpdated: jest.fn(),
+          },
+        },
       ],
     }).compile();
 

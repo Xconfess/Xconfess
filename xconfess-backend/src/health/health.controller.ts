@@ -2,23 +2,75 @@ import { Controller, Get } from '@nestjs/common';
 import {
   HealthCheck,
   HealthCheckService,
-  TypeOrmHealthIndicator,
+  HealthCheckResult,
 } from '@nestjs/terminus';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
+import { ConfigService } from '@nestjs/config';
 import { RedisHealthIndicator } from './redis.health';
 import { SchemaReadinessHealthIndicator } from './schema-readiness.health';
 import { QueueHealthIndicator } from './queue.health';
+import { PostgresHealthIndicator } from './postgres.health';
+
+interface SubsystemStatus {
+  name: string;
+  status: 'up' | 'down' | 'degraded' | 'disabled';
+}
+
+function getNestedStatuses(detail: Record<string, unknown>): string[] {
+  return Object.values(detail)
+    .filter((value): value is { status?: string } =>
+      Boolean(value && typeof value === 'object' && 'status' in value),
+    )
+    .map((value) => value.status)
+    .filter((status): status is string => Boolean(status));
+}
+
+function buildSubsystemSummary(
+  result: HealthCheckResult,
+): SubsystemStatus[] {
+  const subsystems: SubsystemStatus[] = [];
+  const info = result.info ?? {};
+  const errors = result.error ?? {};
+
+  const keys = ['database', 'redis', 'queues', 'schema'];
+  for (const key of keys) {
+    const detail = info[key] ?? errors[key];
+    if (!detail) {
+      subsystems.push({ name: key, status: 'down' });
+      continue;
+    }
+
+    if (detail.mode === 'disabled') {
+      subsystems.push({ name: key, status: 'disabled' });
+      continue;
+    }
+
+    const nestedStatuses = getNestedStatuses(detail);
+    if (nestedStatuses.includes('down')) {
+      subsystems.push({ name: key, status: 'down' });
+    } else if (nestedStatuses.includes('degraded')) {
+      subsystems.push({ name: key, status: 'degraded' });
+    } else if (detail.status === 'up') {
+      subsystems.push({ name: key, status: 'up' });
+    } else {
+      subsystems.push({ name: key, status: 'down' });
+    }
+  }
+
+  return subsystems;
+}
 
 @ApiTags('Health')
 @Controller('health')
 export class HealthController {
   constructor(
     private readonly health: HealthCheckService,
-    private readonly db: TypeOrmHealthIndicator,
+    private readonly db: PostgresHealthIndicator,
     private readonly redis: RedisHealthIndicator,
     private readonly schemaReadiness: SchemaReadinessHealthIndicator,
     private readonly queues: QueueHealthIndicator,
+    private readonly configService: ConfigService,
   ) {}
 
   /**
@@ -41,6 +93,7 @@ export class HealthController {
   /**
    * Readiness probe — are all dependencies available?
    * Returns 503 when any dependency is unavailable.
+   * Includes per-subsystem diagnostics with actionable error messages.
    */
   @Get('ready')
   @HealthCheck()
@@ -48,8 +101,9 @@ export class HealthController {
   @ApiOperation({
     summary: 'Readiness probe',
     description:
-      'Checks Postgres, Redis, BullMQ queue workers, and confession-table schema. ' +
-      'Returns 503 with per-check detail on failure. ' +
+      'Checks Postgres (latency, version, connections), Redis (latency, version), ' +
+      'BullMQ queue workers, and confession-table schema. ' +
+      'Returns 503 with per-subsystem diagnostics and actionable hints on failure. ' +
       'Use for Kubernetes readiness probes.',
   })
   @ApiResponse({ status: 200, description: 'All dependencies ready' })
@@ -57,13 +111,20 @@ export class HealthController {
     status: 503,
     description: 'One or more dependencies unavailable',
   })
-  readiness() {
-    return this.health.check([
-      async () => this.db.pingCheck('database'),
+  async readiness() {
+    const result = await this.health.check([
+      async () => this.db.isHealthy('database'),
       async () => this.redis.isHealthy('redis'),
       async () => this.queues.isHealthy('queues'),
       async () => this.schemaReadiness.isHealthy('schema'),
     ]);
+    const jobsEnabled =
+      this.configService?.get<string>('ENABLE_BACKGROUND_JOBS') === 'true';
+    return {
+      ...result,
+      backgroundJobMode: jobsEnabled ? 'enabled' : 'disabled',
+      subsystems: buildSubsystemSummary(result),
+    };
   }
 
   /** Backward-compatible alias for GET /health/ready. */
@@ -78,12 +139,19 @@ export class HealthController {
   })
   @ApiResponse({ status: 200, description: 'All checks passed' })
   @ApiResponse({ status: 503, description: 'One or more checks failed' })
-  check() {
-    return this.health.check([
-      async () => this.db.pingCheck('database'),
+  async check() {
+    const result = await this.health.check([
+      async () => this.db.isHealthy('database'),
       async () => this.redis.isHealthy('redis'),
       async () => this.queues.isHealthy('queues'),
       async () => this.schemaReadiness.isHealthy('schema'),
     ]);
+    const jobsEnabled =
+      this.configService?.get<string>('ENABLE_BACKGROUND_JOBS') === 'true';
+    return {
+      ...result,
+      backgroundJobMode: jobsEnabled ? 'enabled' : 'disabled',
+      subsystems: buildSubsystemSummary(result),
+    };
   }
 }

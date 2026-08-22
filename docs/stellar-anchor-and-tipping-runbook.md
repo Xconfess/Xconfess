@@ -272,6 +272,8 @@ grep '"requestId":"<value>"' app.log | grep '"txHash":"<value>"'
 
 `requestId` is echoed from the incoming `x-request-id` header (or auto-generated). No secrets, private keys, or seed phrases are ever written to logs. Sender addresses are omitted when the tip is marked anonymous.
 
+This is enforced defensively, not just by convention: `src/utils/redact-secrets.ts` scrubs Stellar secret seeds and signed-XDR-shaped blobs from any string or structured payload before it reaches `AppLogger` or the global `AllExceptionsFilter`, so an unexpected error from the signing path cannot echo `STELLAR_SERVER_SECRET` (or a signed transaction envelope) into application logs or the audit log.
+
 ## Metrics & Observability (Reconciliation Lag)
 
 As per Issue #783, the backend emits bounded metrics to track the age of pending records. This allows operators to differentiate between "normal network delay" and "stuck records."

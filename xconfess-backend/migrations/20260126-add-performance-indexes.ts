@@ -1,6 +1,8 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-export class AddPerformanceIndexes20260126 implements MigrationInterface {
+export class AddPerformanceIndexes2026012600001 implements MigrationInterface {
+  name = 'AddPerformanceIndexes2026012600001';
+
   public async up(queryRunner: QueryRunner): Promise<void> {
     // Index for sorting confessions by creation date (most common query)
     await queryRunner.query(`

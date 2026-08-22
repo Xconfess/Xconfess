@@ -70,7 +70,7 @@ export function SearchResults({
 
   const navigateToComparison = () => {
     if (selectedIds.length === 2) {
-      router.push(`/dashboard/compare?ids=${selectedIds.join(",")}`);
+      router.push(`/compare?ids=${selectedIds.join(",")}`);
     }
   };
 

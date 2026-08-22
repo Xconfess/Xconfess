@@ -36,7 +36,7 @@ export class Comment {
   @JoinColumn({ name: "confessionId" })
   confession: AnonymousConfession;
 
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   anonymousContextId?: string;
 
   // Parent comment (optional) for one-level nested replies
@@ -62,4 +62,10 @@ export class Comment {
   // Extracted @mention usernames stored for notification lookup.
   @Column("simple-array", { nullable: true })
   mentionedUsernames?: string[];
+
+  // Client-supplied idempotency key for replay safety.
+  // Unique index ensures only one comment per key.
+  @Column({ type: "varchar", nullable: true })
+  @Index({ unique: true })
+  idempotencyKey?: string;
 }

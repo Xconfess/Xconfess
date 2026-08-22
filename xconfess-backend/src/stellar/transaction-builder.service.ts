@@ -3,6 +3,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import * as StellarSDK from '@stellar/stellar-sdk';
 import { StellarConfigService } from './stellar-config.service';
 import { ITransactionOptions } from './interfaces/stellar-config.interface';
+import { redactSecretStrings } from '../utils/redact-secrets';
 
 @Injectable()
 export class TransactionBuilderService {
@@ -111,7 +112,11 @@ export class TransactionBuilderService {
       transaction.sign(keypair);
       return transaction;
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : String(error);
+      // Redacted defensively: the underlying error is derived from the secret
+      // key itself and must never be assumed safe to log verbatim.
+      const message = redactSecretStrings(
+        error instanceof Error ? error.message : String(error),
+      );
       this.logger.error(`Failed to sign transaction: ${message}`);
       throw new Error(`Transaction signing failed: ${message}`);
     }
@@ -132,25 +137,74 @@ export class TransactionBuilderService {
   }
 
   /**
-   * Submit transaction to network
+   * Submit transaction to network with bounded retries for transient failures
    */
   async submitTransaction(transaction: any): Promise<any> {
-    try {
-      const server = this.stellarConfig.getServer();
-      const result = await server.submitTransaction(transaction);
-      this.logger.log(`Transaction submitted: ${result.hash}`);
-      return result;
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : String(error);
-      this.logger.error(`Transaction submission failed: ${message}`);
-      const withResponse = error as {
-        response?: { data?: { extras?: { result_codes?: unknown } } };
-      };
-      if (withResponse.response?.data?.extras?.result_codes) {
-        const codes = withResponse.response.data.extras.result_codes;
-        throw new Error(`Transaction failed: ${JSON.stringify(codes)}`);
+    const maxRetries = this.stellarConfig.getConfig().rpcMaxRetries;
+    const baseDelay = this.stellarConfig.getConfig().rpcRetryBaseDelayMs;
+    const maxDelay = this.stellarConfig.getConfig().rpcRetryMaxDelayMs;
+
+    let lastError: unknown;
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        const server = this.stellarConfig.getServer();
+        const result = await server.submitTransaction(transaction);
+        this.logger.log(`Transaction submitted: ${result.hash}`);
+        return result;
+      } catch (error: unknown) {
+        lastError = error;
+        const message = error instanceof Error ? error.message : String(error);
+        const withResponse = error as {
+          response?: { data?: { extras?: { result_codes?: unknown } } };
+          status?: number;
+        };
+
+        // Non-retryable errors: bad auth, malformed, sequence errors
+        const resultCodes = withResponse.response?.data?.extras?.result_codes;
+        if (resultCodes) {
+          const codes = resultCodes as { transaction?: string; operations?: string[] };
+          const txCode = codes.transaction;
+          if (
+            txCode === 'tx_bad_auth' ||
+            txCode === 'tx_bad_seq' ||
+            txCode === 'tx_malformed' ||
+            txCode === 'tx_not_supported'
+          ) {
+            throw new Error(`Transaction failed (non-retryable): ${JSON.stringify(resultCodes)}`);
+          }
+        }
+
+        // 400 Bad Request is non-retryable
+        if (withResponse.status === 400) {
+          throw new Error(`Transaction submission failed: ${message}`);
+        }
+
+        // Retryable: network errors, timeouts, 5xx, 429
+        const isRetryable =
+          !withResponse.status ||
+          withResponse.status >= 500 ||
+          withResponse.status === 429 ||
+          message.toLowerCase().includes('timeout') ||
+          message.toLowerCase().includes('econnrefused') ||
+          message.toLowerCase().includes('econnreset');
+
+        if (!isRetryable || attempt >= maxRetries) {
+          if (withResponse.response?.data?.extras?.result_codes) {
+            const codes = withResponse.response.data.extras.result_codes;
+            throw new Error(`Transaction failed: ${JSON.stringify(codes)}`);
+          }
+          throw new Error(`Transaction submission failed: ${message}`);
+        }
+
+        const delay = Math.min(baseDelay * Math.pow(2, attempt), maxDelay);
+        this.logger.warn(
+          `Transaction submission failed (attempt ${attempt + 1}/${maxRetries + 1}), retrying in ${delay}ms: ${message}`,
+        );
+        await new Promise((res) => setTimeout(res, delay));
       }
-      throw new Error(`Transaction submission failed: ${message}`);
     }
+
+    const message = lastError instanceof Error ? lastError.message : String(lastError);
+    throw new Error(`Transaction submission failed after ${maxRetries + 1} attempts: ${message}`);
   }
 }

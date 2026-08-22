@@ -1,6 +1,7 @@
 import React from "react";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ConfessionDetailClient } from "@/app/(dashboard)/confessions/[id]/ConfessionDetailClient";
 import { useAuth } from "@/app/lib/hooks/useAuth";
 import { createConfessionReport } from "@/app/lib/api/reports";
@@ -16,6 +17,7 @@ jest.mock("@/app/lib/api/reports", () => ({
 
 jest.mock("next/navigation", () => ({
   useRouter: jest.fn(),
+  usePathname: () => "/confessions/confession-123",
 }));
 
 jest.mock("@/app/components/confession/ReactionButtons", () => ({
@@ -45,20 +47,25 @@ const mockCreateConfessionReport = createConfessionReport as jest.MockedFunction
 >;
 
 function renderDetail() {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
   return render(
-    <ConfessionDetailClient
-      confessionId="confession-123"
-      initialConfession={{
-        id: "confession-123",
-        content: "hello",
-        createdAt: new Date().toISOString(),
-        viewCount: 10,
-        reactions: { like: 1, love: 2 },
-        commentCount: 0,
-        isAnchored: false,
-        stellarTxHash: null,
-      }}
-    />,
+    <QueryClientProvider client={queryClient}>
+      <ConfessionDetailClient
+        confessionId="confession-123"
+        initialConfession={{
+          id: "confession-123",
+          content: "hello",
+          createdAt: new Date().toISOString(),
+          viewCount: 10,
+          reactions: { like: 1, love: 2 },
+          commentCount: 0,
+          isAnchored: false,
+          stellarTxHash: null,
+        }}
+      />
+    </QueryClientProvider>,
   );
 }
 
@@ -138,4 +145,3 @@ describe("ConfessionDetailClient report flow", () => {
     ).toBeInTheDocument();
   });
 });
-

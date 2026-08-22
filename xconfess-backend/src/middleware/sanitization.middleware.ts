@@ -130,7 +130,12 @@ export class SanitizationMiddleware implements NestMiddleware {
         }
       }
 
-      req.query = sanitizedQuery as typeof req.query;
+      Object.defineProperty(req, 'query', {
+        value: sanitizedQuery,
+        writable: true,
+        enumerable: true,
+        configurable: true,
+      });
     }
 
     next();

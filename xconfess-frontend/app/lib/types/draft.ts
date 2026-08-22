@@ -14,6 +14,7 @@ export interface Draft {
   characterCount: number;
   scheduledFor?: string;
   timezone?: string;
+  version?: number;
 }
 
 export type DraftInput = Omit<Draft, "id" | "savedAt" | "characterCount">;

@@ -25,9 +25,9 @@ export interface SchemaReadinessResult {
 function getMigrationHint(column: string): string {
   switch (column) {
     case 'search_vector':
-      return 'Run: npm run migration:run -- xconfess-backend (add FTS migration)';
+      return 'Run: npm run backend:migration:run (or npm run backend:schema:repair for an existing dev database)';
     case 'view_count':
-      return 'Run: npm run migration:run -- xconfess-backend (add view_count column)';
+      return 'Run: npm run backend:migration:run (or npm run backend:schema:repair for an existing dev database)';
     default:
       return '';
   }
@@ -36,9 +36,9 @@ function getMigrationHint(column: string): string {
 function getIndexHint(index: string): string {
   switch (index) {
     case 'idx_confession_search_vector':
-      return 'Run: CREATE INDEX concurrently idx_confession_search_vector ON anonymous_confessions USING GIN(search_vector);';
+      return 'Run: npm run backend:migration:run — or for a dev database: npm run backend:schema:repair';
     case 'idx_confession_created_at':
-      return 'Run: CREATE INDEX concurrently idx_confession_created_at ON anonymous_confessions(created_at DESC);';
+      return 'Run: npm run backend:migration:run — or for a dev database: npm run backend:schema:repair';
     default:
       return '';
   }

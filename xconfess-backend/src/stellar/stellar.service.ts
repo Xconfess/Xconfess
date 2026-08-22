@@ -13,6 +13,7 @@ import * as crypto from 'crypto';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { AnonymousConfession } from '../confession/entities/confession.entity';
+import { redactSecretStrings } from '../utils/redact-secrets';
 
 export interface AnchorData {
   stellarTxHash: string;
@@ -53,54 +54,106 @@ export class StellarService {
     native: string;
     assets: Array<{ code: string; issuer: string; balance: string }>;
   }> {
-    try {
-      const server = this.stellarConfig.getServer();
-      const account = await server.loadAccount(publicKey);
-      const native =
-        account.balances.find((b) => b.asset_type === 'native')?.balance || '0';
-      const assets = account.balances
-        .filter((b) => b.asset_type !== 'native')
-        .map((b: any) => ({
-          code: b.asset_code,
-          issuer: b.asset_issuer,
-          balance: b.balance,
-        }));
-      return { native, assets };
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : String(error);
-      this.logger.error(`Failed to get account balance: ${message}`);
-      throw new AppException(
-        `Account not found or network error: ${message}`,
-        ErrorCode.STELLAR_ERROR,
-        HttpStatus.NOT_FOUND,
-      );
+    const rpcConfig = this.stellarConfig.getConfig();
+    const maxRetries = rpcConfig.rpcMaxRetries;
+    const baseDelay = rpcConfig.rpcRetryBaseDelayMs;
+    const maxDelay = rpcConfig.rpcRetryMaxDelayMs;
+
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        const server = this.stellarConfig.getServer();
+        const account = await server.loadAccount(publicKey);
+        const native =
+          account.balances.find((b) => b.asset_type === 'native')?.balance || '0';
+        const assets = account.balances
+          .filter((b) => b.asset_type !== 'native')
+          .map((b: any) => ({
+            code: b.asset_code,
+            issuer: b.asset_issuer,
+            balance: b.balance,
+          }));
+        return { native, assets };
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : String(error);
+        const isRetryable =
+          message.toLowerCase().includes('timeout') ||
+          message.toLowerCase().includes('econnrefused') ||
+          message.toLowerCase().includes('econnreset');
+
+        if (!isRetryable || attempt >= maxRetries) {
+          this.logger.error(`Failed to get account balance: ${message}`);
+          throw new AppException(
+            `Account not found or network error: ${message}`,
+            ErrorCode.STELLAR_ERROR,
+            HttpStatus.NOT_FOUND,
+          );
+        }
+
+        const delay = Math.min(baseDelay * Math.pow(2, attempt), maxDelay);
+        this.logger.warn(
+          `getAccountBalance failed (attempt ${attempt + 1}/${maxRetries + 1}), retrying in ${delay}ms`,
+        );
+        await new Promise((res) => setTimeout(res, delay));
+      }
     }
+
+    throw new AppException(
+      'Account balance fetch failed after retries',
+      ErrorCode.STELLAR_ERROR,
+      HttpStatus.NOT_FOUND,
+    );
   }
 
   /**
-   * Verify transaction on-chain (full result)
+   * Verify transaction on-chain (full result) with bounded retries
    */
   async verifyTransactionFull(txHash: string): Promise<ITransactionResult> {
-    try {
-      const server = this.stellarConfig.getServer();
-      const tx = await server.transactions().transaction(txHash).call();
-      return {
-        hash: tx.hash,
-        success: tx.successful,
-        ledger: tx.ledger as any,
-        createdAt: tx.created_at,
-        envelope: tx.envelope_xdr,
-        result: tx.result_xdr,
-      };
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : String(error);
-      this.logger.error(`Transaction verification failed: ${message}`);
-      throw new AppException(
-        `Transaction not found: ${message}`,
-        ErrorCode.NOT_FOUND,
-        HttpStatus.NOT_FOUND,
-      );
+    const rpcConfig = this.stellarConfig.getConfig();
+    const maxRetries = rpcConfig.rpcMaxRetries;
+    const baseDelay = rpcConfig.rpcRetryBaseDelayMs;
+    const maxDelay = rpcConfig.rpcRetryMaxDelayMs;
+
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        const server = this.stellarConfig.getServer();
+        const tx = await server.transactions().transaction(txHash).call();
+        return {
+          hash: tx.hash,
+          success: tx.successful,
+          ledger: tx.ledger as any,
+          createdAt: tx.created_at,
+          envelope: tx.envelope_xdr,
+          result: tx.result_xdr,
+        };
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : String(error);
+        const isRetryable =
+          message.toLowerCase().includes('timeout') ||
+          message.toLowerCase().includes('econnrefused') ||
+          message.toLowerCase().includes('econnreset');
+
+        if (!isRetryable || attempt >= maxRetries) {
+          this.logger.error(`Transaction verification failed: ${message}`);
+          throw new AppException(
+            `Transaction not found: ${message}`,
+            ErrorCode.NOT_FOUND,
+            HttpStatus.NOT_FOUND,
+          );
+        }
+
+        const delay = Math.min(baseDelay * Math.pow(2, attempt), maxDelay);
+        this.logger.warn(
+          `verifyTransactionFull failed (attempt ${attempt + 1}/${maxRetries + 1}), retrying in ${delay}ms`,
+        );
+        await new Promise((res) => setTimeout(res, delay));
+      }
     }
+
+    throw new AppException(
+      'Transaction verification failed after retries',
+      ErrorCode.NOT_FOUND,
+      HttpStatus.NOT_FOUND,
+    );
   }
 
   /**
@@ -175,7 +228,11 @@ export class StellarService {
         success: result.successful,
       };
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : String(error);
+      // Redacted defensively: this path constructs a keypair directly from
+      // the server secret, so any thrown error is not guaranteed secret-free.
+      const message = redactSecretStrings(
+        error instanceof Error ? error.message : String(error),
+      );
       this.logger.error(`Payment failed: ${message}`);
       throw error;
     }
@@ -226,23 +283,62 @@ export class StellarService {
       return false;
     }
 
-    try {
-      const response = await fetch(this.getHorizonTxUrl(txHash));
-      if (!response.ok) {
-        return false;
-      }
+    const rpcConfig = this.stellarConfig.getConfig();
+    const maxRetries = rpcConfig.rpcMaxRetries;
+    const baseDelay = rpcConfig.rpcRetryBaseDelayMs;
+    const maxDelay = rpcConfig.rpcRetryMaxDelayMs;
 
-      const data = await response.json();
-      return data.successful === true;
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : String(error);
-      this.logger.error({
-        message: `Error verifying Stellar transaction: ${message}`,
-        requestId,
-        txHash,
-      });
-      return false;
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        const controller = new AbortController();
+        const timeoutMs = rpcConfig.rpcTimeoutMs;
+        const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+        let response: Response;
+        try {
+          response = await fetch(this.getHorizonTxUrl(txHash), {
+            signal: controller.signal,
+          });
+        } finally {
+          clearTimeout(timeoutId);
+        }
+
+        if (!response.ok) {
+          return false;
+        }
+
+        const data = await response.json();
+        return data.successful === true;
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : String(error);
+        const isAbort =
+          error instanceof DOMException && error.name === 'AbortError';
+        const isRetryable =
+          isAbort ||
+          message.toLowerCase().includes('econnrefused') ||
+          message.toLowerCase().includes('econnreset') ||
+          message.toLowerCase().includes('network');
+
+        if (!isRetryable || attempt >= maxRetries) {
+          this.logger.error({
+            message: `Error verifying Stellar transaction: ${message}`,
+            requestId,
+            txHash,
+          });
+          return false;
+        }
+
+        const delay = Math.min(baseDelay * Math.pow(2, attempt), maxDelay);
+        this.logger.warn({
+          message: `Transaction verify failed (attempt ${attempt + 1}/${maxRetries + 1}), retrying in ${delay}ms`,
+          requestId,
+          txHash,
+        });
+        await new Promise((res) => setTimeout(res, delay));
+      }
     }
+
+    return false;
   }
 
   /**

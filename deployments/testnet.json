@@ -1,35 +1,35 @@
 {
   "contracts": {
     "anonymous-tipping": {
-      "contract_id": "CAJK27UHTBUGQFUMN5TG5LOQXYODT6NHOY7Z5DVRRMR7CZ4SCIZUE5A3",
-      "sha256": "bd442a078b052086ea404dc532e2e31c23be5ad0ba95905bfce3a99d36cdf84e",
+      "contract_id": "CC74UWNAAYDTPEPVKR4CPANWJSF6GI2PCI7BLN6M46KB6CSQYVYLHIWM",
+      "sha256": "38c3d5d76bc026a1a3d25dabc473d9b37a2dd60787145400a1bb327624b76928",
       "source": "xconfess-deployer",
-      "version": "0.1.0",
+      "version": "1.0.0",
       "wasm_file": "target/wasm32v1-none/release/anonymous_tipping.wasm"
     },
     "confession-anchor": {
-      "contract_id": "CBFR2MDZBQPTNBIJCT32MTDDQLW2AQNDWNO777F3QT6ANYKTHETQZWD3",
-      "sha256": "c652000471245dffeabef2ccd0329d9b54c47f7c33291d5d3729eb6d0501053a",
+      "contract_id": "CB5XMDHT66EISB4WXM4YGNDHYRMZDX42TOHZEAENIUTSSMRFHJSFRNHB",
+      "sha256": "fc4f4e6ccb4b38ad71ace722a69dc3470a675d3f112788abba94bb3b443ce7d7",
       "source": "xconfess-deployer",
       "version": "0.1.0",
       "wasm_file": "target/wasm32v1-none/release/confession_anchor.wasm"
     },
     "confession-registry": {
-      "contract_id": "CCKT545OQXPLRTY33ED3T6E55SZXM5SFBHKTKQZOXDVX6QDSFIFFQVKI",
-      "sha256": "c55ccbb64cb61cbdb2bf35552c6d43c657101164b967044cb68e6229d6809f72",
+      "contract_id": "CDS3WZ2CBA2JAIGK2NJ7KOO3VPBFWSJ34FWMMVXEIA7O7ACQO3VWH2PQ",
+      "sha256": "0a4708682d777075100f5fb7f4e6d3222fef83ccf49a252b0f49c5167bcdfdce",
       "source": "xconfess-deployer",
       "version": "0.1.0",
       "wasm_file": "target/wasm32v1-none/release/confession_registry.wasm"
     },
     "reputation-badges": {
-      "contract_id": "CDD7WPESW54SN6YTXY7PH6JLG6S4MWNREHN5FD6XENAITEDOVLWKIQTC",
-      "sha256": "ca97c7013b236ce05f3b6995ad8b42e89f87cc31d71385527d0aa3aad7e807f8",
+      "contract_id": "CDAN4HZHY6XNQR3TRPLPJKVKNURVMMQMF7XNZ6AUNJNFLR77J4DNAEYI",
+      "sha256": "a1737b45c44ded77f714769f3a16fcfb876ae0658e3db5262cc7d64d9c3274f7",
       "source": "xconfess-deployer",
       "version": "0.0.0",
       "wasm_file": "target/wasm32v1-none/release/reputation_badges.wasm"
     }
   },
-  "generated_at_utc": "2026-05-15T14:23:18Z",
+  "generated_at_utc": "2026-08-22T10:41:02Z",
   "network": "testnet",
   "target": "wasm32v1-none"
 }

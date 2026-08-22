@@ -5,12 +5,12 @@ import { Repository } from 'typeorm';
 import { User } from './entities/user.entity';
 import {
   InternalServerErrorException,
-  ConflictException,
   NotFoundException,
 } from '@nestjs/common';
 import { EmailService } from '../email/email.service';
 import { CryptoUtil } from '../common/crypto.util';
 import { ConfigService } from '@nestjs/config';
+import { ErrorCode } from '../common/errors/error-codes';
 
 jest.mock('bcryptjs', () => ({
   hash: jest.fn(),
@@ -273,8 +273,8 @@ describe('UserService', () => {
       );
     });
 
-    it('should throw ConflictException if email already exists', async () => {
-      mockRepository.findOne.mockResolvedValue(mockUser);
+    it('should return a field-level conflict if email already exists', async () => {
+      mockRepository.findOne.mockResolvedValueOnce(mockUser);
 
       await expect(
         service.create(
@@ -282,7 +282,37 @@ describe('UserService', () => {
           validUserData.password,
           validUserData.username,
         ),
-      ).rejects.toThrow(ConflictException);
+      ).rejects.toMatchObject({
+        response: {
+          message: 'An account with this email already exists.',
+          code: ErrorCode.ALREADY_EXISTS,
+          details: { field: 'email' },
+        },
+        status: 409,
+      });
+      expect(mockRepository.create).not.toHaveBeenCalled();
+      expect(mockRepository.save).not.toHaveBeenCalled();
+    });
+
+    it('should return a field-level conflict if username already exists', async () => {
+      mockRepository.findOne
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(mockUser);
+
+      await expect(
+        service.create(
+          validUserData.email,
+          validUserData.password,
+          validUserData.username,
+        ),
+      ).rejects.toMatchObject({
+        response: {
+          message: 'This username is already taken.',
+          code: ErrorCode.ALREADY_EXISTS,
+          details: { field: 'username' },
+        },
+        status: 409,
+      });
       expect(mockRepository.create).not.toHaveBeenCalled();
       expect(mockRepository.save).not.toHaveBeenCalled();
     });

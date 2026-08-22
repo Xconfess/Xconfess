@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+﻿import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { AuditLog, AuditActionType } from './audit-log.entity';
@@ -56,6 +56,7 @@ export type ExportLifecycleAction =
   | 'generation_completed'
   | 'link_refreshed'
   | 'downloaded'
+  | 'download_failed'
   | 'token_expired'
   | 'export_expired';
 
@@ -223,6 +224,39 @@ export class AuditLogService {
       context: { ...context, userId },
     });
   }
+
+/**
+ * Log a moderation item's state transition (pending/flagged/escalated/
+ * resolved/hidden/rejected), including actor, previous/next state, and reason.
+ */
+async logModerationStateTransition(
+  moderationLogId: string,
+  from: string,
+  to: string,
+  actorId: string,
+  reason: string,
+  metadata?: { confessionId?: string; notes?: string },
+  context?: AuditLogContext,
+): Promise<void> {
+  await this.log({
+    actionType: AuditActionType.MODERATION_STATE_TRANSITION,
+    metadata: {
+      entityType: 'moderation_log',
+      entityId: moderationLogId,
+      confessionId: metadata?.confessionId,
+      previousState: from,
+      nextState: to,
+      reason,
+      notes: metadata?.notes,
+      transitionedAt: new Date().toISOString(),
+    },
+    context: {
+      ...context,
+      userId: actorId,
+      actor: this.createActor('admin', actorId),
+    },
+  });
+}
 
   /**
    * Log comment deletion
@@ -435,6 +469,41 @@ export class AuditLogService {
   }
 
   /**
+   * Log a single summary entry for an export-retention cleanup run
+   * (dry-run or real), mirroring logNotificationDlqCleanup.
+   */
+  async logExportRetentionCleanup(
+    metadata: {
+      dryRun: boolean;
+      retentionDays: number;
+      cutoff: string;
+      summary: {
+        eligibleCount: number;
+        expiredCount: number;
+        chunkCount: number;
+        statusCounts: Record<string, number>;
+        requestIds: string[];
+        omittedRequestIds: number;
+      };
+      cleanedAt?: string;
+    },
+    context?: AuditLogContext,
+  ): Promise<void> {
+    await this.log({
+      actionType: AuditActionType.EXPORT_RETENTION_CLEANUP,
+      metadata: {
+        entityType: 'data_export_retention',
+        ...metadata,
+        cleanedAt: metadata.cleanedAt || new Date().toISOString(),
+      },
+      context: {
+        ...context,
+        actor: this.createActor('system', 'retention-cleanup-scheduler'),
+      },
+    });
+  }
+
+  /**
    * Log an admin-initiated CSV export (frontend-driven)
    */
   async logAdminCsvExport(
@@ -474,6 +543,8 @@ export class AuditLogService {
         return AuditActionType.EXPORT_LINK_REFRESHED;
       case 'downloaded':
         return AuditActionType.EXPORT_DOWNLOADED;
+      case 'download_failed':
+        return AuditActionType.EXPORT_DOWNLOAD_FAILED;
       case 'token_expired':
         return AuditActionType.EXPORT_TOKEN_EXPIRED;
       case 'export_expired':
@@ -1034,6 +1105,31 @@ export class AuditLogService {
         actionTypeCounts: [],
       };
     }
+  }
+
+  async getObservabilityMetrics(startDate?: Date, endDate?: Date) {
+    const [statistics, recentFailures] = await Promise.all([
+      this.getStatistics(startDate, endDate),
+      this.findAll({
+        startDate,
+        endDate,
+        search: 'failed',
+        limit: 10,
+        offset: 0,
+      }),
+    ]);
+
+    return {
+      audit: {
+        totalLogs: statistics.totalLogs,
+        actionTypeCounts: statistics.actionTypeCounts,
+      },
+      failures: {
+        total: recentFailures.total,
+        recent: recentFailures.logs,
+      },
+      generatedAt: new Date().toISOString(),
+    };
   }
 
   async getTemplateRolloutHistory(options: {

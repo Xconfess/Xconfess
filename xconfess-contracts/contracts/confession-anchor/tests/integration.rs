@@ -51,8 +51,12 @@ fn advance(env: &Env, delta: u32) {
 
 #[test]
 fn owner_is_set_after_initialize() {
-    let (env, client, owner) = setup();
-    assert_eq!(client.get_owner(), Ok(owner), "owner must match the address passed to initialize");
+    let (_env, client, owner) = setup();
+    assert_eq!(
+        client.get_owner(),
+        owner,
+        "owner must match the address passed to initialize"
+    );
 }
 
 #[test]
@@ -118,7 +122,10 @@ fn count_increments_only_for_unique_hashes() {
 fn two_anchors_at_different_ledger_heights_both_verifiable() {
     let (env, client, _owner) = setup();
 
-    env.ledger().set(LedgerInfo { sequence_number: 50, ..env.ledger().get() });
+    env.ledger().set(LedgerInfo {
+        sequence_number: 50,
+        ..env.ledger().get()
+    });
     client.anchor_confession(&hash(&env, 20), &1_000);
 
     advance(&env, 100);
@@ -185,14 +192,21 @@ fn unpause_without_prior_pause_is_rejected() {
 fn owner_can_grant_and_revoke_admin() {
     let (env, client, owner) = setup();
     let admin = Address::generate(&env);
+    let backup_admin = Address::generate(&env);
 
     client.grant_admin(&owner, &admin);
+    client.grant_admin(&owner, &backup_admin);
     assert!(client.is_admin(&admin));
-    assert_eq!(client.get_admin_count(), 1);
+    assert!(client.is_admin(&backup_admin));
+    assert_eq!(client.get_admin_count(), 2);
 
     client.revoke_admin(&owner, &admin);
     assert!(!client.is_admin(&admin));
-    assert_eq!(client.get_admin_count(), 0);
+    assert!(client.is_admin(&backup_admin));
+    assert_eq!(client.get_admin_count(), 1);
+
+    let result = client.try_revoke_admin(&owner, &backup_admin);
+    assert_eq!(result, Err(Ok(Error::CannotRevokeLastAdmin)));
 }
 
 #[test]
@@ -225,24 +239,27 @@ fn operator_cannot_pause() {
 
 #[test]
 fn migrate_advances_schema_version_to_2() {
-    let (env, client, owner) = setup();
-    let version = client.migrate(&owner).unwrap();
+    let (_env, client, owner) = setup();
+    let version = client.migrate(&owner);
     assert_eq!(version, 2, "migrate() must return the new schema version");
     assert_eq!(client.schema_version(), 2);
 }
 
 #[test]
 fn migrate_is_idempotent() {
-    let (env, client, owner) = setup();
-    client.migrate(&owner).unwrap();
-    let version = client.migrate(&owner).unwrap();
-    assert_eq!(version, 2, "second migrate() call must be a no-op returning current version");
+    let (_env, client, owner) = setup();
+    client.migrate(&owner);
+    let version = client.migrate(&owner);
+    assert_eq!(
+        version, 2,
+        "second migrate() call must be a no-op returning current version"
+    );
 }
 
 #[test]
 fn last_anchor_timestamp_updates_after_migration() {
     let (env, client, owner) = setup();
-    client.migrate(&owner).unwrap();
+    client.migrate(&owner);
 
     let h = hash(&env, 40);
     let ts: u64 = 9_999_999;

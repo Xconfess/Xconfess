@@ -10,6 +10,8 @@ import { Tip, TipVerificationStatus } from './entities/tip.entity';
 import { AnonymousConfession } from '../confession/entities/confession.entity';
 import { StellarService } from '../stellar/stellar.service';
 import { ConflictException } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
+import { AuditLogService } from '../audit-log/audit-log.service';
 
 describe('TippingService - Race Condition Prevention', () => {
   let service: TippingService;
@@ -45,9 +47,12 @@ describe('TippingService - Race Condition Prevention', () => {
           provide: getRepositoryToken(Tip),
           useValue: {
             findOne: jest.fn(),
-            create: jest.fn(),
-            save: jest.fn(),
+            create: jest.fn((value) => ({ id: 'tip-sentinel', ...value })),
+            save: jest.fn((value) =>
+              Promise.resolve({ id: value?.id || 'tip-sentinel', ...value }),
+            ),
             update: jest.fn(),
+            delete: jest.fn().mockResolvedValue({ affected: 1 }),
             manager: {
               transaction: jest.fn((cb) => cb({ getRepository: () => tipRepository })),
             },
@@ -72,6 +77,8 @@ describe('TippingService - Race Condition Prevention', () => {
             getHorizonTxUrl: jest.fn(),
           },
         },
+        { provide: EventEmitter2, useValue: { emit: jest.fn() } },
+        { provide: AuditLogService, useValue: { createLog: jest.fn() } },
       ],
     }).compile();
 
@@ -98,7 +105,9 @@ describe('TippingService - Race Condition Prevention', () => {
       };
 
       jest.spyOn(confessionRepository, 'findOne').mockResolvedValue(mockConfession as any);
-      jest.spyOn(tipRepository, 'findOne').mockResolvedValue(existingTip as any);
+      jest
+        .spyOn(tipRepository, 'findOne')
+        .mockResolvedValue(existingTip as any);
 
       // Second concurrent request should return existing tip (idempotent)
       const result = await service.verifyAndRecordTip(mockConfession.id, dto);
@@ -121,7 +130,10 @@ describe('TippingService - Race Condition Prevention', () => {
       };
 
       jest.spyOn(confessionRepository, 'findOne').mockResolvedValue(mockConfession as any);
-      jest.spyOn(tipRepository, 'findOne').mockResolvedValue(existingTip as any);
+      jest
+        .spyOn(tipRepository, 'findOne')
+        .mockResolvedValueOnce(null)
+        .mockResolvedValue(existingTip as any);
 
       await expect(
         service.verifyAndRecordTip(confession2Id, dto),

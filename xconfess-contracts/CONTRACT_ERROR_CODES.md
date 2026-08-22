@@ -226,6 +226,197 @@ app.get('/api/confessions/:id', async (req, res) => {
 });
 ```
 
+## Contract Error to User-Facing Error Mapping Examples
+
+This section provides a concrete example for each major error class showing
+the full path from contract error to the message a user sees in the UI.
+Frontend consumers should use these mappings to produce consistent, actionable
+feedback.
+
+### Global/Common Errors (1000-series)
+
+**Scenario:** A user tries to update a confession while a cooldown is still active.
+
+| Layer | Value |
+|-------|-------|
+| Contract error | `ContractError::CooldownActive` |
+| Error code | `1004` |
+| Classification | Retryable |
+| Contract message | `"cooldown period not elapsed"` |
+| Backend HTTP status | `503 Service Unavailable` |
+| Backend JSON body | `{ "error": "cooldown period not elapsed", "code": 1004, "retryable": true }` |
+| **User-facing message** | **"You're doing that too fast. Please wait a moment and try again."** |
+
+```typescript
+// Backend handler
+case codes.COOLDOWN_ACTIVE:
+  return res.status(503).json({
+    error: 'cooldown period not elapsed',
+    code: 1004,
+    retryable: true,
+    userMessage: "You're doing that too fast. Please wait a moment and try again.",
+  });
+```
+
+### Confession Module Errors (2000-series)
+
+**Scenario:** A user submits a confession that is too long (exceeds max character limit).
+
+| Layer | Value |
+|-------|-------|
+| Contract error | `ContractError::ConfessionTooLong` |
+| Error code | `2002` |
+| Classification | Terminal |
+| Contract message | `"confession content too long"` |
+| Backend HTTP status | `400 Bad Request` |
+| Backend JSON body | `{ "error": "confession content too long", "code": 2002, "retryable": false }` |
+| **User-facing message** | **"Your confession exceeds the maximum length. Please shorten it and try again."** |
+
+```typescript
+// Backend handler
+case codes.CONFESSION_TOO_LONG:
+  return res.status(400).json({
+    error: 'confession content too long',
+    code: 2002,
+    retryable: false,
+    userMessage: 'Your confession exceeds the maximum length. Please shorten it and try again.',
+  });
+```
+
+### Reaction Module Errors (3000-series)
+
+**Scenario:** A user tries to react to a confession they already reacted to.
+
+| Layer | Value |
+|-------|-------|
+| Contract error | `ContractError::ReactionExists` |
+| Error code | `3000` |
+| Classification | Terminal |
+| Contract message | `"reaction already exists"` |
+| Backend HTTP status | `409 Conflict` |
+| Backend JSON body | `{ "error": "reaction already exists", "code": 3000, "retryable": false }` |
+| **User-facing message** | **"You have already reacted to this confession."** |
+
+```typescript
+// Backend handler
+case codes.REACTION_EXISTS:
+  return res.status(409).json({
+    error: 'reaction already exists',
+    code: 3000,
+    retryable: false,
+    userMessage: 'You have already reacted to this confession.',
+  });
+```
+
+### Report/Governance Module Errors (4000-series)
+
+**Scenario:** A user tries to report a confession they already reported.
+
+| Layer | Value |
+|-------|-------|
+| Contract error | `ContractError::ReportExists` |
+| Error code | `4000` |
+| Classification | Terminal |
+| Contract message | `"report already exists"` |
+| Backend HTTP status | `409 Conflict` |
+| Backend JSON body | `{ "error": "report already exists", "code": 4000, "retryable": false }` |
+| **User-facing message** | **"You have already reported this confession. Our team will review it."** |
+
+```typescript
+// Backend handler
+case codes.REPORT_EXISTS:
+  return res.status(409).json({
+    error: 'report already exists',
+    code: 4000,
+    retryable: false,
+    userMessage: 'You have already reported this confession. Our team will review it.',
+  });
+```
+
+### Governance Module Errors (5000-series)
+
+**Scenario:** A moderator tries to approve a governance proposal they already approved.
+
+| Layer | Value |
+|-------|-------|
+| Contract error | `ContractError::AlreadyApproved` |
+| Error code | `5003` |
+| Classification | Terminal |
+| Contract message | `"caller already approved this proposal"` |
+| Backend HTTP status | `409 Conflict` |
+| Backend JSON body | `{ "error": "caller already approved this proposal", "code": 5003, "retryable": false }` |
+| **User-facing message** | **"You have already approved this proposal."** |
+
+```typescript
+// Backend handler
+case codes.ALREADY_APPROVED:
+  return res.status(409).json({
+    error: 'caller already approved this proposal',
+    code: 5003,
+    retryable: false,
+    userMessage: 'You have already approved this proposal.',
+  });
+```
+
+### Anonymous Tipping Errors (6000-series)
+
+**Scenario:** A user tries to send a tip while the tipping contract is paused.
+
+| Layer | Value |
+|-------|-------|
+| Contract error | `Error::ContractPaused` |
+| Error code | `6006` |
+| Classification | Retryable |
+| Contract message | `"tipping contract is paused"` |
+| Backend HTTP status | `503 Service Unavailable` |
+| Backend JSON body | `{ "error": "tipping contract is paused", "code": 6006, "retryable": true }` |
+| **User-facing message** | **"Tipping is temporarily unavailable. Please try again later."** |
+
+```typescript
+// Backend handler
+case codes.TIPPING_CONTRACT_PAUSED:
+  return res.status(503).json({
+    error: 'tipping contract is paused',
+    code: 6006,
+    retryable: true,
+    userMessage: 'Tipping is temporarily unavailable. Please try again later.',
+  });
+```
+
+### Complete Frontend Error Handler Example
+
+```typescript
+// Frontend: map backend error responses to toast messages
+function mapContractErrorToUserMessage(code: number, fallback: string): string {
+  const USER_MESSAGES: Record<number, string> = {
+    // Global
+    1000: 'You are not authorized to perform this action.',
+    1001: 'The requested item could not be found.',
+    1002: 'The input provided is invalid. Please check and try again.',
+    1004: "You're doing that too fast. Please wait a moment and try again.",
+    1005: 'The content is too large. Please reduce the size and try again.',
+    // Confession
+    2000: 'This confession has already been submitted.',
+    2001: 'Confession cannot be empty. Please write something.',
+    2002: 'Your confession exceeds the maximum length. Please shorten it and try again.',
+    // Reaction
+    3000: 'You have already reacted to this confession.',
+    3001: 'Invalid reaction type selected.',
+    // Report
+    4000: 'You have already reported this confession. Our team will review it.',
+    4001: 'Please select a valid reason for your report.',
+    // Governance
+    5003: 'You have already approved this proposal.',
+    5004: 'This proposal has already been executed.',
+    // Tipping
+    6001: 'Tip amount must be greater than zero.',
+    6006: 'Tipping is temporarily unavailable. Please try again later.',
+    6007: 'You have reached the tipping limit. Please try again later.',
+  };
+  return USER_MESSAGES[code] ?? fallback;
+}
+```
+
 ## Versioning & Backward Compatibility
 
 ### Current Version

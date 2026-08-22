@@ -3,6 +3,7 @@
  */
 import React from "react";
 import { render, screen, act } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { NetworkBanner } from "../NetworkBanner";
 import { NetworkStatusProvider } from "@/app/lib/providers/NetworkStatusProvider";
 
@@ -13,6 +14,17 @@ const mockNavigator = (isOnline: boolean) => {
     configurable: true,
   });
 };
+
+function renderWithProviders(ui: React.ReactElement) {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
+  return render(
+    <QueryClientProvider client={queryClient}>
+      <NetworkStatusProvider>{ui}</NetworkStatusProvider>
+    </QueryClientProvider>,
+  );
+}
 
 describe("NetworkBanner", () => {
   beforeEach(() => {
@@ -25,21 +37,13 @@ describe("NetworkBanner", () => {
   });
 
   it("does not render when online and not degraded", () => {
-    render(
-      <NetworkStatusProvider>
-        <NetworkBanner />
-      </NetworkStatusProvider>,
-    );
+    renderWithProviders(<NetworkBanner />);
     expect(screen.queryByText("You're offline")).not.toBeInTheDocument();
   });
 
   it("renders 'You're offline' when navigator goes offline", () => {
     mockNavigator(false);
-    render(
-      <NetworkStatusProvider>
-        <NetworkBanner />
-      </NetworkStatusProvider>,
-    );
+    renderWithProviders(<NetworkBanner />);
 
     // Trigger offline event
     act(() => {
@@ -48,7 +52,7 @@ describe("NetworkBanner", () => {
 
     expect(screen.getByText("You're offline")).toBeInTheDocument();
     expect(
-      screen.getByText("Check your internet connection and try again."),
+      screen.getByText("Check your internet connection."),
     ).toBeInTheDocument();
   });
 
@@ -63,11 +67,7 @@ describe("NetworkBanner", () => {
 
   it("hides with a delay when going back online", async () => {
     mockNavigator(false);
-    render(
-      <NetworkStatusProvider>
-        <NetworkBanner />
-      </NetworkStatusProvider>,
-    );
+    renderWithProviders(<NetworkBanner />);
 
     act(() => {
       window.dispatchEvent(new Event("offline"));

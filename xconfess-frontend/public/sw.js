@@ -1,28 +1,32 @@
-/* xConfess service worker — offline shell + write queue */
+/* xConfess service worker - offline shell + write queue */
 
-const SHELL_CACHE = 'xconfess-shell-v1';
-const API_CACHE = 'xconfess-api-v1';
+const SHELL_CACHE = 'xconfess-shell-v3';
+const API_CACHE = 'xconfess-api-v3';
 const SYNC_DB_NAME = 'xconfess-sync';
 const SYNC_STORE = 'pending-writes';
 
-const SHELL_URLS = [
-  '/',
-  '/offline',
-  '/manifest.webmanifest',
-];
-
-// ── Install ───────────────────────────────────────────────────────────────────
+const SHELL_URLS = ['/', '/offline', '/manifest.webmanifest'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches
       .open(SHELL_CACHE)
-      .then((cache) => cache.addAll(SHELL_URLS))
+      .then((cache) =>
+        Promise.all(
+          SHELL_URLS.map((url) =>
+            fetch(url)
+              .then((response) => {
+                if (response.ok) {
+                  return cache.put(url, response);
+                }
+              })
+              .catch(() => undefined),
+          ),
+        ),
+      )
       .then(() => self.skipWaiting()),
   );
 });
-
-// ── Activate ──────────────────────────────────────────────────────────────────
 
 self.addEventListener('activate', (event) => {
   event.waitUntil(
@@ -31,33 +35,45 @@ self.addEventListener('activate', (event) => {
       .then((keys) =>
         Promise.all(
           keys
-            .filter((k) => k !== SHELL_CACHE && k !== API_CACHE)
-            .map((k) => caches.delete(k)),
+            .filter((key) => key !== SHELL_CACHE && key !== API_CACHE)
+            .map((key) => caches.delete(key)),
         ),
       )
       .then(() => self.clients.claim()),
   );
 });
 
-// ── Fetch ─────────────────────────────────────────────────────────────────────
-
 self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
 
-  // Only handle same-origin requests
-  if (url.origin !== location.origin) return;
+  if (url.origin === location.origin && url.pathname.startsWith('/_next/static/')) {
+    event.respondWith(
+      fetch(request, { cache: 'no-store' }).catch(() => Response.error()),
+    );
+    return;
+  }
+
+  if (
+    request.method !== 'GET' ||
+    url.origin !== location.origin ||
+    url.pathname.startsWith('/_next/') ||
+    url.pathname === '/sw.js'
+  ) {
+    return;
+  }
 
   if (url.pathname.startsWith('/api/')) {
-    // Network-first for API calls; cache successful responses
     event.respondWith(
       fetch(request)
-        .then((res) => {
-          if (res.ok) {
-            const clone = res.clone();
-            caches.open(API_CACHE).then((cache) => cache.put(request, clone));
+        .then((response) => {
+          if (response.ok) {
+            const clone = response.clone();
+            event.waitUntil(
+              caches.open(API_CACHE).then((cache) => cache.put(request, clone)),
+            );
           }
-          return res;
+          return response;
         })
         .catch(() =>
           caches.match(request).then(
@@ -73,15 +89,21 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Cache-first for everything else (shell, static assets)
+  if (request.mode === 'navigate') {
+    event.respondWith(
+      fetch(request).catch(() =>
+        caches
+          .match('/offline')
+          .then((cached) => cached ?? caches.match('/')),
+      ),
+    );
+    return;
+  }
+
   event.respondWith(
-    caches
-      .match(request)
-      .then((cached) => cached ?? fetch(request)),
+    fetch(request).catch(() => caches.match(request).then((cached) => cached ?? Response.error())),
   );
 });
-
-// ── Background sync ───────────────────────────────────────────────────────────
 
 self.addEventListener('sync', (event) => {
   if (event.tag === 'xconfess-sync-writes') {
@@ -122,7 +144,7 @@ async function replaySyncQueue() {
         req.onerror = reject;
       });
     } catch {
-      // Will retry on next sync event
+      // Will retry on the next sync event.
     }
   }
 }

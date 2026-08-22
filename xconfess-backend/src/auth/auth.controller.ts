@@ -31,7 +31,6 @@ import { LoginDto } from './dto/login.dto';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { GetUser } from './get-user.decorator';
 import { User } from '../user/entities/user.entity';
-import { CryptoUtil } from '../common/crypto.util';
 import { RateLimit } from './guard/rate-limit.decorator';
 
 @ApiTags('Auth')
@@ -183,8 +182,6 @@ export class AuthController {
     const verified = speakeasy.totp.verify({ secret: secretPlain, encoding: 'base32', token, window: 1 });
     if (!verified) throw new UnauthorizedException('Invalid TOTP token');
 
-    // return JWT — use authService.login with the user's email and password? We don't have the password here.
-    // Instead, create a token payload and sign directly via jwtService exposed from authService
     const payload = {
       email: user.email,
       sub: user.id,
@@ -227,7 +224,6 @@ export class AuthController {
     @Body() loginDto: LoginDto,
   ): Promise<any> {
     try {
-      // Validate password first
       const validated = await this.authService.validateUser(
         loginDto.email,
         loginDto.password,
@@ -237,14 +233,11 @@ export class AuthController {
         throw new UnauthorizedException('Invalid credentials');
       }
 
-      // Check whether user has TOTP enabled
       const dbUser = await (this as any).authService.userService.findByEmail(loginDto.email);
       if (dbUser && dbUser.totpEnabled) {
-        // Prompt client to provide TOTP token
         return { twoFactorRequired: true, userId: dbUser.id };
       }
 
-      // No 2FA — proceed to full login
       const result = await this.authService.login(loginDto.email, loginDto.password);
       if (!result) {
         throw new UnauthorizedException('Invalid credentials');
@@ -297,7 +290,7 @@ export class AuthController {
         throw new UnauthorizedException('User not found');
       }
 
-      return user; // Already formatted by validateUserById
+      return user;
     } catch (error) {
       if (error instanceof UnauthorizedException) {
         throw error;
@@ -319,8 +312,6 @@ export class AuthController {
     schema: { example: { message: 'Logged out successfully' } },
   })
   async logout(): Promise<{ message: string }> {
-    // In a stateless JWT setup, logout is mainly client-side
-    // but we can add token blacklisting here if needed
     return { message: 'Logged out successfully' };
   }
 
@@ -359,7 +350,6 @@ export class AuthController {
       if (error instanceof BadRequestException) {
         throw error;
       }
-      // Handle generic errors gracefully - don't expose internal details
       return {
         message: 'If the user exists, a password reset email has been sent.',
       };
@@ -388,7 +378,6 @@ export class AuthController {
       if (error instanceof BadRequestException) {
         throw error;
       }
-      // Handle generic errors
       const errorMessage =
         error instanceof Error ? error.message : 'Unknown error';
       throw new BadRequestException(

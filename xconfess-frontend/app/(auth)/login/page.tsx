@@ -3,8 +3,10 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { UserPlus } from 'lucide-react';
 import { Button } from '@/app/components/ui/button';
 import { Input } from '@/app/components/ui/input';
+import { BrandLogo } from '@/app/components/brand/BrandLogo';
 import { useAuth } from '@/app/lib/hooks/useAuth';
 import {
   validateLoginForm,
@@ -79,14 +81,14 @@ export default function LoginPage() {
       <div className="mx-auto flex min-h-[calc(100vh-5rem)] w-full max-w-5xl items-center justify-center">
         <div className="grid w-full gap-8 lg:grid-cols-[0.95fr_1.05fr] lg:items-center">
           <div className="space-y-5">
+            <BrandLogo href={null} priority imageClassName="w-[168px] dark:hidden" />
+            <BrandLogo href={null} priority tone="light" imageClassName="hidden w-[168px] dark:block" />
             <p className="eyebrow">Private access</p>
             <h1 className="font-editorial text-5xl leading-[0.96] text-[var(--foreground)] sm:text-6xl">
-              Sign in to the quieter side of XConfess.
+              Login
             </h1>
             <p className="max-w-md text-base leading-8 text-[var(--secondary)]">
-              The login experience now follows the same professional system as the
-              rest of the product: warmer surfaces, cleaner hierarchy, and calmer
-              emphasis.
+              Continue to your private account.
             </p>
           </div>
 
@@ -94,7 +96,7 @@ export default function LoginPage() {
             <div className="space-y-3">
               <p className="eyebrow">Account sign in</p>
               <h2 className="font-editorial text-4xl text-[var(--foreground)]">
-                Login
+                Sign in
               </h2>
               <p className="text-sm leading-7 text-[var(--secondary)]">
                 Sign in with your account credentials.
@@ -169,6 +171,17 @@ export default function LoginPage() {
                 className="w-full"
               >
                 {loading ? 'Signing in...' : 'Sign in'}
+              </Button>
+
+              <Button
+                type="button"
+                onClick={() => router.push('/register')}
+                disabled={loading}
+                variant="outline"
+                className="w-full"
+              >
+                <UserPlus className="h-4 w-4" aria-hidden="true" />
+                Create account
               </Button>
 
               {showDevMockAdminLogin && (

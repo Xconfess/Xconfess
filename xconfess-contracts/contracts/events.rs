@@ -6,6 +6,7 @@ use soroban_sdk::{contracttype, symbol_short, Address, Env, String as SorobanStr
 /// When changing event schemas or `event_version`, follow:
 /// `docs/contract-event-version-bump-checklist.md`
 pub const EVENT_VERSION_V1: u32 = 1;
+pub const EVENT_FIXTURE_VERSION_V1: u32 = 1;
 
 /// Stable discriminators (NEVER CHANGE)
 pub const CONFESSION_EVENT: Symbol = symbol_short!("confess");
@@ -13,6 +14,314 @@ pub const REACTION_EVENT: Symbol = symbol_short!("react");
 pub const REPORT_EVENT: Symbol = symbol_short!("report");
 pub const ROLE_EVENT: Symbol = symbol_short!("role");
 pub const BADGE_EVENT: Symbol = symbol_short!("badge");
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct EventSchemaFixture {
+    pub fixture_version: u32,
+    pub event_name: &'static str,
+    pub category: &'static str,
+    pub topic: &'static str,
+    pub data_format: &'static str,
+    pub event_version: u32,
+    pub field_order: &'static [&'static str],
+}
+
+pub const PUBLIC_EVENT_SCHEMA_FIXTURES: &[EventSchemaFixture] = &[
+    EventSchemaFixture {
+        fixture_version: EVENT_FIXTURE_VERSION_V1,
+        event_name: "ConfessionAnchoredEvent",
+        category: "anchor",
+        topic: "confession_anchor",
+        data_format: "vec",
+        event_version: EVENT_VERSION_V1,
+        field_order: &["event_version", "timestamp", "anchor_height"],
+    },
+    EventSchemaFixture {
+        fixture_version: EVENT_FIXTURE_VERSION_V1,
+        event_name: "VersionCompatibilityCheckedEvent",
+        category: "anchor",
+        topic: "version_compatibility_checked",
+        data_format: "vec",
+        event_version: EVENT_VERSION_V1,
+        field_order: &[
+            "event_version",
+            "nonce",
+            "timestamp",
+            "from_major",
+            "from_minor",
+            "from_patch",
+            "to_major",
+            "to_minor",
+            "to_patch",
+            "compatible",
+        ],
+    },
+    EventSchemaFixture {
+        fixture_version: EVENT_FIXTURE_VERSION_V1,
+        event_name: "SettlementEvent",
+        category: "tip",
+        topic: "tip_settl",
+        data_format: "single-value",
+        event_version: EVENT_VERSION_V1,
+        field_order: &[
+            "recipient",
+            "event_version",
+            "settlement_id",
+            "amount",
+            "proof_metadata",
+            "proof_present",
+            "timestamp",
+        ],
+    },
+    EventSchemaFixture {
+        fixture_version: EVENT_FIXTURE_VERSION_V1,
+        event_name: "ConfessionEvent",
+        category: "confession",
+        topic: "confess",
+        data_format: "single-value",
+        event_version: EVENT_VERSION_V1,
+        field_order: &[
+            "event_version",
+            "confession_id",
+            "author",
+            "content_hash",
+            "nonce",
+            "timestamp",
+            "correlation_id",
+        ],
+    },
+    EventSchemaFixture {
+        fixture_version: EVENT_FIXTURE_VERSION_V1,
+        event_name: "ReactionEvent",
+        category: "reaction",
+        topic: "react",
+        data_format: "single-value",
+        event_version: EVENT_VERSION_V1,
+        field_order: &[
+            "event_version",
+            "confession_id",
+            "reactor",
+            "reaction_type",
+            "nonce",
+            "timestamp",
+            "correlation_id",
+        ],
+    },
+    EventSchemaFixture {
+        fixture_version: EVENT_FIXTURE_VERSION_V1,
+        event_name: "PauseChangedEvent",
+        category: "pause",
+        topic: "tip_pause",
+        data_format: "single-value",
+        event_version: EVENT_VERSION_V1,
+        field_order: &["actor", "paused", "reason", "timestamp"],
+    },
+    EventSchemaFixture {
+        fixture_version: EVENT_FIXTURE_VERSION_V1,
+        event_name: "ReportEvent",
+        category: "report",
+        topic: "report",
+        data_format: "single-value",
+        event_version: EVENT_VERSION_V1,
+        field_order: &[
+            "event_version",
+            "confession_id",
+            "reporter",
+            "reason",
+            "nonce",
+            "timestamp",
+            "correlation_id",
+        ],
+    },
+    EventSchemaFixture {
+        fixture_version: EVENT_FIXTURE_VERSION_V1,
+        event_name: "ReportSubmittedLedgerEvent",
+        category: "report",
+        topic: "report",
+        data_format: "single-value",
+        event_version: EVENT_VERSION_V1,
+        field_order: &[
+            "confession_id",
+            "actor",
+            "reason",
+            "event_version",
+            "nonce",
+            "timestamp",
+        ],
+    },
+    EventSchemaFixture {
+        fixture_version: EVENT_FIXTURE_VERSION_V1,
+        event_name: "RoleEvent",
+        category: "role",
+        topic: "role",
+        data_format: "single-value",
+        event_version: EVENT_VERSION_V1,
+        field_order: &[
+            "event_version",
+            "user",
+            "role",
+            "granted",
+            "nonce",
+            "timestamp",
+            "correlation_id",
+        ],
+    },
+    EventSchemaFixture {
+        fixture_version: EVENT_FIXTURE_VERSION_V1,
+        event_name: "GovernanceEvent",
+        category: "governance",
+        topic: "<stream>",
+        data_format: "single-value",
+        event_version: EVENT_VERSION_V1,
+        field_order: &["event_version", "metadata", "nonce", "timestamp"],
+    },
+    EventSchemaFixture {
+        fixture_version: EVENT_FIXTURE_VERSION_V1,
+        event_name: "GovernanceProposedEvent",
+        category: "governance",
+        topic: "gov_prop",
+        data_format: "single-value",
+        event_version: EVENT_VERSION_V1,
+        field_order: &["proposal_id", "proposer"],
+    },
+    EventSchemaFixture {
+        fixture_version: EVENT_FIXTURE_VERSION_V1,
+        event_name: "GovernanceApprovedEvent",
+        category: "governance",
+        topic: "gov_app",
+        data_format: "single-value",
+        event_version: EVENT_VERSION_V1,
+        field_order: &["proposal_id", "approver"],
+    },
+    EventSchemaFixture {
+        fixture_version: EVENT_FIXTURE_VERSION_V1,
+        event_name: "GovernanceApprovalRevokedEvent",
+        category: "governance",
+        topic: "gov_rev",
+        data_format: "single-value",
+        event_version: EVENT_VERSION_V1,
+        field_order: &["proposal_id", "actor"],
+    },
+    EventSchemaFixture {
+        fixture_version: EVENT_FIXTURE_VERSION_V1,
+        event_name: "GovernanceExecutedEvent",
+        category: "governance",
+        topic: "gov_exec",
+        data_format: "single-value",
+        event_version: EVENT_VERSION_V1,
+        field_order: &["proposal_id", "executor"],
+    },
+    EventSchemaFixture {
+        fixture_version: EVENT_FIXTURE_VERSION_V1,
+        event_name: "GovInvariantViolationEvent",
+        category: "governance",
+        topic: "gov_inv",
+        data_format: "single-value",
+        event_version: EVENT_VERSION_V1,
+        field_order: &["nonce", "timestamp", "operation", "reason", "attempted_by"],
+    },
+    EventSchemaFixture {
+        fixture_version: EVENT_FIXTURE_VERSION_V1,
+        event_name: "BadgeEvent",
+        category: "reputation",
+        topic: "badge",
+        data_format: "single-value",
+        event_version: EVENT_VERSION_V1,
+        field_order: &[
+            "event_version",
+            "badge_id",
+            "badge_type",
+            "owner",
+            "action",
+            "nonce",
+            "timestamp",
+        ],
+    },
+    EventSchemaFixture {
+        fixture_version: EVENT_FIXTURE_VERSION_V1,
+        event_name: "BadgeEvent",
+        category: "reputation",
+        topic: "badge_awarded",
+        data_format: "single-value",
+        event_version: EVENT_VERSION_V1,
+        field_order: &[
+            "event_version",
+            "badge_id",
+            "badge_type",
+            "owner",
+            "action",
+            "timestamp",
+        ],
+    },
+    EventSchemaFixture {
+        fixture_version: EVENT_FIXTURE_VERSION_V1,
+        event_name: "BadgeEvent",
+        category: "reputation",
+        topic: "badge_granted",
+        data_format: "single-value",
+        event_version: EVENT_VERSION_V1,
+        field_order: &[
+            "event_version",
+            "badge_id",
+            "badge_type",
+            "owner",
+            "action",
+            "timestamp",
+        ],
+    },
+    EventSchemaFixture {
+        fixture_version: EVENT_FIXTURE_VERSION_V1,
+        event_name: "BadgeEvent",
+        category: "reputation",
+        topic: "badge_revoked",
+        data_format: "single-value",
+        event_version: EVENT_VERSION_V1,
+        field_order: &[
+            "event_version",
+            "badge_id",
+            "badge_type",
+            "owner",
+            "action",
+            "timestamp",
+        ],
+    },
+    EventSchemaFixture {
+        fixture_version: EVENT_FIXTURE_VERSION_V1,
+        event_name: "ReputationAdjustedData",
+        category: "reputation",
+        topic: "reputation_adjusted",
+        data_format: "single-value",
+        event_version: EVENT_VERSION_V1,
+        field_order: &["user", "amount", "reason", "timestamp"],
+    },
+    EventSchemaFixture {
+        fixture_version: EVENT_FIXTURE_VERSION_V1,
+        event_name: "ReputationDecayedData",
+        category: "reputation",
+        topic: "reputation_decayed",
+        data_format: "single-value",
+        event_version: EVENT_VERSION_V1,
+        field_order: &[
+            "user",
+            "old_reputation",
+            "new_reputation",
+            "epochs_applied",
+            "timestamp",
+        ],
+    },
+];
+
+pub fn decode_event_fixture_schema(
+    fixture: &EventSchemaFixture,
+) -> Result<EventSchemaFixture, EventDecodeError> {
+    if fixture.event_version != EVENT_VERSION_V1 {
+        return Err(EventDecodeError::UnsupportedEventVersion(
+            fixture.event_version,
+        ));
+    }
+
+    Ok(*fixture)
+}
 
 /// ===========================================
 /// GOVERNANCE METADATA LIMITS
@@ -452,5 +761,26 @@ mod tests {
             ),
             Ok(())
         );
+    }
+
+    #[test]
+    fn public_event_metadata_matches_documented_abi() {
+        let abi_docs = include_str!("../../docs/contract-abi-reference.md");
+
+        for fixture in PUBLIC_EVENT_SCHEMA_FIXTURES {
+            assert!(
+                abi_docs.contains(fixture.event_name),
+                "{} is missing from the ABI reference",
+                fixture.event_name
+            );
+            for field in fixture.field_order {
+                assert!(
+                    abi_docs.contains(field),
+                    "{} field {} is missing from the ABI reference",
+                    fixture.event_name,
+                    field
+                );
+            }
+        }
     }
 }

@@ -14,6 +14,7 @@ import { formatDistanceToNow } from 'date-fns';
 import { useGlobalToast } from '@/app/components/common/Toast';
 import { useMessageE2E } from '@/app/lib/hooks/useMessageE2E';
 import { ENCRYPTED_PREVIEW } from '@/app/lib/crypto/messageE2E';
+import { ConfirmDialog } from '@/app/components/admin/ConfirmDialog';
 
 function extractPageData<T>(payload: unknown): T[] {
   if (!payload || typeof payload !== 'object') return [];
@@ -139,9 +140,7 @@ function MobileThreadList({
                 <button
                   key={`${thread.confessionId}-${thread.senderId}`}
                   onClick={() => onSelect(thread)}
-                  className={`w-full p-4 text-left hover:bg-gray-50 dark:hover:bg-gray-900 transition-colors flex flex-col gap-1 ${
-                    selectedThread?.confessionId === thread.confessionId && selectedThread?.senderId === thread.senderId ? 'bg-purple-50 dark:bg-purple-900/20' : ''
-                  }`}
+                  className="w-full p-4 text-left hover:bg-gray-50 dark:hover:bg-gray-900 transition-colors flex flex-col gap-1"
                 >
                   <div className="flex justify-between items-start">
                     <span className="text-xs font-semibold text-purple-600 dark:text-purple-400 uppercase tracking-wider">
@@ -171,10 +170,13 @@ export default function MessagesPage() {
   const {
     isReady: e2eReady,
     keyError,
+    needsKeyRecovery,
+    session: e2eSession,
     encryptForThread,
     decryptForThread,
     createKeyBackup,
     restoreFromBackup,
+    startFreshKeys,
   } = useMessageE2E();
 
   const [threads, setThreads] = useState<Thread[]>([]);
@@ -189,6 +191,8 @@ export default function MessagesPage() {
   const [showMobileList, setShowMobileList] = useState(true);
   const [recoveryPassphrase, setRecoveryPassphrase] = useState('');
   const [showRecovery, setShowRecovery] = useState(false);
+  const [showStartFreshConfirm, setShowStartFreshConfirm] = useState(false);
+  const [isStartingFresh, setIsStartingFresh] = useState(false);
   const toast = useGlobalToast();
   const inputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -358,6 +362,20 @@ export default function MessagesPage() {
     }
   };
 
+  const handleStartFresh = async () => {
+    try {
+      setIsStartingFresh(true);
+      await startFreshKeys();
+      setShowStartFreshConfirm(false);
+      toast.success('New encryption keys created for this device.');
+    } catch (error) {
+      console.error('Failed to start fresh with new keys:', error);
+      toast.error('Failed to create new encryption keys.');
+    } finally {
+      setIsStartingFresh(false);
+    }
+  };
+
   const handleSelectThread = (thread: Thread) => {
     setSelectedThread(thread);
     setMessagesError(null);
@@ -371,11 +389,67 @@ export default function MessagesPage() {
 
   return (
     <AuthGuard>
+      {needsKeyRecovery && (
+        <div
+          role="alert"
+          className="bg-amber-50 dark:bg-amber-900/20 border-b border-amber-200 dark:border-amber-800 px-4 py-4 space-y-3"
+        >
+          <div className="flex items-start gap-2">
+            <Lock className="w-4 h-4 mt-0.5 text-amber-600 dark:text-amber-400 flex-shrink-0" />
+            <p className="text-sm text-amber-800 dark:text-amber-200">
+              We found encryption keys registered for your account on another
+              device. Enter your recovery passphrase to restore access to your
+              previous messages, or start fresh — starting fresh will make
+              previous messages permanently unreadable.
+            </p>
+          </div>
+          <div className="flex flex-col sm:flex-row gap-2">
+            <Input
+              type="password"
+              placeholder="Recovery passphrase (min 8 chars)"
+              value={recoveryPassphrase}
+              onChange={(e) => setRecoveryPassphrase(e.target.value)}
+              className="sm:max-w-xs"
+            />
+            <Button size="sm" onClick={handleRestoreBackup} disabled={recoveryPassphrase.length < 8}>
+              Restore keys
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setShowStartFreshConfirm(true)}
+            >
+              Start fresh instead
+            </Button>
+          </div>
+        </div>
+      )}
+
+      <ConfirmDialog
+        open={showStartFreshConfirm}
+        onOpenChange={setShowStartFreshConfirm}
+        title="Start fresh with new encryption keys?"
+        description="This will generate new encryption keys for this device. Previous messages encrypted under your old keys will become permanently unreadable — this cannot be undone."
+        confirmLabel="Start fresh"
+        variant="danger"
+        loading={isStartingFresh}
+        onConfirm={handleStartFresh}
+      />
+
       {keyError && (
         <div className="bg-amber-50 dark:bg-amber-900/20 border-b border-amber-200 dark:border-amber-800 px-4 py-2 text-sm text-amber-800 dark:text-amber-200 flex items-center justify-between gap-2">
           <span>{keyError}</span>
           <Button variant="link" className="h-auto p-0 text-amber-900" onClick={() => setShowRecovery(true)}>
             Restore from backup
+          </Button>
+        </div>
+      )}
+
+      {e2eReady && e2eSession && !e2eSession.hasBackup && !keyError && (
+        <div className="bg-blue-50 dark:bg-blue-900/20 border-b border-blue-200 dark:border-blue-800 px-4 py-2 text-sm text-blue-800 dark:text-blue-200 flex items-center justify-between gap-2">
+          <span>No recovery backup set up. If you lose this device, your encrypted messages cannot be recovered.</span>
+          <Button variant="link" className="h-auto p-0 text-blue-900 dark:text-blue-100" onClick={() => setShowRecovery(true)}>
+            Set up backup
           </Button>
         </div>
       )}

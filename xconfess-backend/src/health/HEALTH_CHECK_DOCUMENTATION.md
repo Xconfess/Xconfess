@@ -41,7 +41,7 @@ The process is not running or the HTTP layer has crashed. The endpoint will not 
 
 **When to use it**
 
-- Quick sanity check after `pnpm start:dev`
+- Quick sanity check after `npm run start:dev`
 - Kubernetes liveness probe (triggers container restart)
 - CI pipeline: "did the server come up?"
 - Safe to poll at high frequency (120 req/min limit)
@@ -186,7 +186,7 @@ The `SchemaReadinessHealthIndicator` delegates to `MigrationVerificationService.
 
 In local development this check can fail if:
 
-- You have not run all pending migrations (`pnpm migration:run`)
+- You have not run all pending migrations (`npm run migration:run`)
 - A migration was merged after your last `git pull` and you have not re-run migrations
 - Your local Postgres was restored from a dump that predates the index migrations (notably `20260126-add-performance-indexes.ts` and `20260423000001-add-feed-search-performance-indexes.ts`)
 
@@ -203,7 +203,7 @@ If `queryError` is set instead, the table itself cannot be queried (usually mean
 
 ```bash
 # Apply all outstanding migrations
-pnpm migration:run
+npm run migration:run
 
 # Confirm the readiness probe now passes
 curl -s http://localhost:3000/api/health/ready | jq .status
@@ -396,12 +396,12 @@ or
 **Fix**
 
 ```bash
-pnpm migration:run
+npm run migration:run
 ```
 
 If migrations fail:
 
-- Run `pnpm migration:show` to identify pending migrations
+- Run `npm run migration:show` to identify pending migrations
 - Check for manual schema changes that conflict with a migration
 - In a dev environment only: drop and recreate the conflicting table, then rerun migrations
 
@@ -414,13 +414,13 @@ If migrations fail:
 docker compose up -d db redis
 
 # 2. Install packages (if needed)
-pnpm install
+npm install
 
 # 3. Run all migrations
-pnpm migration:run
+npm run migration:run
 
 # 4. Start the dev server
-pnpm start:dev
+npm run start:dev
 
 # 5. Smoke test — liveness (process up, no dependencies needed)
 curl -s http://localhost:3000/api/health/live

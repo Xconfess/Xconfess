@@ -15,17 +15,17 @@ import {
 } from 'lucide-react';
 
 const ActivityChart = dynamic(
-    () => import('@/app/components/analytics/ActivityChart').then(mod => ({ default: mod.ActivityChart })),
+    () => import('@/app/components/analytics/ActivityChart').then(mod => mod.ActivityChart),
     { loading: () => <div className="animate-pulse bg-zinc-900 rounded-lg p-6 h-80"></div> }
 );
 
 const ReactionDistribution = dynamic(
-    () => import('@/app/components/analytics/ReactionDistribution').then(mod => ({ default: mod.ReactionDistribution })),
+    () => import('@/app/components/analytics/ReactionDistribution').then(mod => mod.ReactionDistribution),
     { loading: () => <div className="animate-pulse bg-zinc-900 rounded-lg p-6 h-80"></div> }
 );
 
 const TrendingConfessions = dynamic(
-    () => import('@/app/components/analytics/TrendingConfessions').then(mod => ({ default: mod.TrendingConfessions })),
+    () => import('@/app/components/analytics/TrendingConfessions').then(mod => mod.TrendingConfessions),
     { loading: () => <div className="animate-pulse bg-zinc-900 rounded-lg p-6 h-96"></div> }
 );
 
@@ -180,8 +180,8 @@ export default function AnalyticsPage() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-8">
                     <MetricsCard
                         title="Total Confessions"
-                        value={data?.metrics.totalConfessions ?? 0}
-                        delta={data?.metrics.confessionsDelta}
+                        value={data?.metrics?.totalConfessions ?? 0}
+                        delta={data?.metrics?.confessionsDelta}
                         icon={MessageSquare}
                         color="text-blue-500"
                         loading={loading}
@@ -189,8 +189,8 @@ export default function AnalyticsPage() {
                     />
                     <MetricsCard
                         title="Total Users"
-                        value={data?.metrics.totalUsers ?? 0}
-                        delta={data?.metrics.usersDelta}
+                        value={data?.metrics?.totalUsers ?? 0}
+                        delta={data?.metrics?.usersDelta}
                         icon={Users}
                         color="text-emerald-500"
                         loading={loading}
@@ -198,8 +198,8 @@ export default function AnalyticsPage() {
                     />
                     <MetricsCard
                         title="Total Reactions"
-                        value={data?.metrics.totalReactions ?? 0}
-                        delta={data?.metrics.reactionsDelta}
+                        value={data?.metrics?.totalReactions ?? 0}
+                        delta={data?.metrics?.reactionsDelta}
                         icon={Heart}
                         color="text-rose-500"
                         loading={loading}
@@ -207,8 +207,8 @@ export default function AnalyticsPage() {
                     />
                     <MetricsCard
                         title="Active Users"
-                        value={data?.metrics.activeUsers ?? 0}
-                        delta={data?.metrics.activeDelta}
+                        value={data?.metrics?.activeUsers ?? 0}
+                        delta={data?.metrics?.activeDelta}
                         icon={Activity}
                         color="text-purple-500"
                         loading={loading}
@@ -225,8 +225,8 @@ export default function AnalyticsPage() {
                             comparisonEnabled={comparisonEnabled}
                             comparisonAvailability={data?.comparison?.availability ?? 'unavailable'}
                             comparisonNote={data?.comparison?.note}
-                            confessionsDelta={data?.metrics.confessionsDelta}
-                            reactionsDelta={data?.metrics.reactionsDelta}
+                            confessionsDelta={data?.metrics?.confessionsDelta}
+                            reactionsDelta={data?.metrics?.reactionsDelta}
                         />
                     </div>
                     <div>
@@ -239,7 +239,10 @@ export default function AnalyticsPage() {
 
                 {/* Trending Confessions */}
                 <TrendingConfessions
-                    confessions={data?.trendingConfessions ?? []}
+                    confessions={(data?.trendingConfessions ?? []).map((item: any) => ({
+                        ...item,
+                        content: item.content ?? item.message,
+                    }))}
                     loading={loading}
                 />
             </div>

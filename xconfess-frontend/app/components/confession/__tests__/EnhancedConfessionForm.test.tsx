@@ -95,7 +95,7 @@ describe("EnhancedConfessionForm", () => {
       target: { value: "a".repeat(201) },
     });
     await user.type(
-      screen.getByLabelText(/confession/i),
+      screen.getByRole("textbox", { name: /^confession/i }),
       "short"
     );
 
@@ -124,7 +124,7 @@ describe("EnhancedConfessionForm", () => {
     const user = userEvent.setup();
     renderComposer();
 
-    await user.type(screen.getByLabelText(/confession/i), "A valid confession body.");
+    await user.type(screen.getByRole("textbox", { name: /^confession/i }), "A valid confession body.");
     await user.click(screen.getByRole("button", { name: /publish confession/i }));
 
     expect(
@@ -143,7 +143,7 @@ describe("EnhancedConfessionForm", () => {
     renderComposer();
 
     const titleInput = screen.getByLabelText(/title/i);
-    const bodyInput = screen.getByLabelText(/confession/i);
+    const bodyInput = screen.getByRole("textbox", { name: /^confession/i });
 
     await user.type(titleInput, "Quiet apology");
     await user.type(bodyInput, "This is a valid confession body.");

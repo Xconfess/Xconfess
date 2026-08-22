@@ -1,0 +1,38 @@
+{
+  "manifest_version": "1.0",
+  "generated_at_utc": "2026-07-23T00:00:00Z",
+  "description": "Expected ABI/event compatibility manifest for Xconfess contracts. Update this alongside MAJOR version bumps.",
+  "contracts": {
+    "confession-anchor": {
+      "version": "0.1.0",
+      "event_schema_version": 1,
+      "error_registry_version": 1,
+      "functions": [
+        "anchor_confession",
+        "verify_confession",
+        "get_confession_count",
+        "get_version",
+        "get_event_schema_version",
+        "get_error_registry_version"
+      ]
+    },
+    "confession-registry": {
+      "version": "0.1.0",
+      "event_schema_version": 1,
+      "error_registry_version": 1,
+      "functions": []
+    },
+    "anonymous-tipping": {
+      "version": "1.0.0",
+      "event_schema_version": 1,
+      "error_registry_version": 1,
+      "functions": []
+    },
+    "reputation-badges": {
+      "version": "0.0.0",
+      "event_schema_version": 1,
+      "error_registry_version": 1,
+      "functions": []
+    }
+  }
+}

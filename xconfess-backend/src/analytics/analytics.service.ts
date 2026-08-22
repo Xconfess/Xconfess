@@ -2,15 +2,16 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Reaction } from 'src/reaction/entities/reaction.entity';
-import { User } from 'src/user/entities/user.entity';
-import { AnonymousConfession } from 'src/confession/entities/confession.entity';
-import { CacheService } from 'src/cache/cache.service';
+import { Reaction } from '../reaction/entities/reaction.entity';
+import { User } from '../user/entities/user.entity';
+import { AnonymousConfession } from '../confession/entities/confession.entity';
+import { CacheService } from '../cache/cache.service';
 import {
   AnalyticsCacheKeys,
   InvalidationPrefixes,
-} from 'src/cache/cache-namespace';
-import { toWindowBoundaries } from 'src/types/analytics.types';
+} from '../cache/cache-namespace';
+import { toWindowBoundaries } from '../types/analytics.types';
+import { ANALYTICS_PRIVACY } from './analytics.constants';
 
 type TrendDirection = 'increasing' | 'decreasing' | 'stable';
 
@@ -119,9 +120,9 @@ export class AnalyticsService {
     const trending = await this.confessionRepository
       .createQueryBuilder('confession')
       .leftJoinAndSelect('confession.reactions', 'reaction')
-      .where('confession.createdAt >= :startAt', { startAt })
-      .andWhere('confession.createdAt < :endAt', { endAt })
-      .andWhere('confession.isPublished = :isPublished', { isPublished: true })
+      .where('confession.created_at >= :startAt', { startAt })
+      .andWhere('confession.created_at < :endAt', { endAt })
+      .andWhere('confession.isDeleted = false')
       .loadRelationCountAndMap(
         'confession.reactionCount',
         'confession.reactions',
@@ -196,21 +197,27 @@ export class AnalyticsService {
       return cached;
     }
 
+    // totalConfessions intentionally includes soft-deleted rows to track total
+    // platform volume (mirrors the admin analytics overview); publishedConfessions
+    // and totalReactions are the live-content figures and exclude deleted confessions.
     const [totalUsers, totalConfessions, totalReactions, publishedConfessions] =
       await Promise.all([
         this.userRepository.count(),
         this.confessionRepository.count(),
-        this.reactionRepository.count(),
-        // Note: isPublished field doesn't exist, using total count instead
+        this.reactionRepository
+          .createQueryBuilder('reaction')
+          .innerJoin('reaction.confession', 'confession')
+          .where('confession.isDeleted = false')
+          .getCount(),
         this.confessionRepository.count({ where: { isDeleted: false } }),
       ]);
 
-    // Get most popular category
+    // Get most popular category (excluding soft-deleted confessions)
     const categoryStats = (await this.confessionRepository
       .createQueryBuilder('confession')
       .select('confession.category', 'category')
       .addSelect('COUNT(*)', 'count')
-      .where('confession.isPublished = :isPublished', { isPublished: true })
+      .where('confession.isDeleted = false')
       .groupBy('confession.category')
       .orderBy('count', 'DESC')
       .limit(1)
@@ -407,14 +414,20 @@ export class AnalyticsService {
       .addSelect('COUNT(*)', 'count')
       .where('confession.created_at >= :startAt', { startAt: range.startAt })
       .andWhere('confession.created_at < :endAt', { endAt: range.endAt })
+      .andWhere('confession.isDeleted = false')
       .groupBy("DATE(confession.created_at AT TIME ZONE 'UTC')")
       .orderBy('date', 'ASC')
       .getRawMany<BucketCountRow>();
 
-    const dailyGrowth = this.getDateBuckets(range).map((date) => ({
-      date,
-      count: this.findBucketCount(rawGrowth, date),
-    }));
+    const dailyGrowth = this.getDateBuckets(range).map((date) => {
+      const count = this.findBucketCount(rawGrowth, date);
+      const suppressed = count < ANALYTICS_PRIVACY.MIN_COHORT_SIZE && count > 0;
+      return {
+        date,
+        count,
+        ...(suppressed && { suppressed }),
+      };
+    });
     const totalConfessions = dailyGrowth.reduce(
       (sum, item) => sum + item.count,
       0,
@@ -456,10 +469,15 @@ export class AnalyticsService {
       );
     const activityRows = this.toBucketRows(rawActivityRows, 'activeUsers');
 
-    const dailyActivity = this.getDateBuckets(range).map((date) => ({
-      date,
-      activeUsers: this.findBucketCount(activityRows, date, 'activeUsers'),
-    }));
+    const dailyActivity = this.getDateBuckets(range).map((date) => {
+      const activeUsers = this.findBucketCount(activityRows, date, 'activeUsers');
+      const suppressed = activeUsers < ANALYTICS_PRIVACY.MIN_COHORT_SIZE && activeUsers > 0;
+      return {
+        date,
+        activeUsers,
+        ...(suppressed && { suppressed }),
+      };
+    });
     const totalActiveUsers = dailyActivity.reduce(
       (sum, item) => sum + item.activeUsers,
       0,
@@ -480,10 +498,12 @@ export class AnalyticsService {
   ): Promise<ReactionDistributionMetrics> {
     const distribution = await this.reactionRepository
       .createQueryBuilder('reaction')
+      .innerJoin('reaction.confession', 'confession')
       .select('reaction.emoji', 'type')
       .addSelect('COUNT(*)', 'count')
       .where('reaction.createdAt >= :startAt', { startAt: range.startAt })
       .andWhere('reaction.createdAt < :endAt', { endAt: range.endAt })
+      .andWhere('confession.isDeleted = false')
       .groupBy('reaction.emoji')
       .orderBy('type', 'ASC')
       .getRawMany<ReactionDistributionRow>();
@@ -497,10 +517,12 @@ export class AnalyticsService {
       total,
       distribution: distribution.map((item) => {
         const count = parseInt(item.count, 10);
+        const suppressed = count < ANALYTICS_PRIVACY.MIN_COHORT_SIZE && count > 0;
         return {
           type: item.type,
           count,
           percentage: total > 0 ? ((count / total) * 100).toFixed(2) : '0.00',
+          ...(suppressed && { suppressed }),
         };
       }),
       period: `${days} days`,

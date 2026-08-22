@@ -6,6 +6,7 @@ import { Menu, LogOut } from "lucide-react";
 import { useAuth } from "../../lib/hooks/useAuth";
 import { ThemeToggle } from "../common/ThemeToggle";
 import { WalletButton } from "@/components/wallet/WalletButton";
+import { BrandLogo } from "@/app/components/brand/BrandLogo";
 import Sidebar from "./Sidebar";
 
 const navLinkClass =
@@ -34,17 +35,13 @@ export default function Header() {
     <>
       <header
         aria-label="Main navigation"
-        className="sticky top-0 z-30 border-b border-[var(--border)] bg-[color:rgba(243,239,232,0.78)] backdrop-blur-xl"
+        className="sticky top-0 z-30 border-b border-[var(--border)] bg-[color:rgba(248,246,251,0.84)] shadow-[0_18px_60px_-48px_rgba(11,27,51,0.45)] backdrop-blur-xl dark:bg-[color:rgba(8,11,19,0.82)]"
         onKeyDown={handleNavKeyDown}
       >
-        <nav className="mx-auto max-w-6xl px-4 py-4 sm:px-6 lg:px-8">
+        <nav className="mx-auto max-w-6xl px-4 py-3.5 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between gap-6">
-            <Link
-              href="/"
-              className="rounded-full px-1 text-[2rem] font-semibold tracking-tight text-[var(--foreground)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--primary)]"
-            >
-              <span className="font-editorial">XConfess</span>
-            </Link>
+            <BrandLogo priority imageClassName="w-[142px] sm:w-[164px] dark:hidden" />
+            <BrandLogo priority tone="light" imageClassName="hidden w-[142px] sm:w-[164px] dark:block" />
 
             <div className="hidden items-center space-x-2 md:flex">
               <Link href="/" className={navLinkClass}>
@@ -104,8 +101,8 @@ export default function Header() {
               <button
                 ref={menuButtonRef}
                 type="button"
-                className="-mr-2 rounded-full border border-[var(--border)] bg-[var(--surface-muted)] p-4 text-[var(--secondary)] transition-colors hover:bg-[var(--surface-strong)] hover:text-[var(--foreground)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--primary)] min-h-[44px] min-w-[44px]"
-                aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
+                className="-mr-2 rounded-full border border-[var(--border)] bg-[var(--surface-muted)] p-3 text-[var(--secondary)] transition-colors hover:bg-[var(--surface-strong)] hover:text-[var(--foreground)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--primary)] min-h-[44px] min-w-[44px] flex items-center justify-center"
+                aria-label="Open menu"
                 aria-expanded={mobileMenuOpen}
                 aria-controls="mobile-navigation"
                 onClick={() => setMobileMenuOpen(true)}

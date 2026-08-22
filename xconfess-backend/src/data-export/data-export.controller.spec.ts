@@ -28,6 +28,7 @@ describe('DataExportController', () => {
       generateSignedDownloadUrl: jest.fn(),
       validateAndConsumeToken: jest.fn().mockResolvedValue(true),
       invalidateDownloadToken: jest.fn(),
+      recordFailedDownloadAttempt: jest.fn().mockResolvedValue(undefined),
     } as any;
 
     mockConfigService = {
@@ -119,7 +120,7 @@ describe('DataExportController', () => {
       ).rejects.toThrow(GoneException);
     });
 
-    it('should reject download requests with invalid signatures', async () => {
+    it('should reject download requests with invalid signatures without revealing ownership', async () => {
       const futureTime = Date.now() + 60 * 60 * 1000;
       const requestId = 'req-1';
       const userId = 'user-1';
@@ -136,6 +137,26 @@ describe('DataExportController', () => {
           {} as any,
         ),
       ).rejects.toThrow(UnauthorizedException);
+
+      expect(mockExportService.recordFailedDownloadAttempt).toHaveBeenCalledWith(
+        requestId,
+        'invalid_signature',
+      );
+      await expect(
+        controller.download(
+          requestId,
+          userId,
+          futureTime.toString(),
+          invalidSignature,
+          undefined,
+          'any-token',
+          {} as any,
+        ),
+      ).rejects.toMatchObject({
+        response: expect.objectContaining({
+          message: 'Invalid download link.',
+        }),
+      });
     });
 
     it('should reject download requests with malformed timestamps', async () => {
@@ -179,6 +200,10 @@ describe('DataExportController', () => {
           {} as any,
         ),
       ).rejects.toThrow(UnauthorizedException);
+      expect(mockExportService.recordFailedDownloadAttempt).toHaveBeenCalledWith(
+        requestId,
+        'missing_token',
+      );
     });
 
     it('should reject replayed single-file download after token consumed', async () => {

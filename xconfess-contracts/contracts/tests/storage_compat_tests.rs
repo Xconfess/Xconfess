@@ -13,6 +13,8 @@ extern crate std;
 
 use anonymous_tipping::{AnonymousTipping, AnonymousTippingClient};
 use confession_anchor::{ConfessionAnchor, ConfessionAnchorClient};
+use confession_registry::{ConfessionRegistry, ConfessionRegistryClient};
+use reputation_badges::{BadgeType, ReputationBadges, ReputationBadgesClient};
 use soroban_sdk::{testutils::Address as _, Address, BytesN, Env, String as SorobanString};
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -52,6 +54,38 @@ fn tipping_pair() -> (
 
 fn sample_hash(env: &Env, seed: u8) -> BytesN<32> {
     BytesN::from_array(env, &[seed; 32])
+}
+
+fn registry_pair() -> (
+    Env,
+    ConfessionRegistryClient<'static>,
+    ConfessionRegistryClient<'static>,
+    Address,
+) {
+    let env = Env::default();
+    env.mock_all_auths();
+    let id = env.register(ConfessionRegistry, ());
+    let pre = ConfessionRegistryClient::new(&env, &id);
+    let admin = Address::generate(&env);
+    pre.initialize(&admin);
+    let post = ConfessionRegistryClient::new(&env, &id);
+    (env, pre, post, admin)
+}
+
+fn reputation_pair() -> (
+    Env,
+    ReputationBadgesClient<'static>,
+    ReputationBadgesClient<'static>,
+    Address,
+) {
+    let env = Env::default();
+    env.mock_all_auths();
+    let id = env.register(ReputationBadges, ());
+    let pre = ReputationBadgesClient::new(&env, &id);
+    let admin = Address::generate(&env);
+    pre.initialize(&admin);
+    let post = ReputationBadgesClient::new(&env, &id);
+    (env, pre, post, admin)
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -284,4 +318,72 @@ fn tipping_fresh_state_survives_upgrade() {
     let recipient = Address::generate(&env);
     let id = post.send_tip(&sender, &recipient, &1i128);
     assert_eq!(id, 1);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// confession-registry storage compat
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Confessions and the total count written by `pre` are readable via `post`
+/// at the same address.
+#[test]
+fn registry_confessions_and_count_survive_upgrade() {
+    let (env, pre, post, author_admin) = registry_pair();
+    let author = author_admin;
+
+    let id1 = pre.create_confession(&author, &sample_hash(&env, 0x11), &1_000);
+    let id2 = pre.create_confession(&author, &sample_hash(&env, 0x22), &2_000);
+
+    assert_eq!(post.get_confession(&id1).id, id1);
+    assert_eq!(post.get_confession(&id2).id, id2);
+    assert_eq!(
+        post.get_total_count(),
+        2,
+        "total count must survive upgrade"
+    );
+    assert_eq!(
+        post.get_author_confessions(&author).len(),
+        2,
+        "author index must survive upgrade"
+    );
+}
+
+/// Schema version defaults and post-migration value both survive upgrade.
+#[test]
+fn registry_schema_version_survives_upgrade() {
+    let (_env, pre, post, admin) = registry_pair();
+    assert_eq!(post.schema_version(), pre.schema_version());
+
+    pre.migrate(&admin);
+    assert_eq!(
+        post.schema_version(),
+        confession_registry::SCHEMA_VERSION_CURRENT
+    );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// reputation-badges storage compat
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Badges minted and reputation adjusted by `pre` are readable via `post`.
+#[test]
+fn reputation_badges_and_score_survive_upgrade() {
+    let (env, pre, post, admin) = reputation_pair();
+    let user = Address::generate(&env);
+    let reason = SorobanString::from_str(&env, "seed");
+
+    let badge_id = pre.mint_badge(&user, &BadgeType::ConfessionStarter);
+    pre.adjust_reputation(&user, &42i128, &reason);
+    let _ = admin; // admin only needed for adjust_reputation's internal auth
+
+    assert_eq!(
+        post.get_badge(&badge_id).unwrap().owner,
+        user,
+        "badge must survive upgrade"
+    );
+    assert_eq!(
+        post.get_user_reputation(&user),
+        42i128,
+        "reputation must survive upgrade"
+    );
 }

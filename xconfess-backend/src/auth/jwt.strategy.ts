@@ -39,6 +39,7 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
     // Return canonical RequestUser shape
     return {
       id: payload.sub, // Canonical ID field
+      sub: payload.sub,
       username: payload.username,
       email: payload.email,
       role: user?.role || UserRole.USER,

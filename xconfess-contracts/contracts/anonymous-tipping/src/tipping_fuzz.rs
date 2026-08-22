@@ -9,15 +9,17 @@
 mod fuzz {
     extern crate std;
 
-    use soroban_sdk::{testutils::Address as _, Address, Env};
-
-    use crate::{
-        AnonymousTipping, AnonymousTippingClient, Error, SettlementReceipt,
+    use soroban_sdk::{
+        testutils::{Address as _, Ledger},
+        Address, Env,
     };
+
+    use crate::{AnonymousTipping, AnonymousTippingClient, Error, SettlementReceipt};
 
     fn setup() -> (Env, Address) {
         let env = Env::default();
         env.mock_all_auths();
+        env.ledger().set_timestamp(1_725_000_000);
         let contract_id = env.register(AnonymousTipping, ());
         AnonymousTippingClient::new(&env, &contract_id).init(&contract_id);
         (env, contract_id)

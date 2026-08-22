@@ -90,6 +90,7 @@ export class CommentService {
     confessionId: string,
     anonymousContextId: string,
     parentId?: number,
+    idempotencyKey?: string,
   ): Promise<Comment> {
     const confession = await this.confessionRepo.findOne({
       where: { id: confessionId, isDeleted: false },
@@ -120,6 +121,20 @@ export class CommentService {
       }
     }
 
+    // Idempotency: if a key is provided, return the existing comment (replay safety)
+    if (idempotencyKey) {
+      const existing = await this.commentRepo.findOne({
+        where: { idempotencyKey },
+        relations: ["anonymousUser", "replies"],
+      });
+      if (existing) {
+        this.logger.debug(
+          `Idempotent replay for key=${idempotencyKey}, returning comment ${existing.id}`,
+        );
+        return existing;
+      }
+    }
+
     const mentionedUsernames = this.parseMentions(content);
 
     return this.dataSource
@@ -135,6 +150,7 @@ export class CommentService {
           anonymousContextId,
           mentionedUsernames:
             mentionedUsernames.length > 0 ? mentionedUsernames : undefined,
+          idempotencyKey: idempotencyKey || undefined,
         });
 
         if (parentId) {
@@ -155,6 +171,7 @@ export class CommentService {
         );
 
         // Outbox event: notify confession owner of new comment
+        // Skip if a notification was already enqueued for this comment (dedup)
         const recipientEmail = this.getRecipientEmail(confession.anonymousUser);
         if (recipientEmail) {
           const payload = {
@@ -164,18 +181,24 @@ export class CommentService {
             commenterContextId: anonymousContextId,
             commentPreview: content.substring(0, 100),
           };
+          const commentNotifKey = idempotencyKey
+            ? `comment:${idempotencyKey}`
+            : `comment:${savedComment.id}`;
           await outboxRepo.save(
             outboxRepo.create({
               type: "comment_notification",
               payload,
-              idempotencyKey: `comment:${savedComment.id}`,
+              idempotencyKey: commentNotifKey,
               status: OutboxStatus.PENDING,
             }),
           );
         }
 
-        // Outbox events: notify each @mentioned user
+        // Outbox events: notify each @mentioned user (deduped per mention)
         for (const username of mentionedUsernames) {
+          const mentionKey = idempotencyKey
+            ? `mention:${idempotencyKey}:${username}`
+            : `mention:${savedComment.id}:${username}`;
           await outboxRepo.save(
             outboxRepo.create({
               type: "mention_notification",
@@ -186,7 +209,7 @@ export class CommentService {
                 mentionedBy: anonymousContextId,
                 commentPreview: content.substring(0, 100),
               },
-              idempotencyKey: `mention:${savedComment.id}:${username}`,
+              idempotencyKey: mentionKey,
               status: OutboxStatus.PENDING,
             }),
           );
@@ -316,7 +339,9 @@ export class CommentService {
         "moderation",
         "moderation.commentId = comment.id",
       )
-      .where("comment.confession = :confessionId", { confessionId })
+      .where("comment.confession = :confessionId AND confession.isDeleted = false", {
+        confessionId,
+      })
       .andWhere("moderation.status = :status", {
         status: ModerationStatus.APPROVED,
       });

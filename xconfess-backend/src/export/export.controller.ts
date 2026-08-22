@@ -9,7 +9,7 @@ import {
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { OwnershipGuard } from '../common/guards/ownership.guard';
 import { Ownership } from '../common/decorators/ownership.decorator';
-import { ExportService } from './export.service';
+import { DataExportService } from '../data-export/data-export.service';
 
 /**
  * Export endpoints.
@@ -19,7 +19,7 @@ import { ExportService } from './export.service';
 @Controller('export')
 @UseGuards(JwtAuthGuard, OwnershipGuard)
 export class ExportController {
-  constructor(private readonly exportService: ExportService) {}
+  constructor(private readonly exportService: DataExportService) {}
 
   /**
    * GET /export/jobs/:userId
@@ -30,7 +30,7 @@ export class ExportController {
   async getExportJobs(@Param('userId') userId: string, @Req() req: any) {
     // OwnershipGuard already enforced userId === req.user.sub.
     // ExportService receives the verified caller ID — never trust the param alone.
-    return this.exportService.getJobsForUser(req.user.sub);
+    return this.exportService.getExportHistory(String(req.user.sub));
   }
 
   /**
@@ -43,6 +43,6 @@ export class ExportController {
     @Param('jobId') jobId: string,
     @Req() req: any,
   ) {
-    return this.exportService.downloadJob(req.user.sub, jobId);
+    return this.exportService.getExportFile(jobId, String(req.user.sub));
   }
 }

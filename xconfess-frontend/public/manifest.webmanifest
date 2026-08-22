@@ -1,21 +1,22 @@
 {
   "name": "xConfess",
   "short_name": "xConfess",
-  "description": "Anonymous confessions anchored on Stellar",
+  "description": "A private, premium space for anonymous expression.",
   "start_url": "/",
   "display": "standalone",
-  "theme_color": "#8f6d3c",
-  "background_color": "#0a0a0a",
+  "theme_color": "#5B2EFF",
+  "background_color": "#F8F6FB",
   "icons": [
     {
-      "src": "/icon-light-32x32.png",
-      "sizes": "32x32",
-      "type": "image/png"
+      "src": "/branding/xconfess-icon.svg",
+      "sizes": "160x160",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
     },
     {
-      "src": "/apple-icon.png",
-      "sizes": "180x180",
-      "type": "image/png",
+      "src": "/branding/favicon.ico",
+      "sizes": "16x16 32x32 48x48",
+      "type": "image/x-icon",
       "purpose": "any maskable"
     }
   ]

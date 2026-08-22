@@ -32,14 +32,21 @@
     "next-env.d.ts",
     "**/*.ts",
     "**/*.tsx",
-    ".next/types/**/*.ts",
     ".next/dev/types/**/*.ts",
     "**/*.mts",
     "app/lib/api/notifications/read/route.ts",
     "app/lib/api/auth.jsx",
-    "app/lib/api/auth.jsx"
+    ".next/types/**/*.ts"
   ],
   "exclude": [
-    "node_modules"
+    "node_modules",
+    "**/__tests__/**",
+    "tests/**",
+    "**/*.spec.ts",
+    "**/*.spec.tsx",
+    "**/*.test.ts",
+    "**/*.test.tsx",
+    "**/*.example.ts",
+    "**/*.updated.example.ts"
   ]
 }

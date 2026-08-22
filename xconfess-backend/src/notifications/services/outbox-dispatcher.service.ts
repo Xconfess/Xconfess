@@ -8,6 +8,7 @@ import {
 } from '../../common/entities/outbox-event.entity';
 import { NotificationService } from './notification.service';
 import * as os from 'os';
+import { NotificationDeliveryState } from '../delivery-state';
 
 @Injectable()
 export class OutboxDispatcherService {
@@ -125,20 +126,50 @@ export class OutboxDispatcherService {
 
   private async processEvent(event: OutboxEvent) {
     try {
-      // Dispatch based on type
+      // 1. Enforce outbox event idempotency by idempotencyKey if set
+      if (event.idempotencyKey) {
+        const existingCompleted = await this.outboxRepo.findOne({
+          where: {
+            idempotencyKey: event.idempotencyKey,
+            status: OutboxStatus.COMPLETED,
+          },
+        });
+
+        if (existingCompleted && existingCompleted.id !== event.id) {
+          this.logger.log(
+            `Outbox event ${event.id} skipped (idempotencyKey '${event.idempotencyKey}' already completed by event ${existingCompleted.id})`,
+          );
+          event.status = OutboxStatus.COMPLETED;
+          event.processedAt = new Date();
+          await this.outboxRepo.save(event);
+          return;
+        }
+      }
+
+      // 2. Dispatch based on type
+      const dispatchIdempotencyKey = event.idempotencyKey || event.id;
+
       switch (event.type) {
         case 'comment_notification':
         case 'message_notification':
         case 'reply_notification':
         case 'reaction_notification':
         case 'reaction_update':
-        case 'report_notification':
-          await this.notificationService.enqueueNotification(
+        case 'report_notification': {
+          const outcome = await this.notificationService.enqueueNotification(
             event.type,
             event.payload,
-            event.id,
+            dispatchIdempotencyKey,
           );
+          if (outcome.state === NotificationDeliveryState.SKIPPED) {
+            event.status = OutboxStatus.SKIPPED;
+            event.processedAt = new Date();
+            event.lastError = outcome.reason;
+            await this.outboxRepo.save(event);
+            return;
+          }
           break;
+        }
         default:
           this.logger.warn(`Unknown outbox event type: ${event.type}`);
           event.status = OutboxStatus.COMPLETED;

@@ -13,6 +13,7 @@ import { OutboxEvent } from '../common/entities/outbox-event.entity';
 import { AnalyticsService } from '../analytics/analytics.service';
 import { WebSocketLogger } from '../websocket/websocket.logger';
 import { WebSocketHealthService } from '../websocket/websocket-health.service';
+import { JwtService } from '@nestjs/jwt';
 
 describe('ReactionModule', () => {
   let module: TestingModule;
@@ -48,6 +49,10 @@ describe('ReactionModule', () => {
         {
           provide: DataSource,
           useValue: { transaction: jest.fn() },
+        },
+        {
+          provide: JwtService,
+          useValue: { verifyAsync: jest.fn(), verify: jest.fn() },
         },
         {
           provide: AnalyticsService,

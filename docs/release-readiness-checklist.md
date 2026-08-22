@@ -16,6 +16,10 @@ Use this checklist before any staging or production release that affects the bac
 - [ ] Run dependency install from the repo root: `npm ci`
 - [ ] Review the latest CI results for `.github/workflows/ci.yml`.
   - **Note:** CI now automatically runs contract check, build, and test gates. Ensure all contract checks pass before proceeding.
+- [ ] **Confirm the `Security / npm audit` CI job passed.** CI blocks on unapproved critical/high vulnerabilities using `audit-ci` (see `audit-ci.json`).
+- [ ] Run the audit check locally before release: `npm run audit:ci`
+- [ ] Review `audit-ci.json` for any suppressions whose `expires` date has passed; renew or resolve each before merging.
+- [ ] Any new suppression added to `audit-ci.json` must include: the GHSA advisory ID, a reason explaining why it is safe to suppress, and an expiry date no more than 90 days out. Link to the tracking issue.
 - [ ] Confirm no unresolved blockers remain in code review or release notes.
 - [ ] Verify any required environment variable or secret changes are prepared before deployment.
 
@@ -31,7 +35,7 @@ Use this checklist before any staging or production release that affects the bac
 
 ### Frontend Readiness
 
-- [ ] Build the frontend with the intended API base URL: `NEXT_PUBLIC_API_URL=http://localhost:5000 npm run build --workspace=xconfess-frontend`
+- [ ] Build the frontend with the intended API base URL: `NEXT_PUBLIC_API_URL=http://localhost:5000/api npm run build --workspace=xconfess-frontend`
 - [ ] Lint the frontend: `npm run lint --workspace=xconfess-frontend`
 - [ ] Run frontend tests: `npm run test --workspace=xconfess-frontend`
 - [ ] Smoke-check the primary user journeys affected by the release.
@@ -102,6 +106,24 @@ Use this checklist before any staging or production release that affects the bac
 - [ ] Confirm post-release metrics remain within normal ranges for error rate, latency, and job health.
 - [ ] Update runbooks or deployment docs if the team had to improvise during the release.
 - [ ] Close the release with a short summary of what shipped, what was verified, and any follow-up actions.
+
+## Security Audit Policy
+
+xConfess uses `audit-ci` to enforce a minimum security bar on every CI run. The policy is:
+
+- **Severity threshold:** CI fails on any **critical** or **high** vulnerability not present in the allowlist.
+- **Suppression file:** `audit-ci.json` at the repo root. Each entry must include an `advisory` (GHSA ID), a `reason` explaining why suppression is safe, and an `expires` date.
+- **Running locally:** `npm run audit:ci` — produces the same result as CI.
+- **Generating a full report:** `npm run audit:report` — writes `audit-report.json` (gitignored).
+- **Suppression rules:**
+  - Only suppress a specific GHSA advisory ID; never suppress an entire package.
+  - Reason must explain the impact context (e.g., devDependency, transitive, breaking fix).
+  - Expiry must be no more than 90 days from the date the suppression is added.
+  - Link the suppression to a tracking issue so it is not silently forgotten.
+- **Known deferred upgrades (see issue #1506):**
+  - `tar` (transitive via `sqlite3`) — upgrade to `sqlite3` v6 is semver-major; tracked for validation.
+  - `nodemailer` — upgrade to v9 is semver-major; backend transport must be re-tested.
+  - `@xhmikosr/decompress` (transitive via `@swc/cli` devDep) — upgrade to `@swc/cli` v0.8.1 is semver-major; only affects build toolchain, not application runtime.
 
 ## Related References
 

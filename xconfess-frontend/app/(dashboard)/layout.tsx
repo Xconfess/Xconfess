@@ -28,7 +28,7 @@ export default function DashboardLayout({
 
   return (
     <AuthGuard>
-      <div className="min-h-screen overflow-x-hidden bg-white text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100">
+      <div className="min-h-screen w-full overflow-x-hidden bg-[var(--background)] text-[var(--foreground)]">
         <Header />
         <main className="mx-auto max-w-3xl px-4 py-8 sm:px-6">{children}</main>
         <FloatingComparisonBar />

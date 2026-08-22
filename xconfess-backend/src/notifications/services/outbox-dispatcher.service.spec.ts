@@ -7,6 +7,7 @@ import {
 } from '../../common/entities/outbox-event.entity';
 import { NotificationService } from './notification.service';
 import { Repository } from 'typeorm';
+import { NotificationDeliveryState } from '../delivery-state';
 
 describe('OutboxDispatcherService', () => {
   let service: OutboxDispatcherService;
@@ -37,7 +38,11 @@ describe('OutboxDispatcherService', () => {
         {
           provide: NotificationService,
           useValue: {
-            enqueueNotification: jest.fn(),
+            enqueueNotification: jest.fn().mockResolvedValue({
+              state: NotificationDeliveryState.QUEUED,
+              queue: 'notifications',
+              jobName: 'send-notification',
+            }),
           },
         },
       ],
@@ -90,5 +95,98 @@ describe('OutboxDispatcherService', () => {
     );
 
     expect(outboxRepo.save).toHaveBeenCalled();
+  });
+
+  it('should skip notification dispatch when idempotencyKey is already COMPLETED', async () => {
+    const duplicateEvent = {
+      id: 'event-2',
+      type: 'message_notification',
+      payload: { message: 'hello' },
+      status: OutboxStatus.PENDING,
+      idempotencyKey: 'ik-100',
+      retryCount: 0,
+    } as OutboxEvent;
+
+    const existingCompleted = {
+      id: 'event-1',
+      idempotencyKey: 'ik-100',
+      status: OutboxStatus.COMPLETED,
+    } as OutboxEvent;
+
+    outboxRepo.findOne = jest.fn().mockResolvedValue(existingCompleted);
+
+    const transactionManagerMock = {
+      createQueryBuilder: jest.fn().mockReturnThis(),
+      setLock: jest.fn().mockReturnThis(),
+      setOnLocked: jest.fn().mockReturnThis(),
+      where: jest.fn().mockReturnThis(),
+      orderBy: jest.fn().mockReturnThis(),
+      limit: jest.fn().mockReturnThis(),
+      getMany: jest.fn().mockResolvedValue([duplicateEvent]),
+      update: jest.fn().mockReturnThis(),
+      set: jest.fn().mockReturnThis(),
+      whereInIds: jest.fn().mockReturnThis(),
+      execute: jest.fn().mockResolvedValue({}),
+    };
+
+    (outboxRepo.manager.transaction as jest.Mock).mockImplementation(
+      async (cb) => {
+        return await cb(transactionManagerMock);
+      },
+    );
+
+    await service.handleOutbox();
+
+    expect(outboxRepo.findOne).toHaveBeenCalledWith({
+      where: {
+        idempotencyKey: 'ik-100',
+        status: OutboxStatus.COMPLETED,
+      },
+    });
+    expect(notificationService.enqueueNotification).not.toHaveBeenCalled();
+    expect(duplicateEvent.status).toBe(OutboxStatus.COMPLETED);
+    expect(outboxRepo.save).toHaveBeenCalledWith(duplicateEvent);
+  });
+
+  it('marks outbox events as skipped when background jobs are disabled', async () => {
+    const skippedEvent = {
+      id: 'event-skipped',
+      type: 'message_notification',
+      payload: { message: 'hello' },
+      status: OutboxStatus.PENDING,
+      retryCount: 0,
+    } as OutboxEvent;
+
+    (notificationService.enqueueNotification as jest.Mock).mockResolvedValue({
+      state: NotificationDeliveryState.SKIPPED,
+      reason: 'background_jobs_disabled',
+      queue: 'notifications',
+      jobId: 'event-skipped',
+    });
+
+    const transactionManagerMock = {
+      createQueryBuilder: jest.fn().mockReturnThis(),
+      setLock: jest.fn().mockReturnThis(),
+      setOnLocked: jest.fn().mockReturnThis(),
+      where: jest.fn().mockReturnThis(),
+      orderBy: jest.fn().mockReturnThis(),
+      limit: jest.fn().mockReturnThis(),
+      getMany: jest.fn().mockResolvedValue([skippedEvent]),
+      update: jest.fn().mockReturnThis(),
+      set: jest.fn().mockReturnThis(),
+      whereInIds: jest.fn().mockReturnThis(),
+      execute: jest.fn().mockResolvedValue({}),
+    };
+
+    (outboxRepo.manager.transaction as jest.Mock).mockImplementation(
+      async (cb) => cb(transactionManagerMock),
+    );
+
+    await service.handleOutbox();
+
+    expect(skippedEvent.status).toBe(OutboxStatus.SKIPPED);
+    expect(skippedEvent.lastError).toBe('background_jobs_disabled');
+    expect(skippedEvent.processedAt).toBeInstanceOf(Date);
+    expect(outboxRepo.save).toHaveBeenCalledWith(skippedEvent);
   });
 });

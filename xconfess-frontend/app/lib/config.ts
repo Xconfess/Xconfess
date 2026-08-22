@@ -5,14 +5,23 @@
  */
 
 export const getApiBaseUrl = (): string => {
+  const normalizeBackendApiUrl = (url: string): string => {
+    const trimmed = url.trim().replace(/\/+$/, '');
+    return trimmed.endsWith('/api') ? trimmed : `${trimmed}/api`;
+  };
+
   // 1. Server-side check
   if (typeof window === 'undefined') {
     const serverUrl = process.env.BACKEND_API_URL;
     if (!serverUrl) {
-      // During build time or if not provided, use a fallback to prevent crash
-      return process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+      if (process.env.NODE_ENV === 'production') {
+        throw new Error(
+          'BACKEND_API_URL is required for server-side API proxy routes in production.',
+        );
+      }
+      return normalizeBackendApiUrl('http://localhost:5000');
     }
-    return serverUrl;
+    return normalizeBackendApiUrl(serverUrl);
   }
 
   // 2. Client-side check
@@ -20,9 +29,9 @@ export const getApiBaseUrl = (): string => {
   if (!clientUrl) {
     // We provide a fallback for client-side to prevent crash, 
     // but ideally this should be provided in production.
-    return 'http://localhost:5000';
+    return normalizeBackendApiUrl('http://localhost:5000');
   }
-  return clientUrl;
+  return normalizeBackendApiUrl(clientUrl);
 };
 
 /**

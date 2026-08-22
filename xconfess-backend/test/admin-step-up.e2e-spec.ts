@@ -91,6 +91,7 @@ describe('Admin step-up authentication (e2e)', () => {
     app = moduleFixture.createNestApplication();
     app.setGlobalPrefix('api');
     await app.init();
+
     jwtService = moduleFixture.get(JwtService);
   });
 

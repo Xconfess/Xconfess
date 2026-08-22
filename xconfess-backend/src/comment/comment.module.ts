@@ -1,4 +1,9 @@
-import { Module, NestModule, MiddlewareConsumer } from '@nestjs/common';
+import {
+  Module,
+  NestModule,
+  MiddlewareConsumer,
+  forwardRef,
+} from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { CommentController } from './comment.controller';
 import { CommentAdminController } from './comment-admin.controller';
@@ -9,12 +14,20 @@ import { ModerationComment } from './entities/moderation-comment.entity';
 import { OutboxEvent } from '../common/entities/outbox-event.entity';
 import { AnalyticsModule } from '../analytics/analytics.module';
 import { AuditLogModule } from '../audit-log/audit-log.module';
+import { AnonymousConfession } from '../confession/entities/confession.entity';
+import { UserModule } from '../user/user.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Comment, ModerationComment, OutboxEvent]),
+    TypeOrmModule.forFeature([
+      Comment,
+      AnonymousConfession,
+      ModerationComment,
+      OutboxEvent,
+    ]),
     AnalyticsModule,
     AuditLogModule,
+    forwardRef(() => UserModule),
   ],
   controllers: [CommentController, CommentAdminController],
   providers: [CommentService],

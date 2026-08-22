@@ -30,7 +30,7 @@ export class ExportRequest {
   @Column({ type: 'bigint', default: 0 })
   totalSize!: string; // Stored as string to handle bigint safely in JS
 
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', length: 64, nullable: true })
   combinedChecksum!: string; // SHA-256 of the concatenated chunks
 
   @CreateDateColumn()
@@ -71,11 +71,12 @@ export class ExportRequest {
   // ── One-time download token ───────────────────────────────────────────────
 
   /**
-   * Random hex nonce issued when a signed download URL is generated.
+   * HMAC-SHA256 digest of the random nonce issued in a signed download URL.
+   * The raw nonce is only returned to the caller and is never persisted.
    * Cleared after the first successful download to prevent replay.
    */
-  @Column({ type: 'varchar', nullable: true })
-  downloadToken!: string | null;
+  @Column({ type: 'varchar', length: 64, nullable: true })
+  downloadTokenHash!: string | null;
 
   /** Timestamp of the first (and only) successful download. */
   @Column({ type: 'timestamp', nullable: true })

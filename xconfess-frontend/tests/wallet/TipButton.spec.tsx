@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { act, render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { TipButton } from "@/app/components/confession/TipButton";
 
 jest.mock("@/lib/services/tipping.service", () => ({
@@ -38,7 +38,13 @@ const mockUpdateActivity = jest.fn();
 const mockUseActivityStore = useActivityStore as unknown as jest.Mock;
 
 beforeEach(() => {
+  jest.useFakeTimers();
   jest.clearAllMocks();
+  global.fetch = jest.fn().mockResolvedValue({
+    ok: true,
+    status: 200,
+    json: async () => ({ successful: true }),
+  }) as unknown as typeof fetch;
 
   mockUseWallet.mockReturnValue({
     isConnected: true,
@@ -66,6 +72,16 @@ beforeEach(() => {
     averageAmount: 0,
   });
 });
+
+afterEach(() => {
+  jest.useRealTimers();
+});
+
+async function confirmOnChain() {
+  await act(async () => {
+    await jest.advanceTimersByTimeAsync(2000);
+  });
+}
 
 describe("TipButton", () => {
   const defaultProps = {
@@ -106,13 +122,14 @@ describe("TipButton", () => {
 
     const sendButton = screen.getByText("Tip 0.5 XLM");
     fireEvent.click(sendButton);
+    await confirmOnChain();
 
     await waitFor(() => {
       expect(screen.getByText("Tip confirmed")).toBeInTheDocument();
     });
 
     expect(screen.getByText("0.5 XLM sent")).toBeInTheDocument();
-    const explorerLink = screen.getByText("View transaction →");
+    const explorerLink = screen.getByText("View on testnet.steexp.com");
     expect(explorerLink).toHaveAttribute("href");
     expect(explorerLink).toHaveAttribute("target", "_blank");
   });
@@ -131,9 +148,10 @@ describe("TipButton", () => {
     fireEvent.change(input, { target: { value: "0.5" } });
 
     fireEvent.click(screen.getByText("Tip 0.5 XLM"));
+    await confirmOnChain();
 
     await waitFor(() => {
-      expect(screen.getByText("Verifying transaction")).toBeInTheDocument();
+      expect(screen.getByText("Verification failed")).toBeInTheDocument();
     });
 
     expect(screen.getByText("Retry Verification")).toBeInTheDocument();
@@ -185,9 +203,9 @@ describe("TipButton", () => {
     fireEvent.click(screen.getByText(`Tip ${0.1} XLM`));
 
     await waitFor(() => {
-      const sendButton = screen.getByText("Sending...");
+      const sendButton = screen.getByRole("button", { name: "Sending…" });
       expect(sendButton).toBeInTheDocument();
-      expect(sendButton.closest("button")).toBeDisabled();
+      expect(sendButton).toBeDisabled();
     });
   });
 

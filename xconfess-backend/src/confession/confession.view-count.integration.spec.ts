@@ -9,10 +9,13 @@ import { AnonymousUserService } from '../user/anonymous-user.service';
 import { AppLogger } from '../logger/logger.service';
 import { EncryptionService } from '../encryption/encryption.service';
 import { StellarService } from '../stellar/stellar.service';
+import { ContractService } from '../stellar/contract.service';
 import { CacheService } from '../cache/cache.service';
 import { TagService } from './tag.service';
 import { encryptConfession } from '../utils/confession-encryption';
 import { ConfigService } from '@nestjs/config';
+import { AnomalyDetectionService } from '../anomaly/anomaly-detection.service';
+import { ConfessionIdempotencyService } from './confession-idempotency.service';
 
 const TEST_AES_KEY = '12345678901234567890123456789012';
 
@@ -45,8 +48,23 @@ describe('ConfessionService - View Counting (Integration-like)', () => {
         { provide: AppLogger, useValue: { log: jest.fn(), error: jest.fn() } },
         { provide: EncryptionService, useValue: {} },
         { provide: StellarService, useValue: {} },
-        { provide: CacheService, useValue: {} },
+        { provide: ContractService, useValue: {} },
+        {
+          provide: CacheService,
+          useValue: {
+            buildKey: jest.fn((...parts: (string | number)[]) =>
+              parts.join(':'),
+            ),
+            get: jest.fn().mockResolvedValue(null),
+            set: jest.fn().mockResolvedValue(undefined),
+          },
+        },
         { provide: TagService, useValue: {} },
+        {
+          provide: AnomalyDetectionService,
+          useValue: { getAdjustmentFactor: jest.fn().mockResolvedValue(1) },
+        },
+        { provide: ConfessionIdempotencyService, useValue: {} },
         {
           provide: ConfigService,
           useValue: { get: jest.fn().mockReturnValue(TEST_AES_KEY) },

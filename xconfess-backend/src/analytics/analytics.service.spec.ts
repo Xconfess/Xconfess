@@ -22,11 +22,38 @@ const makeCacheServiceMock = () => ({
   invalidateSegment: jest.fn().mockResolvedValue(1),
 });
 
+// A chainable query-builder mock: every fluent method returns `this` except
+// the terminal getters, which resolve to whatever the test configures.
+const makeQueryBuilderMock = () => {
+  const qb: any = {
+    select: jest.fn().mockReturnThis(),
+    addSelect: jest.fn().mockReturnThis(),
+    leftJoinAndSelect: jest.fn().mockReturnThis(),
+    leftJoin: jest.fn().mockReturnThis(),
+    innerJoin: jest.fn().mockReturnThis(),
+    where: jest.fn().mockReturnThis(),
+    andWhere: jest.fn().mockReturnThis(),
+    groupBy: jest.fn().mockReturnThis(),
+    orderBy: jest.fn().mockReturnThis(),
+    limit: jest.fn().mockReturnThis(),
+    take: jest.fn().mockReturnThis(),
+    skip: jest.fn().mockReturnThis(),
+    loadRelationCountAndMap: jest.fn().mockReturnThis(),
+    getMany: jest.fn().mockResolvedValue([]),
+    getRawMany: jest.fn().mockResolvedValue([]),
+    getRawOne: jest.fn().mockResolvedValue(null),
+    getCount: jest.fn().mockResolvedValue(0),
+  };
+  return qb;
+};
+
 // ─── Suite ────────────────────────────────────────────────────────────────────
 
 describe('AnalyticsService', () => {
   let service: AnalyticsService;
   let cacheService: ReturnType<typeof makeCacheServiceMock>;
+  let confessionRepo: ReturnType<typeof repoMock>;
+  let reactionRepo: ReturnType<typeof repoMock>;
 
   beforeEach(async () => {
     cacheService = makeCacheServiceMock();
@@ -45,9 +72,63 @@ describe('AnalyticsService', () => {
     }).compile();
 
     service = module.get<AnalyticsService>(AnalyticsService);
+    confessionRepo = module.get(getRepositoryToken(AnonymousConfession));
+    reactionRepo = module.get(getRepositoryToken(Reaction));
   });
 
   afterEach(() => jest.clearAllMocks());
+
+  // ── Soft-delete consistency (#1449) ────────────────────────────────────────
+
+  describe('soft-delete consistency', () => {
+    it('getTrendingConfessions() excludes soft-deleted confessions', async () => {
+      const qb = makeQueryBuilderMock();
+      confessionRepo.createQueryBuilder.mockReturnValue(qb);
+
+      await service.getTrendingConfessions(7);
+
+      expect(qb.andWhere).toHaveBeenCalledWith('confession.isDeleted = false');
+    });
+
+    it('getGrowthMetricsForWindow (via getConfessionGrowth) excludes soft-deleted confessions', async () => {
+      const qb = makeQueryBuilderMock();
+      confessionRepo.createQueryBuilder.mockReturnValue(qb);
+
+      await service.getConfessionGrowth(7);
+
+      expect(qb.andWhere).toHaveBeenCalledWith('confession.isDeleted = false');
+    });
+
+    it('getReactionDistribution() excludes reactions on soft-deleted confessions', async () => {
+      const qb = makeQueryBuilderMock();
+      reactionRepo.createQueryBuilder.mockReturnValue(qb);
+
+      await service.getReactionDistribution(7);
+
+      expect(qb.innerJoin).toHaveBeenCalledWith('reaction.confession', 'confession');
+      expect(qb.andWhere).toHaveBeenCalledWith('confession.isDeleted = false');
+    });
+
+    it('getPlatformStats() counts only reactions on non-deleted confessions', async () => {
+      confessionRepo.count.mockResolvedValue(100);
+      const reactionQb = makeQueryBuilderMock();
+      reactionQb.getCount.mockResolvedValue(42);
+      reactionRepo.createQueryBuilder.mockReturnValue(reactionQb);
+
+      const categoryQb = makeQueryBuilderMock();
+      confessionRepo.createQueryBuilder.mockReturnValue(categoryQb);
+
+      const result: any = await service.getPlatformStats();
+
+      expect(reactionQb.innerJoin).toHaveBeenCalledWith(
+        'reaction.confession',
+        'confession',
+      );
+      expect(reactionQb.where).toHaveBeenCalledWith('confession.isDeleted = false');
+      expect(result.totalReactions).toBe(42);
+      expect(categoryQb.where).toHaveBeenCalledWith('confession.isDeleted = false');
+    });
+  });
 
   it('should be defined', () => {
     expect(service).toBeDefined();

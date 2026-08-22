@@ -29,6 +29,8 @@ import { TemplateVersion } from '../database/entities/template-version.entity';
 import { NotificationTemplatesController } from './controllers/notification-templates.controller';
 import { TemplatesService } from './services/templates.service';
 
+import { StellarAnchor } from '../stellar/entities/stellar-anchor.entity';
+
 @Module({
   imports: [
     TypeOrmModule.forFeature([
@@ -41,6 +43,7 @@ import { TemplatesService } from './services/templates.service';
       Tip,
       NotificationTemplate, // Added
       TemplateVersion,      // Added
+      StellarAnchor,
     ]),
     AuthModule,
     UserModule,

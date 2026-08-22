@@ -1,6 +1,8 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-export class AddMissingIndexes20260627 implements MigrationInterface {
+export class AddMissingIndexes2026062700001 implements MigrationInterface {
+  name = 'AddMissingIndexes2026062700001';
+
   public async up(queryRunner: QueryRunner): Promise<void> {
     const statements = [
       // Confession created_at indexes (both naming variants present in repo history)
