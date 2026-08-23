@@ -1,4 +1,5 @@
 import { normalizeConfession } from "../../lib/utils/normalizeConfession";
+import { methodNotAllowed } from "@/app/lib/api/proxy";
 import { createApiErrorResponse } from "@/lib/apiErrorHandler";
 import { getApiBaseUrl } from "@/app/lib/config";
 import { getOrCreateRequestId, requestIdResponseHeaders } from "@/app/lib/utils/requestId";
@@ -171,3 +172,15 @@ export async function GET(request: Request) {
   }
 }
 
+
+export async function PUT(request: Request) {
+  return methodNotAllowed("PUT", ["GET", "POST"]);
+}
+
+export async function PATCH(request: Request) {
+  return methodNotAllowed("PATCH", ["GET", "POST"]);
+}
+
+export async function DELETE(request: Request) {
+  return methodNotAllowed("DELETE", ["GET", "POST"]);
+}

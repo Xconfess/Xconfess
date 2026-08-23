@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { methodNotAllowed } from "@/app/lib/api/proxy";
 
 const BACKEND_URL = process.env.BACKEND_URL || "http://localhost:3001";
 
@@ -50,4 +51,20 @@ export async function GET(request: NextRequest) {
     console.error("Search API error:", error);
     return NextResponse.json({ results: [] }, { status: 200 });
   }
+}
+
+export async function POST(request: Request) {
+  return methodNotAllowed("POST", ["GET"]);
+}
+
+export async function PUT(request: Request) {
+  return methodNotAllowed("PUT", ["GET"]);
+}
+
+export async function PATCH(request: Request) {
+  return methodNotAllowed("PATCH", ["GET"]);
+}
+
+export async function DELETE(request: Request) {
+  return methodNotAllowed("DELETE", ["GET"]);
 }

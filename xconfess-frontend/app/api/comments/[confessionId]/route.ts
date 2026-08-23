@@ -1,4 +1,5 @@
 import { createApiErrorResponse } from "@/lib/apiErrorHandler";
+import { methodNotAllowed } from "@/app/lib/api/proxy";
 import { getApiBaseUrl } from "@/app/lib/config";
 import { getOrCreateRequestId } from "@/app/lib/utils/requestId";
 
@@ -169,4 +170,19 @@ export async function POST(
       route: "POST /api/comments/[confessionId]"
     });
   }
+}
+export async function GET(_request: Request) {
+  return methodNotAllowed("GET", ["POST"]);
+}
+
+export async function PUT(_request: Request) {
+  return methodNotAllowed("PUT", ["POST"]);
+}
+
+export async function PATCH(_request: Request) {
+  return methodNotAllowed("PATCH", ["POST"]);
+}
+
+export async function DELETE(_request: Request) {
+  return methodNotAllowed("DELETE", ["POST"]);
 }

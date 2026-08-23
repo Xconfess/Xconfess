@@ -1,3 +1,4 @@
+import { methodNotAllowed } from "@/app/lib/api/proxy";
 import {
   isValidReactionType,
   REACTION_EMOJI_MAP,
@@ -138,3 +139,19 @@ export async function POST(
   }
 }
 
+
+export async function GET(_request: Request) {
+  return methodNotAllowed("GET", ["POST"]);
+}
+
+export async function PUT(_request: Request) {
+  return methodNotAllowed("PUT", ["POST"]);
+}
+
+export async function PATCH(_request: Request) {
+  return methodNotAllowed("PATCH", ["POST"]);
+}
+
+export async function DELETE(_request: Request) {
+  return methodNotAllowed("DELETE", ["POST"]);
+}

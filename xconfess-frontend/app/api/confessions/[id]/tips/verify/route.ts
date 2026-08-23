@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { methodNotAllowed } from "@/app/lib/api/proxy";
 import { cookies } from "next/headers";
 import { getApiBaseUrl } from "@/app/lib/config";
 
@@ -51,4 +52,20 @@ export async function POST(
       { status: 503 },
     );
   }
+}
+
+export async function GET(request: Request) {
+  return methodNotAllowed("GET", ["POST"]);
+}
+
+export async function PUT(request: Request) {
+  return methodNotAllowed("PUT", ["POST"]);
+}
+
+export async function PATCH(request: Request) {
+  return methodNotAllowed("PATCH", ["POST"]);
+}
+
+export async function DELETE(request: Request) {
+  return methodNotAllowed("DELETE", ["POST"]);
 }

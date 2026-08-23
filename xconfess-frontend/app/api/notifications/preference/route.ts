@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { methodNotAllowed } from "@/app/lib/api/proxy";
 import { createApiErrorResponse } from "@/lib/apiErrorHandler";
 import { getApiBaseUrl } from "@/app/lib/config";
 
@@ -75,3 +76,15 @@ export async function PUT(request: NextRequest) {
   }
 }
 
+
+export async function POST(request: Request) {
+  return methodNotAllowed("POST", ["GET", "PUT"]);
+}
+
+export async function PATCH(request: Request) {
+  return methodNotAllowed("PATCH", ["GET", "PUT"]);
+}
+
+export async function DELETE(request: Request) {
+  return methodNotAllowed("DELETE", ["GET", "PUT"]);
+}
