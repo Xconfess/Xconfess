@@ -15,6 +15,9 @@ import { useGlobalToast } from '@/app/components/common/Toast';
 import { useMessageE2E } from '@/app/lib/hooks/useMessageE2E';
 import { ENCRYPTED_PREVIEW } from '@/app/lib/crypto/messageE2E';
 import { ConfirmDialog } from '@/app/components/admin/ConfirmDialog';
+import {
+  useMessageThreadRealtime,
+} from '@/app/lib/hooks/useMessageThreadRealtime';
 
 function extractPageData<T>(payload: unknown): T[] {
   if (!payload || typeof payload !== 'object') return [];
@@ -59,6 +62,10 @@ interface Message {
   hasReply: boolean;
   replyContent: string | null;
   repliedAt: string | null;
+  /** Timestamp when the confession author read this thread message entry. */
+  authorReadAt?: string | null;
+  /** Timestamp when the sender read the reply state for this thread message entry. */
+  senderReadAt?: string | null;
 }
 
 interface DecryptedMessage extends Message {
@@ -196,6 +203,21 @@ export default function MessagesPage() {
   const toast = useGlobalToast();
   const inputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const {
+    connectionState,
+    reconnectAttempts,
+    isPolling,
+  } = useMessageThreadRealtime({
+    enabled: Boolean(selectedThread),
+    onPoll: () => {
+      if (selectedThread && e2eReady) {
+        fetchMessages(selectedThread);
+      }
+    },
+  });
+  const isSocketDegraded =
+    connectionState === 'disconnected' || connectionState === 'reconnecting';
 
   const fetchThreads = useCallback(async () => {
     try {
@@ -501,6 +523,20 @@ export default function MessagesPage() {
                     <Badge variant="outline" className="text-[9px] py-0 h-3.5">{selectedThread.isAuthor ? 'AUTHOR' : 'SENDER'}</Badge>
                   </div>
                 </div>
+                {isSocketDegraded && (
+                  <div
+                    role="status"
+                    aria-live="polite"
+                    className="ml-auto flex items-center gap-1 rounded-full bg-amber-500/10 border border-amber-500/30 px-2 py-0.5 text-[10px] text-amber-600 dark:text-amber-400"
+                  >
+                    <RefreshCw className={`w-3 h-3 ${connectionState === 'reconnecting' ? 'animate-spin' : ''}`} aria-hidden />
+                    {connectionState === 'reconnecting'
+                      ? `Reconnecting${reconnectAttempts ? ` (${reconnectAttempts})` : ''}`
+                      : isPolling
+                        ? 'Offline — polling receipts'
+                        : 'Offline'}
+                  </div>
+                )}
               </div>
               <ScrollArea className="flex-1 p-3 bg-gray-50 dark:bg-gray-900">
                 {isLoadingMessages || !e2eReady ? (
@@ -541,6 +577,9 @@ export default function MessagesPage() {
                               <p className={`text-[10px] ${selectedThread.isAuthor ? 'text-gray-400' : 'text-purple-200'}`}>
                                 {formatDistanceToNow(new Date(msg.createdAt), { addSuffix: true })}
                               </p>
+                              {!selectedThread.isAuthor && msg.authorReadAt && (
+                                <span className="text-[8px] text-emerald-400">Read</span>
+                              )}
                               {!selectedThread.isAuthor && msg.hasReply && (
                                 <Badge variant="secondary" className="bg-purple-500/50 text-[8px] py-0 h-3 text-white border-none">Replied</Badge>
                               )}
@@ -555,9 +594,14 @@ export default function MessagesPage() {
                                 : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700'
                             }`}>
                               <p className="text-sm">{msg.decryptedReply}</p>
-                              <p className={`text-[10px] mt-1 ${selectedThread.isAuthor ? 'text-purple-200' : 'text-gray-400'}`}>
-                                {msg.repliedAt && formatDistanceToNow(new Date(msg.repliedAt), { addSuffix: true })}
-                              </p>
+                              <div className="flex items-center gap-1 mt-1">
+                                <p className={`text-[10px] mt-1 ${selectedThread.isAuthor ? 'text-purple-200' : 'text-gray-400'}`}>
+                                  {msg.repliedAt && formatDistanceToNow(new Date(msg.repliedAt), { addSuffix: true })}
+                                </p>
+                                {selectedThread.isAuthor && msg.senderReadAt && (
+                                  <span className="text-[8px] text-emerald-400">Read</span>
+                                )}
+                              </div>
                             </Card>
                           </div>
                         )}
@@ -571,14 +615,18 @@ export default function MessagesPage() {
                 <div className="flex gap-2">
                   <Input
                     ref={inputRef}
-                    placeholder={selectedThread.isAuthor ? 'Type an encrypted reply...' : 'Send encrypted message...'}
+                    placeholder={
+                      isSocketDegraded
+                        ? 'Reconnecting — typing unavailable'
+                        : selectedThread.isAuthor ? 'Type an encrypted reply...' : 'Send encrypted message...'
+                    }
                     value={newMessage}
                     onChange={(e) => setNewMessage(e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
-                    disabled={isSending || !e2eReady}
+                    disabled={isSending || !e2eReady || isSocketDegraded}
                     className="flex-1 text-sm"
                   />
-                  <Button onClick={handleSendMessage} disabled={isSending || !newMessage.trim() || !e2eReady} size="sm">
+                  <Button onClick={handleSendMessage} disabled={isSending || !newMessage.trim() || !e2eReady || isSocketDegraded} size="sm">
                     <Send className="w-4 h-4" />
                   </Button>
                 </div>
@@ -675,7 +723,19 @@ export default function MessagesPage() {
                     </div>
                     <div>
                       <h2 className="text-sm font-bold text-gray-900 dark:text-gray-100 line-clamp-1">{selectedThread.confessionMessage}</h2>
-                      <Badge variant="outline" className="text-[10px] py-0 h-4">{selectedThread.isAuthor ? 'AUTHOR VIEW' : 'SENDER VIEW'}</Badge>
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline" className="text-[10px] py-0 h-4">{selectedThread.isAuthor ? 'AUTHOR VIEW' : 'SENDER VIEW'}</Badge>
+                        {isSocketDegraded && (
+                          <span className="flex items-center gap-1 rounded-full bg-amber-500/10 border border-amber-500/30 px-2 py-0.5 text-[10px] text-amber-600 dark:text-amber-400">
+                            <RefreshCw className={`w-3 h-3 ${connectionState === 'reconnecting' ? 'animate-spin' : ''}`} aria-hidden />
+                            {connectionState === 'reconnecting'
+                              ? `Reconnecting${reconnectAttempts ? ` (${reconnectAttempts})` : ''}`
+                              : isPolling
+                                ? 'Offline — polling receipts'
+                                : 'Offline'}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -711,6 +771,9 @@ export default function MessagesPage() {
                                 <p className={`text-[10px] ${selectedThread.isAuthor ? 'text-gray-400' : 'text-purple-200'}`}>
                                   {formatDistanceToNow(new Date(msg.createdAt), { addSuffix: true })}
                                 </p>
+                                {!selectedThread.isAuthor && msg.authorReadAt && (
+                                  <span className="text-[8px] text-emerald-400">Read</span>
+                                )}
                                 {!selectedThread.isAuthor && msg.hasReply && (
                                   <Badge variant="secondary" className="bg-purple-500/50 text-[8px] py-0 h-3 text-white border-none">Replied</Badge>
                                 )}
@@ -750,14 +813,18 @@ export default function MessagesPage() {
                 <div className="p-4 bg-white dark:bg-gray-950 border-t border-gray-200 dark:border-gray-800">
                   <div className="flex gap-2">
                     <Input
-                      placeholder={selectedThread.isAuthor ? 'Type an encrypted reply...' : 'Send encrypted message...'}
+                      placeholder={
+                        isSocketDegraded
+                          ? 'Reconnecting — typing unavailable'
+                          : selectedThread.isAuthor ? 'Type an encrypted reply...' : 'Send encrypted message...'
+                      }
                       value={newMessage}
                       onChange={(e) => setNewMessage(e.target.value)}
                       onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
-                      disabled={isSending || !e2eReady}
+                      disabled={isSending || !e2eReady || isSocketDegraded}
                       className="flex-1"
                     />
-                    <Button onClick={handleSendMessage} disabled={isSending || !newMessage.trim() || !e2eReady}>
+                    <Button onClick={handleSendMessage} disabled={isSending || !newMessage.trim() || !e2eReady || isSocketDegraded}>
                       <Send className="w-4 h-4" />
                     </Button>
                   </div>
