@@ -87,6 +87,7 @@ export const authApi = {
 
       if (!response.ok) {
         const body = await response.json().catch(() => ({}));
+        const requestId = response.headers.get("x-request-id") || undefined;
         
         // Check if response is a normalized auth error from the proxy route
         if (isNormalizedAuthError(body)) {
@@ -96,6 +97,7 @@ export const authApi = {
             responseBody: body,
             path: '/api/auth/session',
             normalized,
+            ...(requestId ? { requestId } : {}),
           });
           logError(appError, 'authApi.login', { status: response.status });
           throw appError;
@@ -117,6 +119,7 @@ export const authApi = {
           path: '/api/auth/session',
           upstreamMessage:
             typeof rawApi === 'string' ? rawApi : undefined,
+          ...(requestId ? { requestId } : {}),
         });
         logError(apiError, 'authApi.login', { status, url: '/api/auth/session' });
         throw apiError;
@@ -146,6 +149,7 @@ export const authApi = {
 
       if (!response.ok) {
         const body = await response.json().catch(() => ({}));
+        const requestId = response.headers.get("x-request-id") || undefined;
         const message =
           (body as any)?.message ?? `Registration failed (${response.status})`;
         const field = extractAuthFieldError(body);
@@ -153,6 +157,7 @@ export const authApi = {
           responseBody: body,
           path: '/api/users/register',
           field,
+          ...(requestId ? { requestId } : {}),
         });
       }
 

@@ -14,6 +14,8 @@ import {
   hasErrors,
   type ValidationErrors,
 } from '@/app/lib/utils/validation';
+import { extractRequestId, AppError } from '@/app/lib/utils/errorHandler';
+import { RequestIdDisplay } from '@/app/components/request-id/RequestIdDisplay';
 
 const showDevMockAdminLogin =
   process.env.NEXT_PUBLIC_ENABLE_DEV_MOCK_ADMIN_LOGIN === 'true';
@@ -24,6 +26,7 @@ export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [errors, setErrors] = useState<ValidationErrors>({});
+  const [requestId, setRequestId] = useState<string | undefined>(undefined);
   const [loading, setLoading] = useState(false);
 
   const doMockAdminLogin = async () => {
@@ -62,6 +65,7 @@ export default function LoginPage() {
 
     setLoading(true);
     setErrors({});
+    setRequestId(undefined);
     try {
       const user = await login({
         email: parsed.data.email,
@@ -71,6 +75,13 @@ export default function LoginPage() {
     } catch (e: unknown) {
       const message = e instanceof Error ? e.message : 'Login failed';
       setErrors({ password: message });
+      // Extract request ID from the error for display in the UI
+      const rid = extractRequestId(e);
+      if (rid) {
+        setRequestId(rid);
+      } else if (e instanceof AppError && e.details?.requestId) {
+        setRequestId(e.details.requestId as string);
+      }
     } finally {
       setLoading(false);
     }
@@ -106,12 +117,14 @@ export default function LoginPage() {
             {errors.email && (
               <div className="mt-5 rounded-[20px] border border-red-200 bg-red-50 p-3 text-sm text-red-700">
                 {errors.email}
+                {requestId && <RequestIdDisplay requestId={requestId} />}
               </div>
             )}
 
             {errors.password && !errors.email && (
               <div className="mt-5 rounded-[20px] border border-red-200 bg-red-50 p-3 text-sm text-red-700">
                 {errors.password}
+                {requestId && <RequestIdDisplay requestId={requestId} />}
               </div>
             )}
 

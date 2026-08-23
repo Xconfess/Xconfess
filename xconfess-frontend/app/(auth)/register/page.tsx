@@ -9,8 +9,9 @@ import { Button } from '@/app/components/ui/button';
 import { Input } from '@/app/components/ui/input';
 import { BrandLogo } from '@/app/components/brand/BrandLogo';
 import { useAuth } from '@/app/lib/hooks/useAuth';
-import { getErrorMessage } from '@/app/lib/utils/errorHandler';
+import { getErrorMessage, extractRequestId } from '@/app/lib/utils/errorHandler';
 import { getAuthFieldError } from '@/app/lib/api/authService';
+import { RequestIdDisplay } from '@/app/components/request-id/RequestIdDisplay';
 import {
   validateRegisterForm,
   parseRegisterForm,
@@ -40,6 +41,7 @@ export default function RegisterPage() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [errors, setErrors] = useState<ValidationErrors>({});
   const [submitError, setSubmitError] = useState('');
+  const [requestId, setRequestId] = useState<string | undefined>(undefined);
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -56,6 +58,7 @@ export default function RegisterPage() {
     if (field === 'confirmPassword') setConfirmPassword(value);
 
     setSubmitError('');
+    setRequestId(undefined);
     if (errors[field]) {
       setErrors((prev) => ({ ...prev, [field]: undefined }));
     }
@@ -80,6 +83,8 @@ export default function RegisterPage() {
     }
 
     setLoading(true);
+    setSubmitError('');
+    setRequestId(undefined);
     try {
       await register({
         username: parsed.data.username,
@@ -95,6 +100,10 @@ export default function RegisterPage() {
         setSubmitError('');
       } else {
         setSubmitError(message);
+      }
+      const rid = extractRequestId(error);
+      if (rid) {
+        setRequestId(rid);
       }
     } finally {
       setLoading(false);
@@ -147,6 +156,7 @@ export default function RegisterPage() {
                 role="alert"
               >
                 {submitError}
+                {requestId && <RequestIdDisplay requestId={requestId} />}
               </div>
             )}
 
