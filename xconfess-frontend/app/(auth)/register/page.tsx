@@ -9,8 +9,9 @@ import { Button } from '@/app/components/ui/button';
 import { Input } from '@/app/components/ui/input';
 import { BrandLogo } from '@/app/components/brand/BrandLogo';
 import { useAuth } from '@/app/lib/hooks/useAuth';
-import { getErrorMessage } from '@/app/lib/utils/errorHandler';
+import { getErrorMessage, extractRequestId } from '@/app/lib/utils/errorHandler';
 import { getAuthFieldError } from '@/app/lib/api/authService';
+import { RequestIdBadge } from '@/app/components/common/RequestIdBadge';
 import {
   validateRegisterForm,
   parseRegisterForm,
@@ -40,6 +41,7 @@ export default function RegisterPage() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [errors, setErrors] = useState<ValidationErrors>({});
   const [submitError, setSubmitError] = useState('');
+  const [requestId, setRequestId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -68,6 +70,7 @@ export default function RegisterPage() {
     const validationErrors = validateRegisterForm(formData);
     setErrors(validationErrors);
     setSubmitError('');
+    setRequestId(null);
 
     if (hasErrors(validationErrors)) {
       return;
@@ -96,6 +99,8 @@ export default function RegisterPage() {
       } else {
         setSubmitError(message);
       }
+      const rid = extractRequestId(error);
+      if (rid) setRequestId(rid);
     } finally {
       setLoading(false);
     }
@@ -147,6 +152,16 @@ export default function RegisterPage() {
                 role="alert"
               >
                 {submitError}
+                {requestId && <RequestIdBadge requestId={requestId} />}
+              </div>
+            )}
+
+            {requestId && !submitError && (
+              <div className="mt-4 flex items-center gap-2 rounded-[16px] border border-red-200 bg-red-50 px-3 py-2">
+                <span className="text-xs text-red-600/80">
+                  Auth failed — include the request ID below when reporting the issue:
+                </span>
+                <RequestIdBadge requestId={requestId} />
               </div>
             )}
 

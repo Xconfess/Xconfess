@@ -8,6 +8,8 @@ import { Button } from '@/app/components/ui/button';
 import { Input } from '@/app/components/ui/input';
 import { BrandLogo } from '@/app/components/brand/BrandLogo';
 import { useAuth } from '@/app/lib/hooks/useAuth';
+import { extractRequestId } from '@/app/lib/utils/errorHandler';
+import { RequestIdBadge } from '@/app/components/common/RequestIdBadge';
 import {
   validateLoginForm,
   parseLoginForm,
@@ -25,6 +27,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [errors, setErrors] = useState<ValidationErrors>({});
   const [loading, setLoading] = useState(false);
+  const [requestId, setRequestId] = useState<string | null>(null);
 
   const doMockAdminLogin = async () => {
     setLoading(true);
@@ -62,6 +65,7 @@ export default function LoginPage() {
 
     setLoading(true);
     setErrors({});
+    setRequestId(null);
     try {
       const user = await login({
         email: parsed.data.email,
@@ -71,6 +75,8 @@ export default function LoginPage() {
     } catch (e: unknown) {
       const message = e instanceof Error ? e.message : 'Login failed';
       setErrors({ password: message });
+      const rid = extractRequestId(e);
+      if (rid) setRequestId(rid);
     } finally {
       setLoading(false);
     }
@@ -106,12 +112,14 @@ export default function LoginPage() {
             {errors.email && (
               <div className="mt-5 rounded-[20px] border border-red-200 bg-red-50 p-3 text-sm text-red-700">
                 {errors.email}
+                {requestId && <RequestIdBadge requestId={requestId} />}
               </div>
             )}
 
             {errors.password && !errors.email && (
               <div className="mt-5 rounded-[20px] border border-red-200 bg-red-50 p-3 text-sm text-red-700">
                 {errors.password}
+                {requestId && <RequestIdBadge requestId={requestId} />}
               </div>
             )}
 

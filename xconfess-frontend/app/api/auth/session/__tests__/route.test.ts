@@ -91,4 +91,25 @@ describe("GET /api/auth/session", () => {
 
     expect(mockCookieStore.delete).toHaveBeenCalledWith("xconfess_session");
   });
+
+  it("should include x-request-id header and requestId body on errors", async () => {
+    const requestWithId = new Request(
+      "https://xconfess.vercel.app/api/auth/session",
+      { headers: { "x-request-id": "req-abc-123" } },
+    );
+
+    (global.fetch as jest.Mock).mockResolvedValue({
+      ok: false,
+      status: 401,
+    });
+
+    const response = await GET(requestWithId);
+
+    expect(response.status).toBe(401);
+    expect(response.headers.get("x-request-id")).toBe("req-abc-123");
+    await expect(response.json()).resolves.toMatchObject({
+      type: "TERMINAL",
+      requestId: "req-abc-123",
+    });
+  });
 });
