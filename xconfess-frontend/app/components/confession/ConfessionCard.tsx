@@ -116,7 +116,7 @@ export const ConfessionCard = memo(({ confession }: Props) => {
             />
             <label
               htmlFor={`compare-${confession.id}`}
-              className="text-xs text-[var(--secondary)] cursor-pointer"
+              className="text-xs leading-none text-[var(--secondary)] cursor-pointer"
             >
               Compare
             </label>
