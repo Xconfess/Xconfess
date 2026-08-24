@@ -193,6 +193,19 @@ export const adminApi = {
     return response.data;
   },
 
+  bulkActionReports: async (
+    reportIds: string[],
+    action: 'approve' | 'reject' | 'ban',
+    notes?: string,
+  ) => {
+    const response = await apiClient.patch('/api/admin/reports/bulk-action', {
+      reportIds,
+      action,
+      notes,
+    });
+    return response.data;
+  },
+
   // Report stats
   getReportStats: async () => {
     const response = await apiClient.get('/api/admin/reports/stats');

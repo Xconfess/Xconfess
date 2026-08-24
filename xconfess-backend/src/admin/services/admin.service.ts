@@ -1,4 +1,5 @@
-﻿import {
+import {
+import { BulkAction } from '../dto/bulk-action.dto';
   Injectable,
   NotFoundException,
   BadRequestException,
@@ -41,6 +42,21 @@ export interface BulkResolveResult {
   skipped: number;
   notFound: number;
   outcomes: BulkResolveOutcome[];
+}
+
+export interface BulkActionOutcome {
+  id: string;
+  outcome: 'processed' | 'skipped' | 'not_found';
+  previousStatus?: ReportStatus;
+  newStatus?: ReportStatus;
+}
+
+export interface BulkActionResult {
+  requested: number;
+  processed: number;
+  skipped: number;
+  notFound: number;
+  outcomes: BulkActionOutcome[];
 }
 
 type UserSortField = "createdAt" | "username" | "role" | "status";
@@ -1104,6 +1120,127 @@ export class AdminService {
         end,
       },
     };
+  }
+
+  async bulkActionReports(
+    ids: string[],
+    action: BulkAction,
+    adminId: number,
+    notes: string | null,
+    request?: Request,
+  ): Promise<BulkActionResult> {
+    const result = await this.runInModerationTransaction(async (manager) => {
+      const reportRepo = manager.getRepository(Report);
+      const userRepo = manager.getRepository(User);
+
+      const found = await reportRepo.find({ where: { id: In(ids) } });
+      const foundById = new Map(found.map((r) => [r.id, r]));
+
+      const outcomes: BulkActionOutcome[] = [];
+      const toSave: Report[] = [];
+      const now = new Date();
+      let bannedCount = 0;
+
+      for (const id of ids) {
+        const report = foundById.get(id);
+
+        if (!report) {
+          outcomes.push({ id, outcome: 'not_found' });
+          continue;
+        }
+
+        if (
+          report.status === ReportStatus.RESOLVED ||
+          report.status === ReportStatus.DISMISSED
+        ) {
+          outcomes.push({ id, outcome: 'skipped', previousStatus: report.status });
+          continue;
+        }
+
+        const before = report.status;
+
+        switch (action) {
+          case BulkAction.APPROVE:
+            report.status = ReportStatus.RESOLVED;
+            break;
+          case BulkAction.REJECT:
+            report.status = ReportStatus.DISMISSED;
+            break;
+          case BulkAction.BAN:
+            report.status = ReportStatus.RESOLVED;
+            // Also deactivate the registered reporter if one is linked.
+            if (report.reporterId) {
+              const user = await userRepo.findOne({
+                where: { id: report.reporterId },
+              });
+              if (user && user.is_active) {
+                user.is_active = false;
+                await userRepo.save(user);
+                bannedCount += 1;
+              }
+            }
+            break;
+        }
+
+        report.resolvedBy = adminId;
+        report.resolvedAt = now;
+        report.resolutionNotes = notes;
+        toSave.push(report);
+        outcomes.push({
+          id,
+          outcome: 'processed',
+          previousStatus: before,
+          newStatus: report.status,
+        });
+      }
+
+      if (toSave.length > 0) {
+        await reportRepo.save(toSave);
+      }
+
+      for (const item of outcomes) {
+        const auditAction =
+          action === BulkAction.APPROVE
+            ? AuditActionType.REPORT_RESOLVED
+            : action === BulkAction.REJECT
+              ? AuditActionType.REPORT_DISMISSED
+              : AuditActionType.BULK_ACTION;
+
+        await this.moderationService.logAction(
+          adminId,
+          auditAction,
+          'report',
+          item.id,
+          {
+            action: `bulk_${action}`,
+            outcome: item.outcome,
+            previousStatus: item.previousStatus ?? null,
+            newStatus: item.newStatus ?? null,
+            ...(action === BulkAction.BAN ? { bannedReporter: true } : {}),
+          },
+          notes,
+          request,
+          manager,
+        );
+      }
+
+      return {
+        toPublish: toSave,
+        summary: {
+          requested: ids.length,
+          processed: outcomes.filter((o) => o.outcome === 'processed').length,
+          skipped: outcomes.filter((o) => o.outcome === 'skipped').length,
+          notFound: outcomes.filter((o) => o.outcome === 'not_found').length,
+          outcomes,
+        },
+      };
+    });
+
+    if (result.toPublish.length > 0) {
+      this.eventEmitter.emit('reports.bulk.updated', result.toPublish);
+    }
+
+    return result.summary;
   }
 
   async getObservability(startDate?: Date, endDate?: Date) {

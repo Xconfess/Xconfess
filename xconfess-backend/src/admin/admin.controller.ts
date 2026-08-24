@@ -31,6 +31,7 @@ import { ResolveReportDto } from './dto/resolve-report.dto';
 import { BanUserDto } from './dto/ban-user.dto';
 import { UpdateUserRoleDto } from './dto/update-user-role.dto';
 import { BulkResolveDto } from './dto/bulk-resolve.dto';
+import { BulkActionDto } from './dto/bulk-action.dto';
 import { ReportStatus, ReportType } from './entities/report.entity';
 import { AuditActionType } from '../audit-log/audit-log.entity';
 import { AuditLogService } from '../audit-log/audit-log.service';
@@ -299,6 +300,39 @@ export class AdminController {
   ) {
     return this.adminService.bulkResolveReports(
       dto.reportIds,
+      adminId,
+      dto.notes || null,
+      req,
+    );
+  }
+  // Bulk moderation actions (issue #1664)
+  @Patch('reports/bulk-action')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Bulk-action reports (approve/reject/ban)' })
+  @ApiBody({
+    schema: {
+      example: {
+        reportIds: ['abc-123', 'def-456'],
+        action: 'approve',
+        notes: 'Batch action — content policy violation.',
+      },
+    },
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Bulk action applied transactionally.',
+    schema: {
+      example: { requested: 2, processed: 2, skipped: 0, notFound: 0 },
+    },
+  })
+  async bulkActionReports(
+    @Body() dto: BulkActionDto,
+    @GetUser('id') adminId: number,
+    @Req() req: AuthedRequest,
+  ) {
+    return this.adminService.bulkActionReports(
+      dto.reportIds,
+      dto.action,
       adminId,
       dto.notes || null,
       req,

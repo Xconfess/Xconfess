@@ -9,6 +9,7 @@ import { Button } from "@/app/components/ui/button";
 import { useExportCSV } from "@/app/lib/hooks/useExportCSV";
 import { ExportCsvButton } from "@/app/components/admin/ExportCsvButton";
 import { useAdminConfirmation } from "@/app/components/admin/useAdminConfirmation";
+import { useGlobalToast } from "@/app/components/common/Toast";
 
 export default function ReportList() {
   const [selectedReport, setSelectedReport] = useState<string | null>(null);
@@ -22,6 +23,8 @@ export default function ReportList() {
   const queryClient = useQueryClient();
   const { triggerExport, isExporting: isExportingCsv } = useExportCSV({ label: 'reports' });
   const { openConfirmation, confirmDialog } = useAdminConfirmation();
+  const toast = useGlobalToast();
+  const [bulkAction, setBulkAction] = useState<'approve' | 'reject' | 'ban'>('approve');
 
   const reportListKey = queryKeys.admin.reports.list({
     statusFilter,
@@ -44,30 +47,14 @@ export default function ReportList() {
       }),
   });
 
-  const bulkResolveMutation = useMutation({
-    mutationFn: ({ ids }: { ids: string[] }) => adminApi.bulkResolveReports(ids),
-    onMutate: async ({ ids }) => {
-      await queryClient.cancelQueries({ queryKey: queryKeys.admin.reports.all() });
-      const snapshots = queryClient.getQueriesData({ queryKey: queryKeys.admin.reports.all() });
-      queryClient.setQueriesData(
-        { queryKey: queryKeys.admin.reports.all() },
-        (old: any) => {
-          if (!old?.reports) return old;
-          return {
-            ...old,
-            reports: old.reports.map((r: Report) =>
-              ids.includes(r.id) ? { ...r, status: "resolved" } : r,
-            ),
-          };
-        },
-      );
-      return { snapshots };
-    },
-    onError: (_err, _vars, context) => {
-      context?.snapshots?.forEach(([key, data]) => {
-        queryClient.setQueryData(key, data);
-      });
-    },
+  const bulkMutation = useMutation({
+    mutationFn: ({
+      ids,
+      action,
+    }: {
+      ids: string[];
+      action: 'approve' | 'reject' | 'ban';
+    }) => adminApi.bulkActionReports(ids, action),
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.admin.reports.all() });
     },
@@ -85,19 +72,84 @@ export default function ReportList() {
     setSelectedIds(newSet);
   };
 
-  const handleBulkResolve = () => {
+  const actionLabels: Record<string, string> = {
+    approve: 'Approve',
+    reject: 'Reject',
+    ban: 'Ban',
+  };
+
+  const handleBulkAction = () => {
     if (selectedIds.size === 0) return;
     const reportIds = Array.from(selectedIds);
+    const actionLabel = actionLabels[bulkAction].toLowerCase();
+
     openConfirmation({
-      title: 'Resolve selected reports?',
-      description: `This will mark ${reportIds.length} selected reports as resolved.`,
-      confirmLabel: 'Resolve',
-      action: () => bulkResolveMutation.mutateAsync({ ids: reportIds }),
-      successMessage: 'Selected reports resolved.',
-      errorMessage: 'Failed to resolve selected reports.',
-      onSuccess: () => {
+      title: `${actionLabels[bulkAction]} selected reports?`,
+      description: `This will ${actionLabel} ${reportIds.length} selected reports.`,
+      confirmLabel: actionLabels[bulkAction],
+      action: () => {
+        // Optimistic UI update
+        const statusMap: Record<string, string> = {
+          approve: 'resolved',
+          reject: 'dismissed',
+          ban: 'resolved',
+        };
+        const newStatus = statusMap[bulkAction];
+
+        queryClient.setQueriesData(
+          { queryKey: queryKeys.admin.reports.all() },
+          (old: any) => {
+            if (!old?.reports) return old;
+            return {
+              ...old,
+              reports: old.reports.map((r: Report) =>
+                reportIds.includes(r.id) ? { ...r, status: newStatus } : r,
+              ),
+            };
+          },
+        );
         setSelectedIds(new Set());
+
+        // 10-second undo window before committing server-side.
+        const timerId = setTimeout(() => {
+          bulkMutation.mutate(
+            { ids: reportIds, action: bulkAction },
+            {
+              onSuccess: () => {
+                toast.success(`${reportIds.length} reports ${actionLabel}d.`, {
+                  duration: 3000,
+                });
+              },
+              onError: () => {
+                toast.error(`Failed to ${actionLabel} reports.`);
+                queryClient.invalidateQueries({
+                  queryKey: queryKeys.admin.reports.all(),
+                });
+              },
+            },
+          );
+        }, 10000);
+
+        toast.info(
+          `${actionLabels[bulkAction]} pending — Undo available for 10s`,
+          {
+            duration: 10000,
+            action: {
+              label: 'Undo',
+              onClick: () => {
+                clearTimeout(timerId);
+                // Revert optimistic UI locally — no backend call is made.
+                queryClient.invalidateQueries({
+                  queryKey: queryKeys.admin.reports.all(),
+                });
+                toast.info('Bulk action cancelled.', { duration: 3000 });
+              },
+            },
+          },
+        );
       },
+      successMessage: '',
+      errorMessage: `Failed to ${actionLabel} reports.`,
     });
   };
 
@@ -245,15 +297,29 @@ export default function ReportList() {
               className="min-h-[44px]"
             />
             {selectedIds.size > 0 && (
-              <Button
-                variant="default"
-                size="sm"
-                onClick={handleBulkResolve}
-                aria-label={`Resolve ${selectedIds.size} selected reports`}
-                className="min-h-[44px] rounded-md bg-indigo-600 px-4 py-2 text-sm text-white hover:bg-indigo-700"
-              >
-                Resolve Selected ({selectedIds.size})
-              </Button>
+              <div className="flex items-center gap-2">
+                <select
+                  value={bulkAction}
+                  onChange={(e) =>
+                    setBulkAction(e.target.value as 'approve' | 'reject' | 'ban')
+                  }
+                  className="min-h-[44px] rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white text-sm"
+                  aria-label="Select bulk action"
+                >
+                  <option value="approve">Approve</option>
+                  <option value="reject">Reject</option>
+                  <option value="ban">Ban</option>
+                </select>
+                <Button
+                  variant="default"
+                  size="sm"
+                  onClick={handleBulkAction}
+                  aria-label={`${actionLabels[bulkAction]} ${selectedIds.size} selected reports`}
+                  className="min-h-[44px] rounded-md bg-indigo-600 px-4 py-2 text-sm text-white hover:bg-indigo-700"
+                >
+                  {actionLabels[bulkAction]} Selected ({selectedIds.size})
+                </Button>
+              </div>
             )}
           </div>
         </div>
