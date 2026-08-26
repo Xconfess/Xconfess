@@ -6,7 +6,7 @@
  * path, since accepting protocol-relative or absolute URLs would allow an
  * open redirect (e.g. /login?next=https://evil.com).
  */
-import { isSafeAuthRedirect } from '@/app/(auth)/login/page';
+import { isSafeAuthRedirect } from '@/app/lib/utils/auth-redirect';
 
 describe('isSafeAuthRedirect', () => {
   it('rejects null', () => {

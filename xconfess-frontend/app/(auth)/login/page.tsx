@@ -8,6 +8,7 @@ import { Button } from '@/app/components/ui/button';
 import { Input } from '@/app/components/ui/input';
 import { BrandLogo } from '@/app/components/brand/BrandLogo';
 import { useAuth } from '@/app/lib/hooks/useAuth';
+import { isSafeAuthRedirect } from '@/app/lib/utils/auth-redirect';
 import {
   validateLoginForm,
   parseLoginForm,
@@ -247,6 +248,3 @@ function buildAuthSwitchUrl(path: '/register' | '/login'): string {
     : path;
 }
 
-export function isSafeAuthRedirect(value: string | null): value is string {
-  return Boolean(value && value.startsWith('/') && !value.startsWith('//'));
-}
