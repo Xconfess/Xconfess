@@ -247,6 +247,6 @@ function buildAuthSwitchUrl(path: '/register' | '/login'): string {
     : path;
 }
 
-function isSafeAuthRedirect(value: string | null): value is string {
+export function isSafeAuthRedirect(value: string | null): value is string {
   return Boolean(value && value.startsWith('/') && !value.startsWith('//'));
 }
