@@ -107,7 +107,7 @@ export const ConfessionCard = memo(({ confession }: Props) => {
           <p className="text-xs uppercase tracking-[0.16em] text-[var(--secondary)] sm:text-sm">
             <time dateTime={confession.createdAt}>{timeAgo(confession.createdAt)}</time>
           </p>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
             <Checkbox
               id={`compare-${confession.id}`}
               checked={isSelected(confession.id)}
@@ -116,7 +116,7 @@ export const ConfessionCard = memo(({ confession }: Props) => {
             />
             <label
               htmlFor={`compare-${confession.id}`}
-              className="text-xs text-[var(--secondary)] cursor-pointer"
+              className="text-xs leading-none text-[var(--secondary)] cursor-pointer select-none"
             >
               Compare
             </label>
