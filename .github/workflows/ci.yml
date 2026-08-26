@@ -106,11 +106,35 @@ jobs:
       - run: npm install --global npm@10.9.3
       - run: npm ci --include=optional --no-audit --no-fund
       - run: npm run ci:apps
-  env:
-    BACKEND_API_URL: http://localhost:5000/api
-    NEXT_PUBLIC_API_URL: http://localhost:5000/api
-    NEXT_PUBLIC_WS_URL: ws://localhost:5000
-    NEXT_PUBLIC_APP_URL: http://localhost:3000
+
+  deploy-preflight:
+    name: Deploy Preflight
+    needs: [audit, secret-scan]
+    runs-on: ubuntu-latest
+    env:
+      NODE_ENV: production
+      JWT_SECRET: ci-deploy-preflight-dummy-jwt-secret-32chars-min
+      APP_SECRET: ci-deploy-preflight-dummy-app-secret-32chars-min
+      CONFESSION_ENCRYPTION_KEY: a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2
+      ENCRYPTION_MASTER_KEY_v1: b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3
+      TYPEORM_SYNCHRONIZE: false
+      TYPEORM_MIGRATIONS_RUN: true
+      STELLAR_FEATURES_ENABLED: true
+      STELLAR_NETWORK: testnet
+      STELLAR_HORIZON_URL: https://horizon-testnet.stellar.org
+      STELLAR_SOROBAN_RPC_URL: https://soroban-testnet.stellar.org
+      CONFESSION_ANCHOR_CONTRACT_ID: CBFR2MDZBQPTNBIJCT32MTDDQLW2AQNDWNO777F3QT6ANYKTHETQZWD3
+      REPUTATION_BADGES_CONTRACT_ID: CBFR2MDZBQPTNBIJCT32MTDDQLW2AQNDWNO777F3QT6ANYKTHETQZWD3
+      TIPPING_SYSTEM_CONTRACT_ID: CBFR2MDZBQPTNBIJCT32MTDDQLW2AQNDWNO777F3QT6ANYKTHETQZWD3
+      BACKEND_API_URL: https://xconfess-backend-preflight.onrender.com
+      NEXT_PUBLIC_API_URL: https://xconfess-backend-preflight.onrender.com/api
+      FRONTEND_URL: https://xconfess-frontend-preflight.onrender.com
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm run deploy:preflight
 
   contracts:
     name: Contracts
