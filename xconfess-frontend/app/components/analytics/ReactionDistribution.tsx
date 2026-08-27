@@ -27,7 +27,7 @@ export const ReactionDistribution: React.FC<ReactionDistributionProps> = ({
 }) => {
     if (loading) {
         return (
-            <div className="bg-zinc-900/50 border border-zinc-800 rounded-2xl p-6 h-[400px] flex items-center justify-center animate-pulse">
+            <div role='status' aria-label='loading' className="bg-zinc-900/50 border border-zinc-800 rounded-2xl p-6 h-[400px] flex items-center justify-center animate-pulse">
                 <div className="w-48 h-48 bg-zinc-800/30 rounded-full" />
             </div>
         );

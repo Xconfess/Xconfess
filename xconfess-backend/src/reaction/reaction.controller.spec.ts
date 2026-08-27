@@ -8,7 +8,7 @@ describe('ReactionController', () => {
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [ReactionController],
-      providers: [ReactionService],
+      providers: [{ provide: ReactionService, useValue: {} }],
     }).compile();
 
     controller = module.get<ReactionController>(ReactionController);

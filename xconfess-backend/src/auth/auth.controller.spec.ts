@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
+import { StepUpService } from './step-up.service';
 import { BadRequestException } from '@nestjs/common';
 
 describe('AuthController', () => {
@@ -12,6 +13,11 @@ describe('AuthController', () => {
     resetPassword: jest.fn(),
   };
 
+  const mockStepUpService = {
+    createProof: jest.fn(),
+    assertValidProof: jest.fn(),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [AuthController],
@@ -19,6 +25,10 @@ describe('AuthController', () => {
         {
           provide: AuthService,
           useValue: mockAuthService,
+        },
+        {
+          provide: StepUpService,
+          useValue: mockStepUpService,
         },
       ],
     }).compile();
@@ -47,32 +57,42 @@ describe('AuthController', () => {
 
     it('should successfully process forgot password request with email', async () => {
       const forgotPasswordDto = { email: 'test@example.com' };
-      const expectedResponse = { message: 'If the user exists, a password reset email has been sent.' };
+      const expectedResponse = {
+        message: 'If the user exists, a password reset email has been sent.',
+      };
 
       mockAuthService.forgotPassword.mockResolvedValue(expectedResponse);
 
-      const result = await controller.forgotPassword(forgotPasswordDto, mockRequest);
+      const result = await controller.forgotPassword(
+        forgotPasswordDto,
+        mockRequest,
+      );
 
       expect(authService.forgotPassword).toHaveBeenCalledWith(
         forgotPasswordDto,
         '192.168.1.1',
-        'Mozilla/5.0...'
+        'Mozilla/5.0...',
       );
       expect(result).toEqual(expectedResponse);
     });
 
     it('should successfully process forgot password request with userId', async () => {
       const forgotPasswordDto = { userId: 1 };
-      const expectedResponse = { message: 'If the user exists, a password reset email has been sent.' };
+      const expectedResponse = {
+        message: 'If the user exists, a password reset email has been sent.',
+      };
 
       mockAuthService.forgotPassword.mockResolvedValue(expectedResponse);
 
-      const result = await controller.forgotPassword(forgotPasswordDto, mockRequest);
+      const result = await controller.forgotPassword(
+        forgotPasswordDto,
+        mockRequest,
+      );
 
       expect(authService.forgotPassword).toHaveBeenCalledWith(
         forgotPasswordDto,
         '192.168.1.1',
-        'Mozilla/5.0...'
+        'Mozilla/5.0...',
       );
       expect(result).toEqual(expectedResponse);
     });
@@ -97,7 +117,7 @@ describe('AuthController', () => {
       expect(authService.forgotPassword).toHaveBeenCalledWith(
         forgotPasswordDto,
         '203.0.113.1',
-        'Mozilla/5.0...'
+        'Mozilla/5.0...',
       );
     });
 
@@ -115,12 +135,15 @@ describe('AuthController', () => {
       const forgotPasswordDto = { email: 'test@example.com' };
       mockAuthService.forgotPassword.mockResolvedValue({ message: 'Success' });
 
-      await controller.forgotPassword(forgotPasswordDto, requestWithoutIpAndHeaders);
+      await controller.forgotPassword(
+        forgotPasswordDto,
+        requestWithoutIpAndHeaders,
+      );
 
       expect(authService.forgotPassword).toHaveBeenCalledWith(
         forgotPasswordDto,
         '10.0.0.1',
-        'Mozilla/5.0...'
+        'Mozilla/5.0...',
       );
     });
 
@@ -128,23 +151,28 @@ describe('AuthController', () => {
       const forgotPasswordDto = { email: 'test@example.com' };
 
       mockAuthService.forgotPassword.mockRejectedValue(
-        new BadRequestException('Either email or userId must be provided')
+        new BadRequestException('Either email or userId must be provided'),
       );
 
-      await expect(controller.forgotPassword(forgotPasswordDto, mockRequest)).rejects.toThrow(
-        BadRequestException
-      );
-      await expect(controller.forgotPassword(forgotPasswordDto, mockRequest)).rejects.toThrow(
-        'Either email or userId must be provided'
-      );
+      await expect(
+        controller.forgotPassword(forgotPasswordDto, mockRequest),
+      ).rejects.toThrow(BadRequestException);
+      await expect(
+        controller.forgotPassword(forgotPasswordDto, mockRequest),
+      ).rejects.toThrow('Either email or userId must be provided');
     });
 
     it('should return generic success message for other errors', async () => {
       const forgotPasswordDto = { email: 'test@example.com' };
 
-      mockAuthService.forgotPassword.mockRejectedValue(new Error('Database connection failed'));
+      mockAuthService.forgotPassword.mockRejectedValue(
+        new Error('Database connection failed'),
+      );
 
-      const result = await controller.forgotPassword(forgotPasswordDto, mockRequest);
+      const result = await controller.forgotPassword(
+        forgotPasswordDto,
+        mockRequest,
+      );
 
       expect(result).toEqual({
         message: 'If the user exists, a password reset email has been sent.',
@@ -201,4 +229,4 @@ describe('AuthController', () => {
       );
     });
   });
-}); 
+});

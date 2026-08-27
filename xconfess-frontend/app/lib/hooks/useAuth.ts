@@ -1,25 +1,16 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
+import { useAuthContext } from '../providers/AuthProvider';
+import { AuthContextValue } from '../types/auth';
 
-type User = {
-  username: string;
-};
-
-export function useAuth() {
-  // TEMP mock (replace with real auth later)
-  const [user, setUser] = useState<User | null>({
-    username: 'sudipta',
-  });
-
-  const logout = () => {
-    setUser(null);
-    console.log('Logged out');
-    // later: clear token, redirect, etc.
-  };
-
-  return {
-    user,
-    logout,
-  };
+/**
+ * Custom hook for authentication
+ * 
+ * Provides access to authentication state and methods.
+ * Must be used within an AuthProvider.
+ * 
+ * @returns Authentication context value with state and methods
+ */
+export function useAuth(): AuthContextValue {
+  return useAuthContext();
 }

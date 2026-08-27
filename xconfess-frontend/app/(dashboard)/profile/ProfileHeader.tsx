@@ -1,6 +1,7 @@
 "xuse client";
 
 import { UserCircle, Calendar, Award } from "lucide-react";
+import Image from "next/image";
 
 interface Badge {
   id: string;
@@ -32,11 +33,11 @@ export function ProfileHeader({
   };
 
   return (
-    <div className="bg-white rounded-lg shadow-md p-6">
+    <header aria-label="Profile Header" className="bg-white rounded-lg shadow-md p-6">
       <div className="flex flex-col md:flex-row items-center md:items-start gap-6">
         {/* Avatar */}
-        <div className="flex-shrink-0">
-          <div className="w-24 h-24 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
+        <div className="shrink-0">
+          <div className="w-24 h-24 bg-linear-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
             <UserCircle className="w-16 h-16 text-white" />
           </div>
         </div>
@@ -74,9 +75,11 @@ export function ProfileHeader({
                     title={badge.description}
                   >
                     {badge.iconUrl ? (
-                      <img
+                      <Image
                         src={badge.iconUrl}
                         alt={badge.name}
+                        width={20}
+                        height={20}
                         className="w-5 h-5"
                       />
                     ) : (
@@ -106,6 +109,6 @@ export function ProfileHeader({
           )}
         </div>
       </div>
-    </div>
+    </header>
   );
 }

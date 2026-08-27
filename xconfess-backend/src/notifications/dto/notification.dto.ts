@@ -1,4 +1,13 @@
-import { IsBoolean, IsEnum, IsOptional, IsString, IsEmail, IsNumber, Min, Max } from 'class-validator';
+import {
+  IsBoolean,
+  IsEnum,
+  IsOptional,
+  IsString,
+  IsEmail,
+  IsNumber,
+  Min,
+  Max,
+} from 'class-validator';
 import { NotificationType } from '../entities/notification.entity';
 
 export class CreateNotificationDto {
@@ -16,6 +25,10 @@ export class CreateNotificationDto {
 
   @IsOptional()
   metadata?: any;
+
+  @IsOptional()
+  @IsString()
+  sourceKey?: string;
 }
 
 export class UpdateNotificationPreferenceDto {

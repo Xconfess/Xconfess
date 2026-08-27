@@ -49,3 +49,23 @@ export function insertLink(textarea: HTMLTextAreaElement, url?: string): { newTe
 export function insertEmoji(textarea: HTMLTextAreaElement, emoji: string): { newText: string; cursorPos: number } {
   return insertMarkdown(textarea, emoji, "");
 }
+
+export function sanitizeMarkdown(content: string): string {
+  if (!content) return "";
+
+  let sanitized = content;
+
+  // 1. Remove script tags completely
+  sanitized = sanitized.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, "");
+
+  // 2. Remove iframe tags completely
+  sanitized = sanitized.replace(/<iframe\b[^>]*>[\s\S]*?<\/iframe>/gi, "");
+
+  // 3. Remove inline event handlers (e.g., onclick="...", onmouseover=...)
+  sanitized = sanitized.replace(/\bon[a-z]+\s*=\s*(?:(['"]?)[\s\S]*?\1|[^\s>]+)/gi, "");
+
+  // 4. Neutralize unsafe URL protocols
+  sanitized = sanitized.replace(/(javascript|vbscript|data):/gi, "$1_blocked:");
+
+  return sanitized;
+}

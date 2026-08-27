@@ -7,6 +7,7 @@ import {
   Index,
   ManyToOne,
   JoinColumn,
+  VersionColumn,
 } from 'typeorm';
 import { User } from '../../user/entities/user.entity';
 
@@ -31,6 +32,9 @@ export class ConfessionDraft {
 
   @Column('text')
   content: string;
+
+  @Column({ type: 'varchar', length: 80, nullable: true })
+  category: string | null;
 
   @Index()
   @Column({ name: 'scheduled_for', type: 'timestamptz', nullable: true })
@@ -58,4 +62,10 @@ export class ConfessionDraft {
 
   @UpdateDateColumn({ name: 'updated_at' })
   updatedAt: Date;
+
+  @VersionColumn()
+  version: number;
+
+  @Column({ type: 'jsonb', default: [] })
+  revisions: { content: string; version: number; createdAt: Date }[];
 }

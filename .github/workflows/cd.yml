@@ -1,0 +1,263 @@
+name: CD
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'xconfess-backend/**'
+      - 'xconfess-frontend/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/cd.yml'
+      - '.gitattributes'
+      - 'scripts/**'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Deployment environment
+        required: true
+        default: staging
+        type: choice
+        options:
+          - staging
+          - production
+      run_build:
+        description: Build artifacts before deploy
+        required: true
+        default: "false"
+        type: choice
+        options:
+          - "true"
+          - "false"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-${{ github.event_name == 'workflow_dispatch' && github.event.inputs.environment || 'staging' }}
+  cancel-in-progress: false
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  prepare:
+    name: Resolve deployment settings
+    runs-on: ubuntu-latest
+    outputs:
+      environment: ${{ steps.resolve.outputs.environment }}
+      run_build: ${{ steps.resolve.outputs.run_build }}
+    steps:
+      - name: Resolve environment and build mode
+        id: resolve
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "environment=${{ github.event.inputs.environment }}" >> "$GITHUB_OUTPUT"
+            echo "run_build=${{ github.event.inputs.run_build }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "environment=staging" >> "$GITHUB_OUTPUT"
+            echo "run_build=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  validate:
+    name: Validate secrets and inputs
+    needs: prepare
+    runs-on: ubuntu-latest
+    environment: ${{ needs.prepare.outputs.environment }}
+    steps:
+      - name: Check required deployment secrets
+        run: |
+          missing=()
+          [[ -z "${{ secrets.DEPLOY_HOST }}" ]] && missing+=("DEPLOY_HOST")
+          [[ -z "${{ secrets.DEPLOY_USER }}" ]] && missing+=("DEPLOY_USER")
+          [[ -z "${{ secrets.DEPLOY_SSH_KEY }}" ]] && missing+=("DEPLOY_SSH_KEY")
+          [[ -z "${{ secrets.BACKEND_ENV_FILE }}" ]] && missing+=("BACKEND_ENV_FILE")
+          [[ -z "${{ secrets.BACKEND_API_URL }}" ]] && missing+=("BACKEND_API_URL")
+          [[ -z "${{ secrets.NEXT_PUBLIC_API_URL }}" ]] && missing+=("NEXT_PUBLIC_API_URL")
+
+          if [[ ${#missing[@]} -gt 0 ]]; then
+            echo "::error::Missing required secrets for '${{ needs.prepare.outputs.environment }}': ${missing[*]}"
+            echo "Configure these secrets in Settings -> Environments -> ${{ needs.prepare.outputs.environment }} before running the CD pipeline."
+            exit 1
+          fi
+
+          echo "All required secrets are present. Proceeding with '${{ needs.prepare.outputs.environment }}' deployment."
+
+  build:
+    name: Build artifacts
+    needs: [prepare, validate]
+    if: needs.prepare.outputs.run_build == 'true'
+    runs-on: ubuntu-latest
+    environment: ${{ needs.prepare.outputs.environment }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build backend
+        run: npm run build --workspace=xconfess-backend
+
+      - name: Build frontend
+        env:
+          BACKEND_API_URL: ${{ secrets.BACKEND_API_URL }}
+          NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL }}
+        run: npm run build --workspace=xconfess-frontend
+
+      - name: Upload backend artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: xconfess-backend-dist-${{ github.run_id }}
+          path: xconfess-backend/dist
+          retention-days: 7
+
+      - name: Upload frontend artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: xconfess-frontend-build-${{ github.run_id }}
+          path: xconfess-frontend/.next
+          retention-days: 7
+
+  deploy:
+    name: Deploy to ${{ needs.prepare.outputs.environment }}
+    needs: [prepare, validate, build]
+    if: always() && needs.validate.result == 'success' && (needs.build.result == 'success' || needs.build.result == 'skipped')
+    runs-on: ubuntu-latest
+    environment: ${{ needs.prepare.outputs.environment }}
+    concurrency:
+      group: deploy-${{ needs.prepare.outputs.environment }}
+      cancel-in-progress: false
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup SSH agent
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.DEPLOY_SSH_KEY }}
+
+      - name: Add remote host to known_hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H "${{ secrets.DEPLOY_HOST }}" >> ~/.ssh/known_hosts
+
+      - name: Download backend artifact
+        if: needs.prepare.outputs.run_build == 'true'
+        uses: actions/download-artifact@v4
+        with:
+          name: xconfess-backend-dist-${{ github.run_id }}
+          path: xconfess-backend/dist
+
+      - name: Download frontend artifact
+        if: needs.prepare.outputs.run_build == 'true'
+        uses: actions/download-artifact@v4
+        with:
+          name: xconfess-frontend-build-${{ github.run_id }}
+          path: xconfess-frontend/.next
+
+      - name: Write backend environment file
+        run: |
+          cat > xconfess-backend/.env.deploy <<EOF
+          ${{ secrets.BACKEND_ENV_FILE }}
+          EOF
+
+      - name: Write frontend environment file
+        run: |
+          cat > xconfess-frontend/.env.production <<EOF
+          BACKEND_API_URL=${{ secrets.BACKEND_API_URL }}
+          NEXT_PUBLIC_API_URL=${{ secrets.NEXT_PUBLIC_API_URL }}
+          EOF
+
+      - name: Sync backend to server
+        run: |
+          rsync -az --delete \
+            --exclude='.git' \
+            --exclude='node_modules' \
+            xconfess-backend/ \
+            "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:~/xconfess/backend/"
+
+      - name: Install backend dependencies and restart backend
+        run: |
+          ssh "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}" bash -s <<'REMOTE'
+            set -euo pipefail
+
+            cd ~/xconfess/backend
+            cp .env.deploy .env
+            npm ci --omit=dev
+            if command -v pm2 &>/dev/null; then
+              pm2 reload xconfess-backend --update-env || pm2 start dist/main.js --name xconfess-backend
+            else
+              echo "::warning::pm2 not found - restart backend manually."
+            fi
+          REMOTE
+
+      - name: Verify backend health
+        run: |
+          echo "Waiting for backend to become ready..."
+          for i in $(seq 1 12); do
+            status=$(ssh "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}" \
+              "curl -sf http://localhost:5000/api/health/ready || echo 'not-ready'")
+            if [[ "$status" != "not-ready" ]]; then
+              echo "Backend is healthy."
+              exit 0
+            fi
+            echo "Attempt $i/12 - not ready yet, waiting 5s..."
+            sleep 5
+          done
+          echo "::error::Backend health check failed after 60 s. Frontend deployment was not started."
+          exit 1
+
+      - name: Sync frontend to server
+        run: |
+          rsync -az --delete \
+            --exclude='.git' \
+            --exclude='node_modules' \
+            xconfess-frontend/ \
+            "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:~/xconfess/frontend/"
+
+      - name: Install frontend dependencies and restart frontend
+        run: |
+          ssh "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}" bash -s <<'REMOTE'
+            set -euo pipefail
+
+            cd ~/xconfess/frontend
+            npm ci --omit=dev
+            if command -v pm2 &>/dev/null; then
+              pm2 reload xconfess-frontend --update-env || pm2 start npm --name xconfess-frontend -- start
+            else
+              echo "::warning::pm2 not found - restart frontend manually."
+            fi
+          REMOTE
+
+      - name: Record deployment summary
+        if: always()
+        run: |
+          {
+            echo "## Deployment Summary"
+            echo ""
+            echo "| Field | Value |"
+            echo "|-------|-------|"
+            echo "| Environment | \`${{ needs.prepare.outputs.environment }}\` |"
+            echo "| Triggered by | @${{ github.actor }} |"
+            echo "| Commit | \`${{ github.sha }}\` |"
+            echo "| Run ID | ${{ github.run_id }} |"
+            echo "| Artifacts built | ${{ needs.prepare.outputs.run_build }} |"
+            echo ""
+            echo "### Rollback"
+            echo "Re-run this workflow against the previous commit SHA to roll back, or SSH to the host and restore the previous \`dist/\` and \`.next/\` directories."
+            echo "Backend artifacts are retained for 7 days under Actions run IDs."
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -66,9 +66,7 @@ describe('Moderation endpoints (e2e)', () => {
       .get(`/comments/by-confession/${confessionId}`)
       .expect(200);
     expect(res.body).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ id: commentId })
-      ])
+      expect.arrayContaining([expect.objectContaining({ id: commentId })]),
     );
   });
 });

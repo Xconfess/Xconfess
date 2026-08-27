@@ -1,0 +1,23 @@
+{
+  "name": "xConfess",
+  "short_name": "xConfess",
+  "description": "A private, premium space for anonymous expression.",
+  "start_url": "/",
+  "display": "standalone",
+  "theme_color": "#5B2EFF",
+  "background_color": "#F8F6FB",
+  "icons": [
+    {
+      "src": "/branding/xconfess-icon.svg",
+      "sizes": "160x160",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/branding/favicon.ico",
+      "sizes": "16x16 32x32 48x48",
+      "type": "image/x-icon",
+      "purpose": "any maskable"
+    }
+  ]
+}

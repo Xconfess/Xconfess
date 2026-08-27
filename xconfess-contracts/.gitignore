@@ -1,0 +1,32 @@
+# Rust output directory and artifacts
+target/
+Cargo.lock
+*.wasm
+
+# Soroban and Stellar local settings
+.soroban/
+.stellar/
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Build artifacts
+*.o
+*.a
+*.so
+*.dylib
+
+# Dependencies
+node_modules/
+package-lock.json
+yarn.lock

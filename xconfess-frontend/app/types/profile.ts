@@ -53,15 +53,7 @@ export interface ActivityItem {
   };
 }
 
-export interface Confession {
-  id: string;
-  content: string;
-  category: string;
-  createdAt: string;
-  viewCount: number;
-  reactionCount: number;
-  isAnonymous: boolean;
-}
+import { Confession } from "@/app/lib/types/confession";
 
 export interface PaginatedConfessions {
   confessions: Confession[];

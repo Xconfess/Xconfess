@@ -8,7 +8,9 @@ import {
 import { Reflector } from '@nestjs/core';
 import { ConfigService } from '@nestjs/config';
 import { Request } from 'express';
-import { getRateLimitConfig } from 'src/config/rate-limit.config';
+import { getRateLimitConfig, RateLimitConfig } from '../../config/rate-limit.config';
+import { ErrorCode } from '../../common/errors/error-codes';
+import { RATE_LIMIT_KEY, RateLimitOptions } from './rate-limit.decorator';
 
 interface RateLimitEntry {
   count: number;
@@ -18,7 +20,7 @@ interface RateLimitEntry {
 @Injectable()
 export class RateLimitGuard implements CanActivate {
   private rateLimitStore = new Map<string, RateLimitEntry>();
-  private config;
+  private config: RateLimitConfig;
 
   constructor(
     private reflector: Reflector,
@@ -33,23 +35,64 @@ export class RateLimitGuard implements CanActivate {
     const request = context.switchToHttp().getRequest<Request>();
     const method = request.method.toUpperCase();
 
-    // Get client identifier (IP address)
-    const clientId = this.getClientId(request);
-    const key = `${clientId}:${method}`;
+    // Get sender identifier (user ID if authenticated, else IP)
+    const user = (request as any).user;
+    const userId = user?.sub || user?.id;
+    const senderId = userId
+      ? `user:${userId}`
+      : `ip:${this.getClientId(request)}`;
 
-    // Determine rate limit based on HTTP method
-    const { limit, window } = this.getRateLimitForMethod(method);
+    const customRateLimit = this.reflector.get<RateLimitOptions>(
+      RATE_LIMIT_KEY,
+      context.getHandler(),
+    );
+
+    // Determine rate limit based on endpoint decorator or HTTP method fallback
+    const { limit, window } =
+      customRateLimit || this.getRateLimitForMethod(method);
 
     const now = Date.now();
+    const key = `${senderId}:${method}:${context.getHandler()?.name || 'default'}`;
+
+    // 1. Check & record sender-level limit
+    this.checkAndIncrement(key, limit, window, now, request);
+
+    // 2. Check & record sender-recipient pair limit if applicable
+    const recipientId =
+      request.body?.recipientId ||
+      request.body?.recipient_id ||
+      request.body?.confessionId ||
+      request.body?.confession_id ||
+      request.params?.userId;
+
+    const pairLimit =
+      customRateLimit?.pairLimit ?? this.config.messagePairLimit;
+    const pairWindow =
+      customRateLimit?.pairWindow ?? this.config.messagePairWindow;
+
+    if (recipientId && (customRateLimit?.pairLimit !== undefined || method === 'POST')) {
+      const pairKey = `pair:${senderId}:${recipientId}`;
+      this.checkAndIncrement(pairKey, pairLimit, pairWindow, now, request);
+    }
+
+    return true;
+  }
+
+  private checkAndIncrement(
+    key: string,
+    limit: number,
+    window: number,
+    now: number,
+    request: Request,
+  ): void {
     const entry = this.rateLimitStore.get(key);
 
     if (!entry || now > entry.resetTime) {
-      // Create new entry or reset expired one
       this.rateLimitStore.set(key, {
         count: 1,
         resetTime: now + window * 1000,
       });
-      return true;
+      return;
     }
 
     if (entry.count >= limit) {
@@ -57,25 +100,25 @@ export class RateLimitGuard implements CanActivate {
       throw new HttpException(
         {
           statusCode: HttpStatus.TOO_MANY_REQUESTS,
+          code: ErrorCode.RATE_LIMIT_EXCEEDED,
           message: 'Too many requests, please try again later',
           retryAfter,
+          limit,
+          requestId: (request as any).requestId || 'unknown',
         },
         HttpStatus.TOO_MANY_REQUESTS,
       );
     }
 
-    // Increment counter
     entry.count++;
-    return true;
   }
 
   private getClientId(request: Request): string {
-    // Get IP from various possible headers (for proxy support)
     return (
       (request.headers['x-forwarded-for'] as string)?.split(',')[0] ||
       (request.headers['x-real-ip'] as string) ||
       request.ip ||
-      request.socket.remoteAddress ||
+      request.socket?.remoteAddress ||
       'unknown'
     );
   }

@@ -1,21 +1,9 @@
 "use client";
 
 import React from 'react';
-import { Clock, Heart, Eye, MessageCircle } from 'lucide-react';
+import { Clock, Heart, Eye } from 'lucide-react';
 
-interface Confession {
-    id: string;
-    message: string;
-    category?: string;
-    reactions: {
-        like?: number;
-        love?: number;
-        funny?: number;
-        sad?: number;
-    } | number; // Added number support for consolidated reaction count
-    viewCount?: number;
-    createdAt: string;
-}
+import { Confession } from "@/app/lib/types/confession";
 
 interface TrendingConfessionsProps {
     confessions: Confession[];
@@ -34,7 +22,7 @@ export const TrendingConfessions: React.FC<TrendingConfessionsProps> = ({
                     {Array.from({ length: 5 }).map((_, i) => (
                         <div key={i} className="bg-zinc-800/30 rounded-xl p-4 animate-pulse">
                             <div className="flex items-start gap-3">
-                                <div className="w-8 h-8 bg-zinc-700 rounded-full flex-shrink-0" />
+                                <div className="w-8 h-8 bg-zinc-700 rounded-full shrink-0" />
                                 <div className="flex-1 space-y-2">
                                     <div className="h-4 bg-zinc-700 rounded w-3/4" />
                                     <div className="h-4 bg-zinc-700 rounded w-1/2" />
@@ -49,8 +37,11 @@ export const TrendingConfessions: React.FC<TrendingConfessionsProps> = ({
 
     const getTimeAgo = (dateString: string) => {
         const date = new Date(dateString);
+        // Fallback to current time or a safe default if the date is invalid
+        const validDate = isNaN(date.getTime()) ? new Date() : date;
+
         const now = new Date();
-        const diffInHours = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60));
+        const diffInHours = Math.floor((now.getTime() - validDate.getTime()) / (1000 * 60 * 60));
 
         if (diffInHours < 1) return 'Just now';
         if (diffInHours < 24) return `${diffInHours}h ago`;
@@ -59,9 +50,10 @@ export const TrendingConfessions: React.FC<TrendingConfessionsProps> = ({
         return `${Math.floor(days / 7)}w ago`;
     };
 
-    const getTotalReactions = (reactions: Confession['reactions']) => {
-        if (typeof reactions === 'number') return reactions;
-        return Object.values(reactions).reduce((sum, val) => sum + (val || 0), 0);
+    const getTotalReactions = (confession: Confession) => {
+        if (typeof confession.reactions === 'number') return confession.reactions;
+        if (confession.reactionCount !== undefined) return confession.reactionCount;
+        return Object.values(confession.reactions).reduce((sum, val) => sum + (val || 0), 0);
     };
 
     return (
@@ -75,13 +67,14 @@ export const TrendingConfessions: React.FC<TrendingConfessionsProps> = ({
                 {confessions.slice(0, 10).map((confession, index) => (
                     <div
                         key={confession.id}
+                        data-testid={`confession-card-${confession.id || index + 1}`}
                         className="group bg-zinc-800/30 hover:bg-zinc-800/50 rounded-xl p-4 transition-all cursor-pointer border border-transparent hover:border-zinc-700"
                     >
                         <div className="flex items-start gap-3">
                             {/* Rank Badge */}
-                            <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 font-bold text-sm ${index === 0 ? 'bg-gradient-to-br from-yellow-500 to-orange-500 text-white' :
-                                index === 1 ? 'bg-gradient-to-br from-gray-400 to-gray-500 text-white' :
-                                    index === 2 ? 'bg-gradient-to-br from-orange-600 to-orange-700 text-white' :
+                            <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 font-bold text-sm ${index === 0 ? 'bg-linear-to-br from-yellow-500 to-orange-500 text-white' :
+                                index === 1 ? 'bg-linear-to-br from-gray-400 to-gray-500 text-white' :
+                                    index === 2 ? 'bg-linear-to-br from-orange-600 to-orange-700 text-white' :
                                         'bg-zinc-700/50 text-zinc-400'
                                 }`}>
                                 {index + 1}
@@ -90,7 +83,7 @@ export const TrendingConfessions: React.FC<TrendingConfessionsProps> = ({
                             {/* Content */}
                             <div className="flex-1 min-w-0">
                                 <p className="text-zinc-300 text-sm leading-relaxed line-clamp-2 mb-3 group-hover:text-white transition-colors">
-                                    {confession.message}
+                                    {confession.content}
                                 </p>
 
                                 {/* Category & Time */}
@@ -110,7 +103,7 @@ export const TrendingConfessions: React.FC<TrendingConfessionsProps> = ({
                                 <div className="flex items-center gap-4 text-xs">
                                     <div className="flex items-center gap-1.5 text-rose-400">
                                         <Heart className="w-4 h-4 fill-rose-400" />
-                                        <span className="font-medium">{getTotalReactions(confession.reactions)}</span>
+                                        <span className="font-medium">{getTotalReactions(confession)}</span>
                                     </div>
                                     {confession.viewCount !== undefined && (
                                         <div className="flex items-center gap-1.5 text-blue-400">

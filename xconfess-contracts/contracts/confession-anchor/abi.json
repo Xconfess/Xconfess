@@ -1,0 +1,14 @@
+{
+  "version": "0.1.0",
+  "event_schema_version": 1,
+  "error_registry_version": 1,
+  "functions": [
+    "anchor_confession",
+    "verify_confession",
+    "get_confession_count",
+    "get_version",
+    "get_event_schema_version",
+    "get_error_registry_version"
+  ],
+  "description": "ABI compatibility marker for confession-anchor contract. Update event_schema_version or error_registry_version on breaking changes."
+}

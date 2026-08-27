@@ -1,8 +1,18 @@
-import { User } from '../../user/entities/user.entity';
 import { AnonymousUser } from '../../user/entities/anonymous-user.entity';
 import { AnonymousConfession } from '../../confession/entities/confession.entity';
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn, CreateDateColumn } from 'typeorm';
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  ManyToOne,
+  JoinColumn,
+  CreateDateColumn,
+  Index,
+} from 'typeorm';
 
+@Index('uq_reaction_confession_user', ['confession', 'anonymousUser'], {
+  unique: true,
+})
 @Entity()
 export class Reaction {
   @PrimaryGeneratedColumn('uuid')
@@ -11,7 +21,9 @@ export class Reaction {
   @Column()
   emoji: string;
 
-  @ManyToOne(() => AnonymousConfession, (confession) => confession.reactions, { onDelete: 'CASCADE' })
+  @ManyToOne(() => AnonymousConfession, (confession) => confession.reactions, {
+    onDelete: 'CASCADE',
+  })
   @JoinColumn({ name: 'confession_id' })
   confession: AnonymousConfession;
 

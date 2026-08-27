@@ -1,4 +1,4 @@
-import { faker } from '@faker-js/faker/.';
+import { faker } from '@faker-js/faker';
 import { ConfessionData } from 'test/interface/confession-data';
 
 export class ConfessionFactory {

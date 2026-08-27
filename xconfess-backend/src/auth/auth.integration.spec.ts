@@ -10,12 +10,19 @@ import { User } from '../user/entities/user.entity';
 import { PasswordReset } from './entities/password-reset.entity';
 import { Repository } from 'typeorm';
 import { BadRequestException, UnauthorizedException } from '@nestjs/common';
-import * as bcrypt from 'bcrypt';
+import * as bcrypt from 'bcryptjs';
 import { AnonymousUserService } from '../user/anonymous-user.service';
 import { CryptoUtil } from '../common/crypto.util';
+import { ConfigService } from '@nestjs/config';
+import { LockoutService } from './lockout.service';
+import { StepUpService } from './step-up.service';
+import * as crypto from 'crypto';
+
+const hashToken = (token: string) =>
+  crypto.createHash('sha256').update(token).digest('hex');
 
 // Mock bcrypt module
-jest.mock('bcrypt', () => ({
+jest.mock('bcryptjs', () => ({
   hash: jest.fn(),
   compare: jest.fn(),
 }));
@@ -45,6 +52,10 @@ describe('Auth Integration Tests - Forgot Password Flow', () => {
     updatedAt: new Date(),
     isAdmin: false,
     is_active: true,
+    isDiscoverable: jest.fn().mockReturnValue(true),
+    canReceiveReplies: jest.fn().mockReturnValue(true),
+    shouldShowReactions: jest.fn().mockReturnValue(true),
+    hasDataProcessingConsent: jest.fn().mockReturnValue(true),
   };
 
   beforeEach(async () => {
@@ -57,8 +68,33 @@ describe('Auth Integration Tests - Forgot Password Flow', () => {
         EmailService,
         JwtService,
         {
+          provide: ConfigService,
+          useValue: { get: jest.fn((_key: string, fallback?: unknown) => fallback ?? '') },
+        },
+        {
           provide: AnonymousUserService,
-          useValue: { getOrCreateForUserSession: jest.fn().mockResolvedValue({ id: 'anon-1' }) },
+          useValue: {
+            getOrCreateForUserSession: jest
+              .fn()
+              .mockResolvedValue({ id: 'anon-1' }),
+          },
+        },
+        {
+          provide: LockoutService,
+          useValue: {
+            getStatus: jest.fn().mockResolvedValue({ isLocked: false }),
+            recordFailedAttempt: jest
+              .fn()
+              .mockResolvedValue({ isLocked: false }),
+            clearLockout: jest.fn().mockResolvedValue(undefined),
+          },
+        },
+        {
+          provide: StepUpService,
+          useValue: {
+            issueStepUpToken: jest.fn(),
+            verifyStepUpToken: jest.fn(),
+          },
         },
         {
           provide: getRepositoryToken(User),
@@ -88,10 +124,13 @@ describe('Auth Integration Tests - Forgot Password Flow', () => {
     authController = module.get<AuthController>(AuthController);
     authService = module.get<AuthService>(AuthService);
     userService = module.get<UserService>(UserService);
-    passwordResetService = module.get<PasswordResetService>(PasswordResetService);
+    passwordResetService =
+      module.get<PasswordResetService>(PasswordResetService);
     emailService = module.get<EmailService>(EmailService);
     userRepository = module.get<Repository<User>>(getRepositoryToken(User));
-    passwordResetRepository = module.get<Repository<PasswordReset>>(getRepositoryToken(PasswordReset));
+    passwordResetRepository = module.get<Repository<PasswordReset>>(
+      getRepositoryToken(PasswordReset),
+    );
 
     // Setup bcrypt mocks
     (bcrypt.hash as jest.Mock).mockResolvedValue('hashedPassword');
@@ -101,13 +140,13 @@ describe('Auth Integration Tests - Forgot Password Flow', () => {
   describe('Complete Forgot Password Flow', () => {
     it('should complete the full forgot password and reset flow', async () => {
       // Step 1: Mock user exists
-      jest.spyOn(userRepository, 'findOne').mockResolvedValue(mockUser as User);
+      jest.spyOn(userRepository, 'findOne').mockResolvedValue(mockUser);
 
       // Step 2: Mock password reset token creation
       const mockPasswordReset = {
         id: 1,
         userId: 1,
-        token: 'reset-token-123',
+        tokenHash: hashToken('reset-token-123'),
         expiresAt: new Date(Date.now() + 3600000),
         used: false,
         usedAt: null,
@@ -116,11 +155,17 @@ describe('Auth Integration Tests - Forgot Password Flow', () => {
         userAgent: 'test-agent',
       };
 
-      jest.spyOn(passwordResetRepository, 'create').mockReturnValue(mockPasswordReset as any);
-      jest.spyOn(passwordResetRepository, 'save').mockResolvedValue(mockPasswordReset as any);
+      jest
+        .spyOn(passwordResetRepository, 'create')
+        .mockReturnValue(mockPasswordReset as any);
+      jest
+        .spyOn(passwordResetRepository, 'save')
+        .mockResolvedValue(mockPasswordReset as any);
 
       // Step 3: Mock email sending
-      jest.spyOn(emailService, 'sendPasswordResetEmail').mockResolvedValue(undefined);
+      jest
+        .spyOn(emailService, 'sendPasswordResetEmail')
+        .mockResolvedValue(undefined);
 
       // Step 4: Execute forgot password request
       const mockRequest = {
@@ -132,7 +177,7 @@ describe('Auth Integration Tests - Forgot Password Flow', () => {
 
       const forgotPasswordResult = await authController.forgotPassword(
         { email: 'test@example.com' },
-        mockRequest as any
+        mockRequest as any,
       );
 
       expect(forgotPasswordResult).toEqual({
@@ -143,25 +188,32 @@ describe('Auth Integration Tests - Forgot Password Flow', () => {
       expect(emailService.sendPasswordResetEmail).toHaveBeenCalledWith(
         'test@example.com',
         expect.any(String), // Accept any token since it's randomly generated
-        'testuser'
+        'testuser',
       );
 
       // Capture the actual token that was generated
-      const emailCallArgs = (emailService.sendPasswordResetEmail as jest.Mock).mock.calls[0];
+      const emailCallArgs = (emailService.sendPasswordResetEmail as jest.Mock)
+        .mock.calls[0];
       const actualToken = emailCallArgs[1];
 
       // Step 5: Mock finding the reset token for password reset using the actual token
       const mockPasswordResetForLookup = {
         ...mockPasswordReset,
-        token: actualToken,
+        tokenHash: hashToken(actualToken),
       };
-      jest.spyOn(passwordResetRepository, 'findOne').mockResolvedValue(mockPasswordResetForLookup as any);
+      jest
+        .spyOn(passwordResetRepository, 'findOne')
+        .mockResolvedValue(mockPasswordResetForLookup as any);
 
       // Step 6: Mock updating the password
-      jest.spyOn(userRepository, 'update').mockResolvedValue({ affected: 1 } as any);
+      jest
+        .spyOn(userRepository, 'update')
+        .mockResolvedValue({ affected: 1 } as any);
 
       // Step 7: Mock marking token as used
-      jest.spyOn(passwordResetRepository, 'update').mockResolvedValue({ affected: 1 } as any);
+      jest
+        .spyOn(passwordResetRepository, 'update')
+        .mockResolvedValue({ affected: 1 } as any);
 
       // Step 8: Execute password reset with the actual token
       const resetPasswordResult = await authController.resetPassword({
@@ -174,22 +226,24 @@ describe('Auth Integration Tests - Forgot Password Flow', () => {
       });
 
       // Verify that the password was updated
-      expect(userRepository.update).toHaveBeenCalledWith(
-        1,
-        { 
+      expect(userRepository.save).toHaveBeenCalledWith(
+        expect.objectContaining({
           password: 'hashedPassword',
           resetPasswordToken: null,
           resetPasswordExpires: null,
-        }
+        }),
       );
 
-      // Verify that the token was marked as used
+      // Verify that the token was marked as used, looked up by hash
       expect(passwordResetRepository.update).toHaveBeenCalledWith(
-        1,
-        { 
+        expect.objectContaining({
+          tokenHash: hashToken(actualToken),
+          used: false,
+        }),
+        {
           used: true,
           usedAt: expect.any(Date),
-        }
+        },
       );
     });
 
@@ -201,7 +255,7 @@ describe('Auth Integration Tests - Forgot Password Flow', () => {
         authController.resetPassword({
           token: 'invalid-token',
           newPassword: 'newPassword123',
-        })
+        }),
       ).rejects.toThrow(BadRequestException);
     });
 
@@ -210,7 +264,7 @@ describe('Auth Integration Tests - Forgot Password Flow', () => {
       const expiredToken = {
         id: 1,
         userId: 1,
-        token: 'expired-token-123',
+        tokenHash: hashToken('expired-token-123'),
         expiresAt: new Date(Date.now() - 3600000), // Expired 1 hour ago
         used: false,
         usedAt: null,
@@ -219,13 +273,15 @@ describe('Auth Integration Tests - Forgot Password Flow', () => {
         userAgent: 'test-agent',
       };
 
-      jest.spyOn(passwordResetRepository, 'findOne').mockResolvedValue(expiredToken as any);
+      jest
+        .spyOn(passwordResetRepository, 'findOne')
+        .mockResolvedValue(expiredToken as any);
 
       await expect(
         authController.resetPassword({
           token: 'expired-token-123',
           newPassword: 'newPassword123',
-        })
+        }),
       ).rejects.toThrow(BadRequestException);
     });
 
@@ -234,7 +290,7 @@ describe('Auth Integration Tests - Forgot Password Flow', () => {
       const usedToken = {
         id: 1,
         userId: 1,
-        token: 'used-token-123',
+        tokenHash: hashToken('used-token-123'),
         expiresAt: new Date(Date.now() + 3600000),
         used: true, // Already used
         usedAt: new Date(),
@@ -249,7 +305,7 @@ describe('Auth Integration Tests - Forgot Password Flow', () => {
         authController.resetPassword({
           token: 'used-token-123',
           newPassword: 'newPassword123',
-        })
+        }),
       ).rejects.toThrow(BadRequestException);
     });
   });
@@ -279,6 +335,10 @@ describe('AuthService Integration', () => {
     updatedAt: new Date(),
     isAdmin: false,
     is_active: true,
+    isDiscoverable: jest.fn().mockReturnValue(true),
+    canReceiveReplies: jest.fn().mockReturnValue(true),
+    shouldShowReactions: jest.fn().mockReturnValue(true),
+    hasDataProcessingConsent: jest.fn().mockReturnValue(true),
   };
 
   beforeEach(async () => {
@@ -288,13 +348,21 @@ describe('AuthService Integration', () => {
         UserService,
         {
           provide: AnonymousUserService,
-          useValue: { getOrCreateForUserSession: jest.fn().mockResolvedValue({ id: 'anon-1' }) },
+          useValue: {
+            getOrCreateForUserSession: jest
+              .fn()
+              .mockResolvedValue({ id: 'anon-1' }),
+          },
         },
         {
           provide: JwtService,
           useValue: {
             sign: jest.fn().mockReturnValue('mock-jwt-token'),
           },
+        },
+        {
+          provide: ConfigService,
+          useValue: { get: jest.fn((_key: string, fallback?: unknown) => fallback ?? '') },
         },
         {
           provide: EmailService,
@@ -311,6 +379,16 @@ describe('AuthService Integration', () => {
           },
         },
         {
+          provide: LockoutService,
+          useValue: {
+            getStatus: jest.fn().mockResolvedValue({ isLocked: false }),
+            recordFailedAttempt: jest
+              .fn()
+              .mockResolvedValue({ isLocked: false }),
+            clearLockout: jest.fn().mockResolvedValue(undefined),
+          },
+        },
+        {
           provide: getRepositoryToken(User),
           useValue: {
             findOne: jest.fn(),
@@ -324,7 +402,8 @@ describe('AuthService Integration', () => {
     userService = module.get<UserService>(UserService);
     jwtService = module.get<JwtService>(JwtService);
     emailService = module.get<EmailService>(EmailService);
-    passwordResetService = module.get<PasswordResetService>(PasswordResetService);
+    passwordResetService =
+      module.get<PasswordResetService>(PasswordResetService);
     userRepository = module.get<Repository<User>>(getRepositoryToken(User));
   });
 
@@ -336,14 +415,19 @@ describe('AuthService Integration', () => {
       const result = await service.login('test@example.com', 'password123');
 
       expect(result).toHaveProperty('access_token');
-      expect(result.user).toEqual({
+      expect(result.user).toMatchObject({
         id: mockUser.id,
         username: mockUser.username,
         email: 'test@example.com',
-        resetPasswordToken: mockUser.resetPasswordToken,
-        resetPasswordExpires: mockUser.resetPasswordExpires,
         createdAt: mockUser.createdAt,
         updatedAt: mockUser.updatedAt,
+        is_active: true,
+        privacy: {
+          isDiscoverable: true,
+          canReceiveReplies: true,
+          showReactions: true,
+          dataProcessingConsent: true,
+        },
       });
     });
 
@@ -351,22 +435,34 @@ describe('AuthService Integration', () => {
       jest.spyOn(userRepository, 'findOne').mockResolvedValue(mockUser);
       (bcrypt.compare as jest.Mock).mockResolvedValue(false);
 
-      await expect(service.login('test@example.com', 'wrongpassword')).rejects.toThrow(
-        UnauthorizedException,
-      );
+      await expect(
+        service.login('test@example.com', 'wrongpassword'),
+      ).rejects.toThrow('Invalid credentials');
     });
   });
 
   describe('forgotPassword', () => {
     it('should send password reset email for existing user', async () => {
       jest.spyOn(userRepository, 'findOne').mockResolvedValue(mockUser);
-      jest.spyOn(passwordResetService, 'createResetToken').mockResolvedValue('reset-token');
-      jest.spyOn(emailService, 'sendPasswordResetEmail').mockResolvedValue(undefined);
+      jest
+        .spyOn(passwordResetService, 'createResetToken')
+        .mockResolvedValue('reset-token');
+      jest
+        .spyOn(emailService, 'sendPasswordResetEmail')
+        .mockResolvedValue(undefined);
 
-      const result = await service.forgotPassword({ email: 'test@example.com' });
+      const result = await service.forgotPassword({
+        email: 'test@example.com',
+      });
 
-      expect(result).toEqual({ message: 'If the user exists, a password reset email has been sent.' });
-      expect(passwordResetService.createResetToken).toHaveBeenCalledWith(mockUser.id);
+      expect(result).toEqual({
+        message: 'If the user exists, a password reset email has been sent.',
+      });
+      expect(passwordResetService.createResetToken).toHaveBeenCalledWith(
+        mockUser.id,
+        undefined,
+        undefined,
+      );
       expect(emailService.sendPasswordResetEmail).toHaveBeenCalledWith(
         'test@example.com',
         'reset-token',
@@ -377,11 +473,15 @@ describe('AuthService Integration', () => {
     it('should handle non-existent user gracefully', async () => {
       jest.spyOn(userRepository, 'findOne').mockResolvedValue(null);
 
-      const result = await service.forgotPassword({ email: 'nonexistent@example.com' });
+      const result = await service.forgotPassword({
+        email: 'nonexistent@example.com',
+      });
 
-      expect(result).toEqual({ message: 'If the user exists, a password reset email has been sent.' });
+      expect(result).toEqual({
+        message: 'If the user exists, a password reset email has been sent.',
+      });
       expect(passwordResetService.createResetToken).not.toHaveBeenCalled();
       expect(emailService.sendPasswordResetEmail).not.toHaveBeenCalled();
     });
   });
-}); 
+});

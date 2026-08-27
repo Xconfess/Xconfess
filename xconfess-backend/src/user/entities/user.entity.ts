@@ -9,7 +9,27 @@ import {
 
 export enum UserRole {
   USER = 'user',
+  MODERATOR = 'moderator',
   ADMIN = 'admin',
+}
+
+export enum NotificationCategory {
+  MESSAGE = 'message',
+  REACTION = 'reaction',
+  MODERATION = 'moderation',
+  SYSTEM = 'system',
+  COMMENT = 'comments',
+  MENTION = 'mentions',
+  TIP = 'tips',
+  REPORT = 'reports',
+}
+
+export interface PrivacySettings {
+  isDiscoverable: boolean;
+  canReceiveReplies: boolean;
+  showReactions: boolean;
+  /** GDPR-style flag; defaults true when absent in stored JSON */
+  dataProcessingConsent?: boolean;
 }
 
 @Entity()
@@ -17,41 +37,114 @@ export enum UserRole {
 @Unique(['emailHash'])
 export class User {
   @PrimaryGeneratedColumn()
-  id: number;
+  id!: number;
 
   @Column()
-  username: string;
+  username!: string;
 
   @Column()
-  password: string;
+  password!: string;
 
   @Column({ name: 'email_encrypted', type: 'text' })
-  emailEncrypted: string;
+  emailEncrypted!: string;
 
   @Column({ name: 'email_iv', type: 'varchar', length: 32 })
-  emailIv: string;
+  emailIv!: string;
 
   @Column({ name: 'email_tag', type: 'varchar', length: 32 })
-  emailTag: string;
+  emailTag!: string;
 
   @Column({ name: 'email_hash', type: 'varchar', length: 64, unique: true })
-  emailHash: string;
+  emailHash!: string;
 
   @Column({ type: 'enum', enum: UserRole, default: UserRole.USER })
-  role: UserRole;
+  role!: UserRole;
 
   @Column({ default: true })
-  is_active: boolean;
+  is_active!: boolean;
 
-  @Column({ nullable: true })
-  resetPasswordToken: string | null;
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  resetPasswordToken!: string | null;
 
-  @Column({ nullable: true })
-  resetPasswordExpires: Date | null;
+  @Column({ type: 'timestamp', nullable: true })
+  resetPasswordExpires!: Date | null;
+
+  @Column({
+    name: 'notification_preferences',
+    type: 'jsonb',
+    default: () => "'{}'",
+  })
+  notificationPreferences!: Record<string, any>;
+
+  @Column({
+    name: 'privacy_settings',
+    type: 'jsonb',
+    default: () =>
+      '\'{"isDiscoverable":true,"canReceiveReplies":true,"showReactions":true,"dataProcessingConsent":true}\'',
+  })
+  privacySettings!: PrivacySettings;
+
+  // Two-factor authentication (TOTP) fields
+  @Column({ name: 'totp_enabled', default: false })
+  totpEnabled!: boolean;
+
+  @Column({ name: 'totp_secret_encrypted', type: 'text', nullable: true })
+  totpSecretEncrypted!: string | null;
+
+  @Column({ name: 'totp_secret_iv', type: 'varchar', length: 64, nullable: true })
+  totpSecretIv!: string | null;
+
+  @Column({ name: 'totp_secret_tag', type: 'varchar', length: 64, nullable: true })
+  totpSecretTag!: string | null;
+
+  /**
+   * Recovery codes (one-time use). Stored as encrypted JSON array of codes.
+   */
+  @Column({ name: 'recovery_codes_encrypted', type: 'text', nullable: true })
+  recoveryCodesEncrypted!: string | null;
+
+  @Column({ name: 'recovery_codes_iv', type: 'varchar', length: 64, nullable: true })
+  recoveryCodesIv!: string | null;
+
+  @Column({ name: 'recovery_codes_tag', type: 'varchar', length: 64, nullable: true })
+  recoveryCodesTag!: string | null;
+
+  isNotificationEnabled(category: NotificationCategory): boolean {
+    if (!this.notificationPreferences) return true;
+
+    const value = this.notificationPreferences[category];
+    return value !== false;
+  }
+
+  isDiscoverable(): boolean {
+    if (!this.privacySettings) return true;
+    return this.privacySettings.isDiscoverable !== false;
+  }
+
+  canReceiveReplies(): boolean {
+    if (!this.privacySettings) return true;
+    return this.privacySettings.canReceiveReplies !== false;
+  }
+
+  shouldShowReactions(): boolean {
+    if (!this.privacySettings) return true;
+    return this.privacySettings.showReactions !== false;
+  }
+
+  hasDataProcessingConsent(): boolean {
+    if (!this.privacySettings) return true;
+    return this.privacySettings.dataProcessingConsent !== false;
+  }
 
   @CreateDateColumn()
-  createdAt: Date;
+  createdAt!: Date;
 
   @UpdateDateColumn()
-  updatedAt: Date;
+  updatedAt!: Date;
+
+  getEmail(): string {
+    if (!this.emailEncrypted || !this.emailIv || !this.emailTag) return '';
+    const { CryptoUtil } = require('../../common/crypto.util');
+    return CryptoUtil.decrypt(this.emailEncrypted, this.emailIv, this.emailTag);
+  }
 }

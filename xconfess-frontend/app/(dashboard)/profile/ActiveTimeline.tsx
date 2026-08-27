@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { MessageSquare, Heart, DollarSign, Award, Clock } from "lucide-react";
+import { MessageSquare, Heart, DollarSign, Award, Clock, ExternalLink, Anchor } from "lucide-react";
 
 type ActivityType =
   | "confession"
@@ -17,15 +17,8 @@ interface ActivityItem {
   data: any;
 }
 
-interface Confession {
-  id: string;
-  content: string;
-  category: string;
-  createdAt: string;
-  viewCount: number;
-  reactionCount: number;
-  isAnonymous: boolean;
-}
+import { Confession } from "@/app/lib/types/confession";
+import { getStellarExplorerUrl } from "@/app/lib/utils/stellar";
 
 interface ActivityTimelineProps {
   userId: string;
@@ -91,7 +84,7 @@ export function ActivityTimeline({ userId }: ActivityTimelineProps) {
     setActivities([]);
     setConfessions([]);
     fetchActivities(1);
-  }, [activeTab]);
+  }, [activeTab, fetchActivities]);
 
   useEffect(() => {
     const observer = new IntersectionObserver(
@@ -181,11 +174,10 @@ export function ActivityTimeline({ userId }: ActivityTimelineProps) {
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition ${
-                activeTab === tab
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition ${activeTab === tab
                   ? "bg-blue-600 text-white"
                   : "bg-white text-gray-700 hover:bg-gray-100 border border-gray-300"
-              }`}
+                }`}
             >
               {tab.charAt(0).toUpperCase() + tab.slice(1)}
             </button>
@@ -209,7 +201,7 @@ export function ActivityTimeline({ userId }: ActivityTimelineProps) {
                   className="p-6 hover:bg-gray-50 transition"
                 >
                   <div className="flex items-start gap-4">
-                    <div className="flex-shrink-0 p-3 bg-blue-100 rounded-lg">
+                    <div className="shrink-0 p-3 bg-blue-100 rounded-lg">
                       <MessageSquare className="w-5 h-5 text-blue-700" />
                     </div>
 
@@ -257,14 +249,23 @@ export function ActivityTimeline({ userId }: ActivityTimelineProps) {
                 <p>No activity yet</p>
               </div>
             ) : (
-              activities.map((activity) => (
+              activities.map((activity) => {
+                const txHash =
+                  activity.data?.txHash ||
+                  activity.data?.stellarTxHash ||
+                  activity.data?.transactionHash;
+                const explorerUrl = txHash
+                  ? getStellarExplorerUrl(txHash)
+                  : null;
+
+                return (
                 <div
                   key={activity.id}
                   className="p-6 hover:bg-gray-50 transition"
                 >
                   <div className="flex items-start gap-4">
                     <div
-                      className={`flex-shrink-0 p-3 rounded-lg ${getActivityColor(activity.type)}`}
+                      className={`shrink-0 p-3 rounded-lg ${getActivityColor(activity.type)}`}
                     >
                       {getActivityIcon(activity.type)}
                     </div>
@@ -273,20 +274,32 @@ export function ActivityTimeline({ userId }: ActivityTimelineProps) {
                       <p className="text-gray-800 mb-1">
                         {activity.data.description || "Activity recorded"}
                       </p>
+                      {explorerUrl && (
+                        <a
+                          href={explorerUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 mb-1 text-xs text-blue-600 hover:text-blue-800"
+                        >
+                          <ExternalLink className="h-3 w-3" />
+                          View on Stellar Explorer
+                        </a>
+                      )}
                       <p className="text-sm text-gray-500">
                         {formatTimestamp(activity.timestamp)}
                       </p>
                     </div>
                   </div>
                 </div>
-              ))
+                );
+              })
             )}
           </div>
         )}
 
         {/* Loading State */}
         {loading && (
-          <div className="p-6 text-center">
+          <div role="status" aria-label="loading" className="p-6 text-center">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
           </div>
         )}

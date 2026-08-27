@@ -1,0 +1,48 @@
+FROM node:22-alpine AS deps
+WORKDIR /app
+
+COPY package.json package-lock.json ./
+COPY xconfess-backend/package.json ./xconfess-backend/package.json
+COPY xconfess-contracts/package.json ./xconfess-contracts/package.json
+COPY xconfess-frontend/package.json ./xconfess-frontend/package.json
+RUN npm ci --include=optional --no-audit --no-fund
+
+FROM deps AS build
+WORKDIR /app
+
+ARG BACKEND_API_URL=http://localhost:5000/api
+ARG NEXT_PUBLIC_API_URL=http://localhost:5000/api
+ARG NEXT_PUBLIC_WS_URL=ws://localhost:5000
+ARG NEXT_PUBLIC_APP_URL=http://localhost:3000
+ARG NEXT_PUBLIC_STELLAR_NETWORK=testnet
+ARG NEXT_PUBLIC_STELLAR_CONTRACT_ID=CB5XMDHT66EISB4WXM4YGNDHYRMZDX42TOHZEAENIUTSSMRFHJSFRNHB
+
+ENV BACKEND_API_URL=$BACKEND_API_URL
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+ENV NEXT_PUBLIC_WS_URL=$NEXT_PUBLIC_WS_URL
+ENV NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL
+ENV NEXT_PUBLIC_STELLAR_NETWORK=$NEXT_PUBLIC_STELLAR_NETWORK
+ENV NEXT_PUBLIC_STELLAR_CONTRACT_ID=$NEXT_PUBLIC_STELLAR_CONTRACT_ID
+ENV NEXT_PUBLIC_DEV_BYPASS_AUTH=false
+
+COPY . .
+RUN npm run frontend:build
+
+FROM node:22-alpine AS runner
+WORKDIR /app
+ENV NODE_ENV=production
+ENV PORT=3000
+
+COPY package.json package-lock.json ./
+COPY xconfess-backend/package.json ./xconfess-backend/package.json
+COPY xconfess-contracts/package.json ./xconfess-contracts/package.json
+COPY xconfess-frontend/package.json ./xconfess-frontend/package.json
+COPY --from=deps /app/node_modules ./node_modules
+COPY --from=build /app/xconfess-frontend/.next ./xconfess-frontend/.next
+COPY --from=build /app/xconfess-frontend/public ./xconfess-frontend/public
+COPY --from=build /app/xconfess-frontend/next.config.mjs ./xconfess-frontend/next.config.mjs
+
+WORKDIR /app/xconfess-frontend
+EXPOSE 3000
+HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 CMD node -e "require('http').get('http://127.0.0.1:' + (process.env.PORT || 3000) + '/', r => process.exit(r.statusCode < 500 ? 0 : 1)).on('error', () => process.exit(1))"
+CMD ["npm", "run", "start"]

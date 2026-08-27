@@ -47,7 +47,9 @@ describe('AdminGuard', () => {
       }),
     } as ExecutionContext;
 
-    expect(() => guard.canActivate(mockExecutionContext)).toThrow(ForbiddenException);
+    expect(() => guard.canActivate(mockExecutionContext)).toThrow(
+      ForbiddenException,
+    );
   });
 
   it('should deny access if user is not authenticated', () => {
@@ -59,7 +61,9 @@ describe('AdminGuard', () => {
       }),
     } as ExecutionContext;
 
-    expect(() => guard.canActivate(mockExecutionContext)).toThrow(ForbiddenException);
+    expect(() => guard.canActivate(mockExecutionContext)).toThrow(
+      ForbiddenException,
+    );
   });
 
   it('should deny access if user object is missing', () => {
@@ -69,6 +73,8 @@ describe('AdminGuard', () => {
       }),
     } as ExecutionContext;
 
-    expect(() => guard.canActivate(mockExecutionContext)).toThrow(ForbiddenException);
+    expect(() => guard.canActivate(mockExecutionContext)).toThrow(
+      ForbiddenException,
+    );
   });
 });

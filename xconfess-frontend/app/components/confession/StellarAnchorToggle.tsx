@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useStellarWallet } from "@/app/lib/hooks/useStellarWallet";
-import { getPublicKey } from "@/app/lib/utils/stellar";
+import { useStellarWallet } from "@/lib/hooks/useStellarWallet";
+import { freighterGetPublicKey } from "@/lib/wallet/freighterAdapter";
+import { getStellarExplorerUrl } from "@/app/lib/utils/stellar";
 import { Button } from "@/app/components/ui/button";
 import { ExternalLink, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
 import { cn } from "@/app/lib/utils/cn";
@@ -35,8 +36,7 @@ export const StellarAnchorToggle: React.FC<StellarAnchorToggleProps> = ({
       setIsConnecting(true);
       try {
         await connect();
-        // Check connection state after connect attempt
-        const connected = await getPublicKey();
+        const connected = await freighterGetPublicKey().catch(() => null);
         if (connected) {
           onToggle(true);
         }
@@ -50,14 +50,7 @@ export const StellarAnchorToggle: React.FC<StellarAnchorToggleProps> = ({
     }
   };
 
-  const getHorizonUrl = () => {
-    const network = process.env.NEXT_PUBLIC_STELLAR_NETWORK || "testnet";
-    const baseUrl =
-      network === "mainnet"
-        ? "https://horizon.stellar.org"
-        : "https://horizon-testnet.stellar.org";
-    return `${baseUrl}/transactions/${transactionHash}`;
-  };
+  const explorerUrl = getStellarExplorerUrl(transactionHash);
 
   return (
     <div className={cn("space-y-2", className)}>
@@ -74,7 +67,7 @@ export const StellarAnchorToggle: React.FC<StellarAnchorToggleProps> = ({
           Anchor on Stellar
         </span>
         {isLoading || isConnecting ? (
-          <Loader2 className="h-4 w-4 animate-spin text-zinc-400" />
+          <Loader2 role='status' aria-label='loading' className="h-4 w-4 animate-spin text-zinc-400" />
         ) : enabled && transactionHash ? (
           <CheckCircle2 className="h-4 w-4 text-green-400" />
         ) : null}
@@ -143,15 +136,17 @@ export const StellarAnchorToggle: React.FC<StellarAnchorToggleProps> = ({
         <div className="flex items-center gap-2 text-xs">
           <CheckCircle2 className="h-4 w-4 text-green-400" />
           <span className="text-zinc-400">Anchored on Stellar</span>
-          <a
-            href={getHorizonUrl()}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-blue-400 hover:text-blue-300 flex items-center gap-1 underline"
-          >
-            View transaction
-            <ExternalLink className="h-3 w-3" />
-          </a>
+          {explorerUrl && (
+            <a
+              href={explorerUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-blue-400 hover:text-blue-300 flex items-center gap-1 underline"
+            >
+              View transaction
+              <ExternalLink className="h-3 w-3" />
+            </a>
+          )}
         </div>
       )}
     </div>

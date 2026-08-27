@@ -1,0 +1,150 @@
+# Smoke Test Quick Reference Card
+
+**Print this or bookmark for rapid testing**
+
+---
+
+## One-Liner Commands
+
+```bash
+# Start all services (from repo root)
+docker compose -f compose.yaml up -d && npm run dev &
+
+# Quick backend check
+curl -s http://localhost:5000/health/live | jq .
+
+# Quick full test suite
+./scripts/smoke-test.sh
+
+# Frontend check
+curl -s http://localhost:3000/ | head -20
+```
+
+---
+
+## Test Endpoints at a Glance
+
+| Section | Endpoint | Method | Auth | Expected |
+|---------|----------|--------|------|----------|
+| **Health** | `/` | GET | ❌ | 200 |
+| **Health** | `/health/live` | GET | ❌ | 200 |
+| **Health** | `/health/ready` | GET | ❌ | 200/503 |
+| **Feed** | `/confessions` | GET | ❌ | 200 |
+| **Feed** | `/confessions` | POST | ❌ | 201 |
+| **Detail** | `/confessions/:id` | GET | ❌ | 200 |
+| **Report** | `/reports` | POST | ❌ | 201 |
+| **Admin** | `/diagnostics/notifications` | GET | ✅ | 401→ |
+
+**Legend:** ❌ = No auth required | ✅ = Auth required | 401→ = Should fail with 401/403
+
+---
+
+## Frontend URLs
+
+```
+http://localhost:3000/auth/login        # Public
+http://localhost:3000/                  # Protected (feed)
+http://localhost:3000/confessions/123   # Protected (detail)
+http://localhost:3000/admin/dashboard   # Protected + Admin
+http://localhost:3000/admin/reports     # Protected + Admin
+```
+
+---
+
+## Sample Test Data
+
+```bash
+# Confession
+{
+  "message": "Test confession from smoke test",
+  "gender": "female",
+  "tags": ["test"]
+}
+
+# Report (replace confessionId)
+{
+  "confessionId": "actual-uuid-here",
+  "type": "offensive",
+  "reason": "Test report"
+}
+```
+
+---
+
+## Evidence Checklist
+
+- [ ] Screenshots 01-13 (see SMOKE_TEST_CHECKLIST.md section "Evidence Package")
+- [ ] smoke-test-summary.txt (date, env, results)
+- [ ] smoke-test-requests.log (curl commands)
+- [ ] Browser console clear (no errors)
+- [ ] Server logs check (no errors)
+
+---
+
+## Key Files
+
+| Document | Purpose | Size |
+|----------|---------|------|
+| SMOKE_TEST_CHECKLIST.md | Detailed test guide | 650+ lines |
+| SMOKE_TEST_CURL_GUIDE.md | Manual curl reference | 350+ lines |
+| scripts/smoke-test.sh | Automated script | 180+ lines |
+| SMOKE_TEST_VALIDATION.md | Route verification | 400+ lines |
+| SMOKE_TEST_IMPLEMENTATION.md | This summary | 300+ lines |
+
+---
+
+## Common Issues
+
+| Problem | Solution |
+|---------|----------|
+| Connection refused | Start backend: `npm run dev --workspace=xconfess-backend` |
+| No database data | Create test confession: `POST /confessions` |
+| 401 on protected routes | Login first via `/users/login` or `/auth/login` |
+| Docker not running | `docker compose up -d` |
+| Port already in use | Check `lsof -i :5000` or `:3000` |
+
+---
+
+## Performance Baselines (Record on First Pass)
+
+```
+GET /                          : _____ ms
+GET /health/live               : _____ ms
+GET /health/ready              : _____ ms
+GET /confessions?limit=20      : _____ ms
+GET /confessions/:id           : _____ ms
+POST /confessions              : _____ ms
+POST /reports                  : _____ ms
+Frontend / page load           : _____ ms
+```
+
+---
+
+## PR Comment Template
+
+```markdown
+## ✅ Smoke Tests Passed
+
+All endpoints operational on localhost.
+
+### Results
+- Backend health: ✅ 200 OK
+- Confession feed (API): ✅ 200 OK  
+- Confession detail: ✅ 200 OK
+- Report submission: ✅ 201 Created
+- Admin access (unauthenticated): ❌ 401 Forbidden (expected)
+- Frontend pages: ✅ Rendering
+- Protected routes: ✅ Auth enforced
+
+### Evidence
+- See `smoke-test-evidence/` folder
+- See `SMOKE_TEST_VALIDATION.md` for route verification
+
+### Baseline Metrics
+- Avg response time: _____ ms
+- All checks: PASS
+```
+
+---
+
+**Print Page:** Yes | **Update Frequency:** After each release

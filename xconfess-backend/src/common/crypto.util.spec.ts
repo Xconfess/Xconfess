@@ -27,8 +27,12 @@ describe('CryptoUtil', () => {
       const result2 = CryptoUtil.encrypt(text);
 
       expect(result1.encrypted).not.toBe(result2.encrypted);
-      expect(CryptoUtil.decrypt(result1.encrypted, result1.iv, result1.tag)).toBe(text);
-      expect(CryptoUtil.decrypt(result2.encrypted, result2.iv, result2.tag)).toBe(text);
+      expect(
+        CryptoUtil.decrypt(result1.encrypted, result1.iv, result1.tag),
+      ).toBe(text);
+      expect(
+        CryptoUtil.decrypt(result2.encrypted, result2.iv, result2.tag),
+      ).toBe(text);
     });
   });
 

@@ -1,9 +1,11 @@
 // components/notifications/NotificationPreferences.tsx
 "use client";
 
-import { useState, useEffect } from "react";
-import { ArrowLeft, Save, Bell, Mail, Smartphone } from "lucide-react";
-import { NotificationPreferences as Preferences } from "@/types/notifications";
+import { useState, useEffect, useCallback } from "react";
+import { ArrowLeft, Save, Bell, Mail } from "lucide-react";
+import { NotificationPreferences as Preferences } from "@/app/types/notifications";
+import { notificationApi } from "@/app/lib/api/notification";
+import { useGlobalToast } from "@/app/components/common/Toast";
 
 interface NotificationPreferencesProps {
   onClose: () => void;
@@ -22,66 +24,50 @@ export function NotificationPreferences({
     badge: true,
     mention: true,
     follow: true,
-    emailNotifications: false,
+    emailNotifications: true,
     pushNotifications: true,
   });
 
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const toast = useGlobalToast();
 
-  useEffect(() => {
-    fetchPreferences();
-  }, []);
-
-  const fetchPreferences = async () => {
+  const fetchPreferences = useCallback(async () => {
     setLoading(true);
     try {
-      const response = await fetch(`/api/notifications/preferences`, {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem("token")}`,
-        },
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setPreferences(data);
-      }
-    } catch (error) {
-      console.error("Error fetching preferences:", error);
+      const data = await notificationApi.getPreferences();
+      setPreferences(data);
+    } catch {
+      toast.error("Failed to load notification preferences.");
     } finally {
       setLoading(false);
     }
-  };
+  }, [toast]);
+
+  useEffect(() => {
+    fetchPreferences();
+  }, [fetchPreferences]);
 
   const handleSave = async () => {
     setSaving(true);
     setSaved(false);
 
     try {
-      const response = await fetch("/api/notifications/preferences", {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${localStorage.getItem("token")}`,
-        },
-        body: JSON.stringify(preferences),
-      });
-
-      if (!response.ok) throw new Error("Failed to save preferences");
+      await notificationApi.updatePreferences(preferences);
 
       setSaved(true);
+      toast.success("Notification preferences saved.");
       setTimeout(() => setSaved(false), 3000);
-    } catch (error) {
-      console.error("Error saving preferences:", error);
-      alert("Failed to save preferences. Please try again.");
+    } catch {
+      toast.error("Failed to save preferences. Please try again.");
     } finally {
       setSaving(false);
     }
   };
 
   const handleToggle = (key: keyof Preferences) => {
-    setPreferences((prev) => ({
+    setPreferences((prev: Preferences) => ({
       ...prev,
       [key]: !prev[key],
     }));
@@ -146,7 +132,7 @@ export function NotificationPreferences({
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="p-4 border-b border-gray-200 bg-gradient-to-r from-blue-500 to-purple-600">
+      <div className="p-4 border-b border-gray-200 bg-linear-to-r from-blue-500 to-purple-600">
         <div className="flex items-center gap-3 mb-2">
           <button
             onClick={onClose}
@@ -174,7 +160,7 @@ export function NotificationPreferences({
           <div className="space-y-3">
             {notificationTypes.map((type) => (
               <label
-                key={type.key}
+                key={type.key as string}
                 className="flex items-start gap-3 p-3 rounded-lg border border-gray-200 hover:bg-gray-50 cursor-pointer transition-colors"
               >
                 <input
@@ -206,7 +192,7 @@ export function NotificationPreferences({
               const Icon = method.icon;
               return (
                 <label
-                  key={method.key}
+                  key={method.key as string}
                   className="flex items-start gap-3 p-3 rounded-lg border border-gray-200 hover:bg-gray-50 cursor-pointer transition-colors"
                 >
                   <input
@@ -234,7 +220,7 @@ export function NotificationPreferences({
         <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
           <p className="text-xs text-blue-800">
             <strong>Note:</strong> Browser notifications require permission.
-            Click "Allow" when prompted to enable push notifications.
+            Click &quot;Allow&quot; when prompted to enable push notifications.
           </p>
         </div>
       </div>

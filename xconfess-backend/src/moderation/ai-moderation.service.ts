@@ -17,6 +17,9 @@ export enum ModerationStatus {
   APPROVED = 'approved',
   REJECTED = 'rejected',
   FLAGGED = 'flagged',
+  ESCALATED = 'escalated',
+  RESOLVED = 'resolved',
+  HIDDEN = 'hidden',
 }
 
 export interface ModerationResult {
@@ -41,19 +44,34 @@ export class AiModerationService {
 
   constructor(private readonly configService: ConfigService) {
     this.openAiApiKey = this.configService.get<string>('OPENAI_API_KEY', '');
-    this.perspectiveApiKey = this.configService.get<string>('PERSPECTIVE_API_KEY', '');
-    this.highThreshold = this.configService.get<number>('MODERATION_HIGH_THRESHOLD', 0.8);
-    this.mediumThreshold = this.configService.get<number>('MODERATION_MEDIUM_THRESHOLD', 0.5);
-    this.autoActionEnabled = this.configService.get<boolean>('AUTO_ACTION_ENABLED', true);
-    
+    this.perspectiveApiKey = this.configService.get<string>(
+      'PERSPECTIVE_API_KEY',
+      '',
+    );
+    this.highThreshold = this.configService.get<number>(
+      'MODERATION_HIGH_THRESHOLD',
+      0.8,
+    );
+    this.mediumThreshold = this.configService.get<number>(
+      'MODERATION_MEDIUM_THRESHOLD',
+      0.5,
+    );
+    this.autoActionEnabled = this.configService.get<boolean>(
+      'AUTO_ACTION_ENABLED',
+      true,
+    );
+
     const categoriesStr = this.configService.get<string>(
       'ENABLED_MODERATION_CATEGORIES',
-      'hate_speech,harassment,self_harm,violence,sexual,spam'
+      'hate_speech,harassment,self_harm,violence,sexual,spam',
     );
     this.enabledCategories = categoriesStr.split(',') as ModerationCategory[];
   }
 
-  async moderateContent(content: string, userId?: string): Promise<ModerationResult> {
+  async moderateContent(
+    content: string,
+    userId?: string,
+  ): Promise<ModerationResult> {
     try {
       if (this.requestCount >= this.maxRequestsPerMinute) {
         this.logger.warn('Rate limit reached, using fallback moderation');
@@ -87,7 +105,9 @@ export class AiModerationService {
     }
   }
 
-  private async moderateWithOpenAI(content: string): Promise<ModerationResult | null> {
+  private async moderateWithOpenAI(
+    content: string,
+  ): Promise<ModerationResult | null> {
     if (!this.openAiApiKey) return null;
 
     try {
@@ -96,40 +116,57 @@ export class AiModerationService {
         { input: content },
         {
           headers: {
-            'Authorization': `Bearer ${this.openAiApiKey}`,
+            Authorization: `Bearer ${this.openAiApiKey}`,
             'Content-Type': 'application/json',
           },
           timeout: 5000,
-        }
+        },
       );
 
       const result = response.data.results[0];
       const flags: ModerationCategory[] = [];
       const details: Record<string, number> = {};
 
-      if (result.categories.hate && this.enabledCategories.includes(ModerationCategory.HATE_SPEECH)) {
+      if (
+        result.categories.hate &&
+        this.enabledCategories.includes(ModerationCategory.HATE_SPEECH)
+      ) {
         flags.push(ModerationCategory.HATE_SPEECH);
         details.hate_speech = result.category_scores.hate;
       }
-      if (result.categories.harassment && this.enabledCategories.includes(ModerationCategory.HARASSMENT)) {
+      if (
+        result.categories.harassment &&
+        this.enabledCategories.includes(ModerationCategory.HARASSMENT)
+      ) {
         flags.push(ModerationCategory.HARASSMENT);
         details.harassment = result.category_scores.harassment;
       }
-      if (result.categories['self-harm'] && this.enabledCategories.includes(ModerationCategory.SELF_HARM)) {
+      if (
+        result.categories['self-harm'] &&
+        this.enabledCategories.includes(ModerationCategory.SELF_HARM)
+      ) {
         flags.push(ModerationCategory.SELF_HARM);
         details.self_harm = result.category_scores['self-harm'];
       }
-      if (result.categories.violence && this.enabledCategories.includes(ModerationCategory.VIOLENCE)) {
+      if (
+        result.categories.violence &&
+        this.enabledCategories.includes(ModerationCategory.VIOLENCE)
+      ) {
         flags.push(ModerationCategory.VIOLENCE);
         details.violence = result.category_scores.violence;
       }
-      if (result.categories.sexual && this.enabledCategories.includes(ModerationCategory.SEXUAL)) {
+      if (
+        result.categories.sexual &&
+        this.enabledCategories.includes(ModerationCategory.SEXUAL)
+      ) {
         flags.push(ModerationCategory.SEXUAL);
         details.sexual = result.category_scores.sexual;
       }
 
-      const scores = Object.values(result.category_scores) as number[];
-      const maxScore = Math.max(...scores);
+      const scores = Object.values(result.category_scores).map((v) =>
+        typeof v === 'number' ? v : Number(v),
+      );
+      const maxScore = scores.length > 0 ? Math.max(...scores) : 0;
 
       return {
         score: maxScore,
@@ -139,12 +176,15 @@ export class AiModerationService {
         requiresReview: false,
       };
     } catch (error) {
-      this.logger.error('OpenAI moderation failed:', error.message);
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.error('OpenAI moderation failed:', message);
       return null;
     }
   }
 
-  private async moderateWithPerspective(content: string): Promise<ModerationResult | null> {
+  private async moderateWithPerspective(
+    content: string,
+  ): Promise<ModerationResult | null> {
     if (!this.perspectiveApiKey) return null;
 
     try {
@@ -160,7 +200,7 @@ export class AiModerationService {
             THREAT: {},
           },
         },
-        { timeout: 5000 }
+        { timeout: 5000 },
       );
 
       const attributes = response.data.attributeScores;
@@ -168,25 +208,42 @@ export class AiModerationService {
       const details: Record<string, number> = {};
 
       const toxicity = attributes.TOXICITY?.summaryScore?.value || 0;
-      const severeToxicity = attributes.SEVERE_TOXICITY?.summaryScore?.value || 0;
-      const identityAttack = attributes.IDENTITY_ATTACK?.summaryScore?.value || 0;
+      const severeToxicity =
+        attributes.SEVERE_TOXICITY?.summaryScore?.value || 0;
+      const identityAttack =
+        attributes.IDENTITY_ATTACK?.summaryScore?.value || 0;
       const insult = attributes.INSULT?.summaryScore?.value || 0;
       const threat = attributes.THREAT?.summaryScore?.value || 0;
 
-      if (identityAttack > 0.5 && this.enabledCategories.includes(ModerationCategory.HATE_SPEECH)) {
+      if (
+        identityAttack > 0.5 &&
+        this.enabledCategories.includes(ModerationCategory.HATE_SPEECH)
+      ) {
         flags.push(ModerationCategory.HATE_SPEECH);
         details.hate_speech = identityAttack;
       }
-      if ((insult > 0.5 || toxicity > 0.7) && this.enabledCategories.includes(ModerationCategory.HARASSMENT)) {
+      if (
+        (insult > 0.5 || toxicity > 0.7) &&
+        this.enabledCategories.includes(ModerationCategory.HARASSMENT)
+      ) {
         flags.push(ModerationCategory.HARASSMENT);
         details.harassment = Math.max(insult, toxicity);
       }
-      if (threat > 0.5 && this.enabledCategories.includes(ModerationCategory.VIOLENCE)) {
+      if (
+        threat > 0.5 &&
+        this.enabledCategories.includes(ModerationCategory.VIOLENCE)
+      ) {
         flags.push(ModerationCategory.VIOLENCE);
         details.violence = threat;
       }
 
-      const maxScore = Math.max(toxicity, severeToxicity, identityAttack, insult, threat);
+      const maxScore = Math.max(
+        toxicity,
+        severeToxicity,
+        identityAttack,
+        insult,
+        threat,
+      );
 
       return {
         score: maxScore,
@@ -196,7 +253,8 @@ export class AiModerationService {
         requiresReview: false,
       };
     } catch (error) {
-      this.logger.error('Perspective API moderation failed:', error.message);
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.error('Perspective API moderation failed:', message);
       return null;
     }
   }
@@ -210,23 +268,39 @@ export class AiModerationService {
 
     const hatePatterns = ['hate', 'racist', 'bigot', 'nazi', 'slur'];
     const hateScore = this.countPatterns(lowerContent, hatePatterns) * 0.3;
-    if (hateScore > 0 && this.enabledCategories.includes(ModerationCategory.HATE_SPEECH)) {
+    if (
+      hateScore > 0 &&
+      this.enabledCategories.includes(ModerationCategory.HATE_SPEECH)
+    ) {
       flags.push(ModerationCategory.HATE_SPEECH);
       details.hate_speech = Math.min(hateScore, 1);
       score = Math.max(score, hateScore);
     }
 
-    const selfHarmPatterns = ['kill myself', 'suicide', 'end my life', 'self harm'];
-    const selfHarmScore = this.countPatterns(lowerContent, selfHarmPatterns) * 0.4;
-    if (selfHarmScore > 0 && this.enabledCategories.includes(ModerationCategory.SELF_HARM)) {
+    const selfHarmPatterns = [
+      'kill myself',
+      'suicide',
+      'end my life',
+      'self harm',
+    ];
+    const selfHarmScore =
+      this.countPatterns(lowerContent, selfHarmPatterns) * 0.4;
+    if (
+      selfHarmScore > 0 &&
+      this.enabledCategories.includes(ModerationCategory.SELF_HARM)
+    ) {
       flags.push(ModerationCategory.SELF_HARM);
       details.self_harm = Math.min(selfHarmScore, 1);
       score = Math.max(score, selfHarmScore);
     }
 
     const violencePatterns = ['kill', 'murder', 'assault', 'attack', 'bomb'];
-    const violenceScore = this.countPatterns(lowerContent, violencePatterns) * 0.25;
-    if (violenceScore > 0 && this.enabledCategories.includes(ModerationCategory.VIOLENCE)) {
+    const violenceScore =
+      this.countPatterns(lowerContent, violencePatterns) * 0.25;
+    if (
+      violenceScore > 0 &&
+      this.enabledCategories.includes(ModerationCategory.VIOLENCE)
+    ) {
       flags.push(ModerationCategory.VIOLENCE);
       details.violence = Math.min(violenceScore, 1);
       score = Math.max(score, violenceScore);
@@ -236,10 +310,13 @@ export class AiModerationService {
       content.includes('http://') || content.includes('https://'),
       content.length > 1000,
       /(.)\1{4,}/.test(content),
-      content.split(' ').some(word => word.length > 30),
+      content.split(' ').some((word) => word.length > 30),
     ];
     const spamScore = spamIndicators.filter(Boolean).length * 0.2;
-    if (spamScore > 0 && this.enabledCategories.includes(ModerationCategory.SPAM)) {
+    if (
+      spamScore > 0 &&
+      this.enabledCategories.includes(ModerationCategory.SPAM)
+    ) {
       flags.push(ModerationCategory.SPAM);
       details.spam = Math.min(spamScore, 1);
       score = Math.max(score, spamScore);

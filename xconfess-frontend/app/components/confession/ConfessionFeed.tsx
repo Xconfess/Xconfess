@@ -1,225 +1,281 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useWindowVirtualizer } from "@tanstack/react-virtual";
+import { useRouter } from "next/navigation";
+import { ArrowRight, ArrowUp, Scale, X } from "lucide-react";
 import { ConfessionCard } from "./ConfessionCard";
-import { SkeletonCard } from "./LoadingSkeleton";
+import { ConfessionFeedSkeleton } from "./LoadingSkeleton";
+import { useInfiniteConfessions } from "../../lib/hooks/useConfessionsQuery";
+import { useComparisonStore } from "../../lib/store/comparisonStore";
+import ErrorState from "../common/ErrorState";
 
-interface Confession {
-  id: string;
-  content: string;
-  createdAt: string;
-  reactions: { like: number; love: number };
-  author?: {
-    id: string;
-    username?: string;
-    avatar?: string;
-  };
-  commentCount?: number;
-  viewCount?: number;
-}
-
-interface FetchResponse {
-  confessions: Confession[];
-  hasMore: boolean;
-  total?: number;
-  page?: number;
-}
+const ESTIMATED_CARD_HEIGHT = 300;
+const SCROLL_THRESHOLD = 400;
+const OVERSCAN = 3;
 
 export const ConfessionFeed = () => {
-  const [confessions, setConfessions] = useState<Confession[]>([]);
-  const [page, setPage] = useState(1);
-  const [hasMore, setHasMore] = useState(true);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [isEmpty, setIsEmpty] = useState(false);
+  const router = useRouter();
+  const { selectedIds, clearItems } = useComparisonStore();
+  const [showScrollTop, setShowScrollTop] = useState(false);
+  const loadMoreRef = useRef<HTMLDivElement>(null);
 
-  const observerTarget = useRef<HTMLDivElement>(null);
-  const abortControllerRef = useRef<AbortController | null>(null);
+  const {
+    data,
+    isLoading,
+    isFetching,
+    isFetchingNextPage,
+    hasNextPage,
+    fetchNextPage,
+    error,
+    refetch,
+  } = useInfiniteConfessions();
 
-  // Fetch confessions
-  const fetchConfessions = useCallback(
-    async (pageNum: number) => {
-      // Cancel previous request if still pending
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
-      }
+  const allConfessions = data?.pages.flatMap((page) => page.confessions) ?? [];
+  const isEmpty = !isLoading && !error && allConfessions.length === 0;
 
-      abortControllerRef.current = new AbortController();
+  const virtualizer = useWindowVirtualizer({
+    count: allConfessions.length,
+    estimateSize: () => ESTIMATED_CARD_HEIGHT,
+    overscan: OVERSCAN,
+    scrollMargin: 0,
+  });
 
-      try {
-        setIsLoading(true);
-        setError(null);
+  const handleRetry = useCallback(() => {
+    void refetch();
+  }, [refetch]);
 
-        const response = await fetch(
-          `/api/confessions?page=${pageNum}&limit=10`,
-          {
-            signal: abortControllerRef.current.signal,
-          }
-        );
+  const scrollToComposer = useCallback(() => {
+    document.getElementById("composer")?.scrollIntoView({
+      behavior: "smooth",
+      block: "start",
+    });
+  }, []);
 
-        if (!response.ok) {
-          throw new Error(`Failed to fetch confessions: ${response.statusText}`);
-        }
+  const scrollToTop = useCallback(() => {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, []);
 
-        const data: FetchResponse = await response.json();
+  const handleNavigateToComparison = () => {
+    if (selectedIds.length > 1) {
+      router.push(`/compare?ids=${selectedIds.join(",")}`);
+    }
+  };
 
-        if (pageNum === 1) {
-          setConfessions(data.confessions);
-          setIsEmpty(data.confessions.length === 0);
-        } else {
-          setConfessions((prev) => [...prev, ...data.confessions]);
-        }
-
-        setHasMore(data.hasMore);
-      } catch (err) {
-        if (err instanceof Error && err.name === "AbortError") {
-          // Ignore abort errors
-          return;
-        }
-        setError(
-          err instanceof Error ? err.message : "Failed to load confessions"
-        );
-      } finally {
-        setIsLoading(false);
-      }
-    },
-    []
-  );
-
-  // Initial fetch on mount
   useEffect(() => {
-    fetchConfessions(1);
+    const el = loadMoreRef.current;
+    if (!el) return;
 
-    return () => {
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
-      }
-    };
-  }, [fetchConfessions]);
-
-  // Intersection Observer for infinite scroll
-  useEffect(() => {
     const observer = new IntersectionObserver(
       (entries) => {
-        const [entry] = entries;
-        if (entry.isIntersecting && hasMore && !isLoading && !error) {
-          setPage((prev) => prev + 1);
+        if (entries[0]?.isIntersecting && hasNextPage && !isFetchingNextPage) {
+          void fetchNextPage();
         }
       },
-      {
-        rootMargin: "100px", // Start loading before reaching the bottom
-        threshold: 0.1,
-      }
+      { rootMargin: `${SCROLL_THRESHOLD}px` },
     );
 
-    const target = observerTarget.current;
-    if (target) {
-      observer.observe(target);
-    }
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [fetchNextPage, hasNextPage, isFetchingNextPage]);
 
-    return () => {
-      if (target) {
-        observer.unobserve(target);
-      }
-    };
-  }, [hasMore, isLoading, error]);
-
-  // Fetch more when page changes
   useEffect(() => {
-    if (page > 1) {
-      fetchConfessions(page);
-    }
-  }, [page, fetchConfessions]);
+    const handleScroll = () => {
+      setShowScrollTop(window.scrollY > 600);
+    };
 
-  // Handle retry
-  const handleRetry = () => {
-    setPage(1);
-    fetchConfessions(1);
-  };
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    handleScroll();
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
 
-  // Render loading skeleton
-  const renderLoadingSkeletons = () => {
+  if (isLoading) {
+    return <ConfessionFeedSkeleton />;
+  }
+
+  if (error) {
     return (
-      <>
-        {Array.from({ length: 3 }).map((_, idx) => (
-          <SkeletonCard key={`skeleton-${idx}`} />
-        ))}
-      </>
+      <ErrorState
+        error={undefined}
+        title="Unable to load feed"
+        description="We couldn't load recent confessions. Please try again or check your connection."
+        showRetry
+        onRetry={handleRetry}
+      />
     );
-  };
+  }
 
-  return (
-    <div className="w-full max-w-2xl mx-auto px-4 py-8">
-      {/* Empty State */}
-      {isEmpty && !isLoading && (
-        <div className="text-center py-12">
-          <p className="text-gray-400 text-lg mb-4">
-            No confessions yet. Be the first to share!
-          </p>
+  if (isEmpty) {
+    return (
+      <div
+        className="luxury-panel rounded-[30px] p-8 text-center"
+        role="region"
+        aria-label="Empty feed state"
+      >
+        <p className="mb-3 font-editorial text-3xl text-[var(--foreground)] sm:text-4xl">
+          No confessions yet.
+        </p>
+        <p className="mx-auto mb-4 max-w-xl text-sm leading-7 text-[var(--secondary)]">
+          Be the first to share.
+        </p>
+        <div className="flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
           <button
-            onClick={() => {
-              setPage(1);
-              fetchConfessions(1);
-            }}
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+            type="button"
+            onClick={scrollToComposer}
+            className="rounded-full bg-[var(--brand-gradient)] px-5 py-2.5 text-sm font-medium text-white shadow-[0_18px_42px_-22px_rgba(91,46,255,0.58)] transition-colors hover:brightness-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+          >
+            Begin writing
+          </button>
+          <button
+            type="button"
+            onClick={handleRetry}
+            className="rounded-full border border-[var(--border)] bg-[var(--surface-muted)] px-5 py-2.5 text-sm font-medium text-[var(--secondary)] transition-colors hover:bg-[var(--surface-strong)] hover:text-[var(--foreground)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
           >
             Refresh
           </button>
         </div>
-      )}
+      </div>
+    );
+  }
 
-      {/* Error State */}
-      {error && (
-        <div className="bg-red-900/20 border border-red-700 rounded-lg p-4 mb-6">
-          <p className="text-red-300 mb-3">{error}</p>
-          <button
-            onClick={handleRetry}
-            className="px-4 py-2 bg-red-700 hover:bg-red-600 text-white rounded-lg transition-colors text-sm"
-          >
-            Try Again
-          </button>
-        </div>
-      )}
+  const virtualItems = virtualizer.getVirtualItems();
 
-      {/* Confessions Grid */}
-      {!isEmpty && (
-        <div className="space-y-4">
-          {confessions.map((confession) => (
-            <ConfessionCard key={confession.id} confession={confession} />
-          ))}
+  return (
+    <div className="relative mx-auto w-full max-w-3xl py-2">
+      <div className="sr-only" aria-live="polite" aria-atomic="true">
+        {isFetching && !isFetchingNextPage ? "Updating feed contents..." : ""}
+      </div>
 
-          {/* Loading skeletons while fetching more */}
-          {isLoading && page > 1 && renderLoadingSkeletons()}
-        </div>
-      )}
+      <div
+        className="relative w-full transition-opacity duration-200"
+        style={{
+          height: `${virtualizer.getTotalSize()}px`,
+          opacity: isFetching && !isFetchingNextPage ? 0.7 : 1,
+        }}
+        role="feed"
+        aria-label="Confessions feed"
+      >
+        {virtualItems.map((virtualItem) => {
+          const confession = allConfessions[virtualItem.index];
+          if (!confession) return null;
 
-      {/* Initial loading state */}
-      {isLoading && page === 1 && (
-        <div className="space-y-4">{renderLoadingSkeletons()}</div>
-      )}
-
-      {/* Infinite scroll trigger */}
-      {hasMore && !error && (
-        <div
-          ref={observerTarget}
-          className="h-10 flex items-center justify-center mt-8"
-          aria-label="Loading more confessions"
-        >
-          {isLoading && page > 1 && (
-            <div className="flex items-center gap-2 text-gray-400">
-              <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" />
-              <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce delay-100" />
-              <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce delay-200" />
+          return (
+            <div
+              key={confession.id}
+              ref={virtualizer.measureElement}
+              data-index={virtualItem.index}
+              className="absolute inset-x-0 top-0 pb-5"
+              style={{
+                transform: `translateY(${virtualItem.start}px)`,
+              }}
+              role="article"
+              aria-posinset={virtualItem.index + 1}
+              aria-setsize={allConfessions.length}
+            >
+              <ConfessionCard confession={confession} />
             </div>
-          )}
-        </div>
+          );
+        })}
+      </div>
+
+      <div ref={loadMoreRef} className="flex justify-center py-6">
+        {isFetchingNextPage && (
+          <div className="flex items-center gap-2 text-sm text-[var(--secondary)]">
+            <svg
+              className="h-4 w-4 animate-spin"
+              viewBox="0 0 24 24"
+              fill="none"
+              aria-hidden="true"
+            >
+              <circle
+                className="opacity-25"
+                cx="12"
+                cy="12"
+                r="10"
+                stroke="currentColor"
+                strokeWidth="4"
+              />
+              <path
+                className="opacity-75"
+                fill="currentColor"
+                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+              />
+            </svg>
+            Loading more...
+          </div>
+        )}
+        {!hasNextPage && allConfessions.length > 0 && (
+          <p className="text-xs text-[var(--secondary)]">
+            You&apos;ve reached the end of the feed
+          </p>
+        )}
+      </div>
+
+      {showScrollTop && (
+        <button
+          type="button"
+          onClick={scrollToTop}
+          className="fixed bottom-8 right-8 z-40 flex h-12 w-12 items-center justify-center rounded-full bg-[var(--primary)] text-white shadow-lg transition-all hover:-translate-y-1 hover:bg-[var(--primary-deep)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+          aria-label="Scroll to top"
+        >
+          <ArrowUp className="h-5 w-5" aria-hidden="true" />
+        </button>
       )}
 
-      {/* End of feed message */}
-      {!hasMore && confessions.length > 0 && (
-        <div className="text-center py-8">
-          <p className="text-gray-500">You&apos;ve reached the end of confessions</p>
-        </div>
+      {selectedIds.length > 0 && (
+        <aside
+          className="fixed bottom-6 left-1/2 z-50 flex w-[calc(100%-2rem)] max-w-md -translate-x-1/2 animate-in items-center justify-between gap-4 rounded-2xl border border-zinc-800 bg-zinc-950 p-4 shadow-2xl fade-in slide-in-from-bottom-4 duration-300"
+          aria-label="Metrics comparison inspector"
+        >
+          <div className="flex items-center gap-3">
+            <div
+              className="shrink-0 rounded-xl border border-zinc-800 bg-zinc-900 p-2 text-[var(--primary)]"
+              aria-hidden="true"
+            >
+              <Scale className="h-4 w-4" />
+            </div>
+            <div>
+              <p className="text-xs font-semibold text-white">
+                Compare
+              </p>
+              <p className="text-[11px] text-zinc-400" aria-live="polite">
+                {selectedIds.length === 1
+                  ? "Select one more"
+                  : `${selectedIds.length} selected`}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex shrink-0 items-center gap-1.5">
+            <button
+              type="button"
+              onClick={clearItems}
+              className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-xl text-zinc-500 transition-colors hover:bg-zinc-900 hover:text-zinc-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+              title="Clear selection queue"
+              aria-label="Clear selection queue"
+            >
+              <X className="h-4 w-4" aria-hidden="true" />
+            </button>
+            <button
+              type="button"
+              disabled={selectedIds.length < 2}
+              onClick={handleNavigateToComparison}
+              className={`flex h-8 items-center gap-1.5 rounded-xl px-3.5 text-xs font-semibold transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${
+                selectedIds.length >= 2
+                  ? "cursor-pointer bg-[var(--primary)] text-white shadow-md hover:brightness-105"
+                  : "cursor-not-allowed border border-zinc-800/60 bg-zinc-900 text-zinc-600 opacity-60"
+              }`}
+              aria-label={
+                selectedIds.length >= 2
+                  ? `Compare ${selectedIds.length} selected confessions`
+                  : "Compare selected confessions (requires at least 2)"
+              }
+            >
+              <span>Compare</span>
+              <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+            </button>
+          </div>
+        </aside>
       )}
     </div>
   );

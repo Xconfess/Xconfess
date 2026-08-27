@@ -1,0 +1,58 @@
+name: Stellar Wave contributor task
+description: Short template for maintainer-published Wave work. Triage before adding the Stellar Wave label.
+title: "[Wave] "
+labels: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Maintainers:** triage with [maintainer/WAVE_TRIAGE.md](https://github.com/Xconfess/Xconfess/blob/main/maintainer/WAVE_TRIAGE.md) and [maintainer/LABELS_AND_COMPLEXITY.md](https://github.com/Xconfess/Xconfess/blob/main/maintainer/LABELS_AND_COMPLEXITY.md). Apply the **`Stellar Wave`** label only after the ready-for-contributors checklist passes.
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: One short paragraph — what is missing or broken?
+    validations:
+      required: true
+
+  - type: dropdown
+    id: complexity
+    attributes:
+      label: Suggested Drips complexity
+      options:
+        - Trivial (100 points)
+        - Medium
+        - High (200 points)
+    validations:
+      required: true
+
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope
+      description: In scope / out of scope bullets.
+      placeholder: |
+        In scope:
+        -
+
+        Out of scope:
+        -
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: Testable checks a reviewer can verify locally.
+    validations:
+      required: true
+
+  - type: textarea
+    id: validation
+    attributes:
+      label: Validation
+      description: Exact commands (npm, cargo, compose) or steps to prove the work.
+    validations:
+      required: true

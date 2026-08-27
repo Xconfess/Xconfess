@@ -1,249 +1,391 @@
-# XConfess Backend API Documentation
+# xConfess Backend API Documentation (Source-of-Truth)
 
-## Authentication Endpoints
+This document is aligned with active controller decorators in `xconfess-backend/src`.
 
-### Login
-- **URL**: `/auth/login`
-- **Method**: `POST`
-- **Body**: 
-  ```json
-  {
-    "username": "string",
-    "password": "string"
-  }
-  ```
-- **Success Response (200)**: 
-  ```json
-  {
-    "access_token": "jwt_token_string"
-  }
-  ```
-- **Error Response (401)**: `Unauthorized`
+## Base URL
 
-### Forgot Password
-- **URL**: `/auth/forgot-password`
-- **Method**: `POST`
-- **Body**: 
-  ```json
-  {
-    "email": "user@example.com"
-  }
-  ```
-  OR
-  ```json
-  {
-    "userId": 123
-  }
-  ```
-- **Data Constraints**: 
-  - Either `email` or `userId` must be provided
-  - `email` must be a valid email format
-  - `userId` must be a positive integer
-- **Success Response (200)**: 
-  ```json
-  {
-    "message": "If the user exists, a password reset email has been sent."
-  }
-  ```
-- **Error Response (400)**: 
-  ```json
-  {
-    "message": "Either email or userId must be provided",
-    "error": "Bad Request",
-    "statusCode": 400
-  }
-  ```
+All HTTP routes are served under the global prefix:
 
-**Description**: Initiates the password reset process. For security reasons, the endpoint always returns a success message regardless of whether the user exists. If the user is found, an email containing a secure reset token is sent to their registered email address. The token expires after 1 hour.
+- `/api`
 
-**Security Features**:
-- Tracks IP address and user agent for audit purposes
-- Invalidates all previous unused tokens for the user
-- Uses cryptographically secure random tokens
-- Rate limiting should be implemented at the API gateway level
+Example: `POST /auth/login` in code is reachable at `POST /api/auth/login`.
 
-### Reset Password
-- **URL**: `/auth/reset-password`
-- **Method**: `POST`
-- **Body**: 
-  ```json
-  {
-    "token": "reset_token_string",
-    "newPassword": "new_secure_password"
-  }
-  ```
-- **Data Constraints**: 
-  - `token` is required and must be a valid reset token
-  - `newPassword` must meet security requirements (minimum 8 characters)
-- **Success Response (200)**: 
-  ```json
-  {
-    "message": "Password has been reset successfully"
-  }
-  ```
-- **Error Response (400)**: 
-  ```json
-  {
-    "message": "Invalid or expired reset token",
-    "error": "Bad Request", 
-    "statusCode": 400
-  }
-  ```
+## Error Handling
 
-**Description**: Completes the password reset process using a valid reset token. The token is validated to ensure it exists, hasn't been used, and hasn't expired. Upon successful reset, the token is marked as used and cannot be reused. The user's old reset password fields are also cleared for security.
+The API uses standardized error codes and a consistent response shape for all modules.
 
-**Security Features**:
-- Tokens are single-use only
-- Tokens expire after 1 hour
-- Password is securely hashed using bcrypt
-- Comprehensive audit logging
-- All user's unused tokens are invalidated after successful reset
+### Response Shape
 
-## User Endpoints
+All non-2xx responses follow this structure:
 
-### Create User
-- **URL**: `/user`
-- **Method**: `POST`
-- **Body**: 
-  ```json
-  {
-    "username": "string",
-    "email": "string",
-    "password": "string",
-    "firstName": "string",
-    "lastName": "string"
-  }
-  ```
-- **Success Response (201)**: User object created
-- **Error Response (400)**: Validation error
+```json
+{
+  "status": number,
+  "code": "ERROR_CODE_STRING",
+  "message": "Human readable message",
+  "details": any,
+  "timestamp": "ISO-8601",
+  "path": "/api/...",
+  "requestId": "uuid"
+}
+```
 
-### Get All Users
-- **URL**: `/user`
-- **Method**: `GET`
-- **Success Response (200)**: Array of user objects
+### Global Error Codes
 
-### Get User by ID
-- **URL**: `/user/:id`
-- **Method**: `GET`
-- **Success Response (200)**: User object
-- **Error Response (404)**: User not found
+| Code | Description |
+|---|---|
+| `AUTH_UNAUTHORIZED` | Authentication required or failed. |
+| `AUTH_FORBIDDEN` | Insufficient permissions. |
+| `BAD_REQUEST` | Generic client error. |
+| `VALIDATION_FAILED` | Input validation failed. |
+| `NOT_FOUND` | Resource not found. |
+| `CONFLICT` | Resource state conflict. |
+| `THROTTLED` | Rate limit exceeded. |
+| `STELLAR_ERROR` | Error communicating with Stellar/Soroban. |
+| `INTERNAL_SERVER_ERROR` | Unexpected server error. |
 
-### Update User
-- **URL**: `/user/:id`
-- **Method**: `PATCH`
-- **Body**: Partial user object
-- **Success Response (200)**: Updated user object
+Refer to `src/common/errors/error-codes.ts` for the full catalog.
 
-### Delete User
-- **URL**: `/user/:id`
-- **Method**: `DELETE`
-- **Success Response (200)**: Deletion confirmation
+## Authentication and Authorization
 
-## Confession Endpoints
+### Auth split: `/users/*` vs `/auth/*`
 
-### Get Confessions
-- **URL**: `/confession`
-- **Method**: `GET`
-- **Query Parameters**:
-  - `page` (optional): Page number for pagination
-  - `limit` (optional): Number of items per page
-  - `gender` (optional): Filter by gender
-  - `ageGroup` (optional): Filter by age group
-  - `category` (optional): Filter by category
-- **Success Response (200)**: Paginated list of confessions
+Both sets are active and should be treated as intentionally separate:
 
-### Create Confession
-- **URL**: `/confession`
-- **Method**: `POST`
-- **Body**: 
-  ```json
-  {
-    "title": "string",
-    "content": "string",
-    "category": "string",
-    "gender": "MALE|FEMALE|OTHER",
-    "ageGroup": "string"
-  }
-  ```
-- **Success Response (201)**: Created confession object
+- `POST /api/users/register`: account creation (preferred registration route)
+- `POST /api/users/login`: user login route used by user flows
+- `POST /api/auth/login`: auth login route (also active)
+- `GET /api/users/profile` and `GET /api/auth/me`: both provide authenticated profile-style lookups
+- `POST /api/auth/forgot-password` and `POST /api/auth/reset-password`: password reset flow lives under `/auth/*`
 
-### Get Confession by ID
-- **URL**: `/confession/:id`
-- **Method**: `GET`
-- **Success Response (200)**: Confession object with reactions
-- **Error Response (404)**: Confession not found
+### Guards used by the backend
 
-## Reaction Endpoints
+- `JwtAuthGuard`: requires `Authorization: Bearer <token>`
+- `AdminGuard`: requires authenticated user with `role=admin`
+- `OptionalJwtAuthGuard`: accepts anonymous requests; uses JWT when provided
 
-### Create Reaction
-- **URL**: `/reaction`
-- **Method**: `POST`
-- **Body**: 
-  ```json
-  {
-    "confessionId": "number",
-    "reactionType": "LIKE|DISLIKE|LOVE|ANGRY|SAD"
-  }
-  ```
-- **Success Response (201)**: Created reaction object
+### Header example
 
-### Get Reactions for Confession
-- **URL**: `/reaction/confession/:confessionId`
-- **Method**: `GET`
-- **Success Response (200)**: Array of reactions for the specified confession
+```http
+Authorization: Bearer <jwt>
+```
 
-## Password Reset System
+## DTO-accurate request examples
 
-The password reset system uses a dedicated `PasswordReset` entity to track reset tokens with the following features:
+All examples below use field names and constraints from current DTOs.
 
-### Database Schema
-- **password_resets** table with fields:
-  - `id`: Primary key
-  - `token`: Unique reset token (SHA-256 hash)
-  - `userId`: Foreign key to users table
-  - `expiresAt`: Token expiration timestamp
-  - `used`: Boolean flag indicating if token was used
-  - `usedAt`: Timestamp when token was used
-  - `ipAddress`: IP address of the requester
-  - `userAgent`: User agent of the requester
-  - `createdAt`: Token creation timestamp
+### 1) Register (`POST /api/users/register`)
 
-### Email Integration
-- Uses a dedicated `EmailService` for sending password reset emails
-- Emails contain a secure link with the reset token
-- Templates include user-friendly instructions and security warnings
-- Configurable frontend URL for the reset link
+```json
+{
+  "email": "person@example.com",
+  "password": "strongpass123",
+  "username": "anon_writer"
+}
+```
 
-### Security Measures
-- Cryptographically secure token generation using Node.js crypto module
-- Tokens are hashed before storage in the database
-- Automatic cleanup of expired tokens
-- Comprehensive audit logging for all operations
-- Rate limiting and IP tracking for abuse prevention
-- Single-use tokens that are invalidated after use
+### 2) Login (`POST /api/users/login` or `POST /api/auth/login`)
 
-## Environment Variables
+```json
+{
+  "email": "person@example.com",
+  "password": "strongpass123"
+}
+```
 
-Required environment variables for the password reset functionality:
+### 3) Forgot password (`POST /api/auth/forgot-password`)
 
-```env
-# Email Configuration (if using email service)
-SMTP_HOST=smtp.example.com
-SMTP_PORT=587
-SMTP_USER=your-email@example.com
-SMTP_PASS=your-app-password
+Provide at least one of `email` or `userId`:
 
-# Frontend URL for password reset links
-FRONTEND_URL=https://your-frontend-domain.com
+```json
+{
+  "email": "person@example.com"
+}
+```
 
-# Database Configuration
-DB_HOST=localhost
-DB_PORT=5432
-DB_USERNAME=your-db-user
-DB_PASSWORD=your-db-password
-DB_DATABASE=xconfess
+or
 
-# JWT Configuration
-JWT_SECRET=your-jwt-secret
-JWT_EXPIRES_IN=3600s
-``` 
+```json
+{
+  "userId": 42
+}
+```
+
+### 4) Reset password (`POST /api/auth/reset-password`)
+
+```json
+{
+  "token": "reset_token_here",
+  "newPassword": "newstrongpass123"
+}
+```
+
+### 5) Create confession (`POST /api/confessions`)
+
+```json
+{
+  "message": "I finally took a break and it helped.",
+  "gender": "other",
+  "tags": ["wellbeing", "work"],
+  "stellarTxHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+}
+```
+
+### 6) Update confession (`PUT /api/confessions/:id`)
+
+```json
+{
+  "message": "Updated confession message"
+}
+```
+
+### 7) Anchor confession (`POST /api/confessions/:id/anchor`)
+
+```json
+{
+  "stellarTxHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "stellarHash": "optional_hash"
+}
+```
+
+### 8) Add reaction (`POST /api/reactions`)
+
+```json
+{
+  "confessionId": "4f8f8eb0-b6d8-4a92-8f77-6fa3c7aa2e67",
+  "anonymousUserId": "2c11e9ce-4f2f-4f06-a5d8-faf2917fd5d9",
+  "emoji": "🔥"
+}
+```
+
+### 9) Send message (`POST /api/messages`)
+
+```json
+{
+  "confession_id": "4f8f8eb0-b6d8-4a92-8f77-6fa3c7aa2e67",
+  "content": "Thanks for sharing this."
+}
+```
+
+### 10) Reply message (`POST /api/messages/reply`)
+
+```json
+{
+  "message_id": 123,
+  "reply": "Appreciate your kindness"
+}
+```
+
+### 11) Report confession (`POST /api/confessions/:id/report`)
+
+```json
+{
+  "type": "spam",
+  "reason": "Repeated promotional content"
+}
+```
+
+### 12) Verify tip (`POST /api/confessions/:id/tips/verify`)
+
+```json
+{
+  "txId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+}
+```
+
+### 13) Admin resolve report (`PATCH /api/admin/reports/:id/resolve`)
+
+```json
+{
+  "resolutionNotes": "Reviewed and action taken"
+}
+```
+
+### 14) Admin bulk resolve (`PATCH /api/admin/reports/bulk-resolve`)
+
+```json
+{
+  "reportIds": [
+    "7ea244c7-7f0f-43a9-bae6-5a429f88d433",
+    "f71a57a5-75d8-4fb2-80d0-963b08c33839"
+  ],
+  "notes": "Bulk moderation pass"
+}
+```
+
+### Moderation consistency guarantees
+
+The following moderation write flows are executed in a single database
+transaction and are atomic:
+
+- Admin report resolution and dismissal (`/api/admin/reports/:id/resolve`,
+  `/api/admin/reports/:id/dismiss`)
+- Admin bulk report resolution (`/api/admin/reports/bulk-resolve`)
+- Admin confession actions (`DELETE /api/admin/confessions/:id`,
+  `/api/admin/confessions/:id/hide`, `/api/admin/confessions/:id/unhide`)
+- Admin user moderation actions (`/api/admin/users/:id/ban`,
+  `/api/admin/users/:id/unban`)
+- Moderation webhook application (`POST /api/webhooks/moderation/results`)
+  where moderation log sync and confession moderation-state update are committed
+  together
+
+If any write in one of these flows fails (for example, audit log persistence
+or a downstream repository save), the whole transaction is rolled back and no
+partial moderation state is committed.
+
+### 15) Notification preferences (`PUT /api/notifications/preferences`)
+
+```json
+{
+  "enableInAppNotifications": true,
+  "inAppNewMessage": true,
+  "enableEmailNotifications": false,
+  "batchWindowMinutes": 10,
+  "batchThreshold": 3,
+  "enableQuietHours": true,
+  "quietHoursStart": "22:00",
+  "quietHoursEnd": "07:00",
+  "timezone": "Africa/Lagos"
+}
+```
+
+## Health (`GET /api/health`)
+
+Terminus health bundle used for operations and load balancers:
+
+- **`app`**: process up.
+- **`database`**: TypeORM ping to PostgreSQL.
+- **`redis`**: Redis `PING`.
+- **`schema`**: migration readiness for `anonymous_confessions` — required columns `search_vector`, `view_count` and indexes `idx_confession_search_vector`, `idx_confession_created_at`. If anything is missing or the check query fails, the **`schema`** indicator is **down** and the overall response is **HTTP 503** with details under `error.schema` / `info` per Terminus.
+
+Startup also logs schema outcome once (Nest `MigrationVerificationService` on module init): **warn** when drift is detected, **error** when the verification query throws. There is no duplicate raw SQL in `main.ts`.
+
+## Exact route inventory (active controllers)
+
+The following list matches active `@Controller(...)` + method decorators.
+
+| Method | Route |
+|---|---|
+| GET | `/api` |
+| GET | `/api/health` |
+| GET | `/api/diagnostics/notifications` |
+| POST | `/api/auth/login` |
+| GET | `/api/auth/me` |
+| POST | `/api/auth/logout` |
+| POST | `/api/auth/forgot-password` |
+| POST | `/api/auth/reset-password` |
+| POST | `/api/users/register` |
+| POST | `/api/users/login` |
+| GET | `/api/users/profile` |
+| PUT | `/api/users/profile` |
+| POST | `/api/users/deactivate` |
+| POST | `/api/users/reactivate` |
+| GET | `/api/users/notification-preferences` |
+| PATCH | `/api/users/notification-preferences` |
+| POST | `/api/confessions` |
+| GET | `/api/confessions` |
+| GET | `/api/confessions/search` |
+| GET | `/api/confessions/search/fulltext` |
+| GET | `/api/confessions/trending/top` |
+| GET | `/api/confessions/tags` |
+| GET | `/api/confessions/tags/:tag` |
+| GET | `/api/confessions/deleted` |
+| GET | `/api/confessions/:id/stellar/verify` |
+| POST | `/api/confessions/:id/anchor` |
+| PUT | `/api/confessions/:id` |
+| DELETE | `/api/confessions/:id` |
+| PATCH | `/api/confessions/:id/restore` |
+| GET | `/api/confessions/:id` |
+| POST | `/api/confessions/drafts` |
+| GET | `/api/confessions/drafts` |
+| GET | `/api/confessions/drafts/:id` |
+| PATCH | `/api/confessions/drafts/:id` |
+| DELETE | `/api/confessions/drafts/:id` |
+| POST | `/api/confessions/drafts/:id/schedule` |
+| POST | `/api/confessions/drafts/:id/cancel` |
+| POST | `/api/confessions/drafts/:id/publish` |
+| POST | `/api/confessions/drafts/:id/convert-to-draft` |
+| POST | `/api/reactions` |
+| POST | `/api/comments/:confessionId` |
+| GET | `/api/comments/by-confession/:confessionId` |
+| DELETE | `/api/comments/:id` |
+| POST | `/api/messages` |
+| POST | `/api/messages/reply` |
+| GET | `/api/messages/threads` |
+| GET | `/api/messages` |
+| POST | `/api/confessions/:id/report` |
+| GET | `/api/analytics/trending` |
+| GET | `/api/analytics/reactions` |
+| GET | `/api/analytics/users` |
+| GET | `/api/analytics/stats` |
+| GET | `/api/analytics/growth` |
+| GET | `/api/admin/reports` |
+| GET | `/api/admin/reports/:id` |
+| PATCH | `/api/admin/reports/:id/resolve` |
+| PATCH | `/api/admin/reports/:id/dismiss` |
+| PATCH | `/api/admin/reports/bulk-resolve` |
+| DELETE | `/api/admin/confessions/:id` |
+| PATCH | `/api/admin/confessions/:id/hide` |
+| PATCH | `/api/admin/confessions/:id/unhide` |
+| GET | `/api/admin/users/search` |
+| GET | `/api/admin/users/:id/history` |
+| PATCH | `/api/admin/users/:id/ban` |
+| PATCH | `/api/admin/users/:id/unban` |
+| GET | `/api/admin/analytics` |
+| GET | `/api/admin/audit-logs` |
+| GET | `/api/admin/moderation/pending` |
+| POST | `/api/admin/moderation/review/:id` |
+| GET | `/api/admin/moderation/stats` |
+| GET | `/api/admin/moderation/accuracy` |
+| GET | `/api/admin/moderation/config` |
+| POST | `/api/admin/moderation/config/thresholds` |
+| POST | `/api/admin/moderation/test` |
+| GET | `/api/admin/moderation/confession/:confessionId` |
+| GET | `/api/admin/moderation/user/:userId` |
+| GET | `/api/admin/notifications/dlq` |
+| POST | `/api/admin/notifications/dlq/:jobId/replay` |
+| POST | `/api/admin/notifications/dlq/replay` |
+| POST | `/api/admin/comments/:id/approve` |
+| POST | `/api/admin/comments/:id/reject` |
+| GET | `/api/admin/dlq` |
+| GET | `/api/admin/dlq/:id` |
+| POST | `/api/admin/dlq/:id/retry` |
+| DELETE | `/api/admin/dlq/:id` |
+| DELETE | `/api/admin/dlq` |
+| GET | `/api/notifications` |
+| GET | `/api/notifications/unread-count` |
+| PATCH | `/api/notifications/:id/read` |
+| PATCH | `/api/notifications/read-all` |
+| GET | `/api/notifications/preferences` |
+| PUT | `/api/notifications/preferences` |
+| GET | `/api/websocket/health` |
+| GET | `/api/websocket/stats` |
+| POST | `/api/admin/email/preview` |
+| POST | `/api/encryption/encrypt` |
+| POST | `/api/encryption/decrypt` |
+| GET | `/api/stellar/config` — network, RPC URLs, public contract IDs (`null` if unset; no secrets) |
+| GET | `/api/stellar/balance/:address` |
+| POST | `/api/stellar/verify` |
+| GET | `/api/stellar/account-exists/:address` |
+| POST | `/api/stellar/invoke-contract` |
+| GET | `/api/confessions/:id/tips` |
+| GET | `/api/confessions/:id/tips/stats` |
+| POST | `/api/confessions/:id/tips/verify` |
+| GET | `/api/data-export/download/:id` |
+
+## Removed legacy assumptions from older docs
+
+Do not implement against these old route patterns:
+
+- `/user` (singular) CRUD endpoints
+- `/confession` (singular) endpoints
+- `/reaction/confession/:confessionId`
+
+Current backend uses pluralized routes and the exact inventory above.
+
+## Notes for contributors
+
+- Prefer `/api/users/*` for user lifecycle endpoints.
+- `/api/auth/*` remains active for auth-centric operations and password-reset flow.
+- Report submission endpoint supports anonymous and authenticated modes through optional JWT.
+- All `/api/admin/reports*` routes are owned exclusively by `AdminController` (`src/admin/admin.controller.ts`). `AdminReportsController` has been removed to eliminate duplicate route registration.

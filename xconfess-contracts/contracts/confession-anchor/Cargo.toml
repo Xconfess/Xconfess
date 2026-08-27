@@ -1,0 +1,35 @@
+[package]
+name = "confession-anchor"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["lib", "cdylib"]
+doctest = false
+
+[dependencies]
+soroban-sdk = { workspace = true }
+
+[dev-dependencies]
+soroban-sdk = { workspace = true, features = ["testutils"] }
+proptest = "1"
+
+[[test]]
+name = "adversarial"
+path = "tests/adversarial.rs"
+
+[[test]]
+name = "benchmarks"
+path = "tests/benchmarks.rs"
+
+[[test]]
+name = "migration"
+path = "tests/migration.rs"
+
+[[test]]
+name = "integration"
+path = "tests/integration.rs"
+
+[[test]]
+name = "error_code_mapping"
+path = "../tests/error_code_mapping.rs"

@@ -1,93 +1,42 @@
-import { Test, TestingModule } from '@nestjs/testing';
-import { INestApplication } from '@nestjs/common';
-import * as request from 'supertest';
 import { AnonymousContextMiddleware } from '../src/middleware/anonymous-context.middleware';
-import { AnonymousContextModule } from '../src/middleware/anonymous-context.module';
-import { JwtAuthGuard } from '../src/auth/jwt-auth.guard';
-import { User } from '../src/user/entities/user.entity';
+import { AnonymousUserService } from '../src/user/anonymous-user.service';
 
-describe('AnonymousContextMiddleware (e2e)', () => {
-  let app: INestApplication;
-  let middleware: AnonymousContextMiddleware;
+describe('AnonymousContextMiddleware', () => {
+  function makeMockService(userId = 'abc-123'): AnonymousUserService {
+    return {
+      getOrCreateForUserSession: jest.fn().mockResolvedValue({ id: userId }),
+    } as unknown as AnonymousUserService;
+  }
 
-  const mockUser: User = {
-    id: 1,
-    username: 'testuser',
-    emailEncrypted: 'enc',
-    emailIv: 'iv',
-    emailTag: 'tag',
-    emailHash: 'hash',
-    password: 'hashedpassword',
-    isAdmin: false,
-    is_active: true,
-    resetPasswordToken: null,
-    resetPasswordExpires: null,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  };
+  it('adds x-anonymous-context-id when req.user exists', async () => {
+    const mockService = makeMockService();
+    const mw = new AnonymousContextMiddleware(mockService);
+    const req: any = { user: { id: 1 }, headers: {} };
+    const setHeader = jest.fn();
+    const res: any = { setHeader };
+    const next = jest.fn();
 
-  beforeEach(async () => {
-    const moduleFixture: TestingModule = await Test.createTestingModule({
-      imports: [AnonymousContextModule],
-    })
-      .overrideGuard(JwtAuthGuard)
-      .useValue({
-        canActivate: (context) => {
-          const request = context.switchToHttp().getRequest();
-          request.user = mockUser;
-          return true;
-        },
-      })
-      .compile();
+    await mw.use(req, res, next);
 
-    app = moduleFixture.createNestApplication();
-    middleware = moduleFixture.get<AnonymousContextMiddleware>(AnonymousContextMiddleware);
-    await app.init();
-  });
-
-  afterEach(async () => {
-    await app.close();
-  });
-
-  it('should add anonymous context header for authenticated requests', async () => {
-    const response = await request(app.getHttpServer())
-      .get('/test')
-      .set('Authorization', 'Bearer test-token');
-
-    expect(response.headers['x-anonymous-context-id']).toBeDefined();
-    expect(response.headers['x-anonymous-context-id']).toMatch(/^anon_[a-f0-9-]+$/);
-  });
-
-  it('should generate unique anonymous context IDs for different requests', async () => {
-    const response1 = await request(app.getHttpServer())
-      .get('/test')
-      .set('Authorization', 'Bearer test-token');
-
-    const response2 = await request(app.getHttpServer())
-      .get('/test')
-      .set('Authorization', 'Bearer test-token');
-
-    expect(response1.headers['x-anonymous-context-id']).not.toBe(
-      response2.headers['x-anonymous-context-id'],
+    expect(setHeader).toHaveBeenCalledWith(
+      'x-anonymous-context-id',
+      expect.stringMatching(/^anon_[a-f0-9-]+$/),
     );
+    expect(req['anonymousContextId']).toMatch(/^anon_[a-f0-9-]+$/);
+    expect(next).toHaveBeenCalled();
   });
 
-  it('should not add anonymous context header for unauthenticated requests', async () => {
-    const moduleFixture: TestingModule = await Test.createTestingModule({
-      imports: [AnonymousContextModule],
-    })
-      .overrideGuard(JwtAuthGuard)
-      .useValue({
-        canActivate: () => false,
-      })
-      .compile();
+  it('does not add header when unauthenticated', async () => {
+    const mockService = makeMockService();
+    const mw = new AnonymousContextMiddleware(mockService);
+    const req: any = { headers: {} };
+    const setHeader = jest.fn();
+    const res: any = { setHeader };
+    const next = jest.fn();
 
-    const app = moduleFixture.createNestApplication();
-    await app.init();
+    await mw.use(req, res, next);
 
-    const response = await request(app.getHttpServer()).get('/test');
-
-    expect(response.headers['x-anonymous-context-id']).toBeUndefined();
-    await app.close();
+    expect(setHeader).not.toHaveBeenCalled();
+    expect(next).toHaveBeenCalled();
   });
-}); 
+});

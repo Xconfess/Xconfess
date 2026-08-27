@@ -9,8 +9,7 @@ export class UserRepository extends Repository<User> {
   }
 
   async findByEmail(email: string): Promise<User | null> {
-    const normalizedEmail = email.trim().toLowerCase();
-    const emailHash = CryptoUtil.hash(normalizedEmail);
+    const emailHash = CryptoUtil.hash(email);
     return this.findOne({ where: { emailHash } });
   }
 }

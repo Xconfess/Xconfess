@@ -5,6 +5,8 @@ describe('AnonymousUser privacy', () => {
     const anon = new AnonymousUser();
     expect(anon).not.toHaveProperty('userId');
     expect(anon).not.toHaveProperty('user');
-    expect(Object.keys(anon)).toEqual(expect.arrayContaining(['id', 'createdAt']));
+    expect(Object.keys(anon)).toEqual(
+      expect.arrayContaining(['id', 'createdAt']),
+    );
   });
 });

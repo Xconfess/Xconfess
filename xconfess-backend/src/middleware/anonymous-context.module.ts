@@ -5,4 +5,4 @@ import { AnonymousContextMiddleware } from './anonymous-context.middleware';
   providers: [AnonymousContextMiddleware],
   exports: [AnonymousContextMiddleware],
 })
-export class AnonymousContextModule {} 
+export class AnonymousContextModule {}

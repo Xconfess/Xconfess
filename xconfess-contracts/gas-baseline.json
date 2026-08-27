@@ -1,0 +1,42 @@
+{
+  "confession-anchor": {
+    "anchor_confession": {
+      "cpu": 28762,
+      "mem": 3326
+    },
+    "verify_confession": {
+      "cpu": 24278,
+      "mem": 3020
+    }
+  },
+  "anonymous-tipping": {
+    "get_tips": {
+      "cpu": 27563,
+      "mem": 3158
+    },
+    "send_tip": {
+      "cpu": 51246,
+      "mem": 5515
+    }
+  },
+  "confession-registry": {
+    "create_confession": {
+      "cpu": 102698,
+      "mem": 13154
+    },
+    "update_status": {
+      "cpu": 135147,
+      "mem": 20653
+    }
+  },
+  "reputation-badges": {
+    "get_badges": {
+      "cpu": 45192,
+      "mem": 4738
+    },
+    "mint_badge": {
+      "cpu": 118196,
+      "mem": 15999
+    }
+  }
+}

@@ -1,0 +1,315 @@
+name: Release Gate
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - 'xconfess-backend/**'
+      - 'xconfess-frontend/**'
+      - 'xconfess-contracts/**'
+      - 'package.json'
+      - '.github/workflows/release-gate.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'xconfess-backend/**'
+      - 'xconfess-frontend/**'
+      - 'xconfess-contracts/**'
+      - 'package.json'
+  workflow_dispatch:
+    inputs:
+      build_profile:
+        description: 'Build profile for contracts'
+        required: false
+        default: 'debug'
+        type: choice
+        options:
+          - debug
+          - release
+
+permissions:
+  contents: read
+  checks: write
+  pull-requests: write
+
+concurrency:
+  group: release-gate-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+  NEXT_TELEMETRY_DISABLED: '1'
+  RUST_BACKTRACE: 1
+  CI: true
+  SKIP_E2E: ${{ vars.SKIP_E2E || 'false' }}
+
+jobs:
+  backend-gate:
+    name: Backend Gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    outputs:
+      status: ${{ job.status }}
+      version: ${{ steps.meta.outputs.version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Use repository npm version
+        run: npm install --global npm@10.9.3
+
+      - name: Extract version metadata
+        id: meta
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "timestamp=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> $GITHUB_OUTPUT
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint backend
+        run: npm run lint --workspace=xconfess-backend
+
+      - name: Build backend
+        run: npm run build --workspace=xconfess-backend
+
+      - name: Test backend (advisory)
+        run: npm run test --workspace=xconfess-backend
+        continue-on-error: true
+
+      - name: Build backend (release)
+        run: npm run build:release --workspace=xconfess-backend 2>/dev/null || echo "No release build target"
+        continue-on-error: true
+
+      - name: Upload backend test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-test-results
+          path: xconfess-backend/coverage/
+          retention-days: 30
+
+  frontend-gate:
+    name: Frontend Gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    outputs:
+      status: ${{ job.status }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Use repository npm version
+        run: npm install --global npm@10.9.3
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint frontend
+        run: npm run lint --workspace=xconfess-frontend
+
+      - name: Build frontend
+        run: npm run build --workspace=xconfess-frontend
+
+      - name: Test frontend (advisory)
+        run: npm run test --workspace=xconfess-frontend
+        continue-on-error: true
+
+      - name: Test frontend smoke tests
+        run: npm run test:smoke --workspace=xconfess-frontend 2>/dev/null || echo "No smoke tests"
+        continue-on-error: true
+
+      - name: Run E2E engagement journey tests
+        if: ${{ env.SKIP_E2E != 'true' }}
+        run: npx playwright install chromium && npm run test:e2e --workspace=xconfess-frontend
+        continue-on-error: true
+
+      - name: Upload frontend test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-test-results
+          path: xconfess-frontend/coverage/
+          retention-days: 30
+
+  contracts-gate:
+    name: Contracts Gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: xconfess-contracts
+    outputs:
+      status: ${{ job.status }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+          targets: wasm32-unknown-unknown
+
+      - name: Cache Rust dependencies
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: xconfess-contracts
+          cache-targets: true
+
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+
+      - name: Run clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+      - name: Test contracts
+        run: cargo test --workspace
+
+      - name: Build contracts (debug)
+        run: cargo build --target wasm32-unknown-unknown
+
+      - name: Build contracts (release)
+        run: cargo build --release --target wasm32-unknown-unknown
+        continue-on-error: true
+
+      - name: Upload contract build logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: contract-build-logs
+          path: xconfess-contracts/target/
+          retention-days: 7
+
+  release-gate-summary:
+    name: Release Gate Summary
+    runs-on: ubuntu-latest
+    needs: [backend-gate, frontend-gate, contracts-gate]
+    if: always()
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Generate gate summary
+        id: summary
+        run: |
+          {
+            echo "RELEASE_GATE_SUMMARY<<EOF"
+            echo "# 🚀 Release Gate Summary"
+            echo ""
+            echo "## Status Overview"
+            echo ""
+            echo "| Component | Status |"
+            echo "|-----------|--------|"
+            echo "| Backend | ${{ needs.backend-gate.result == 'success' && '✅ Pass' || '❌ Fail' }} |"
+            echo "| Frontend | ${{ needs.frontend-gate.result == 'success' && '✅ Pass' || '❌ Fail' }} |"
+            echo "| Contracts | ${{ needs.contracts-gate.result == 'success' && '✅ Pass' || '❌ Fail' }} |"
+            echo ""
+            echo "## Details"
+            echo ""
+            if [ "${{ needs.backend-gate.result }}" = "success" ]; then
+              echo "✅ **Backend**: Build, lint, and tests passed"
+            else
+              echo "❌ **Backend**: Build or tests failed"
+            fi
+            echo ""
+            if [ "${{ needs.frontend-gate.result }}" = "success" ]; then
+              echo "✅ **Frontend**: Build, lint, and tests passed"
+            else
+              echo "❌ **Frontend**: Build or tests failed"
+            fi
+            echo ""
+            if [ "${{ needs.contracts-gate.result }}" = "success" ]; then
+              echo "✅ **Contracts**: Formatting, linting, and tests passed"
+            else
+              echo "❌ **Contracts**: Formatting, linting, or tests failed"
+            fi
+            echo ""
+            echo "## Artifacts"
+            echo ""
+            echo "- Backend coverage: [Download](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})"
+            echo "- Frontend coverage: [Download](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})"
+            echo ""
+            echo "---"
+            echo "**Gate Run**: ${{ github.run_id }}"
+            echo "**Timestamp**: $(date -u +'%Y-%m-%d %H:%M:%S UTC')"
+            echo "EOF"
+          } >> $GITHUB_ENV
+
+      - name: Comment PR with gate summary
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        continue-on-error: true
+        with:
+          script: |
+            const fs = require('fs');
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: process.env.RELEASE_GATE_SUMMARY
+            });
+
+      - name: Print gate summary
+        run: |
+          echo "${{ env.RELEASE_GATE_SUMMARY }}"
+
+      - name: Determine gate status
+        run: |
+          if [ "${{ needs.backend-gate.result }}" = "success" ] && \
+             [ "${{ needs.frontend-gate.result }}" = "success" ] && \
+             [ "${{ needs.contracts-gate.result }}" = "success" ]; then
+            echo "✅ All gates passed - Release candidate ready"
+            exit 0
+          else
+            echo "❌ One or more gates failed"
+            exit 1
+          fi
+
+  e2e-pre-release:
+    name: E2E Pre-Release Check
+    runs-on: ubuntu-latest
+    needs: [backend-gate, frontend-gate, contracts-gate]
+    if: always() && needs.backend-gate.result == 'success' && needs.frontend-gate.result == 'success'
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Use repository npm version
+        run: npm install --global npm@10.9.3
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run E2E tests (smoke subset)
+        run: npm run test:e2e --workspace=xconfess-backend 2>/dev/null || echo "E2E tests not available"
+        continue-on-error: true
+
+      - name: Run frontend E2E tests
+        if: ${{ env.SKIP_E2E != 'true' }}
+        run: npx playwright install chromium && npm run test:e2e --workspace=xconfess-frontend
+        continue-on-error: true

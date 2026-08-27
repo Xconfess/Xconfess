@@ -1,17 +1,32 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, LessThan, LessThanOrEqual, Not, Repository } from 'typeorm';
-import { ConfessionDraft, ConfessionDraftStatus } from './entities/confession-draft.entity';
-import { encryptConfession, decryptConfession } from '../utils/confession-encryption';
+import {
+  DataSource,
+  LessThan,
+  LessThanOrEqual,
+  Not,
+  Repository,
+} from 'typeorm';
+import {
+  ConfessionDraft,
+  ConfessionDraftStatus,
+} from './entities/confession-draft.entity';
+import {
+  encryptConfession,
+  decryptConfession,
+} from '../utils/confession-encryption';
 import { ConfessionService } from '../confession/confession.service';
+import { UpdateConfessionDraftDto } from './dto/update-confession-draft.dto';
 import { DateTime } from 'luxon';
 
-const MAX_DRAFTS_PER_USER = 50;
+const MAX_DRAFTS_PER_USER = 10;
 const MAX_PUBLISH_ATTEMPTS = 5;
 
 @Injectable()
@@ -21,7 +36,12 @@ export class ConfessionDraftService {
     private readonly draftRepo: Repository<ConfessionDraft>,
     private readonly confessionService: ConfessionService,
     private readonly dataSource: DataSource,
+    private readonly configService: ConfigService,
   ) {}
+
+  private get aesKey(): string {
+    return this.configService.get<string>('app.confessionAesKey', '');
+  }
 
   private toUtcDate(scheduledFor: string, timezone?: string): Date {
     const trimmed = scheduledFor.trim();
@@ -29,29 +49,43 @@ export class ConfessionDraftService {
 
     if (timezone) {
       const dt = DateTime.fromISO(trimmed, { zone: timezone });
-      if (!dt.isValid) throw new BadRequestException('Invalid scheduledFor/timezone');
+      if (!dt.isValid)
+        throw new BadRequestException('Invalid scheduledFor/timezone');
       return dt.toUTC().toJSDate();
     }
 
     const d = new Date(trimmed);
-    if (Number.isNaN(d.getTime())) throw new BadRequestException('Invalid scheduledFor');
+    if (Number.isNaN(d.getTime()))
+      throw new BadRequestException('Invalid scheduledFor');
     return d;
   }
 
   private sanitizeForResponse(draft: ConfessionDraft) {
     return {
       ...draft,
-      content: decryptConfession(draft.content),
+      content: decryptConfession(draft.content, this.aesKey),
+      revisions: (draft.revisions || []).map((rev) => ({
+        ...rev,
+        content: decryptConfession(rev.content, this.aesKey),
+      })),
     };
   }
 
-  async createDraft(userId: number, content: string, scheduledFor?: string, timezone?: string) {
+  async createDraft(
+    userId: number,
+    content: string,
+    category?: string,
+    scheduledFor?: string,
+    timezone?: string,
+  ) {
     const existingCount = await this.draftRepo.count({ where: { userId } });
     if (existingCount >= MAX_DRAFTS_PER_USER) {
-      throw new BadRequestException(`Draft limit reached (max ${MAX_DRAFTS_PER_USER})`);
+      throw new BadRequestException(
+        `Draft limit reached (max ${MAX_DRAFTS_PER_USER})`,
+      );
     }
 
-    const encrypted = encryptConfession(content);
+    const encrypted = encryptConfession(content, this.aesKey);
 
     let scheduledForUtc: Date | null = null;
     let status = ConfessionDraftStatus.DRAFT;
@@ -66,6 +100,7 @@ export class ConfessionDraftService {
     const draft = this.draftRepo.create({
       userId,
       content: encrypted,
+      category: category ?? null,
       scheduledFor: scheduledForUtc,
       timezone: timezone ?? null,
       status,
@@ -90,21 +125,72 @@ export class ConfessionDraftService {
     return this.sanitizeForResponse(draft);
   }
 
-  async updateDraft(userId: number, id: string, content?: string) {
+  async updateDraft(userId: number, id: string, dto: UpdateConfessionDraftDto) {
     const draft = await this.draftRepo.findOne({ where: { id } });
-    if (!draft) throw new NotFoundException('Draft not found');
+    if (!draft) {
+      // A versioned update targets a specific remote revision the client
+      // previously synced. If that draft no longer exists, this is an
+      // offline-sync conflict (deleted elsewhere while the client was
+      // offline), not a generic "unknown id" 404 — the caller still holds
+      // recoverable local content and must be told the remote copy is gone.
+      if (dto.version !== undefined) {
+        throw new ConflictException({
+          reason: 'remote_deleted',
+          message: 'The draft was deleted remotely while you were offline.',
+          draftId: id,
+        });
+      }
+      throw new NotFoundException('Draft not found');
+    }
     if (draft.userId !== userId) throw new ForbiddenException();
 
     if (draft.status === ConfessionDraftStatus.POSTED) {
       throw new BadRequestException('Cannot edit a posted draft');
     }
 
-    if (typeof content === 'string') {
-      draft.content = encryptConfession(content);
+    if (dto.version !== undefined && draft.version !== dto.version) {
+      throw new ConflictException({
+        reason: 'remote_updated',
+        message:
+          'Conflict detected: draft has been modified by another session',
+        currentVersion: draft.version,
+        currentDraft: this.sanitizeForResponse(draft),
+      });
+    }
+
+    if (typeof dto.content === 'string') {
+      // Store current content in revision history before updating
+      const revision = {
+        content: draft.content,
+        version: draft.version,
+        createdAt: new Date(),
+      };
+
+      draft.revisions = [revision, ...(draft.revisions || [])].slice(0, 10);
+      draft.content = encryptConfession(dto.content, this.aesKey);
+    }
+
+    if (dto.category !== undefined) {
+      draft.category = dto.category || null;
     }
 
     const saved = await this.draftRepo.save(draft);
     return this.sanitizeForResponse(saved);
+  }
+
+  async autoSaveDraft(
+    userId: number,
+    dto: UpdateConfessionDraftDto & { id?: string },
+  ) {
+    if (dto.id) {
+      return this.updateDraft(userId, dto.id, dto);
+    }
+
+    if (!dto.content?.trim()) {
+      throw new BadRequestException('content is required');
+    }
+
+    return this.createDraft(userId, dto.content, dto.category);
   }
 
   async deleteDraft(userId: number, id: string) {
@@ -115,7 +201,18 @@ export class ConfessionDraftService {
     return { message: 'Draft deleted' };
   }
 
-  async scheduleDraft(userId: number, id: string, scheduledFor: string, timezone?: string) {
+  async deleteAllDrafts(userId: number) {
+    const drafts = await this.draftRepo.find({ where: { userId } });
+    await Promise.all(drafts.map((draft) => this.draftRepo.remove(draft)));
+    return { message: 'Drafts deleted' };
+  }
+
+  async scheduleDraft(
+    userId: number,
+    id: string,
+    scheduledFor: string,
+    timezone?: string,
+  ) {
     const draft = await this.draftRepo.findOne({ where: { id } });
     if (!draft) throw new NotFoundException('Draft not found');
     if (draft.userId !== userId) throw new ForbiddenException();
@@ -164,8 +261,11 @@ export class ConfessionDraftService {
         throw new BadRequestException('Draft already posted');
       }
 
-      const message = decryptConfession(draft.content);
-      const confession = await this.confessionService.create({ message } as any, manager);
+      const message = decryptConfession(draft.content, this.aesKey);
+      const confession = await this.confessionService.create(
+        { message } as any,
+        manager,
+      );
 
       draft.status = ConfessionDraftStatus.POSTED;
       draft.scheduledFor = null;
@@ -188,7 +288,9 @@ export class ConfessionDraftService {
 
     const existingCount = await this.draftRepo.count({ where: { userId } });
     if (existingCount >= MAX_DRAFTS_PER_USER) {
-      throw new BadRequestException(`Draft limit reached (max ${MAX_DRAFTS_PER_USER})`);
+      throw new BadRequestException(
+        `Draft limit reached (max ${MAX_DRAFTS_PER_USER})`,
+      );
     }
 
     draft.status = ConfessionDraftStatus.DRAFT;
@@ -233,7 +335,7 @@ export class ConfessionDraftService {
       if (draft.publishAttempts >= MAX_PUBLISH_ATTEMPTS) return;
 
       try {
-        const message = decryptConfession(draft.content);
+        const message = decryptConfession(draft.content, this.aesKey);
         await this.confessionService.create({ message } as any, manager);
 
         draft.status = ConfessionDraftStatus.POSTED;
@@ -243,7 +345,8 @@ export class ConfessionDraftService {
         await repo.save(draft);
       } catch (e) {
         draft.publishAttempts = (draft.publishAttempts ?? 0) + 1;
-        draft.lastPublishError = e instanceof Error ? e.message : 'Unknown error';
+        draft.lastPublishError =
+          e instanceof Error ? e.message : 'Unknown error';
         await repo.save(draft);
         throw e;
       }

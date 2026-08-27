@@ -1,9 +1,6 @@
 #!/bin/bash
 
-# test-contracts.sh
-# Run tests for all Soroban smart contracts in xConfess
-
-set -e
+set -euo pipefail
 
 # Colors for output
 RED='\033[0;31m'
@@ -14,19 +11,19 @@ NC='\033[0m' # No Color
 
 # Helper functions
 print_success() {
-    echo -e "${GREEN}✓ $1${NC}"
+    echo -e "${GREEN}[OK] $1${NC}"
 }
 
 print_error() {
-    echo -e "${RED}✗ $1${NC}"
+    echo -e "${RED}[ERROR] $1${NC}"
 }
 
 print_info() {
-    echo -e "${BLUE}ℹ $1${NC}"
+    echo -e "${BLUE}[INFO] $1${NC}"
 }
 
 print_warning() {
-    echo -e "${YELLOW}⚠ $1${NC}"
+    echo -e "${YELLOW}[WARN] $1${NC}"
 }
 
 print_header() {
@@ -66,11 +63,23 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-# Check if running from project root
-if [ ! -d "contracts/soroban-xconfess" ]; then
-    print_error "Error: Must run from project root directory"
+# Determine project root and contracts directory
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+CONTRACTS_DIR="$PROJECT_ROOT/xconfess-contracts"
+
+# Check if contracts directory exists
+if [ ! -d "$CONTRACTS_DIR" ]; then
+    print_error "Error: xconfess-contracts directory not found!"
+    echo "Expected location: $CONTRACTS_DIR"
     echo "Current directory: $(pwd)"
-    echo "Please cd to the xConfess root directory"
+    exit 1
+fi
+
+# Check if Cargo.toml exists in contracts directory
+if [ ! -f "$CONTRACTS_DIR/Cargo.toml" ]; then
+    print_error "Error: Cargo.toml not found in xconfess-contracts!"
+    echo "Expected location: $CONTRACTS_DIR/Cargo.toml"
     exit 1
 fi
 
@@ -82,83 +91,105 @@ if ! command -v cargo &> /dev/null; then
 fi
 
 print_header "Testing xConfess Soroban Contracts"
+print_info "Project root: $PROJECT_ROOT"
+print_info "Contracts directory: $CONTRACTS_DIR"
+echo ""
 
-# Array of contracts to test
-CONTRACTS=(
-    "confession-anchor"
-    # Add more contracts here as they're developed
-    # "reputation-badges"
-    # "anonymous-tipping"
+# Change to contracts directory
+cd "$CONTRACTS_DIR"
+
+if ! grep -q "\[workspace\]" Cargo.toml; then
+    print_error "This project is not configured as a Cargo workspace"
+    echo "Expected a [workspace] section in xconfess-contracts/Cargo.toml"
+    cd "$PROJECT_ROOT"
+    exit 1
+fi
+
+mapfile -t WORKSPACE_MEMBERS < <(
+    awk '
+        /^members = \[/ { in_members = 1; next }
+        in_members && /^]/ { in_members = 0; exit }
+        in_members {
+            gsub(/^[[:space:]]*"/, "", $0)
+            gsub(/",?[[:space:]]*$/, "", $0)
+            gsub(/[[:space:]]/, "", $0)
+            if (length($0) > 0) print $0
+        }
+    ' Cargo.toml
 )
 
-# Track test results
-SUCCESSFUL_TESTS=0
-FAILED_TESTS=0
-FAILED_CONTRACTS=()
+if [ ${#WORKSPACE_MEMBERS[@]} -eq 0 ]; then
+    print_error "Could not determine workspace members from Cargo.toml"
+    cd "$PROJECT_ROOT"
+    exit 1
+fi
 
-# Build test command arguments
-TEST_ARGS=""
+CONTRACT_CRATES=()
+for member in "${WORKSPACE_MEMBERS[@]}"; do
+    CONTRACT_CRATES+=("$(basename "$member")")
+done
+
+print_info "Workspace contract crates: ${CONTRACT_CRATES[*]}"
+echo ""
+
+run_phase() {
+    local phase="$1"
+    local crate="$2"
+    shift 2
+
+    print_header "$phase :: $crate"
+    if "$@"; then
+        print_success "$phase passed for $crate"
+        echo ""
+        return 0
+    fi
+
+    print_error "$phase failed for $crate"
+    cd "$PROJECT_ROOT"
+    exit 1
+}
+
+TEST_ARGS=()
 if [ "$VERBOSE" = true ]; then
-    TEST_ARGS="$TEST_ARGS --verbose"
+    TEST_ARGS+=(--verbose)
 fi
 if [ "$NOCAPTURE" = true ]; then
-    TEST_ARGS="$TEST_ARGS -- --nocapture"
+    TEST_ARGS+=(-- --nocapture)
 fi
 
-# Test each contract
-for contract in "${CONTRACTS[@]}"; do
-    CONTRACT_DIR="contracts/soroban-xconfess/$contract"
-    
-    if [ ! -d "$CONTRACT_DIR" ]; then
-        print_warning "Contract directory not found: $CONTRACT_DIR (skipping)"
-        continue
-    fi
-    
+for crate in "${CONTRACT_CRATES[@]}"; do
+    run_phase "CHECK" "$crate" cargo check -p "$crate"
+done
+
+print_header "BUILD :: workspace wasm32"
+if cargo build --workspace --target wasm32-unknown-unknown; then
+    print_success "BUILD passed for workspace wasm32"
     echo ""
-    print_info "Testing $contract..."
-    echo ""
-    
-    cd "$CONTRACT_DIR"
-    
-    # Run tests
-    if cargo test $TEST_ARGS; then
-        print_success "Tests passed for $contract"
-        ((SUCCESSFUL_TESTS++))
-    else
-        print_error "Tests failed for $contract"
-        FAILED_CONTRACTS+=("$contract")
-        ((FAILED_TESTS++))
-    fi
-    
-    # Return to project root
-    cd - > /dev/null
+else
+    print_error "BUILD failed for workspace wasm32"
+    cd "$PROJECT_ROOT"
+    exit 1
+fi
+
+for crate in "${CONTRACT_CRATES[@]}"; do
+    run_phase "TEST" "$crate" cargo test -p "$crate" "${TEST_ARGS[@]}"
 done
 
 echo ""
 print_header "Test Summary"
 
-echo "Total contracts tested: ${#CONTRACTS[@]}"
-print_success "Successful tests: $SUCCESSFUL_TESTS"
-
-if [ $FAILED_TESTS -gt 0 ]; then
-    print_error "Failed tests: $FAILED_TESTS"
-    echo "Failed contracts:"
-    for contract in "${FAILED_CONTRACTS[@]}"; do
-        echo "  - $contract"
-    done
-    echo ""
-    print_info "Run with --verbose flag for detailed error output:"
-    echo "  ./scripts/test-contracts.sh --verbose"
-    exit 1
-fi
-
-echo ""
-print_success "All contract tests passed! ✓"
+print_success "All contract crates completed check, build, and test phases"
+for crate in "${CONTRACT_CRATES[@]}"; do
+    echo "  - $crate"
+done
 
 echo ""
 print_info "Next steps:"
-echo "  1. Build contracts: ./scripts/build-contracts.sh"
-echo "  2. Deploy to testnet: ./scripts/deploy-contracts.sh"
-echo "  3. See docs/SOROBAN_SETUP.md for more information"
+echo "  1. Build contracts: ./scripts/contracts-release.sh build"
+echo "  2. Deploy to testnet: ./scripts/contracts-release.sh deploy --network testnet --source deployer"
+echo "  3. Run with coverage: cargo tarpaulin --workspace"
+
+# Return to original directory
+cd "$PROJECT_ROOT"
 
 exit 0

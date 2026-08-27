@@ -1,13 +1,23 @@
-import { IsNotEmpty, IsOptional, IsString, MaxLength } from 'class-validator';
+import {
+  IsEnum,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  MaxLength,
+  MinLength,
+} from 'class-validator';
+import { Transform } from 'class-transformer';
+import { ReportType } from '../../admin/entities/report.entity';
 
 export class CreateReportDto {
-  @IsString()
+  @IsEnum(ReportType)
   @IsNotEmpty()
-  @MaxLength(255)
-  reason: string;
+  type: ReportType;
 
   @IsOptional()
   @IsString()
-  @MaxLength(1000)
-  details?: string;
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
+  @MinLength(1)
+  @MaxLength(500)
+  reason?: string;
 }

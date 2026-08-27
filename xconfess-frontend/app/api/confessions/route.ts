@@ -1,23 +1,26 @@
-const BASE_API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+import { normalizeConfession } from "../../lib/utils/normalizeConfession";
+import { createApiErrorResponse } from "@/lib/apiErrorHandler";
+import { getApiBaseUrl } from "@/app/lib/config";
+import { getOrCreateRequestId, requestIdResponseHeaders } from "@/app/lib/utils/requestId";
 
 export async function POST(request: Request) {
+  const BASE_API_URL = getApiBaseUrl();
+  const correlationId = getOrCreateRequestId(request);
+
   try {
     const body = await request.json();
-    const { title, message, body: bodyContent, gender, stellarTxHash } = body;
+    const { title, message, body: bodyContent, gender, stellarTxHash, idempotencyKey } = body;
 
     if (!message && !bodyContent) {
-      return new Response(
-        JSON.stringify({ message: "Confession content is required" }),
-        {
-          status: 400,
-          headers: { "Content-Type": "application/json" },
-        }
-      );
+      return createApiErrorResponse("Confession content is required", { 
+        status: 400,
+        correlationId 
+      });
     }
 
     const confessionContent = bodyContent || message;
     const backendUrl = `${BASE_API_URL}/confessions`;
-    
+
     const backendBody: any = {
       message: confessionContent,
       body: confessionContent,
@@ -26,116 +29,74 @@ export async function POST(request: Request) {
     if (title) backendBody.title = title;
     if (gender) backendBody.gender = gender;
     if (stellarTxHash) backendBody.stellarTxHash = stellarTxHash;
+    if (idempotencyKey) backendBody.idempotencyKey = idempotencyKey;
+
+    // Forward client-supplied Idempotency-Key header or fall back to body field.
+    const clientIdempotencyKey =
+      request.headers.get("idempotency-key") ||
+      request.headers.get("Idempotency-Key") ||
+      idempotencyKey;
+
+    const forwardHeaders: Record<string, string> = {
+      "Content-Type": "application/json",
+      "x-request-id": correlationId,
+    };
+
+    if (clientIdempotencyKey) {
+      forwardHeaders["Idempotency-Key"] = clientIdempotencyKey;
+      // Also include in body for backends that read it from there.
+      backendBody.idempotencyKey = clientIdempotencyKey;
+    }
 
     try {
       const response = await fetch(backendUrl, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: forwardHeaders,
         body: JSON.stringify(backendBody),
       });
 
       if (!response.ok) {
-        const isDemoMode = process.env.NODE_ENV === "development" || process.env.DEMO_MODE === "true";
-        
-        if (isDemoMode && (response.status === 403 || response.status === 404 || response.status >= 500)) {
-          console.warn("Backend unavailable, returning demo response for testing");
-          return new Response(
-            JSON.stringify({
-              id: `demo-${Date.now()}`,
-              message: confessionContent,
-              title: title || null,
-              body: confessionContent,
-              gender: gender || null,
-              createdAt: new Date().toISOString(),
-              stellarTxHash: stellarTxHash || null,
-              _demo: true,
-            }),
-            {
-              status: 201,
-              headers: { 
-                "Content-Type": "application/json",
-                "X-Demo-Mode": "true",
-              },
-            }
-          );
-        }
-
         const errorData = await response.json().catch(() => ({}));
-        return new Response(
-          JSON.stringify({
-            message: errorData.message || `Failed to create confession: ${response.statusText}`,
-          }),
-          {
-            status: response.status,
-            headers: { "Content-Type": "application/json" },
-          }
-        );
+        return createApiErrorResponse(errorData, {
+          status: response.status,
+          upstreamResponse: response,
+          correlationId,
+          fallbackMessage: `Failed to create confession: ${response.statusText}`,
+          route: "POST /api/confessions"
+        });
       }
 
       const data = await response.json();
+      const normalized = normalizeConfession(data);
 
-      return new Response(JSON.stringify(data), {
+      return new Response(JSON.stringify(normalized), {
         status: 201,
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...requestIdResponseHeaders(correlationId) },
       });
-    } catch (fetchError: any) {
-      const isDemoMode = process.env.NODE_ENV === "development" || process.env.DEMO_MODE === "true";
-      
-      if (isDemoMode && (fetchError.message?.includes("fetch failed") || fetchError.code === "ECONNREFUSED")) {
-        console.warn("Backend unreachable, returning demo response for testing");
-        return new Response(
-          JSON.stringify({
-            id: `demo-${Date.now()}`,
-            message: confessionContent,
-            title: title || null,
-            body: confessionContent,
-            gender: gender || null,
-            createdAt: new Date().toISOString(),
-            stellarTxHash: stellarTxHash || null,
-            _demo: true,
-          }),
-          {
-            status: 201,
-            headers: { 
-              "Content-Type": "application/json",
-              "X-Demo-Mode": "true",
-            },
-          }
-        );
-      }
-      
-      return new Response(
-        JSON.stringify({
-          message: "Backend service unavailable",
-        }),
-        {
-          status: 503,
-          headers: { "Content-Type": "application/json" },
-        }
-      );
+    } catch (fetchError) {
+      return createApiErrorResponse(fetchError, {
+        status: 503,
+        correlationId,
+        fallbackMessage: "Backend service unreachable",
+        route: "POST /api/confessions"
+      });
     }
-  } catch (error: any) {
-    console.error("Error creating confession:", error);
-    return new Response(
-      JSON.stringify({
-        message: error.message || "Internal server error",
-      }),
-      {
-        status: 500,
-        headers: { "Content-Type": "application/json" },
-      }
-    );
+  } catch (error) {
+    return createApiErrorResponse(error, {
+      status: 500,
+      correlationId,
+      route: "POST /api/confessions"
+    });
   }
 }
 
 export async function GET(request: Request) {
+  const BASE_API_URL = getApiBaseUrl();
   const { searchParams } = new URL(request.url);
-  const page = Math.max(1, parseInt(searchParams.get('page') ?? '1') || 1);
-  const limit = Math.max(1, parseInt(searchParams.get('limit') ?? '10') || 10);
-  const sort = searchParams.get('sort') ?? 'newest';
-  const gender = searchParams.get('gender');
+  const page = Math.max(1, parseInt(searchParams.get("page") ?? "1") || 1);
+  const limit = Math.max(1, parseInt(searchParams.get("limit") ?? "10") || 10);
+  const sort = searchParams.get("sort") ?? "newest";
+  const gender = searchParams.get("gender");
 
   const backendParams = new URLSearchParams({
     page: page.toString(),
@@ -144,16 +105,19 @@ export async function GET(request: Request) {
   });
 
   if (gender) {
-    backendParams.append('gender', gender);
+    backendParams.append("gender", gender);
   }
+
+  const correlationId = getOrCreateRequestId(request);
 
   try {
     const backendUrl = `${BASE_API_URL}/confessions?${backendParams}`;
 
     const response = await fetch(backendUrl, {
-      method: 'GET',
+      method: "GET",
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
+        "x-request-id": correlationId,
       },
       next: {
         revalidate: 30, // Cache for 30 seconds
@@ -161,73 +125,49 @@ export async function GET(request: Request) {
     });
 
     if (!response.ok) {
-      console.error(`Backend returned ${response.status}: ${response.statusText}`);
-      
-      // Return fallback data for demo purposes
-      const confessionsPerPage = limit;
-      const allConfessions = [
-        { id: "1", content: "I love coding.", createdAt: new Date().toISOString(), reactions: { like: 5, love: 3 }, commentCount: 2, viewCount: 45 },
-        { id: "2", content: "I secretly watch cartoons.", createdAt: new Date().toISOString(), reactions: { like: 8, love: 12 }, commentCount: 5, viewCount: 123 },
-        { id: "3", content: "I talk to my plants.", createdAt: new Date().toISOString(), reactions: { like: 2, love: 7 }, commentCount: 1, viewCount: 32 },
-        { id: "4", content: "I enjoy midnight walks.", createdAt: new Date().toISOString(), reactions: { like: 10, love: 4 }, commentCount: 3, viewCount: 67 },
-        { id: "5", content: "I write poems no one reads.", createdAt: new Date().toISOString(), reactions: { like: 3, love: 6 }, commentCount: 0, viewCount: 18 },
-        { id: "6", content: "I skip breakfast sometimes.", createdAt: new Date().toISOString(), reactions: { like: 4, love: 2 }, commentCount: 2, viewCount: 42 },
-        { id: "7", content: "I have imposter syndrome.", createdAt: new Date(Date.now() - 3600000).toISOString(), reactions: { like: 15, love: 20 }, commentCount: 8, viewCount: 156 },
-        { id: "8", content: "I talk to myself in the car.", createdAt: new Date(Date.now() - 7200000).toISOString(), reactions: { like: 9, love: 11 }, commentCount: 4, viewCount: 89 },
-      ];
-
-      const start = (page - 1) * confessionsPerPage;
-      const pagedConfessions = allConfessions.slice(start, start + confessionsPerPage);
-      const hasMore = start + confessionsPerPage < allConfessions.length;
-
-      return new Response(JSON.stringify({
-        confessions: pagedConfessions,
-        hasMore,
-        total: allConfessions.length,
-        page,
-      }), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' }
+      return createApiErrorResponse(undefined, {
+        status: response.status,
+          upstreamResponse: response,
+        correlationId,
+        fallbackMessage: `Failed to fetch confessions: ${response.statusText}`,
+        route: "GET /api/confessions"
       });
     }
 
     const data = await response.json();
+    const rawConfessions = data.data || data.confessions || [];
+    const confessions = rawConfessions.map(normalizeConfession);
 
-    return new Response(JSON.stringify({
-      confessions: data.data || data.confessions || [],
-      hasMore: data.hasMore !== false,
-      total: data.total,
-      page: data.page || page,
-    }), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' }
-    });
+    // ✅ Compute pagination metadata properly
+    const total = data.total ?? confessions.length;
+    const totalPages = data.totalPages ?? Math.ceil(total / limit);
+
+    const hasMore =
+      page < totalPages || (totalPages === undefined && confessions.length > 0);
+
+    return new Response(
+      JSON.stringify({
+        confessions,
+        meta: {
+          page,
+          limit,
+          total,
+          totalPages,
+          hasMore,
+        },
+      }),
+      {
+        status: 200,
+        headers: { "Content-Type": "application/json", ...requestIdResponseHeaders(correlationId) },
+      },
+    );
   } catch (error) {
-    console.error('Error fetching confessions:', error);
-
-    // Fallback demo data
-    const confessionsPerPage = limit;
-    const allConfessions = [
-      { id: "1", content: "I love coding.", createdAt: new Date().toISOString(), reactions: { like: 5, love: 3 }, commentCount: 2, viewCount: 45 },
-      { id: "2", content: "I secretly watch cartoons.", createdAt: new Date().toISOString(), reactions: { like: 8, love: 12 }, commentCount: 5, viewCount: 123 },
-      { id: "3", content: "I talk to my plants.", createdAt: new Date().toISOString(), reactions: { like: 2, love: 7 }, commentCount: 1, viewCount: 32 },
-      { id: "4", content: "I enjoy midnight walks.", createdAt: new Date().toISOString(), reactions: { like: 10, love: 4 }, commentCount: 3, viewCount: 67 },
-      { id: "5", content: "I write poems no one reads.", createdAt: new Date().toISOString(), reactions: { like: 3, love: 6 }, commentCount: 0, viewCount: 18 },
-      { id: "6", content: "I skip breakfast sometimes.", createdAt: new Date().toISOString(), reactions: { like: 4, love: 2 }, commentCount: 2, viewCount: 42 },
-    ];
-
-    const start = (page - 1) * confessionsPerPage;
-    const pagedConfessions = allConfessions.slice(start, start + confessionsPerPage);
-    const hasMore = start + confessionsPerPage < allConfessions.length;
-
-    return new Response(JSON.stringify({
-      confessions: pagedConfessions,
-      hasMore,
-      total: allConfessions.length,
-      page,
-    }), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' }
+    return createApiErrorResponse(error, {
+      status: 503,
+      correlationId,
+      fallbackMessage: "Backend service unreachable",
+      route: "GET /api/confessions"
     });
   }
 }
+

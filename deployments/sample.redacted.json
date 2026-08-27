@@ -1,0 +1,35 @@
+{
+  "contracts": {
+    "anonymous-tipping": {
+      "contract_id": "CXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXATIP",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000001",
+      "source": "<stellar-cli-key-alias>",
+      "version": "0.1.0",
+      "wasm_file": "target/wasm32-unknown-unknown/release/anonymous_tipping.wasm"
+    },
+    "confession-anchor": {
+      "contract_id": "CXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXANCH",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000002",
+      "source": "<stellar-cli-key-alias>",
+      "version": "0.1.0",
+      "wasm_file": "target/wasm32-unknown-unknown/release/confession_anchor.wasm"
+    },
+    "confession-registry": {
+      "contract_id": "CXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXREGI",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000003",
+      "source": "<stellar-cli-key-alias>",
+      "version": "0.1.0",
+      "wasm_file": "target/wasm32-unknown-unknown/release/confession_registry.wasm"
+    },
+    "reputation-badges": {
+      "contract_id": "CXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXBADG",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000004",
+      "source": "<stellar-cli-key-alias>",
+      "version": "0.1.0",
+      "wasm_file": "target/wasm32-unknown-unknown/release/reputation_badges.wasm"
+    }
+  },
+  "generated_at_utc": "YYYY-MM-DDTHH:MM:SSZ",
+  "network": "<stellar-network-alias>",
+  "target": "wasm32-unknown-unknown"
+}

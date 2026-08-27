@@ -1,6 +1,6 @@
-import { IsInt } from 'class-validator';
+import { IsUUID } from 'class-validator';
 
 export class ViewMessagesDto {
-  @IsInt()
-  confession_id: number;
+  @IsUUID()
+  confession_id: string;
 }
