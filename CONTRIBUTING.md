@@ -4,7 +4,7 @@ Thank you for your interest in contributing to Xconfess - an anonymous confessio
 
 ---
 
-## Table of Contents
+## Table of Contents.
 
 - [Prerequisites](#prerequisites)
 - [Environment Setup](#environment-setup)

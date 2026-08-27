@@ -86,7 +86,7 @@ export default function RegisterPage() {
         email: parsed.data.email,
         password: parsed.data.password,
       });
-      router.push('/dashboard');
+      router.push(getAuthRedirectTarget('/dashboard'));
     } catch (error) {
       const field = getAuthFieldError(error);
       const message = getErrorMessage(error);
@@ -116,18 +116,18 @@ export default function RegisterPage() {
               Post anonymously. Stay in control.
             </p>
             <div className="flex flex-wrap gap-3 text-sm text-[var(--secondary)]">
-              <span className="inline-flex items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--surface)] px-4 py-2">
+              <span className="inline-flex items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-2">
                 <ShieldCheck className="h-4 w-4 text-[var(--primary)]" aria-hidden="true" />
                 Encrypted identity
               </span>
-              <span className="inline-flex items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--surface)] px-4 py-2">
+              <span className="inline-flex items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-2">
                 <CheckCircle2 className="h-4 w-4 text-emerald-600" aria-hidden="true" />
-                Auto sign-in
+                Automatic sign-in
               </span>
             </div>
           </div>
 
-          <form onSubmit={doRegister} className="luxury-panel rounded-[34px] p-7 sm:p-8">
+          <form onSubmit={doRegister} className="luxury-panel rounded-2xl p-7 sm:p-8">
             <div className="space-y-3">
               <p className="eyebrow">Account setup</p>
               <h2 className="font-editorial text-4xl text-[var(--foreground)]">
@@ -135,7 +135,7 @@ export default function RegisterPage() {
               </h2>
               <p className="text-sm leading-7 text-[var(--secondary)]">
                 Already have an account?{' '}
-                <Link href="/login" className="text-indigo-600 hover:text-indigo-500">
+                <Link href="/login" className="text-[var(--primary-deep)] hover:text-[var(--primary)]">
                   Sign in
                 </Link>
               </p>
@@ -143,7 +143,7 @@ export default function RegisterPage() {
 
             {submitError && (
               <div
-                className="mt-5 rounded-[20px] border border-red-200 bg-red-50 p-3 text-sm text-red-700"
+                className="mt-5 rounded-xl border border-red-500/25 bg-red-950/30 p-3 text-sm text-red-200"
                 role="alert"
               >
                 {submitError}
@@ -243,7 +243,7 @@ export default function RegisterPage() {
               </Field>
             </div>
 
-            <div className="mt-5 rounded-[22px] border border-[var(--border)] bg-[var(--surface)] p-4">
+            <div className="mt-5 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4">
               <div className="mb-3 h-2 overflow-hidden rounded-full bg-[var(--surface-strong)]">
                 <div
                   className="h-full rounded-full bg-[var(--primary)] transition-all"
@@ -272,7 +272,7 @@ export default function RegisterPage() {
 
             <Button
               type="button"
-              onClick={() => router.push('/login')}
+              onClick={() => router.push(buildAuthSwitchUrl('/login'))}
               disabled={loading}
               variant="outline"
               className="mt-3 w-full"
@@ -285,6 +285,26 @@ export default function RegisterPage() {
       </div>
     </div>
   );
+}
+
+function getAuthRedirectTarget(fallback: string): string {
+  if (typeof window === 'undefined') return fallback;
+
+  const next = new URLSearchParams(window.location.search).get('next');
+  return isSafeAuthRedirect(next) ? next : fallback;
+}
+
+function buildAuthSwitchUrl(path: '/register' | '/login'): string {
+  if (typeof window === 'undefined') return path;
+
+  const next = new URLSearchParams(window.location.search).get('next');
+  return isSafeAuthRedirect(next)
+    ? `${path}?next=${encodeURIComponent(next)}`
+    : path;
+}
+
+function isSafeAuthRedirect(value: string | null): value is string {
+  return Boolean(value && value.startsWith('/') && !value.startsWith('//'));
 }
 
 function Field({
@@ -328,7 +348,7 @@ function IconButton({
       aria-label={label}
       title={label}
       onClick={onClick}
-      className="absolute right-3 top-1/2 inline-flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full text-[var(--secondary)] hover:bg-[var(--surface-strong)] hover:text-[var(--foreground)]"
+      className="absolute right-3 top-1/2 inline-flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-lg text-[var(--secondary)] hover:bg-[var(--surface-strong)] hover:text-[var(--foreground)]"
     >
       {children}
     </button>

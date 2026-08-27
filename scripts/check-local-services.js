@@ -64,13 +64,13 @@ async function main() {
   checks.push({
     name: `Postgres ${dbHost}:${dbPort}`,
     ok: await canConnect(dbHost, dbPort),
-    fix: 'Run: docker compose up -d postgres',
+    fix: 'Run: npm run dev:services, wait for healthy containers, then check: docker compose -f compose.yaml ps',
   });
 
   checks.push({
     name: `Redis ${redisHost}:${redisPort}`,
     ok: await canConnect(redisHost, redisPort),
-    fix: 'Run: docker compose up -d redis',
+    fix: 'Run: npm run dev:services, wait for healthy containers, then check: docker compose -f compose.yaml ps',
   });
 
   const failed = checks.filter((check) => !check.ok);
@@ -82,7 +82,8 @@ async function main() {
 
   if (failed.length > 0) {
     console.log('\nLocal services are not ready.');
-    console.log('Fast path: docker compose up -d postgres redis');
+    console.log('Fast path: npm run dev:services');
+    console.log('If containers show "starting" or "unhealthy", wait a few seconds and run: docker compose -f compose.yaml ps');
     process.exit(1);
   }
 

@@ -7,7 +7,7 @@ services:
     branch: main
     buildCommand: npm ci --include=dev --include=optional --no-audit --no-fund && npm run deploy:preflight && npm run build --workspace=xconfess-backend
     startCommand: npm run render:prestart && npm run start:prod --workspace=xconfess-backend
-    healthCheckPath: /api/health/ready
+    healthCheckPath: /api/health/live
     autoDeploy: true
     envVars:
       - key: NODE_ENV

@@ -65,6 +65,52 @@ async function tableExists(client, tableName) {
   return result.rows[0]?.exists === true;
 }
 
+async function columnExists(client, tableName, columnName) {
+  const result = await client.query(
+    `
+      SELECT EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = $1
+          AND column_name = $2
+      ) AS exists;
+    `,
+    [tableName, columnName],
+  );
+  return result.rows[0]?.exists === true;
+}
+
+async function ensureConfessionReadinessIndexes(client) {
+  const hasSearchVector = await columnExists(
+    client,
+    'anonymous_confessions',
+    'search_vector',
+  );
+  const hasCreatedAt = await columnExists(
+    client,
+    'anonymous_confessions',
+    'created_at',
+  );
+
+  if (!hasSearchVector || !hasCreatedAt) {
+    console.log(
+      'Render prestart schema repair skipped: confession readiness columns are missing.',
+    );
+    return;
+  }
+
+  await client.query(`
+    CREATE INDEX IF NOT EXISTS "idx_confession_search_vector"
+    ON "anonymous_confessions" USING GIN ("search_vector");
+  `);
+  await client.query(`
+    CREATE INDEX IF NOT EXISTS "idx_confession_created_at"
+    ON "anonymous_confessions" ("created_at" DESC);
+  `);
+  console.log('Render prestart ensured confession readiness indexes.');
+}
+
 async function main() {
   if (!enabled('TYPEORM_BASELINE_EXISTING_SCHEMA')) {
     console.log('Render prestart baseline skipped: TYPEORM_BASELINE_EXISTING_SCHEMA is not enabled.');
@@ -98,6 +144,8 @@ async function main() {
       console.log('Render prestart baseline skipped: database does not look pre-synchronized.');
       return;
     }
+
+    await ensureConfessionReadinessIndexes(client);
 
     await client.query(`
       CREATE TABLE IF NOT EXISTS "migrations" (

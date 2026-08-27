@@ -1281,3 +1281,4 @@ orders against this reference. Keep this section aligned with
 - [Xconfess Project README](../README.md)
 - [Contract Deployment Guide](./SOROBAN_SETUP.md)
 - [Release Runbook](./contract-release-and-upgrade-runbook.md)
+- [Backend Event Parser Compatibility Layer](./contract-event-parser-compatibility.md)

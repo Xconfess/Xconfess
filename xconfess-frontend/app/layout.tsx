@@ -76,7 +76,7 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <head>
         <link rel="manifest" href="/manifest.webmanifest" />
-        <meta name="theme-color" content="#5B2EFF" />
+        <meta name="theme-color" content="#080706" />
       </head>
       <body className="antialiased">
         <Script

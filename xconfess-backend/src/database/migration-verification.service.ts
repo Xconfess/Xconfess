@@ -107,6 +107,67 @@ export class MigrationVerificationService implements OnModuleInit {
     }
   }
 
+  /**
+   * Verify migration files across both migration directories for duplicates
+   * and out-of-order timestamps.
+   */
+  async verifyMigrations(): Promise<string[]> {
+    const issues: string[] = [];
+    const fs = await import('fs');
+    const path = await import('path');
+
+    const dirs = [
+      path.join(process.cwd(), 'migrations'),
+      path.join(process.cwd(), 'src', 'migrations'),
+    ];
+
+    const seenTimestamps = new Map<string, string[]>();
+    const seenNames = new Map<string, string[]>();
+
+    for (const dir of dirs) {
+      if (!fs.existsSync(dir)) continue;
+      const files = fs.readdirSync(dir).filter((f) => f.endsWith('.ts'));
+      for (const file of files) {
+        const timestampMatch = file.match(/^(\d{14})-/);
+        if (!timestampMatch) continue;
+        const timestamp = timestampMatch[1];
+        const fullPath = path.join(dir, file);
+
+        if (!seenTimestamps.has(timestamp)) {
+          seenTimestamps.set(timestamp, []);
+        }
+        seenTimestamps.get(timestamp)!.push(fullPath);
+
+        const nameMatch = file.match(/^\d{14}-(.+)\.ts$/);
+        if (nameMatch) {
+          const name = nameMatch[1];
+          if (!seenNames.has(name)) {
+            seenNames.set(name, []);
+          }
+          seenNames.get(name)!.push(fullPath);
+        }
+      }
+    }
+
+    for (const [timestamp, paths] of seenTimestamps) {
+      if (paths.length > 1) {
+        issues.push(
+          `Duplicate migration timestamp: ${timestamp} found in ${paths.join(', ')}`,
+        );
+      }
+    }
+
+    for (const [name, paths] of seenNames) {
+      if (paths.length > 1) {
+        issues.push(
+          `Duplicate migration name: ${name} found in ${paths.join(', ')}`,
+        );
+      }
+    }
+
+    return issues;
+  }
+
   private logStartupOutcome(result: SchemaReadinessResult): void {
     if (result.queryError) {
       this.logger.error(

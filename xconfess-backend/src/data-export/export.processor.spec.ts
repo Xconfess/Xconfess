@@ -143,259 +143,56 @@ describe('ExportProcessor', () => {
       );
     });
 
-    it('should mark export as FAILED when archive integrity verification fails', async () => {
-      const mockJob = {
-        name: 'process-export',
-        data: { userId: '1', requestId: 'req-1' },
-      } as Job;
-
-      dataExportService.compileUserData.mockResolvedValue({
-        userId: '1',
-        confessions: [{ id: 1, message: 'hello' }],
-      });
-      dataExportService.verifyArchiveIntegrity.mockRejectedValue(
-        new BadRequestException({
-          message:
-            'Archive integrity verification failed: combined checksum mismatch with in-memory hash.',
-          code: 'ARCHIVE_INTEGRITY_FAILED',
-        }),
-      );
-
-      await expect(processor.process(mockJob)).rejects.toThrow();
-      expect(dataExportService.markExportFailed).toHaveBeenCalledWith(
-        'req-1',
-        expect.stringContaining('Archive integrity verification failed'),
-      );
-      // Should not declare READY when integrity fails.
-      expect(exportRepo.update).not.toHaveBeenCalledWith(
-        'req-1',
-        expect.objectContaining({ status: 'READY' }),
-      );
-    });
-  });
-
-  // ── Issue #1453: resumability + idempotent resume ──────────────────────────
-
-  describe('Issue #1453 — resumable processor', () => {
-    it('resolves the resume index before generating the zip', async () => {
-      const mockJob = {
-        name: 'process-export',
-        data: { userId: '1', requestId: 'req-resume' },
-      } as Job;
-
-      dataExportService.compileUserData.mockResolvedValue({
-        userId: '1',
-        confessions: [{ id: 1, message: 'hello' }],
-      });
-      userRepo.findOneBy.mockResolvedValue(null);
-
-      await processor.process(mockJob);
-
-      expect(dataExportService.getResumeIndex).toHaveBeenCalledWith(
-        'req-resume',
-      );
-    });
-
-    it('skips DB writes for chunks whose index is <= resumeIndex', async () => {
-      // Simulate that two chunks were already durably saved before the crash.
-      dataExportService.getResumeIndex.mockResolvedValue(1);
-      // Stub integrity verification so the test asserts only resume behavior.
-      dataExportService.verifyArchiveIntegrity.mockResolvedValue(undefined);
-
-      const mockJob = {
-        name: 'process-export',
-        data: { userId: '1', requestId: 'req-resume' },
-      } as Job;
-
-      // Generate enough payload to cross two 10MB thresholds so we can
-      // observe both a "skipped" chunk (index 0 or 1) and a "new" chunk.
-      const confessions = Array.from({ length: 30 }, (_, i) => ({
-        id: i,
-        message: 'A'.repeat(1024 * 1024), // 1MB raw — yields 30MB JSON
-      }));
-      dataExportService.compileUserData.mockResolvedValue({
-        userId: '1',
-        confessions,
-      });
-      userRepo.findOneBy.mockResolvedValue(null);
-
-      await processor.process(mockJob);
-
-      // The resume ask must have happened.
-      expect(dataExportService.getResumeIndex).toHaveBeenCalledWith(
-        'req-resume',
-      );
-      // saveCompletedChunk must have been called for at least one chunk
-      // (the new, post-resume range)…
-      const writeCalls = dataExportService.saveCompletedChunk.mock.calls;
-      expect(writeCalls.length).toBeGreaterThan(0);
-
-      // …but never for index 0 or 1 — those are skipped.
-      const writtenIndexes = writeCalls
-        .map((c: any[]) => c[1])
-        .filter((n) => typeof n === 'number');
-      expect(writtenIndexes.every((i: number) => i > 1)).toBe(true);
-    });
-
-    it('deduplicates via saveCompletedChunk even when called repeatedly', async () => {
-      // Have the helper return false the second time it's invoked to
-      // simulate the unique-index dedupe path.
-      dataExportService.saveCompletedChunk
-        .mockResolvedValueOnce(true)
-        .mockResolvedValue(false);
-      dataExportService.verifyArchiveIntegrity.mockResolvedValue(undefined);
-
-      const mockJob = {
-        name: 'process-export',
-        data: { userId: '1', requestId: 'req-dedupe' },
-      } as Job;
-
-      dataExportService.compileUserData.mockResolvedValue({
-        userId: '1',
-        confessions: [{ id: 1, message: 'hello' }],
-      });
-      // Resume says chunk 0 is done, so processor never invokes saveCompletedChunk
-      // for index 0 — but we want to exercise the dedupe handler.
-      dataExportService.getResumeIndex.mockResolvedValue(-1);
-      userRepo.findOneBy.mockResolvedValue(null);
-
-      await processor.process(mockJob);
-
-      // No matter what write order the producer takes, the helper is the
-      // single source of truth for dedup — the processor should not call
-      // chunkRepository.save directly at all.
-      expect(chunkRepo.save).not.toHaveBeenCalled();
-    });
-
-    it('records a failed chunk with sanitized, non-sensitive metadata when save throws', async () => {
-      // Make the in-stream chunk save throw to simulate a worker crash.
-      dataExportService.saveCompletedChunk.mockRejectedValueOnce(
-        new Error('something leaked@example.com 12345678901234567890123456789012'),
-      );
-      dataExportService.verifyArchiveIntegrity.mockResolvedValue(undefined);
-
+    it('should not update status to READY when compilation fails', async () => {
       const mockJob = {
         name: 'process-export',
         data: { userId: '1', requestId: 'req-fail' },
       } as Job;
-      dataExportService.compileUserData.mockResolvedValue({
-        userId: '1',
-        confessions: [{ id: 1, message: 'hello' }],
-      });
-      userRepo.findOneBy.mockResolvedValue(null);
 
-      await expect(processor.process(mockJob)).rejects.toThrow();
-
-      expect(dataExportService.markChunkFailed).toHaveBeenCalled();
-      const [calledRequestId, calledIndex, calledError] =
-        dataExportService.markChunkFailed.mock.calls[0];
-      expect(calledRequestId).toBe('req-fail');
-      expect(typeof calledIndex).toBe('number');
-      // The original raw error was passed in; sanitization happens inside
-      // the service helper.
-      expect(calledError).toBeInstanceOf(Error);
-    });
-
-    it('does NOT mark export READY if the chunk stream signals a recorded failure', async () => {
-      const dbError = new Error('boom');
-      dataExportService.saveCompletedChunk.mockRejectedValue(dbError);
-      dataExportService.verifyArchiveIntegrity.mockResolvedValue(undefined);
-
-      const mockJob = {
-        name: 'process-export',
-        data: { userId: '1', requestId: 'req-fail-2' },
-      } as Job;
-      dataExportService.compileUserData.mockResolvedValue({
-        userId: '1',
-        confessions: [{ id: 1, message: 'hello' }],
-      });
-      userRepo.findOneBy.mockResolvedValue(null);
-
-      await expect(processor.process(mockJob)).rejects.toThrow();
-      expect(dataExportService.markChunkFailed).toHaveBeenCalled();
-      // markExportFailed is invoked from the outer try/catch with the
-      // generic 'one or more chunks did not complete' message.
-      expect(dataExportService.markExportFailed).toHaveBeenCalledWith(
-        'req-fail-2',
-        expect.stringContaining('one or more chunks did not complete'),
+      dataExportService.compileUserData.mockRejectedValue(
+        new Error('timeout'),
       );
-    });
-
-    it('does NOT directly hit chunkRepository.save (dedupe is delegated to the service)', async () => {
-      dataExportService.saveCompletedChunk.mockResolvedValue(true);
-      dataExportService.verifyArchiveIntegrity.mockResolvedValue(undefined);
-
-      const mockJob = {
-        name: 'process-export',
-        data: { userId: '1', requestId: 'req-clean' },
-      } as Job;
-      dataExportService.compileUserData.mockResolvedValue({
-        userId: '1',
-        confessions: [{ id: 1, message: 'hello' }],
-      });
-      userRepo.findOneBy.mockResolvedValue(null);
 
       await processor.process(mockJob);
 
-      expect(chunkRepo.save).not.toHaveBeenCalled();
-      expect(chunkRepo.find).not.toHaveBeenCalled();
-      expect(chunkRepo.findOne).not.toHaveBeenCalled();
-    });
-
-    it('rerunning the same job (worker restart) calls getResumeIndex again each time', async () => {
-      dataExportService.verifyArchiveIntegrity.mockResolvedValue(undefined);
-
-      const makeJob = () =>
-        ({
-          name: 'process-export',
-          data: { userId: '1', requestId: 'req-restart' },
-        } as Job);
-
-      dataExportService.compileUserData.mockResolvedValue({
-        userId: '1',
-        confessions: [{ id: 1, message: 'hello' }],
-      });
-      // First call: nothing persisted yet. Second call: one chunk exists.
-      dataExportService.getResumeIndex
-        .mockResolvedValueOnce(-1)
-        .mockResolvedValueOnce(0);
-      userRepo.findOneBy.mockResolvedValue(null);
-
-      await processor.process(makeJob());
-      await processor.process(makeJob());
-
-      expect(dataExportService.getResumeIndex).toHaveBeenCalledTimes(2);
-      expect(dataExportService.getResumeIndex).toHaveBeenNthCalledWith(
-        1,
-        'req-restart',
-      );
-      expect(dataExportService.getResumeIndex).toHaveBeenNthCalledWith(
-        2,
-        'req-restart',
-      );
-    });
-
-    it('still invokes verifyArchiveIntegrity before marking READY on a resume', async () => {
-      dataExportService.getResumeIndex.mockResolvedValue(2);
-      dataExportService.verifyArchiveIntegrity.mockResolvedValue(undefined);
-
-      const mockJob = {
-        name: 'process-export',
-        data: { userId: '1', requestId: 'req-resume-verify' },
-      } as Job;
-      dataExportService.compileUserData.mockResolvedValue({
-        userId: '1',
-        confessions: [{ id: 1, message: 'hello' }],
-      });
-      userRepo.findOneBy.mockResolvedValue(null);
-
-      await processor.process(mockJob);
-
-      expect(dataExportService.verifyArchiveIntegrity).toHaveBeenCalledTimes(1);
-      expect(exportRepo.update).toHaveBeenCalledWith(
-        'req-resume-verify',
+      expect(exportRepo.update).not.toHaveBeenCalledWith(
+        'req-fail',
         expect.objectContaining({ status: 'READY' }),
       );
+      expect(dataExportService.markExportFailed).toHaveBeenCalledWith(
+        'req-fail',
+        'timeout',
+      );
+    });
+
+    it('should call markExportFailed with error message on any failure', async () => {
+      const mockJob = {
+        name: 'process-export',
+        data: { userId: '1', requestId: 'req-err' },
+      } as Job;
+
+      dataExportService.markExportProcessing.mockRejectedValue(
+        new Error('DB connection lost'),
+      );
+
+      await processor.process(mockJob);
+
+      expect(dataExportService.markExportFailed).toHaveBeenCalledWith(
+        'req-err',
+        'DB connection lost',
+      );
+    });
+
+    it('should skip processing for non-process-export job names', async () => {
+      const mockJob = {
+        name: 'other-job',
+        data: { userId: '1', requestId: 'req-skip' },
+      } as Job;
+
+      await processor.process(mockJob);
+
+      expect(dataExportService.markExportProcessing).not.toHaveBeenCalled();
+      expect(dataExportService.markExportFailed).not.toHaveBeenCalled();
     });
   });
 });

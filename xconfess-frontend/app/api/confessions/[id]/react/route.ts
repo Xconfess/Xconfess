@@ -5,7 +5,6 @@ import {
 import { getApiBaseUrl } from "@/app/lib/config";
 import { createApiErrorResponse } from "@/lib/apiErrorHandler";
 
-const BASE_API_URL = getApiBaseUrl();
 
 /**
  * POST /api/confessions/[id]/react
@@ -15,6 +14,7 @@ export async function POST(
   request: Request,
   context: { params: Promise<{ id: string }> }
 ) {
+  const BASE_API_URL = getApiBaseUrl();
   let correlationId: string | undefined;
   try {
     const { id } = await context.params;

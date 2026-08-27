@@ -303,6 +303,15 @@ describe('MigrationVerificationService', () => {
     });
   });
 
+  // ── verifyMigrations ──────────────────────────────────────────────────
+
+  describe('verifyMigrations', () => {
+    it('returns empty array when no duplicate timestamps or names', async () => {
+      const issues = await service.verifyMigrations();
+      expect(issues).toEqual([]);
+    });
+  });
+
   // ── REQUIRED_CONFESSION_COLUMNS / REQUIRED_CONFESSION_INDEXES constants ─────
 
   describe('exported constants', () => {

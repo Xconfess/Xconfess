@@ -11,6 +11,7 @@ import {
   encodeCursor,
   CursorPaginatedResponseDto,
 } from '../common/pagination';
+import { Brackets } from 'typeorm';
 import { AnonymousConfessionRepository } from './repository/confession.repository';
 import { CreateConfessionDto } from './dto/create-confession.dto';
 import { GetConfessionsByTagDto } from './dto/get-confessions-by-tag.dto';
@@ -267,7 +268,10 @@ export class ConfessionService {
           where: { idempotencyKey: dto.idempotencyKey },
         });
         if (existing) {
-          const decryptedMessage = decryptConfession(existing.message, this.aesKey);
+          const decryptedMessage = decryptConfession(
+            existing.message,
+            this.aesKey,
+          );
           const hasSamePayload =
             msg === decryptedMessage &&
             (dto.gender ?? null) === (existing.gender ?? null) &&
@@ -321,8 +325,28 @@ export class ConfessionService {
       .andWhere('confession.moderationStatus IN (:...statuses)', {
         statuses: [ModerationStatus.APPROVED, ModerationStatus.PENDING],
       })
+      // Public feed / scheduling: never show drafts; only show scheduled
+      // posts once their publishAt has passed. (Previously unfiltered —
+      // draft/future-scheduled rows could leak into the public feed.)
+      .andWhere("confession.status != 'draft'")
       .andWhere(
-        "(anonymousUser.userLinks IS NULL OR anonymousUser.userLinks = '{}' OR user.privacy_settings IS NULL OR user.privacy_settings->>'isDiscoverable' = 'true' OR JSON_TYPE(user.privacy_settings, '$.isDiscoverable') IS NULL)",
+        "(confession.status != 'scheduled' OR confession.publishAt <= :now)",
+        { now: new Date() },
+      )
+      // Discoverability: exclude confessions whose author has explicitly
+      // opted out via privacy_settings.isDiscoverable = false. Rewritten
+      // from a MySQL-only JSON_TYPE(...) clause, which threw a Postgres
+      // syntax error on every request that joined a linked user row —
+      // the actual cause of the generic 500s referenced in this issue.
+      .andWhere(
+        new Brackets((sub) => {
+          sub
+            .where('userLinks.id IS NULL')
+            .orWhere('user.privacy_settings IS NULL')
+            .orWhere(
+              "user.privacy_settings->>'isDiscoverable' IS DISTINCT FROM 'false'",
+            );
+        }),
       )
       .leftJoinAndSelect('confession.reactions', 'reactions')
       .select([
@@ -358,10 +382,10 @@ export class ConfessionService {
       qb.addSelect(
         (sub) =>
           sub
-             .select('COUNT(*)')
-             .from('reaction', 'r')
-             .where('r.confession_id = confession.id'),
-         'reaction_count',
+            .select('COUNT(*)')
+            .from('reaction', 'r')
+            .where('r.confession_id = confession.id'),
+        'reaction_count',
       )
         .orderBy('reaction_count', 'DESC')
         .addOrderBy('confession.created_at', 'DESC');
@@ -722,12 +746,20 @@ export class ConfessionService {
         }
         updated.message = decryptConfession(updated.message, this.aesKey);
       }
-      await this.cacheService.set(singleCacheKey, updated, CACHE_TTL.CONFESSION_SINGLE);
+      await this.cacheService.set(
+        singleCacheKey,
+        updated,
+        CACHE_TTL.CONFESSION_SINGLE,
+      );
       return updated;
     }
 
     conf.message = decryptConfession(conf.message, this.aesKey);
-    await this.cacheService.set(singleCacheKey, conf, CACHE_TTL.CONFESSION_SINGLE);
+    await this.cacheService.set(
+      singleCacheKey,
+      conf,
+      CACHE_TTL.CONFESSION_SINGLE,
+    );
     return conf;
   }
 
@@ -754,7 +786,9 @@ export class ConfessionService {
     const confs = rawConfs as any[];
     const adjusted = await Promise.all(
       confs.map(async (item) => {
-        const adjustment = await this.anomalyDetection.getAdjustmentFactor(item.id);
+        const adjustment = await this.anomalyDetection.getAdjustmentFactor(
+          item.id,
+        );
         return { item, adjustment };
       }),
     );
@@ -763,7 +797,7 @@ export class ConfessionService {
     adjusted.sort((a, b) => {
       const scoreA = Number(a.item.trending_score) || 0;
       const scoreB = Number(b.item.trending_score) || 0;
-      return (scoreB * b.adjustment) - (scoreA * a.adjustment);
+      return scoreB * b.adjustment - scoreA * a.adjustment;
     });
 
     const mapped = adjusted.map(({ item }) => {
@@ -1092,9 +1126,7 @@ export class ConfessionService {
       throw error;
     }
 
-    await this.cacheService.del(
-      this.cacheService.buildKey('confession', id),
-    );
+    await this.cacheService.del(this.cacheService.buildKey('confession', id));
 
     const updated = await this.confessionRepo.findOne({ where: { id } });
     if (updated) {
@@ -1160,9 +1192,7 @@ export class ConfessionService {
       });
       confession.isAnchored = true;
       confession.anchoredAt = now;
-      await this.cacheService.del(
-        this.cacheService.buildKey('confession', id),
-      );
+      await this.cacheService.del(this.cacheService.buildKey('confession', id));
     }
 
     return {

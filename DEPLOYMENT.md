@@ -5,7 +5,7 @@ This repo deploys as two apps plus managed services:
 - `xconfess-backend`: NestJS API on port `5000`.
 - `xconfess-frontend`: Next.js app on port `3000`.
 - PostgreSQL: required.
-- Redis: required when `ENABLE_BACKGROUND_JOBS=true`.
+- Redis: required when `ENABLE_BACKGROUND_JOBS=true`..
 
 ## Local Smoke Start
 
@@ -204,3 +204,5 @@ npm run ci
 ```
 
 The full gate includes frontend type-checking, frontend tests, backend tests, and Rust contract tests. Contract tests need enough free disk space for the MSVC linker on Windows.
+
+`npm run deploy:preflight` checks Render config drift, migration timestamp duplicates, and required production env vars. It now also runs automatically as a required GitHub Actions check (`Deploy Preflight`) on every pull request against `main`, using dummy production-shaped env values — no live secrets are needed for the check to run.

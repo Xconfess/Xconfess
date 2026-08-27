@@ -2,9 +2,9 @@ import { getApiBaseUrl } from "@/app/lib/config";
 import { createApiErrorResponse } from "@/lib/apiErrorHandler";
 import { getOrCreateRequestId, requestIdResponseHeaders } from "@/app/lib/utils/requestId";
 
-const BASE_API_URL = getApiBaseUrl();
 
 export async function GET(request: Request) {
+  const BASE_API_URL = getApiBaseUrl();
   const requestId = getOrCreateRequestId(request);
 
   try {

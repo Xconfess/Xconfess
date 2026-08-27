@@ -2,13 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { getApiBaseUrl } from "@/app/lib/config";
 import { createApiErrorResponse } from "@/lib/apiErrorHandler";
 
-const BASE_API_URL = getApiBaseUrl();
 
 /**
  * GET /api/users/profile/summary
  * Server-side proxy — browser-facing code must call this route, never the backend directly.
  */
 export async function GET(request: NextRequest) {
+  const BASE_API_URL = getApiBaseUrl();
   const correlationId =
     request.headers.get("X-Correlation-ID") || "unknown";
 

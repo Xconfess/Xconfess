@@ -23,6 +23,7 @@
     "test:cov:all": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./test/jest-e2e.json",
+    "test:feed:e2e": "jest --config ./test/jest-e2e.json --testPathPattern=public-feed",
     "test:websocket-fanout": "jest --config ./jest.config.js src/notifications/gateways/notification.gateway.load.spec.ts --runInBand"
   },
   "dependencies": {

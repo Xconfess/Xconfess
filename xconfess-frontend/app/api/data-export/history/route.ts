@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { getApiBaseUrl } from "@/app/lib/config";
 
-const BASE_API_URL = getApiBaseUrl();
 const SESSION_COOKIE_NAME = "xconfess_session";
 
 /**
@@ -10,6 +9,7 @@ const SESSION_COOKIE_NAME = "xconfess_session";
  * Server-side proxy — browser-facing code must call this route, never the backend directly.
  */
 export async function GET(_req: NextRequest) {
+  const BASE_API_URL = getApiBaseUrl();
   const cookieStore = await cookies();
   const token = cookieStore.get(SESSION_COOKIE_NAME)?.value;
 

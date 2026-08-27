@@ -2,12 +2,12 @@ import { getApiBaseUrl } from "@/app/lib/config";
 import { createApiErrorResponse } from "@/lib/apiErrorHandler";
 import { getOrCreateRequestId, requestIdResponseHeaders } from "@/app/lib/utils/requestId";
 
-const BASE_API_URL = getApiBaseUrl();
 
 export async function GET(
   _request: Request,
   context: { params: Promise<{ id: string }> },
 ) {
+  const BASE_API_URL = getApiBaseUrl();
   try {
     const { id } = await context.params;
     const requestId = getOrCreateRequestId(_request);

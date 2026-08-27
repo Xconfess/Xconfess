@@ -97,7 +97,7 @@ export class HealthController {
    */
   @Get('ready')
   @HealthCheck()
-  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  @Throttle({ default: { limit: 120, ttl: 60_000 } })
   @ApiOperation({
     summary: 'Readiness probe',
     description:
@@ -130,7 +130,7 @@ export class HealthController {
   /** Backward-compatible alias for GET /health/ready. */
   @Get()
   @HealthCheck()
-  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  @Throttle({ default: { limit: 120, ttl: 60_000 } })
   @ApiOperation({
     summary: 'Health check (readiness alias)',
     description:

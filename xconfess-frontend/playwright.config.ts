@@ -12,7 +12,7 @@ export default defineConfig({
   projects: [
     {
       name: 'smoke',
-      testMatch: /(public-pages-smoke|core-flows-smoke|deployment-routes-smoke|admin-responsive-smoke)\.spec\.ts/,
+      testMatch: /(public-pages-smoke|core-flows-smoke|deployment-routes-smoke|admin-responsive-smoke|register-dashboard-smoke)\.spec\.ts/,
       use: { ...devices['Desktop Chrome'] },
     },
     {

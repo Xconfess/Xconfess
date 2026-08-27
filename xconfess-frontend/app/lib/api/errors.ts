@@ -78,6 +78,15 @@ export async function normalizeApiError(
   }
 
   const err = responseOrError as Error;
+  if (err instanceof TypeError) {
+    return {
+      message: err.message || 'Network error. Please check your connection and try again.',
+      code: 'NETWORK_ERROR',
+      status: 0,
+      retryAfter: null,
+    };
+  }
+
   const appError = toAppError(err);
   return {
     message: appError.message,

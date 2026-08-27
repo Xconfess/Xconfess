@@ -37,7 +37,7 @@ Follow these steps from a fresh clone to get the full stack running.
 
 ### Prerequisites
 
-- Node.js >= 18 and npm >= 9
+- Node.js 22.x and npm >= 9
 - Docker (for Postgres and Redis)
 - Rust + `cargo` (only needed if working on contracts; see `docs/SOROBAN_SETUP.md`)
 
@@ -47,14 +47,14 @@ For most contributors, this is the fastest path:
 
 ```bash
 npm install
-cp xconfess-backend/.env.example xconfess-backend/.env
-cp xconfess-frontend/.env.example xconfess-frontend/.env.local
+npm run setup:check
+npm run env:bootstrap
 npm run dev:services
 npm run dev:check
 npm run dev
 ```
 
-`npm run dev:check` is intentionally part of the default startup path. It verifies that local environment files exist and that Postgres and Redis are reachable before NestJS starts. If infrastructure is down, it fails quickly with the exact command to run instead of printing long TypeORM connection retries.
+`npm run dev:services` first runs a Docker availability preflight, then starts the Postgres and Redis services from `compose.yaml`. `npm run dev:check` is intentionally part of the default startup path. It verifies that local environment files exist and that Postgres and Redis are reachable before NestJS starts. If infrastructure is down, it fails quickly with the exact command to run instead of printing long TypeORM connection retries.
 
 On Windows, Docker Desktop must be open and using Linux containers. If Docker prints an error similar to `open //./pipe/dockerDesktopLinuxEngine: The system cannot find the file specified`, start Docker Desktop, wait for the engine to finish booting, then rerun:
 
@@ -63,10 +63,19 @@ npm run dev:services
 npm run dev:check
 ```
 
+If PowerShell blocks `npm.ps1` with an execution-policy error, use `npm.cmd` for local commands without changing machine-wide policy:
+
+```powershell
+npm.cmd --version
+npm.cmd install
+npm.cmd run env:bootstrap
+```
+
 ### 1. Install dependencies
 
 ```bash
 npm install
+npm run setup:check
 ```
 
 ### 2. Start infrastructure
@@ -83,14 +92,18 @@ Verify both containers are healthy before continuing:
 docker compose -f compose.yaml ps
 ```
 
+`running` only means the container process exists. Wait for Postgres and Redis to show a healthy status before starting the backend. Immediately after `npm run dev:services`, it is normal for `npm run dev:check` to fail for a few seconds while Postgres finishes accepting TCP connections.
+
 ### 3. Configure environment files
 
 > **Security reminder:** Never commit `.env` or `.env.local` files. Always commit only the `.env.example` template files (which contain no real secrets). Do not paste real secret values into issues, PR descriptions, or comments.
+>
+> **Local-only secret examples:** Use the placeholders below only for local development. Do not reuse these example values outside of a local dev environment, and do not treat them as secure production credentials.
 
 **Backend** - copy the sample and fill in the values marked `change-me`:
 
 ```bash
-cp xconfess-backend/.env.example xconfess-backend/.env
+npm run env:bootstrap
 ```
 
 Required keys to set before first boot (everything else has safe defaults):
@@ -104,6 +117,18 @@ Required keys to set before first boot (everything else has safe defaults):
 | `ENCRYPTION_MASTER_KEY_v1` | 64-character hex master key for envelope encryption |
 | `STELLAR_SERVER_SECRET` | Stellar keypair secret for on-chain operations (testnet only) |
 | `TYPEORM_LOGGING` | Set to `true` only when debugging SQL; default is quiet local startup |
+
+Copy-paste-safe local-only placeholders:
+
+```env
+JWT_SECRET=local-dev-jwt-secret-change-me-32-chars-minimum
+APP_SECRET=local-dev-app-secret-change-me-32-chars-minimum
+CONFESSION_ENCRYPTION_KEY=0000000000000000000000000000000000000000000000000000000000000001
+ENCRYPTION_CURRENT_KEY_VERSION=v1
+ENCRYPTION_MASTER_KEY_v1=0000000000000000000000000000000000000000000000000000000000000002
+```
+
+These values are valid for local bootstrapping only. Never reuse them in shared development, staging, production, demos, screenshots, issues, or PR comments.
 
 Mail (`MAIL_HOST`, `MAIL_USER`, `MAIL_PASSWORD`) and Stellar contract IDs are pre-filled with testnet values in the example file and can be left as-is for local development. Leave `STELLAR_FEATURES_ENABLED=false` (default) to boot without enforcing every contract ID; set it to `true` only when you need full on-chain anchoring and tipping.
 
@@ -156,12 +181,23 @@ This starts the backend and frontend concurrently. Once both are ready:
 
 See [Health Endpoint Quick Reference](docs/HEALTH_ENDPOINT_QUICK_REFERENCE.md) for details on liveness vs readiness probes, Kubernetes config examples, and response formats.
 
+> **Render cold start notice:** The production backend is hosted on Render's free tier, which spins down instances after inactivity. The **first request after a period of inactivity may take 50 seconds or more** to respond while the instance wakes up. This is expected behaviour — it is not a broken deploy. To confirm the service is up, poll the health endpoints until you receive a `200`:
+>
+> ```bash
+> # Wait for the backend to wake up
+> curl https://<your-render-host>/api/health/live   # process alive
+> curl https://<your-render-host>/api/health/ready  # all dependencies ready
+> ```
+>
+> See [docs/production-critical-path.md](docs/production-critical-path.md) for more detail on Render cold starts and how to validate a fresh deploy.
+
 ### Common Local Startup Issues
 
 | Symptom | Cause | Fix |
 |---------|-------|-----|
 | `ERR Postgres localhost:55432` from `npm run dev:check` | Postgres container is not running or Docker Desktop is not ready | Run `npm run dev:services`, then `npm run dev:check` |
 | `ERR Redis localhost:6379` from `npm run dev:check` | Redis container is not running or Docker Desktop is not ready | Run `npm run dev:services`, then `npm run dev:check` |
+| `ERR Postgres` or `ERR Redis` immediately after compose startup | Container is still `starting` or not yet accepting connections | Run `docker compose -f compose.yaml ps`, wait for healthy services, then rerun `npm run dev:check` |
 | `dockerDesktopLinuxEngine` pipe error on Windows | Docker Desktop is closed, still starting, or not using Linux containers | Open Docker Desktop, switch to Linux containers if needed, then rerun `npm run dev:services` |
 | Backend config validation error | Required backend env vars are missing | Copy `xconfess-backend/.env.example` to `xconfess-backend/.env` |
 | Frontend proxy requests return `503` | Backend is not running or `BACKEND_API_URL`/`NEXT_PUBLIC_API_URL` is wrong | Start the backend and confirm `http://localhost:5000/api/health/live` |

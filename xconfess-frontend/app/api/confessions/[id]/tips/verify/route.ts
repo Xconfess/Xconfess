@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { getApiBaseUrl } from "@/app/lib/config";
 
-const BASE_API_URL = getApiBaseUrl();
 const SESSION_COOKIE_NAME = "xconfess_session";
 
 /**
@@ -14,6 +13,7 @@ export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const BASE_API_URL = getApiBaseUrl();
   const { id } = await params;
 
   const cookieStore = await cookies();

@@ -157,8 +157,8 @@ function validateRenderYaml() {
   if (/TYPEORM_SYNCHRONIZE\s*\r?\n\s*value:\s*true/.test(renderYaml)) {
     fail('render.yaml enables TYPEORM_SYNCHRONIZE. Production deploys must use migrations.');
   }
-  if (!/healthCheckPath:\s*\/api\/health\/ready/.test(renderYaml)) {
-    fail('render.yaml healthCheckPath must use /api/health/ready.');
+  if (!/healthCheckPath:\s*\/api\/health\/live/.test(renderYaml)) {
+    fail('render.yaml healthCheckPath must use /api/health/live.');
   }
 }
 

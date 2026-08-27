@@ -15,13 +15,13 @@ const EnhancedConfessionForm = dynamic(
     })),
   {
     loading: () => (
-        <div className="luxury-panel animate-pulse rounded-[34px] p-8">
+        <div className="luxury-panel animate-pulse rounded-2xl p-8">
           <div className="mb-4 h-4 w-28 rounded-full bg-[var(--skeleton)]" />
           <div className="mb-3 h-8 w-64 rounded-full bg-[var(--skeleton)]" />
           <div className="mb-8 h-5 w-72 rounded-full bg-[var(--surface-muted)]" />
-          <div className="mb-4 h-14 w-full rounded-[22px] bg-[var(--surface-muted)]" />
-          <div className="mb-4 h-12 w-full rounded-[22px] bg-[var(--surface-muted)]" />
-          <div className="h-64 w-full rounded-[28px] bg-[var(--surface-muted)]" />
+          <div className="mb-4 h-14 w-full rounded-xl bg-[var(--surface-muted)]" />
+          <div className="mb-4 h-12 w-full rounded-xl bg-[var(--surface-muted)]" />
+          <div className="h-64 w-full rounded-2xl bg-[var(--surface-muted)]" />
       </div>
     ),
     ssr: false,
@@ -91,14 +91,14 @@ export default function Home() {
               </div>
             </div>
 
-            <aside className="luxury-panel rounded-[28px] p-6">
+            <aside className="luxury-panel rounded-2xl p-6">
               <div className="space-y-3">
                 {trustSignals.map(({ icon: Icon, title, description }) => (
                   <div
                     key={title}
-                    className="flex gap-4 rounded-[20px] border border-[var(--border)] bg-[var(--surface-muted)] p-4"
+                    className="flex gap-4 rounded-xl border border-[var(--border)] bg-[var(--surface-muted)] p-4"
                   >
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-[var(--accent-soft)] text-[var(--primary-deep)]">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[var(--accent-soft)] text-[var(--primary-deep)]">
                       <Icon className="h-5 w-5" />
                     </div>
                     <div>
@@ -128,11 +128,11 @@ export default function Home() {
                   </h2>
                 </div>
 
-                <EnhancedConfessionForm className="rounded-[34px] p-1" />
+                <EnhancedConfessionForm className="rounded-2xl p-1" />
               </div>
 
               <aside className="space-y-5 lg:sticky lg:top-28">
-                <div className="luxury-panel rounded-[30px] p-6">
+                <div className="luxury-panel rounded-2xl p-6">
                   <p className="eyebrow">Guidelines</p>
                   <div className="mt-5 space-y-4">
                     {[
@@ -142,7 +142,7 @@ export default function Home() {
                     ].map((tip) => (
                       <div
                         key={tip}
-                        className="rounded-[22px] border border-[var(--border)] bg-[var(--surface-muted)] p-4 text-sm leading-7 text-[var(--secondary)]"
+                        className="rounded-xl border border-[var(--border)] bg-[var(--surface-muted)] p-4 text-sm leading-7 text-[var(--secondary)]"
                       >
                         {tip}
                       </div>
@@ -153,7 +153,7 @@ export default function Home() {
                 <button
                   type="button"
                   onClick={scrollToFeed}
-                  className="luxury-panel flex w-full items-center justify-between rounded-[28px] px-5 py-4 text-left text-[var(--foreground)] transition-transform hover:-translate-y-0.5"
+                  className="luxury-panel flex w-full items-center justify-between rounded-2xl px-5 py-4 text-left text-[var(--foreground)] transition-transform hover:-translate-y-0.5"
                 >
                   <div>
                     <p className="eyebrow">Continue reading</p>
