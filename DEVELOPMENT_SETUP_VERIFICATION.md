@@ -20,7 +20,7 @@ This document verifies that all acceptance criteria for Stellar Wave issues #182
   - npm script: `npm run env:bootstrap`
   - Referenced in README.md (line 44-45, 97-105)
   - Referenced in QUICK_START.md (line 44)
-
+.
 **Verification**:
 ```bash
 $ npm run env:bootstrap

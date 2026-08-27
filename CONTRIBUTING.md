@@ -15,7 +15,7 @@ Thank you for your interest in contributing to Xconfess - an anonymous confessio
 - [Wave / Drips Contribution Guidelines](#wave--drips-contribution-guidelines)
 
 ---
-
+.
 ## Prerequisites
 
 Make sure you have the following installed before cloning:

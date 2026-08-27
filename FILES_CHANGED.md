@@ -10,7 +10,6 @@
 ## Modified Files
 
 ### 1. `xconfess-contracts/contracts/error.rs`.
-**Status:** ✅ Enhanced  
 **Changes:**
 - Added `ERROR_REGISTRY_VERSION = 1` constant for versioning
 - Added `ErrorClassification` enum (Terminal, Retryable, Unknown)
