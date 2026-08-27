@@ -17,6 +17,15 @@ interface SubsystemStatus {
   status: 'up' | 'down' | 'degraded' | 'disabled';
 }
 
+function getNestedStatuses(detail: Record<string, unknown>): string[] {
+  return Object.values(detail)
+    .filter((value): value is { status?: string } =>
+      Boolean(value && typeof value === 'object' && 'status' in value),
+    )
+    .map((value) => value.status)
+    .filter((status): status is string => Boolean(status));
+}
+
 function buildSubsystemSummary(
   result: HealthCheckResult,
 ): SubsystemStatus[] {
@@ -34,6 +43,14 @@ function buildSubsystemSummary(
 
     if (detail.mode === 'disabled') {
       subsystems.push({ name: key, status: 'disabled' });
+      continue;
+    }
+
+    const nestedStatuses = getNestedStatuses(detail);
+    if (nestedStatuses.includes('down')) {
+      subsystems.push({ name: key, status: 'down' });
+    } else if (nestedStatuses.includes('degraded')) {
+      subsystems.push({ name: key, status: 'degraded' });
     } else if (detail.status === 'up') {
       subsystems.push({ name: key, status: 'up' });
     } else {
@@ -80,7 +97,7 @@ export class HealthController {
    */
   @Get('ready')
   @HealthCheck()
-  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  @Throttle({ default: { limit: 120, ttl: 60_000 } })
   @ApiOperation({
     summary: 'Readiness probe',
     description:
@@ -113,7 +130,7 @@ export class HealthController {
   /** Backward-compatible alias for GET /health/ready. */
   @Get()
   @HealthCheck()
-  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  @Throttle({ default: { limit: 120, ttl: 60_000 } })
   @ApiOperation({
     summary: 'Health check (readiness alias)',
     description:

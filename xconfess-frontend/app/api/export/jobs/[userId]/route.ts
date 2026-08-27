@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getApiBaseUrl } from '@/app/lib/config';
 
-const BACKEND_URL = getApiBaseUrl();
 type RouteContext = { params: Promise<{ userId: string }> };
 
 /**
@@ -21,6 +20,7 @@ export async function GET(
   req: NextRequest,
   { params }: RouteContext,
 ) {
+  const BACKEND_URL = getApiBaseUrl();
   const { userId } = await params;
 
   // ── Proxy-layer auth ────────────────────────────────────────────────────────

@@ -1,7 +1,7 @@
 import { MigrationInterface, QueryRunner } from "typeorm";
 
-export class CreateModerationCommentsTable20240701 implements MigrationInterface {
-    name = 'CreateModerationCommentsTable20240701'
+export class CreateModerationCommentsTable2024070100000 implements MigrationInterface {
+    name = 'CreateModerationCommentsTable2024070100000'
 
     public async up(queryRunner: QueryRunner): Promise<void> {
         await queryRunner.query(`CREATE TABLE "moderation_comments" (

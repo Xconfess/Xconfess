@@ -12,6 +12,7 @@ import { CreateReactionDto } from './dto/create-reaction.dto';
 import { AnonymousConfession } from '../confession/entities/confession.entity';
 import { Reaction } from './entities/reaction.entity';
 import { AnonymousUser } from '../user/entities/anonymous-user.entity';
+import { assertCanUseAnonymousIdentity } from '../common/security/anonymous-identity-ownership';
 import {
   OutboxEvent,
   OutboxStatus,
@@ -37,7 +38,10 @@ export class ReactionService {
     private readonly reactionsGateway: ReactionsGateway,
   ) {}
 
-  async createReaction(dto: CreateReactionDto): Promise<Reaction> {
+  async createReaction(
+    dto: CreateReactionDto,
+    actorUserId?: number | string | null,
+  ): Promise<Reaction> {
     if (!dto.anonymousUserId) {
       throw new BadRequestException('Anonymous user id is required');
     }
@@ -67,11 +71,10 @@ export class ReactionService {
     // 2. Verify the reacting anonymous user exists.
     const anonymousUser = await this.anonymousUserRepo.findOne({
       where: { id: anonymousUserId },
+      relations: ['userLinks'],
     });
 
-    if (!anonymousUser) {
-      throw new NotFoundException('Anonymous user not found');
-    }
+    assertCanUseAnonymousIdentity(anonymousUser, { userId: actorUserId });
 
     return this.dataSource
       .transaction(async (manager) => {

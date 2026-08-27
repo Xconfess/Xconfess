@@ -1,5 +1,6 @@
 ﻿import { Logger, MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { SanitizationMiddleware } from './middleware/sanitization.middleware';
+import { RequestIdMiddleware } from './middleware/request-id.middleware'; // ADAPT: fix path if it lives elsewhere
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { TypeOrmModule } from '@nestjs/typeorm';
@@ -158,7 +159,8 @@ import { BullModule } from '@nestjs/bullmq';
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
-    consumer.apply(SanitizationMiddleware).forRoutes('*');
+    // RequestIdMiddleware first so downstream handlers/loggers can read
+    // req.requestId, and so it's set even if SanitizationMiddleware throws.
+    consumer.apply(RequestIdMiddleware, SanitizationMiddleware).forRoutes('*');
   }
 }
-

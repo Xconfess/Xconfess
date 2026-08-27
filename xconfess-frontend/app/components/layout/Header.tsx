@@ -10,7 +10,7 @@ import { BrandLogo } from "@/app/components/brand/BrandLogo";
 import Sidebar from "./Sidebar";
 
 const navLinkClass =
-  "rounded-full px-4 py-2.5 text-sm font-medium text-[var(--secondary)] transition-all duration-200 hover:bg-white/60 hover:text-[var(--foreground)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--primary)]";
+  "rounded-xl px-4 py-2.5 text-sm font-medium text-[var(--secondary)] transition-all duration-200 hover:bg-[var(--surface-muted)] hover:text-[var(--foreground)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--primary)]";
 
 export default function Header() {
   const { user, logout } = useAuth();
@@ -35,7 +35,7 @@ export default function Header() {
     <>
       <header
         aria-label="Main navigation"
-        className="sticky top-0 z-30 border-b border-[var(--border)] bg-[color:rgba(248,246,251,0.84)] shadow-[0_18px_60px_-48px_rgba(11,27,51,0.45)] backdrop-blur-xl dark:bg-[color:rgba(8,11,19,0.82)]"
+        className="sticky top-0 z-30 border-b border-[var(--border)] bg-[var(--surface)] shadow-[0_18px_60px_-48px_rgba(0,0,0,0.8)] backdrop-blur-xl"
         onKeyDown={handleNavKeyDown}
       >
         <nav className="mx-auto max-w-6xl px-4 py-3.5 sm:px-6 lg:px-8">
@@ -80,13 +80,13 @@ export default function Header() {
                 <div className="flex items-center space-x-4">
                   <span
                     aria-label={`Logged in as ${user.username}`}
-                    className="rounded-full border border-[var(--border)] bg-[var(--surface-muted)] px-4 py-2 text-sm text-[var(--secondary)]"
+                    className="rounded-xl border border-[var(--border)] bg-[var(--surface-muted)] px-4 py-2 text-sm text-[var(--secondary)]"
                   >
                     @{user.username}
                   </span>
                   <button
                     onClick={logout}
-                    className="flex items-center space-x-1 rounded-full px-3 py-2 text-red-700 transition-colors hover:bg-red-50 hover:text-red-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-500"
+                    className="flex items-center space-x-1 rounded-xl px-3 py-2 text-red-300 transition-colors hover:bg-red-950/40 hover:text-red-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-500"
                   >
                     <LogOut aria-hidden="true" size={18} />
                     <span>Logout</span>
@@ -101,7 +101,7 @@ export default function Header() {
               <button
                 ref={menuButtonRef}
                 type="button"
-                className="-mr-2 rounded-full border border-[var(--border)] bg-[var(--surface-muted)] p-3 text-[var(--secondary)] transition-colors hover:bg-[var(--surface-strong)] hover:text-[var(--foreground)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--primary)] min-h-[44px] min-w-[44px] flex items-center justify-center"
+                className="-mr-2 flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl border border-[var(--border)] bg-[var(--surface-muted)] p-3 text-[var(--secondary)] transition-colors hover:bg-[var(--surface-strong)] hover:text-[var(--foreground)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--primary)]"
                 aria-label="Open menu"
                 aria-expanded={mobileMenuOpen}
                 aria-controls="mobile-navigation"

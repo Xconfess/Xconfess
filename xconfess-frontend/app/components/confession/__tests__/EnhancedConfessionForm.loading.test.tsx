@@ -6,6 +6,11 @@ import apiClient from "@/app/lib/api/client";
 import { useGlobalToast } from "@/app/components/common/Toast";
 import { useStellarWallet } from "@/lib/hooks/useStellarWallet";
 import { useDrafts } from "@/app/lib/hooks/useDrafts";
+import { useAuth } from "@/app/lib/hooks/useAuth";
+
+jest.mock("next/navigation", () => ({
+  useRouter: () => ({ push: jest.fn() }),
+}));
 
 jest.mock("@/app/lib/utils/validation", () => {
   const actual = jest.requireActual("@/app/lib/utils/validation");
@@ -35,6 +40,10 @@ jest.mock("@/app/lib/hooks/useDrafts", () => ({
   useDrafts: jest.fn(),
 }));
 
+jest.mock("@/app/lib/hooks/useAuth", () => ({
+  useAuth: jest.fn(),
+}));
+
 jest.mock("../FormattingToolbar", () => ({
   FormattingToolbar: () => <div data-testid="formatting-toolbar" />,
 }));
@@ -60,6 +69,12 @@ const toast = {
 
 beforeEach(() => {
   jest.clearAllMocks();
+  window.localStorage.clear();
+  (useAuth as jest.Mock).mockReturnValue({
+    isAuthenticated: true,
+    isLoading: false,
+    user: { id: "user-1" },
+  });
   (useGlobalToast as jest.Mock).mockReturnValue(toast);
   (useStellarWallet as jest.Mock).mockReturnValue({
     anchor: jest.fn(),

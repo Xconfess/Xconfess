@@ -2,12 +2,12 @@ import { createApiErrorResponse } from "@/lib/apiErrorHandler";
 import { buildProxyErrorResponse, internalProxyErrorResponse } from "@/app/lib/utils/proxyError";
 import { getApiBaseUrl } from "@/app/lib/config";
 
-const BASE_API_URL = getApiBaseUrl();
 
 export async function GET(
   _request: Request,
   context: { params: Promise<{ confessionId: string }> },
 ) {
+  const BASE_API_URL = getApiBaseUrl();
   try {
     const { confessionId } = await context.params;
     if (!confessionId) {

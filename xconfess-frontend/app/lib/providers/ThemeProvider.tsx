@@ -15,12 +15,12 @@ const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [theme, setThemeState] = useState<Theme>(() => {
     if (typeof window !== "undefined") {
-      return (localStorage.getItem("theme") as Theme) || "system";
+      return (localStorage.getItem("theme") as Theme) || "dark";
     }
-    return "system";
+    return "dark";
   });
 
-  const [resolvedTheme, setResolvedTheme] = useState<"light" | "dark">("light");
+  const [resolvedTheme, setResolvedTheme] = useState<"light" | "dark">("dark");
 
   const setTheme = (newTheme: Theme) => {
     setThemeState(newTheme);
@@ -45,8 +45,10 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
       if (activeTheme === "dark") {
         root.classList.add("dark");
+        root.classList.remove("light");
       } else {
         root.classList.remove("dark");
+        root.classList.add("light");
       }
     };
 

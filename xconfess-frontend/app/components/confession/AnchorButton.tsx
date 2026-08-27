@@ -183,6 +183,28 @@ export const AnchorButton: FC<AnchorButtonProps> = ({
     );
   }
 
+  if (status === "failed") {
+    return (
+      <div
+        className={cn("stellar-anchor-action flex items-center gap-2", className)}
+        role="status"
+        aria-live="polite"
+      >
+        <AlertCircle className="h-4 w-4 text-red-400" aria-hidden="true" />
+        <span className="text-xs text-red-400">{error || "Anchoring failed"}</span>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleAnchor}
+          className="flex items-center gap-1"
+        >
+          <RotateCcw className="h-3 w-3" />
+          Retry
+        </Button>
+      </div>
+    );
+  }
+
   if (walletCTA.status === "not-installed") {
     return (
       <div
@@ -194,6 +216,30 @@ export const AnchorButton: FC<AnchorButtonProps> = ({
           <AlertCircle className="h-3.5 w-3.5 flex-shrink-0 text-yellow-500" aria-hidden="true" />
           <span className="text-xs text-yellow-400">{walletCTA.guidance}</span>
         </div>
+      </div>
+    );
+  }
+
+  if (status === "failed") {
+    return (
+      <div
+        className={cn("stellar-anchor-action flex items-center gap-2", className)}
+        role="status"
+        aria-live="polite"
+      >
+        <AlertCircle className="h-4 w-4 text-red-400" aria-hidden="true" />
+        <span className="text-xs text-red-400">{error || "Anchoring failed"}</span>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleAnchor}
+          className="gap-1.5 rounded-full px-3 py-1 text-xs h-auto"
+          aria-label="Retry anchoring confession"
+        >
+          <RotateCcw className="h-3 w-3" />
+          Retry
+        </Button>
+        <span className="sr-only">{liveMessage}</span>
       </div>
     );
   }

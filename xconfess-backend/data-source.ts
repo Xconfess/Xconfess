@@ -49,7 +49,10 @@ export default new DataSource({
     ],
   },
   entities: [__dirname + '/src/**/*.entity.{ts,js}'],
-  migrations: [__dirname + '/migrations/[0-9]*{.ts,.js}'],
+  migrations: [
+    __dirname + '/migrations/[0-9]*{.ts,.js}',
+    __dirname + '/src/migrations/[0-9]*{.ts,.js}',
+  ],
   extra: {
     // Allow tuning via env with sensible defaults for small clusters
     max: parseInt(process.env.DB_POOL_MAX || '20', 10),

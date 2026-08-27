@@ -7,12 +7,12 @@
   "license": "UNLICENSED",
   "scripts": {
     "dev": "npm run start:dev",
-    "build": "tsc -p tsconfig.build.json --pretty false",
+    "build": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\" && tsc -p tsconfig.build.json --pretty false",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "start": "nest start",
     "start:dev": "ts-node -r tsconfig-paths/register src/main.ts",
     "start:debug": "node --inspect -r ts-node/register -r tsconfig-paths/register src/main.ts",
-    "start:prod": "node dist/main",
+    "start:prod": "node dist/src/main",
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --quiet",
     "lint:fix": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
     "migration:run": "typeorm-ts-node-commonjs -d data-source.ts migration:run",
@@ -23,6 +23,7 @@
     "test:cov:all": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./test/jest-e2e.json",
+    "test:feed:e2e": "jest --config ./test/jest-e2e.json --testPathPattern=public-feed",
     "test:websocket-fanout": "jest --config ./jest.config.js src/notifications/gateways/notification.gateway.load.spec.ts --runInBand"
   },
   "dependencies": {

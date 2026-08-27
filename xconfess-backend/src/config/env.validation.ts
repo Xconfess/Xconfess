@@ -1,5 +1,11 @@
 import * as Joi from 'joi';
 
+const productionLike = Joi.valid('production', 'staging');
+const productionHexKey = Joi.string()
+  .hex()
+  .length(64)
+  .invalid('0000000000000000000000000000000000000000000000000000000000000000');
+
 /**
  * Centralized environment-variable validation schema.
  *
@@ -34,7 +40,13 @@ export const envValidationSchema = Joi.object({
   TYPEORM_SYNCHRONIZE: Joi.string()
     .valid('true', 'false', '1', '0', 'yes', 'no', 'on', 'off')
     .optional(),
+  TYPEORM_ALLOW_PRODUCTION_SYNCHRONIZE: Joi.string()
+    .valid('true', 'false', '1', '0', 'yes', 'no', 'on', 'off')
+    .optional(),
   TYPEORM_MIGRATIONS_RUN: Joi.string()
+    .valid('true', 'false', '1', '0', 'yes', 'no', 'on', 'off')
+    .optional(),
+  TYPEORM_BASELINE_EXISTING_SCHEMA: Joi.string()
     .valid('true', 'false', '1', '0', 'yes', 'no', 'on', 'off')
     .optional(),
 
@@ -64,11 +76,13 @@ export const envValidationSchema = Joi.object({
   FRONTEND_URL: Joi.string().default('http://localhost:3000'),
 
   // â”€â”€ Encryption â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  CONFESSION_ENCRYPTION_KEY: Joi.string().hex().length(64).required().messages({
+  CONFESSION_ENCRYPTION_KEY: productionHexKey.required().messages({
     'string.length':
       'CONFESSION_ENCRYPTION_KEY must be exactly 64 characters (32-byte hex).',
     'string.hex':
       'CONFESSION_ENCRYPTION_KEY must be a valid hexadecimal string.',
+    'any.invalid':
+      'CONFESSION_ENCRYPTION_KEY cannot be the all-zero development placeholder.',
     'any.required':
       'CONFESSION_ENCRYPTION_KEY is required for confession security.',
   }),
@@ -79,10 +93,12 @@ export const envValidationSchema = Joi.object({
       'string.pattern.base':
         'ENCRYPTION_CURRENT_KEY_VERSION must look like v1, v2, etc.',
     }),
-  ENCRYPTION_MASTER_KEY_v1: Joi.string().hex().length(64).required().messages({
+  ENCRYPTION_MASTER_KEY_v1: productionHexKey.required().messages({
     'string.length':
       'ENCRYPTION_MASTER_KEY_v1 must be exactly 64 characters (32-byte hex).',
     'string.hex': 'ENCRYPTION_MASTER_KEY_v1 must be a valid hexadecimal string.',
+    'any.invalid':
+      'ENCRYPTION_MASTER_KEY_v1 cannot be the all-zero development placeholder.',
     'any.required':
       'ENCRYPTION_MASTER_KEY_v1 is required for envelope encryption.',
   }),
@@ -120,7 +136,23 @@ export const envValidationSchema = Joi.object({
     then: Joi.required(),
     otherwise: Joi.optional(),
   }),
-  STELLAR_SERVER_SECRET: Joi.string().optional(),
+  STELLAR_SERVER_SECRET: Joi.string()
+    .pattern(/^S[A-Z2-7]{55}$/)
+    .when('STELLAR_FEATURES_ENABLED', {
+      is: 'true',
+      then: Joi.when('NODE_ENV', {
+        is: productionLike,
+        then: Joi.required(),
+        otherwise: Joi.optional(),
+      }),
+      otherwise: Joi.optional(),
+    })
+    .messages({
+      'string.pattern.base':
+        'STELLAR_SERVER_SECRET must be a valid Stellar secret seed starting with S.',
+      'any.required':
+        'STELLAR_SERVER_SECRET is required when Stellar features are enabled in production.',
+    }),
 
   // â”€â”€ Tipping SLA â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   TIP_VERIFICATION_STALE_THRESHOLD_MINUTES: Joi.number().min(1).default(30),

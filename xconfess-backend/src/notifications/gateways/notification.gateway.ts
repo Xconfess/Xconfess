@@ -130,6 +130,8 @@ export class NotificationGateway
       userId,
       channel: userRoom,
     });
+
+    void this.emitUnreadSync(client, userId);
   }
 
   handleDisconnect(client: Socket) {
@@ -198,6 +200,36 @@ export class NotificationGateway
       channel: userRoom,
       timestamp: new Date().toISOString(),
     });
+
+    void this.emitUnreadSync(client, authenticatedUserId);
+  }
+
+  @SubscribeMessage('join-notifications')
+  handleLegacyJoinNotifications(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() requestedUserId?: string,
+  ) {
+    this.handleSubscribeUserNotifications(client, { userId: requestedUserId });
+  }
+
+  private async emitUnreadSync(client: Socket, userId: string) {
+    try {
+      const result = await this.notificationService.getUserNotifications(
+        userId,
+        { page: 1, limit: 20, unreadOnly: true },
+      );
+      client.emit('notifications:sync', {
+        notifications: result.notifications,
+        unreadCount: result.unreadCount,
+        timestamp: new Date().toISOString(),
+      });
+    } catch (error) {
+      this.logger.error(`Error syncing unread notifications:`, error);
+      client.emit('notifications:sync-failed', {
+        message: 'Failed to sync unread notifications',
+        timestamp: new Date().toISOString(),
+      });
+    }
   }
 
   /**

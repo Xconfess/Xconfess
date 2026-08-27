@@ -147,6 +147,12 @@ export class UserService {
           HttpStatus.CONFLICT,
         );
       }
+      this.logger.error(
+        `Failed to create user: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+        error instanceof Error ? error.stack : undefined,
+      );
       throw new InternalServerErrorException('Failed to create user');
     }
   }

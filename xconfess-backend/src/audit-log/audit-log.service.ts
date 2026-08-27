@@ -226,6 +226,39 @@ export class AuditLogService {
     });
   }
 
+/**
+ * Log a moderation item's state transition (pending/flagged/escalated/
+ * resolved/hidden/rejected), including actor, previous/next state, and reason.
+ */
+async logModerationStateTransition(
+  moderationLogId: string,
+  from: string,
+  to: string,
+  actorId: string,
+  reason: string,
+  metadata?: { confessionId?: string; notes?: string },
+  context?: AuditLogContext,
+): Promise<void> {
+  await this.log({
+    actionType: AuditActionType.MODERATION_STATE_TRANSITION,
+    metadata: {
+      entityType: 'moderation_log',
+      entityId: moderationLogId,
+      confessionId: metadata?.confessionId,
+      previousState: from,
+      nextState: to,
+      reason,
+      notes: metadata?.notes,
+      transitionedAt: new Date().toISOString(),
+    },
+    context: {
+      ...context,
+      userId: actorId,
+      actor: this.createActor('admin', actorId),
+    },
+  });
+}
+
   /**
    * Log comment deletion
    */

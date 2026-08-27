@@ -1,0 +1,111 @@
+services:
+  - type: web
+    name: xconfess-backend
+    runtime: node
+    plan: free
+    region: oregon
+    branch: main
+    buildCommand: npm ci --include=dev --include=optional --no-audit --no-fund && npm run deploy:preflight && npm run build --workspace=xconfess-backend
+    startCommand: npm run render:prestart && npm run start:prod --workspace=xconfess-backend
+    healthCheckPath: /api/health/live
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: APP_ENV
+        value: production
+      - key: FRONTEND_URL
+        value: https://xconfess.vercel.app
+      - key: BACKEND_URL
+        value: https://xconfess-backend.onrender.com
+      - key: ENABLE_BACKGROUND_JOBS
+        value: true
+      - key: TYPEORM_SYNCHRONIZE
+        value: false
+      - key: TYPEORM_ALLOW_PRODUCTION_SYNCHRONIZE
+        value: false
+      - key: TYPEORM_MIGRATIONS_RUN
+        value: true
+      - key: TYPEORM_BASELINE_EXISTING_SCHEMA
+        value: true
+      - key: TYPEORM_LOGGING
+        value: false
+      - key: DB_HOST
+        fromDatabase:
+          name: xconfess-postgres
+          property: host
+      - key: DB_PORT
+        fromDatabase:
+          name: xconfess-postgres
+          property: port
+      - key: DB_USERNAME
+        fromDatabase:
+          name: xconfess-postgres
+          property: user
+      - key: DB_PASSWORD
+        fromDatabase:
+          name: xconfess-postgres
+          property: password
+      - key: DB_NAME
+        fromDatabase:
+          name: xconfess-postgres
+          property: database
+      - key: REDIS_HOST
+        fromService:
+          type: keyvalue
+          name: xconfess-keyvalue
+          property: host
+      - key: REDIS_PORT
+        fromService:
+          type: keyvalue
+          name: xconfess-keyvalue
+          property: port
+      - key: JWT_SECRET
+        generateValue: true
+      - key: APP_SECRET
+        generateValue: true
+      - key: CONFESSION_ENCRYPTION_KEY
+        sync: false
+      - key: ENCRYPTION_CURRENT_KEY_VERSION
+        value: v1
+      - key: ENCRYPTION_MASTER_KEY_v1
+        sync: false
+      - key: STELLAR_FEATURES_ENABLED
+        value: true
+      - key: STELLAR_NETWORK
+        value: testnet
+      - key: STELLAR_HORIZON_URL
+        value: https://horizon-testnet.stellar.org
+      - key: STELLAR_SOROBAN_RPC_URL
+        value: https://soroban-rpc-testnet.stellar.org
+      - key: CONFESSION_ANCHOR_CONTRACT_ID
+        value: CB5XMDHT66EISB4WXM4YGNDHYRMZDX42TOHZEAENIUTSSMRFHJSFRNHB
+      - key: REPUTATION_BADGES_CONTRACT_ID
+        value: CDAN4HZHY6XNQR3TRPLPJKVKNURVMMQMF7XNZ6AUNJNFLR77J4DNAEYI
+      - key: TIPPING_SYSTEM_CONTRACT_ID
+        value: CC74UWNAAYDTPEPVKR4CPANWJSF6GI2PCI7BLN6M46KB6CSQYVYLHIWM
+      - key: STELLAR_SERVER_SECRET
+        sync: false
+      - key: MAIL_HOST
+        sync: false
+      - key: MAIL_USER
+        sync: false
+      - key: MAIL_PASSWORD
+        sync: false
+      - key: MAIL_FROM
+        value: noreply@xconfess.com
+
+  - type: keyvalue
+    name: xconfess-keyvalue
+    plan: free
+    region: oregon
+    maxmemoryPolicy: noeviction
+    ipAllowList: []
+
+databases:
+  - name: xconfess-postgres
+    plan: free
+    region: oregon
+    databaseName: xconfess
+    user: xconfess
+    postgresMajorVersion: "16"

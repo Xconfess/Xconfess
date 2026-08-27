@@ -1,7 +1,7 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-export class AddMessageE2eKeys20250628 implements MigrationInterface {
-  name = 'AddMessageE2eKeys20250628';
+export class AddMessageE2eKeys2025062800000 implements MigrationInterface {
+  name = 'AddMessageE2eKeys2025062800000';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(`

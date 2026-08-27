@@ -1,13 +1,12 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
-import { getApiBaseUrl } from "@/app/lib/config";
 import {
   normalizeAuthError,
   NormalizedAuthError,
 } from "@/lib/normalizeAuthError";
 import { getOrCreateRequestId, requestIdResponseHeaders } from "@/app/lib/utils/requestId";
+import { methodNotAllowed, resolveBackendRoute } from "@/app/lib/api/proxy";
 
-const API_URL = getApiBaseUrl();
 const SESSION_COOKIE_NAME = "xconfess_session";
 const MAX_RETRIES = 1;
 
@@ -126,10 +125,11 @@ export async function POST(request: Request) {
             return createErrorResponse(normalized);
         }
 
-        const result = await fetchBackendWithRetry(`${API_URL}/auth/login`, {
+        const backend = resolveBackendRoute(request, "/auth/login");
+        const result = await fetchBackendWithRetry(backend.url, {
             method: "POST",
             body: JSON.stringify({ email, password }),
-        }, requestId);
+        }, backend.requestId);
 
         if (!result.success) {
             return createErrorResponse(result.normalized!);
@@ -160,7 +160,8 @@ export async function POST(request: Request) {
     }
 }
 
-export async function GET() {
+export async function GET(request: Request) {
+    const requestId = getOrCreateRequestId(request);
     const cookieStore = await cookies();
     const token = cookieStore.get(SESSION_COOKIE_NAME)?.value;
 
@@ -175,21 +176,23 @@ export async function GET() {
 
     try {
         // Try new canonical endpoint first
-        let result = await fetchBackendWithRetry(`${API_URL}/auth/session`, {
+        let backend = resolveBackendRoute(request, "/auth/session");
+        let result = await fetchBackendWithRetry(backend.url, {
             method: "GET",
             headers: {
                 Authorization: `Bearer ${token}`,
             },
-        });
+        }, requestId);
 
         // 404 Not Found? Try fallback to legacy endpoint
         if (!result.success && result.normalized?.originalStatus === 404) {
-            result = await fetchBackendWithRetry(`${API_URL}/auth/me`, {
+            backend = resolveBackendRoute(request, "/auth/me");
+            result = await fetchBackendWithRetry(backend.url, {
                 method: "GET",
                 headers: {
                     Authorization: `Bearer ${token}`,
                 },
-            });
+            }, requestId);
         }
 
         if (!result.success) {
@@ -201,7 +204,9 @@ export async function GET() {
         }
 
         const user = result.data as Record<string, unknown>;
-        return NextResponse.json({ authenticated: true, user });
+        const response = NextResponse.json({ authenticated: true, user });
+        response.headers.set("x-request-id", requestId);
+        return response;
     } catch (error) {
         const normalized = normalizeAuthError(error);
         return createErrorResponse(normalized);
@@ -212,6 +217,10 @@ export async function DELETE() {
     const cookieStore = await cookies();
     cookieStore.delete(SESSION_COOKIE_NAME);
     return NextResponse.json({ success: true });
+}
+
+export async function PUT() {
+  return methodNotAllowed("PUT", ["GET", "POST", "DELETE"]);
 }
 
 /**

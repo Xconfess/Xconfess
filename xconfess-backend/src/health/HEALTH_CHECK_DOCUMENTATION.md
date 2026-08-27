@@ -12,8 +12,8 @@ The XConfess backend exposes three health endpoints. They serve distinct purpose
 | Endpoint | Purpose | Rate limit | Strictness |
 |---|---|---|---|
 | `GET /api/health/live` | Confirms the Node process is responsive | 120 req/min | Lenient — no dependency checks |
-| `GET /api/health/ready` | Confirms all dependencies are operational | 30 req/min | Strict — fails if any check fails |
-| `GET /api/health` | Backward-compatible alias for `/ready` | 30 req/min | Same as `/ready` |
+| `GET /api/health/ready` | Confirms all dependencies are operational | 120 req/min | Strict — fails if any check fails |
+| `GET /api/health` | Backward-compatible alias for `/ready` | 120 req/min | Same as `/ready` |
 
 Use **liveness** for a quick local smoke test after starting the server. Use **readiness** to verify the full stack before routing real traffic, running migrations, or marking a deployment as successful. Prefer `/ready` over the bare `/health` alias for new integrations.
 

@@ -2,15 +2,15 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Reaction } from 'src/reaction/entities/reaction.entity';
-import { User } from 'src/user/entities/user.entity';
-import { AnonymousConfession } from 'src/confession/entities/confession.entity';
-import { CacheService } from 'src/cache/cache.service';
+import { Reaction } from '../reaction/entities/reaction.entity';
+import { User } from '../user/entities/user.entity';
+import { AnonymousConfession } from '../confession/entities/confession.entity';
+import { CacheService } from '../cache/cache.service';
 import {
   AnalyticsCacheKeys,
   InvalidationPrefixes,
-} from 'src/cache/cache-namespace';
-import { toWindowBoundaries } from 'src/types/analytics.types';
+} from '../cache/cache-namespace';
+import { toWindowBoundaries } from '../types/analytics.types';
 import { ANALYTICS_PRIVACY } from './analytics.constants';
 
 type TrendDirection = 'increasing' | 'decreasing' | 'stable';

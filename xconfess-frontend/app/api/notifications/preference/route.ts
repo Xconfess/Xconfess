@@ -2,9 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { createApiErrorResponse } from "@/lib/apiErrorHandler";
 import { getApiBaseUrl } from "@/app/lib/config";
 
-const BACKEND_API_URL = getApiBaseUrl();
 
 export async function GET(request: NextRequest) {
+  const BACKEND_API_URL = getApiBaseUrl();
   try {
     const token = request.headers.get("authorization")?.replace("Bearer ", "");
 
@@ -38,6 +38,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function PUT(request: NextRequest) {
+  const BACKEND_API_URL = getApiBaseUrl();
   try {
     const token = request.headers.get("authorization")?.replace("Bearer ", "");
     const body = await request.json();

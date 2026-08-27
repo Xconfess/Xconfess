@@ -2,13 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { internalProxyErrorResponse } from "@/app/lib/utils/proxyError";
 import { getApiBaseUrl } from "@/app/lib/config";
 
-const BASE_API_URL = getApiBaseUrl();
 type RouteContext = { params: Promise<{ id: string }> };
 
-export async function GET(
-  req: NextRequest,
-  { params }: RouteContext,
-) {
+export async function GET(req: NextRequest, { params }: RouteContext) {
+  const BASE_API_URL = getApiBaseUrl();
   const { id } = await params;
 
   // ── Proxy-layer auth ────────────────────────────────────────────────────────
@@ -17,7 +14,9 @@ export async function GET(
     return NextResponse.json({ error: "Unauthenticated" }, { status: 401 });
   }
   if (String(sessionUserId) !== String(id)) {
-    console.warn(`[proxy/activities] IDOR attempt blocked: session=${sessionUserId} param=${id}`);
+    console.warn(
+      `[proxy/activities] IDOR attempt blocked: session=${sessionUserId} param=${id}`,
+    );
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -38,7 +37,10 @@ export async function GET(
       },
     });
   } catch (error) {
-    return internalProxyErrorResponse({ route: "GET /api/users/[id]/activities" }, error);
+    return internalProxyErrorResponse(
+      { route: "GET /api/users/[id]/activities" },
+      error,
+    );
   }
 }
 
@@ -56,7 +58,10 @@ function getSessionUserId(req: NextRequest): string | null {
   }
 }
 
-function buildForwardHeaders(req: NextRequest, correlationId: string): HeadersInit {
+function buildForwardHeaders(
+  req: NextRequest,
+  correlationId: string,
+): HeadersInit {
   const headers: Record<string, string> = {
     cookie: req.headers.get("cookie") ?? "",
     "content-type": "application/json",

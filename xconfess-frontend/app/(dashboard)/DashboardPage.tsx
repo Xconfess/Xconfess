@@ -73,7 +73,8 @@ function UserSummarySection() {
         <div>
           <p className="eyebrow">Dashboard</p>
           <h1 className="mt-2 text-2xl font-bold text-[var(--foreground)]">
-            Welcome back, <span className="text-[var(--primary)]">{displayName}</span>
+            Welcome back,{" "}
+            <span className="text-[var(--primary)]">{displayName}</span>
           </h1>
           {joinedAt && (
             <p className="mt-1 text-sm text-[var(--secondary)]">
@@ -129,7 +130,10 @@ function RecentConfessionsSection() {
         <h2 className="text-xl font-bold text-[var(--foreground)]">
           Recent confessions
         </h2>
-        <Link href="/" className="text-sm font-medium text-[var(--primary)] hover:underline">
+        <Link
+          href="/"
+          className="text-sm font-medium text-[var(--primary)] hover:underline"
+        >
           View all
         </Link>
       </div>

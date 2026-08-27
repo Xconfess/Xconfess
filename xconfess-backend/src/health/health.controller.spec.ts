@@ -128,6 +128,22 @@ describe('HealthController', () => {
       );
       expect(redisSub).toEqual({ name: 'redis', status: 'disabled' });
     });
+
+    it('marks queue subsystem degraded when nested queue details are degraded', async () => {
+      queueIndicator.isHealthy.mockResolvedValue({
+        queues: {
+          status: 'down',
+          notifications: { status: 'degraded', latencyMs: 300 },
+          'notifications-dlq': { status: 'up', latencyMs: 10 },
+        },
+      });
+
+      const result = await controller.readiness();
+      const queueSub = result.subsystems.find(
+        (s: { name: string }) => s.name === 'queues',
+      );
+      expect(queueSub).toEqual({ name: 'queues', status: 'degraded' });
+    });
   });
 
   describe('GET /health (backward-compat alias)', () => {

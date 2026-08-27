@@ -3,7 +3,12 @@ import axios from "axios";
 import { getApiBaseUrl } from "@/app/lib/config";
 import { createApiErrorResponse } from "@/lib/apiErrorHandler";
 
-const BACKEND_URL = getApiBaseUrl();
+// Do NOT resolve this at module scope. `next build` imports every route
+// module during "Collecting page data" to read static config, with no
+// request in flight and no guarantee runtime env vars are present. A
+// throw here (e.g. "BACKEND_API_URL is required...") kills the entire
+// production build instead of failing a real request at runtime.
+// Resolve it lazily, once per request, inside the handler.
 
 type ComparisonAvailability = "available" | "estimated" | "unavailable";
 type DeltaDirection = "up" | "down" | "flat" | "unknown";
@@ -233,6 +238,7 @@ function seriesValues(rows: Array<{ date: string; value: number }>): number[] {
 }
 
 export async function GET(request: Request) {
+  const BACKEND_URL = getApiBaseUrl();
   const requestId = Math.random().toString(36).substring(7);
   const { searchParams } = new URL(request.url);
   const period = searchParams.get("period") || "7d";

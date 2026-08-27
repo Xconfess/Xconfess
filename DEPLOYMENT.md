@@ -5,7 +5,7 @@ This repo deploys as two apps plus managed services:
 - `xconfess-backend`: NestJS API on port `5000`.
 - `xconfess-frontend`: Next.js app on port `3000`.
 - PostgreSQL: required.
-- Redis: required when `ENABLE_BACKGROUND_JOBS=true`.
+- Redis: required when `ENABLE_BACKGROUND_JOBS=true`..
 
 ## Local Smoke Start
 
@@ -69,9 +69,9 @@ STELLAR_FEATURES_ENABLED=false
 STELLAR_NETWORK=testnet
 STELLAR_HORIZON_URL=https://horizon-testnet.stellar.org
 STELLAR_SOROBAN_RPC_URL=https://soroban-rpc-testnet.stellar.org
-CONFESSION_ANCHOR_CONTRACT_ID=CBFR2MDZBQPTNBIJCT32MTDDQLW2AQNDWNO777F3QT6ANYKTHETQZWD3
-REPUTATION_BADGES_CONTRACT_ID=CDD7WPESW54SN6YTXY7PH6JLG6S4MWNREHN5FD6XENAITEDOVLWKIQTC
-TIPPING_SYSTEM_CONTRACT_ID=CAJK27UHTBUGQFUMN5TG5LOQXYODT6NHOY7Z5DVRRMR7CZ4SCIZUE5A3
+CONFESSION_ANCHOR_CONTRACT_ID=CB5XMDHT66EISB4WXM4YGNDHYRMZDX42TOHZEAENIUTSSMRFHJSFRNHB
+REPUTATION_BADGES_CONTRACT_ID=CDAN4HZHY6XNQR3TRPLPJKVKNURVMMQMF7XNZ6AUNJNFLR77J4DNAEYI
+TIPPING_SYSTEM_CONTRACT_ID=CC74UWNAAYDTPEPVKR4CPANWJSF6GI2PCI7BLN6M46KB6CSQYVYLHIWM
 STELLAR_SERVER_SECRET=
 
 MAIL_HOST=your-smtp-host
@@ -113,7 +113,7 @@ NEXT_PUBLIC_API_URL=https://your-backend-domain/api
 NEXT_PUBLIC_WS_URL=wss://your-backend-domain
 NEXT_PUBLIC_APP_URL=https://your-frontend-domain
 NEXT_PUBLIC_STELLAR_NETWORK=testnet
-NEXT_PUBLIC_STELLAR_CONTRACT_ID=CBFR2MDZBQPTNBIJCT32MTDDQLW2AQNDWNO777F3QT6ANYKTHETQZWD3
+NEXT_PUBLIC_STELLAR_CONTRACT_ID=CB5XMDHT66EISB4WXM4YGNDHYRMZDX42TOHZEAENIUTSSMRFHJSFRNHB
 NEXT_PUBLIC_DEV_BYPASS_AUTH=false
 ```
 
@@ -204,3 +204,5 @@ npm run ci
 ```
 
 The full gate includes frontend type-checking, frontend tests, backend tests, and Rust contract tests. Contract tests need enough free disk space for the MSVC linker on Windows.
+
+`npm run deploy:preflight` checks Render config drift, migration timestamp duplicates, and required production env vars. It now also runs automatically as a required GitHub Actions check (`Deploy Preflight`) on every pull request against `main`, using dummy production-shaped env values — no live secrets are needed for the check to run.

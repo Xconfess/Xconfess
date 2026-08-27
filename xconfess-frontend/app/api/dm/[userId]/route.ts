@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getApiBaseUrl } from '@/app/lib/config';
 
-const BACKEND_URL = getApiBaseUrl();
 type RouteContext = { params: Promise<{ userId: string }> };
 
 /** GET /api/dm/[userId]/inbox — proxy with IDOR check at the proxy layer */
@@ -9,6 +8,7 @@ export async function GET(
   req: NextRequest,
   { params }: RouteContext,
 ) {
+  const BACKEND_URL = getApiBaseUrl();
   const { userId } = await params;
 
   const sessionUserId = getSessionUserId(req);
@@ -32,6 +32,7 @@ export async function DELETE(
   req: NextRequest,
   { params }: RouteContext,
 ) {
+  const BACKEND_URL = getApiBaseUrl();
   const { userId } = await params;
   const threadId = req.nextUrl.searchParams.get('threadId');
 

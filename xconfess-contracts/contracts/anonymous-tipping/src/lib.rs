@@ -247,6 +247,14 @@ impl AnonymousTipping {
     }
 
     /// Send anonymous tip with optional bounded settlement proof metadata.
+    ///
+    /// # Fee and rounding policy
+    /// This contract performs a direct peer-to-peer token transfer with **no platform fee**.
+    /// The full `amount` (in stroops) is credited to `recipient`. There is no fee deduction,
+    /// no rounding, and no basis-point calculation — `amount` must be an exact integer of
+    /// stroops between 1 and `MAX_TIP_AMOUNT` (inclusive). Any future fee mechanism must
+    /// document its rounding direction here; the canonical choice for fee-on-top is
+    /// round-up (ceiling) so the protocol never subsidises the sender.
     pub fn send_tip_with_proof(
         env: Env,
         sender: Address,
