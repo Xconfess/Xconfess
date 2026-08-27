@@ -5,7 +5,7 @@ This repo deploys as two apps plus managed services:
 - `xconfess-backend`: NestJS API on port `5000`.
 - `xconfess-frontend`: Next.js app on port `3000`.
 - PostgreSQL: required.
-- Redis: required when `ENABLE_BACKGROUND_JOBS=true`.
+- Redis: required when `ENABLE_BACKGROUND_JOBS=true`..
 
 ## Local Smoke Start
 
