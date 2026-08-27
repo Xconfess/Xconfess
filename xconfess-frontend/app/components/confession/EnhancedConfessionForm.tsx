@@ -533,6 +533,15 @@ export const EnhancedConfessionForm: React.FC<EnhancedConfessionFormProps> = ({
                   ref={textareaRef}
                   value={body}
                   onChange={(e) => setBody(e.target.value)}
+                  onKeyDown={(e) => {
+                    if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+                      e.preventDefault();
+                      const form = e.currentTarget.form;
+                      if (form) {
+                        form.requestSubmit();
+                      }
+                    }
+                  }}
                   placeholder="Share your thoughts, feelings, or experiences..."
                   aria-invalid={!!errors.body}
                   className={cn(
