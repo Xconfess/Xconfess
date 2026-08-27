@@ -8,7 +8,8 @@
   "scripts": {
     "dev": "concurrently \"npm run dev --workspace=xconfess-backend\" \"npm run dev --workspace=xconfess-frontend\"",
     "dev:backend": "npm run dev --workspace=xconfess-backend",
-    "dev:frontend": "npm run dev --workspace=xconfess-frontend"
+    "dev:frontend": "npm run dev --workspace=xconfess-frontend",
+    "deploy:preflight": "node scripts/deploy-preflight.js"
   },
   "dependencies": {
     "@faker-js/faker": "^10.2.0",
