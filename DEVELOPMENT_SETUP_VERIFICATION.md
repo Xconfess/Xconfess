@@ -8,7 +8,7 @@ This document verifies that all acceptance criteria for Stellar Wave issues #182
 - ✅ Script creates `xconfess-backend/.env` when absent
 - ✅ Script creates `xconfess-frontend/.env.local` when absent  
 - ✅ Script never overwrites existing env files
-- ✅ README quick start references the script.
+- ✅ README quick start references the script..
 
 **Implementation:**
 - **Script**: `scripts/bootstrap-env.js`

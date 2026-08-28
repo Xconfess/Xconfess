@@ -6,7 +6,7 @@
 
 ## Executive Summary
 
-This report documents the current performance baseline of the xConfess application before optimization work begins. Measurements were taken across backend API endpoints, frontend load times, and database operations.
+This report documents the current performance baseline of the xConfess application before optimization work begins. Measurements were taken across backend API endpoints, frontend load times, and database operations..
 
 ## Backend Performance
 

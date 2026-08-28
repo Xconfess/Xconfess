@@ -16,7 +16,7 @@ npm install
 docker compose up -d postgres redis
 npm run dev:backend
 npm run dev:frontend
-```
+```,
 
 Backend liveness:
 

@@ -1,7 +1,7 @@
 # XConfess — Go/No-Go Checklist
 
 Use before any demo or review cycle. Check off each item; anything unchecked
-in **Key Flows** or **Known Risks** is a blocker unless explicitly waived.
+in **Key Flows** or **Known Risks** is a blocker unless explicitly waived..
 
 ---
 
