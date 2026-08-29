@@ -1,6 +1,6 @@
 # Wave 5 Contributor FAQ
 
-Welcome to XConfess Wave 5! This guide answers common questions about contributing to this wave.
+Welcome to xConfess Wave 5! This guide answers common questions about contributing to this wave.
 
 ## Setup & Prerequisites
 

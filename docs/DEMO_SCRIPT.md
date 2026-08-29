@@ -1,6 +1,6 @@
 # Wave 5 Demo Script
 
-This script guides maintainers and contributors through the core XConfess flows
+This script guides maintainers and contributors through the core xConfess flows
 for a consistent Wave 5 demo. Each section lists the steps to perform and the
 screenshots or short clips to capture.
 

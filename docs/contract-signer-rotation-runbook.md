@@ -1,6 +1,6 @@
 # Contract Signer Key Rotation Runbook
 
-**Scope:** Xconfess Soroban smart contracts  
+**Scope:** xConfess Soroban smart contracts<br>
 **Audience:** Core maintainers with contract admin access  
 **Related issues:** #117 (emergency pause guard), #123 (admin role transfer timelock), #144 (governance quorum)
 

@@ -1,10 +1,10 @@
-# Xconfess Contract ABI Reference
+# xConfess Contract ABI Reference
 
 > **Version**: 1.0.0  
 > **Last Updated**: 2026-03-23  
 > **Build Metadata**: `xconfess.confession-anchor+2026-03-23`
 
-This document provides a complete interface reference for all Xconfess smart contracts deployed on the Stellar network via Soroban. Each contract section includes data types, function signatures, events, error codes, and invocation examples.
+This document provides a complete interface reference for all xConfess smart contracts deployed on the Stellar network via Soroban. Each contract section includes data types, function signatures, events, error codes, and invocation examples.
 
 ---
 
@@ -1278,7 +1278,7 @@ orders against this reference. Keep this section aligned with
 ## References
 
 - [Soroban Documentation](https://soroban.stellar.org/docs)
-- [Xconfess Project README](../README.md)
+- [xConfess Project README](../README.md)
 - [Contract Deployment Guide](./SOROBAN_SETUP.md)
 - [Release Runbook](./contract-release-and-upgrade-runbook.md)
 - [Backend Event Parser Compatibility Layer](./contract-event-parser-compatibility.md)
