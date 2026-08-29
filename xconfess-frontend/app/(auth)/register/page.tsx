@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { CheckCircle2, Eye, EyeOff, LogIn, ShieldCheck } from 'lucide-react';
 import { Button } from '@/app/components/ui/button';
+import { Button } from '@/app/components/ui/button';
 import { Input } from '@/app/components/ui/input';
 import { BrandLogo } from '@/app/components/brand/BrandLogo';
 import { useAuth } from '@/app/lib/hooks/useAuth';
@@ -150,137 +151,98 @@ export default function RegisterPage() {
               </div>
             )}
 
-            <div className="mt-6 grid gap-4 sm:grid-cols-2">
-              <Field
-                id="register-username"
-                label="Username"
-                error={errors.username}
-              >
-                <Input
-                  id="register-username"
-                  value={username}
-                  onChange={(event) => handleFieldChange('username', event.target.value)}
-                  placeholder="alice_42"
-                  autoComplete="username"
-                  error={Boolean(errors.username)}
-                  aria-invalid={Boolean(errors.username)}
-                  aria-describedby={errors.username ? 'register-username-error' : undefined}
-                  disabled={loading}
-                />
-              </Field>
+        {errors.email && (
+          <div className="text-sm text-red-600 bg-red-50 dark:bg-red-900/20 p-3 rounded">
+            {errors.email}
+          </div>
+        )}
 
-              <Field id="register-email" label="Email" error={errors.email}>
-                <Input
-                  id="register-email"
-                  type="email"
-                  value={email}
-                  onChange={(event) => handleFieldChange('email', event.target.value)}
-                  placeholder="you@example.com"
-                  autoComplete="email"
-                  error={Boolean(errors.email)}
-                  aria-invalid={Boolean(errors.email)}
-                  aria-describedby={errors.email ? 'register-email-error' : undefined}
-                  disabled={loading}
-                />
-              </Field>
+        {errors.password && (
+          <div className="text-sm text-red-600 bg-red-50 dark:bg-red-900/20 p-3 rounded">
+            {errors.password}
+          </div>
+        )}
 
-              <Field id="register-password" label="Password" error={errors.password}>
-                <div className="relative">
-                  <Input
-                    id="register-password"
-                    type={showPassword ? 'text' : 'password'}
-                    value={password}
-                    onChange={(event) => handleFieldChange('password', event.target.value)}
-                    placeholder="Str0ng!Pass#1"
-                    autoComplete="new-password"
-                    error={Boolean(errors.password)}
-                    className="pr-12"
-                    aria-invalid={Boolean(errors.password)}
-                    aria-describedby={errors.password ? 'register-password-error' : undefined}
-                    disabled={loading}
-                  />
-                  <IconButton
-                    label={showPassword ? 'Hide password' : 'Show password'}
-                    onClick={() => setShowPassword((value) => !value)}
-                  >
-                    {showPassword ? <EyeOff /> : <Eye />}
-                  </IconButton>
-                </div>
-              </Field>
+        {errors.confirmPassword && (
+          <div className="text-sm text-red-600 bg-red-50 dark:bg-red-900/20 p-3 rounded">
+            {errors.confirmPassword}
+          </div>
+        )}
 
-              <Field
-                id="register-confirm-password"
-                label="Confirm password"
-                error={errors.confirmPassword}
-              >
-                <div className="relative">
-                  <Input
-                    id="register-confirm-password"
-                    type={showConfirmPassword ? 'text' : 'password'}
-                    value={confirmPassword}
-                    onChange={(event) =>
-                      handleFieldChange('confirmPassword', event.target.value)
-                    }
-                    placeholder="Repeat password"
-                    autoComplete="new-password"
-                    error={Boolean(errors.confirmPassword)}
-                    className="pr-12"
-                    aria-invalid={Boolean(errors.confirmPassword)}
-                    aria-describedby={
-                      errors.confirmPassword
-                        ? 'register-confirm-password-error'
-                        : undefined
-                    }
-                    disabled={loading}
-                  />
-                  <IconButton
-                    label={showConfirmPassword ? 'Hide password' : 'Show password'}
-                    onClick={() => setShowConfirmPassword((value) => !value)}
-                  >
-                    {showConfirmPassword ? <EyeOff /> : <Eye />}
-                  </IconButton>
-                </div>
-              </Field>
-            </div>
+        <div className="space-y-3">
+          <div>
+            <label htmlFor="register-username" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Username
+            </label>
+            <input
+              id="register-username"
+              value={username}
+              onChange={(e) => handleFieldChange('username', e.target.value)}
+              className="w-full rounded-md border-gray-300 dark:border-gray-700 dark:bg-gray-700 dark:text-white"
+              placeholder="yourname"
+              autoComplete="username"
+            />
+          </div>
+          <div>
+            <label htmlFor="register-email" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Email
+            </label>
+            <input
+              id="register-email"
+              type="email"
+              value={email}
+              onChange={(e) => handleFieldChange('email', e.target.value)}
+              className="w-full rounded-md border-gray-300 dark:border-gray-700 dark:bg-gray-700 dark:text-white"
+              placeholder="you@example.com"
+              autoComplete="email"
+            />
+          </div>
+          <div>
+            <label htmlFor="register-password" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Password
+            </label>
+            <input
+              id="register-password"
+              type="password"
+              value={password}
+              onChange={(e) => handleFieldChange('password', e.target.value)}
+              className="w-full rounded-md border-gray-300 dark:border-gray-700 dark:bg-gray-700 dark:text-white"
+              placeholder="••••••••"
+              autoComplete="new-password"
+            />
+          </div>
+          <div>
+            <label htmlFor="register-confirm-password" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Confirm Password
+            </label>
+            <input
+              id="register-confirm-password"
+              type="password"
+              value={confirmPassword}
+              onChange={(e) => handleFieldChange('confirmPassword', e.target.value)}
+              className="w-full rounded-md border-gray-300 dark:border-gray-700 dark:bg-gray-700 dark:text-white"
+              placeholder="••••••••"
+              autoComplete="new-password"
+            />
+          </div>
 
-            <div className="mt-5 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4">
-              <div className="mb-3 h-2 overflow-hidden rounded-full bg-[var(--surface-strong)]">
-                <div
-                  className="h-full rounded-full bg-[var(--primary)] transition-all"
-                  style={{ width: `${(completedChecks / passwordChecks.length) * 100}%` }}
-                />
-              </div>
-              <div className="grid gap-2 text-xs text-[var(--secondary)] sm:grid-cols-2">
-                {passwordChecks.map((check) => {
-                  const passed = check.test(password);
-                  return (
-                    <span key={check.label} className="inline-flex items-center gap-2">
-                      <CheckCircle2
-                        className={passed ? 'h-4 w-4 text-emerald-600' : 'h-4 w-4 text-[var(--secondary)]'}
-                        aria-hidden="true"
-                      />
-                      {check.label}
-                    </span>
-                  );
-                })}
-              </div>
-            </div>
+          <Button
+            type="button"
+            onClick={doRegister}
+            disabled={loading}
+            className="w-full"
+          >
+            {loading ? 'Creating…' : 'Create account'}
+          </Button>
 
-            <Button type="submit" disabled={loading} isLoading={loading} className="mt-6 w-full">
-              {loading ? 'Creating account...' : 'Create account'}
-            </Button>
-
-            <Button
-              type="button"
-              onClick={() => router.push(buildAuthSwitchUrl('/login'))}
-              disabled={loading}
-              variant="outline"
-              className="mt-3 w-full"
-            >
-              <LogIn className="h-4 w-4" aria-hidden="true" />
-              Sign in
-            </Button>
-          </form>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => router.push('/login')}
+            className="w-full"
+          >
+            Sign in
+          </Button>
         </div>
       </div>
     </div>
