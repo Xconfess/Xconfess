@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-
-const BACKEND_URL = process.env.BACKEND_URL || "http://localhost:3001";
+import { resolveBackendRoute } from "@/app/lib/api/proxy";
 
 export async function GET(
   request: NextRequest,
@@ -11,7 +10,11 @@ export async function GET(
     const { searchParams } = new URL(request.url);
     const override = searchParams.get("override");
 
-    const url = new URL(`${BACKEND_URL}/feature-flags/check/${name}`);
+    const backend = resolveBackendRoute(
+      request,
+      `/feature-flags/check/${name}`,
+    );
+    const url = new URL(backend.url);
     if (override) {
       url.searchParams.set("override", override);
     }

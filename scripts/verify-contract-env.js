@@ -5,8 +5,10 @@ const path = require('path');
 
 const ROOT = path.resolve(__dirname, '..');
 const DEFAULT_DEPLOYMENT_FILE = path.join(ROOT, 'deployments', 'testnet.json');
+const DEFAULT_TESTNET_HORIZON_URL = 'https://horizon-testnet.stellar.org';
 const CONTRACT_ID_REGEX = /^C[A-Z2-7]{55}$/;
 const SHA256_REGEX = /^[a-fA-F0-9]{64}$/;
+const TRUE_VALUES = new Set(['true', '1', 'yes', 'on']);
 
 /**
  * Validates the structural shape and schema integrity of deployment metadata (#1738).
@@ -99,7 +101,101 @@ function readDeploymentIds(filePath) {
   };
 }
 
-function main() {
+function isTruthy(value) {
+  return TRUE_VALUES.has(String(value || '').toLowerCase());
+}
+
+function derivePublicKeyFromSecret(secret) {
+  try {
+    const { Keypair } = require('@stellar/stellar-sdk');
+    return { publicKey: Keypair.fromSecret(secret).publicKey() };
+  } catch (error) {
+    return {
+      error:
+        'STELLAR_SERVER_SECRET is not a valid Stellar secret seed. Generate or configure a funded signer for the selected network.',
+    };
+  }
+}
+
+async function checkHorizonTestnetAccount(publicKey, horizonUrl) {
+  if (typeof fetch !== 'function') {
+    return {
+      warning:
+        `Could not verify signer account ${publicKey}: this Node runtime does not provide fetch. ` +
+        'Confirm the account is funded on Stellar testnet before deploy.',
+    };
+  }
+
+  const baseUrl = horizonUrl || DEFAULT_TESTNET_HORIZON_URL;
+
+  try {
+    const accountUrl = new URL(`/accounts/${publicKey}`, baseUrl);
+    const response = await fetch(accountUrl, {
+      headers: { Accept: 'application/json' },
+    });
+
+    if (response.status === 404) {
+      return {
+        warning:
+          `STELLAR_SERVER_SECRET resolves to ${publicKey}, but that account does not exist or is unfunded on Stellar testnet. ` +
+          `Fund it with Friendbot: https://friendbot.stellar.org?addr=${publicKey}`,
+      };
+    }
+
+    if (!response.ok) {
+      return {
+        warning:
+          `Could not verify signer account ${publicKey} on Stellar testnet Horizon (${baseUrl}); Horizon returned HTTP ${response.status}. ` +
+          'Confirm the signer is funded on the intended network before deploy.',
+      };
+    }
+
+    return {};
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return {
+      warning:
+        `Could not verify signer account ${publicKey} on Stellar testnet Horizon (${baseUrl}): ${message}. ` +
+        'Confirm the signer is funded on the intended network before deploy.',
+    };
+  }
+}
+
+async function collectStellarSignerDiagnostics(rawData) {
+  const warnings = [];
+  const failures = [];
+
+  if (!isTruthy(process.env.STELLAR_FEATURES_ENABLED)) {
+    return { warnings, failures };
+  }
+
+  const secret = process.env.STELLAR_SERVER_SECRET;
+  if (!secret) {
+    warnings.push(
+      'STELLAR_SERVER_SECRET is not set; configure a funded Stellar testnet signer before enabling on-chain writes.',
+    );
+    return { warnings, failures };
+  }
+
+  const derived = derivePublicKeyFromSecret(secret);
+  if (derived.error) {
+    failures.push(derived.error);
+    return { warnings, failures };
+  }
+
+  const network = String(process.env.STELLAR_NETWORK || rawData.network || 'testnet').toLowerCase();
+  if (network === 'testnet') {
+    const accountCheck = await checkHorizonTestnetAccount(
+      derived.publicKey,
+      process.env.STELLAR_HORIZON_URL || DEFAULT_TESTNET_HORIZON_URL,
+    );
+    if (accountCheck.warning) warnings.push(accountCheck.warning);
+  }
+
+  return { warnings, failures };
+}
+
+async function main() {
   const deploymentFile = process.env.DEPLOYMENT_METADATA_PATH
     ? path.resolve(ROOT, process.env.DEPLOYMENT_METADATA_PATH)
     : DEFAULT_DEPLOYMENT_FILE;
@@ -125,6 +221,18 @@ function main() {
 
   const expected = readDeploymentIds(deploymentFile);
   const failures = [];
+  const stellarFeaturesEnabled = isTruthy(process.env.STELLAR_FEATURES_ENABLED);
+  const configuredNetwork = process.env.STELLAR_NETWORK;
+
+  if (
+    configuredNetwork &&
+    rawData.network &&
+    configuredNetwork.toLowerCase() !== String(rawData.network).toLowerCase()
+  ) {
+    failures.push(
+      `STELLAR_NETWORK (${configuredNetwork}) does not match ${path.relative(ROOT, deploymentFile)} network (${rawData.network}).`,
+    );
+  }
 
   for (const name of [
     'CONFESSION_ANCHOR_CONTRACT_ID',
@@ -133,7 +241,11 @@ function main() {
   ]) {
     const configured = process.env[name];
     if (!configured) {
-      // In standalone schema validation mode or when env vars aren't exported, note schema passed
+      if (stellarFeaturesEnabled) {
+        failures.push(
+          `${name} is required when STELLAR_FEATURES_ENABLED=true so it can be compared with ${path.relative(ROOT, deploymentFile)}.`,
+        );
+      }
       continue;
     }
     if (!CONTRACT_ID_REGEX.test(configured)) {
@@ -144,22 +256,39 @@ function main() {
     }
   }
 
+  const signerDiagnostics = await collectStellarSignerDiagnostics(rawData);
+  failures.push(...signerDiagnostics.failures);
+
   if (failures.length > 0) {
     console.error('Contract environment verification failed:');
     for (const failure of failures) console.error(`- ${failure}`);
+    if (signerDiagnostics.warnings.length > 0) {
+      console.warn('Contract environment warnings:');
+      for (const warning of signerDiagnostics.warnings) console.warn(`- ${warning}`);
+    }
     process.exit(1);
+  }
+
+  if (signerDiagnostics.warnings.length > 0) {
+    console.warn('Contract environment warnings:');
+    for (const warning of signerDiagnostics.warnings) console.warn(`- ${warning}`);
   }
 
   console.log(`Contract deployment metadata & environment verification passed (${rawData.network}).`);
 }
 
 if (require.main === module) {
-  main();
+  main().catch((error) => {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error(`Contract environment verification failed: ${message}`);
+    process.exit(1);
+  });
 }
 
 module.exports = {
   validateDeploymentMetadataSchema,
   readDeploymentIds,
   readDeploymentData,
+  derivePublicKeyFromSecret,
+  checkHorizonTestnetAccount,
 };
-

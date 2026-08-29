@@ -1,13 +1,12 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
-import { getApiBaseUrl } from "@/app/lib/config";
+import { resolveBackendRoute } from "@/app/lib/api/proxy";
 import { createApiErrorResponse } from "@/lib/apiErrorHandler";
 import {
   normalizeAuthError,
   retryAuthOperation,
 } from "@/lib/normalizeAuthError";
 
-const API_URL = getApiBaseUrl();
 const SESSION_COOKIE_NAME = "xconfess_session";
 
 /**
@@ -32,8 +31,9 @@ export async function POST(request: Request) {
     let loginData: any;
 
     try {
+      const backend = resolveBackendRoute(request, "/auth/login");
       await retryAuthOperation(async () => {
-        loginResponse = await fetch(`${API_URL}/auth/login`, {
+        loginResponse = await fetch(backend.url, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ email, password }),
@@ -110,7 +110,7 @@ export async function POST(request: Request) {
  * GET /api/auth/session
  * Retrieve current session with retry logic for transient errors.
  */
-export async function GET() {
+export async function GET(request: Request) {
   const cookieStore = await cookies();
   const token = cookieStore.get(SESSION_COOKIE_NAME)?.value;
 
@@ -124,13 +124,15 @@ export async function GET() {
     // Wrap session check with retry for transient errors only
     await retryAuthOperation(async () => {
       // Try new canonical endpoint first
-      response = await fetch(`${API_URL}/auth/session`, {
+      let backend = resolveBackendRoute(request, "/auth/session");
+      response = await fetch(backend.url, {
         headers: { Authorization: `Bearer ${token}` },
       });
 
       // Fallback to legacy endpoint if not found
       if (!response.ok && response.status === 404) {
-        response = await fetch(`${API_URL}/auth/me`, {
+        backend = resolveBackendRoute(request, "/auth/me");
+        response = await fetch(backend.url, {
           headers: { Authorization: `Bearer ${token}` },
         });
       }

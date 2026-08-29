@@ -1,10 +1,9 @@
 import { normalizeConfession } from "../../lib/utils/normalizeConfession";
 import { createApiErrorResponse } from "@/lib/apiErrorHandler";
-import { getApiBaseUrl } from "@/app/lib/config";
+import { resolveBackendRoute } from "@/app/lib/api/proxy";
 import { getOrCreateRequestId, requestIdResponseHeaders } from "@/app/lib/utils/requestId";
 
 export async function POST(request: Request) {
-  const BASE_API_URL = getApiBaseUrl();
   const correlationId = getOrCreateRequestId(request);
 
   try {
@@ -19,7 +18,7 @@ export async function POST(request: Request) {
     }
 
     const confessionContent = bodyContent || message;
-    const backendUrl = `${BASE_API_URL}/confessions`;
+    const backend = resolveBackendRoute(request, "/confessions");
 
     const backendBody: any = {
       message: confessionContent,
@@ -49,7 +48,7 @@ export async function POST(request: Request) {
     }
 
     try {
-      const response = await fetch(backendUrl, {
+      const response = await fetch(backend.url, {
         method: "POST",
         headers: forwardHeaders,
         body: JSON.stringify(backendBody),
@@ -91,7 +90,6 @@ export async function POST(request: Request) {
 }
 
 export async function GET(request: Request) {
-  const BASE_API_URL = getApiBaseUrl();
   const { searchParams } = new URL(request.url);
   const page = Math.max(1, parseInt(searchParams.get("page") ?? "1") || 1);
   const limit = Math.max(1, parseInt(searchParams.get("limit") ?? "10") || 10);
@@ -111,9 +109,9 @@ export async function GET(request: Request) {
   const correlationId = getOrCreateRequestId(request);
 
   try {
-    const backendUrl = `${BASE_API_URL}/confessions?${backendParams}`;
+    const backend = resolveBackendRoute(request, `/confessions?${backendParams}`);
 
-    const response = await fetch(backendUrl, {
+    const response = await fetch(backend.url, {
       method: "GET",
       headers: {
         "Content-Type": "application/json",
@@ -170,4 +168,3 @@ export async function GET(request: Request) {
     });
   }
 }
-

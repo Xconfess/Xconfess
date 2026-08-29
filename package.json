@@ -54,7 +54,7 @@
     "ci:contract": "npm run contract:fmt:check && npm run contract:lint && npm run contract:test && npm run contract:build:release",
     "ci:apps": "npm run backend:build && npm run backend:lint && npm run frontend:lint && npm run frontend:typecheck && npm run frontend:build",
     "ci": "npm run ci:backend && npm run ci:frontend && npm run ci:contract",
-    "deploy:preflight": "node scripts/deploy-preflight.js",
+    "deploy:preflight": "npm run contracts:verify-env && node scripts/deploy-preflight.js",
     "deploy:smoke": "node scripts/deployed-smoke.js",
     "render:prestart": "node scripts/render-prestart.js",
     "contracts:verify-env": "node scripts/verify-contract-env.js",

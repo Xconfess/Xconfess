@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-
-const BACKEND_URL = process.env.BACKEND_URL || "http://localhost:3001";
+import { resolveBackendRoute } from "@/app/lib/api/proxy";
 
 export async function GET(request: NextRequest) {
   try {
-    const res = await fetch(`${BACKEND_URL}/feature-flags`, {
+    const backend = resolveBackendRoute(request, "/feature-flags");
+    const res = await fetch(backend.url, {
       headers: {
         Cookie: request.headers.get("cookie") || "",
       },
@@ -23,7 +23,8 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const res = await fetch(`${BACKEND_URL}/feature-flags`, {
+    const backend = resolveBackendRoute(request, "/feature-flags");
+    const res = await fetch(backend.url, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

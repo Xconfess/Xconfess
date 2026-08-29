@@ -1,11 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { internalProxyErrorResponse } from "@/app/lib/utils/proxyError";
-import { getApiBaseUrl } from "@/app/lib/config";
+import { resolveBackendRoute } from "@/app/lib/api/proxy";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
 export async function GET(req: NextRequest, { params }: RouteContext) {
-  const BASE_API_URL = getApiBaseUrl();
   const { id } = await params;
 
   // ── Proxy-layer auth ────────────────────────────────────────────────────────
@@ -21,10 +20,10 @@ export async function GET(req: NextRequest, { params }: RouteContext) {
   }
 
   try {
-    const backendUrl = `${BASE_API_URL}/users/${id}/activities`;
+    const backend = resolveBackendRoute(req, `/users/${id}/activities`);
     const correlationId = req.headers.get("X-Correlation-ID") || "unknown";
 
-    const response = await fetch(backendUrl, {
+    const response = await fetch(backend.url, {
       method: "GET",
       headers: buildForwardHeaders(req, correlationId),
     });

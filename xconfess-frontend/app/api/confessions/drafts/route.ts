@@ -1,13 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-
-/**
- * ASSUMPTION: real backend lives at BACKEND_URL (env var) and exposes
- * /confessions/drafts with the same shape described in
- * app/lib/api/drafts.ts. This route is a thin authenticated proxy —
- * swap BACKEND_URL or this implementation once the real service exists,
- * with no changes required in the frontend client or DraftManager.
- */
-const BACKEND_URL = process.env.BACKEND_URL ?? "http://localhost:4000";
+import { resolveBackendRoute } from "@/app/lib/api/proxy";
 
 function forwardAuth(req: NextRequest): HeadersInit {
   const auth = req.headers.get("authorization");
@@ -21,7 +13,8 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const res = await fetch(`${BACKEND_URL}/confessions/drafts`, {
+    const backend = resolveBackendRoute(req, "/confessions/drafts");
+    const res = await fetch(backend.url, {
       headers: forwardAuth(req),
     });
     const data = await res.json().catch(() => null);
@@ -42,7 +35,8 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json();
-    const res = await fetch(`${BACKEND_URL}/confessions/drafts`, {
+    const backend = resolveBackendRoute(req, "/confessions/drafts");
+    const res = await fetch(backend.url, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -67,7 +61,8 @@ export async function DELETE(req: NextRequest) {
   }
 
   try {
-    const res = await fetch(`${BACKEND_URL}/confessions/drafts`, {
+    const backend = resolveBackendRoute(req, "/confessions/drafts");
+    const res = await fetch(backend.url, {
       method: "DELETE",
       headers: forwardAuth(req),
     });

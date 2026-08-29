@@ -8,6 +8,14 @@ export interface ProxyRequestOptions extends RequestInit {
 }
 
 const DEFAULT_TIMEOUT = 30000;
+const FRONTEND_HOST_ENV_KEYS = [
+  'FRONTEND_URL',
+  'NEXT_PUBLIC_APP_URL',
+  'NEXT_PUBLIC_SITE_URL',
+  'VERCEL_URL',
+  'VERCEL_BRANCH_URL',
+  'VERCEL_PROJECT_PRODUCTION_URL',
+];
 
 export interface BackendRoute {
   url: string;
@@ -22,8 +30,9 @@ export function resolveBackendRoute(
   const baseApiUrl = getApiBaseUrl();
   const requestUrl = new URL(request.url);
   const backendApiUrl = new URL(baseApiUrl);
+  const frontendHosts = resolveFrontendHosts(requestUrl);
 
-  if (backendApiUrl.host === requestUrl.host) {
+  if (frontendHosts.has(backendApiUrl.host.toLowerCase())) {
     throw Object.assign(
       new Error(
         'Server misconfiguration: BACKEND_API_URL points to the frontend instead of the Render backend.',
@@ -37,6 +46,31 @@ export function resolveBackendRoute(
     url: `${baseApiUrl}${normalizedEndpoint}`,
     requestId,
   };
+}
+
+function resolveFrontendHosts(requestUrl: URL): Set<string> {
+  const hosts = new Set<string>([requestUrl.host.toLowerCase()]);
+
+  for (const key of FRONTEND_HOST_ENV_KEYS) {
+    const host = normalizeHost(process.env[key]);
+    if (host) hosts.add(host);
+  }
+
+  return hosts;
+}
+
+function normalizeHost(value: string | undefined): string | null {
+  if (!value) return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+
+  try {
+    return new URL(/^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`)
+      .host
+      .toLowerCase();
+  } catch {
+    return null;
+  }
 }
 
 export function methodNotAllowed(method: string, allowed: string[]): Response {

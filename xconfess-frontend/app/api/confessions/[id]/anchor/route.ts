@@ -1,4 +1,4 @@
-import { getApiBaseUrl } from "@/app/lib/config";
+import { resolveBackendRoute } from "@/app/lib/api/proxy";
 import { createApiErrorResponse } from "@/lib/apiErrorHandler";
 
 
@@ -6,7 +6,6 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const BASE_API_URL = getApiBaseUrl();
   const { id } = await params;
   try {
     const body = await request.json();
@@ -25,10 +24,10 @@ export async function POST(
       });
     }
 
-    const backendUrl = `${BASE_API_URL}/confessions/${id}/anchor`;
+    const backend = resolveBackendRoute(request, `/confessions/${id}/anchor`);
 
     try {
-      const response = await fetch(backendUrl, {
+      const response = await fetch(backend.url, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

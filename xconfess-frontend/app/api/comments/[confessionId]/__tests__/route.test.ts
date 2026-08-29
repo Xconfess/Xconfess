@@ -1,6 +1,7 @@
 import { POST } from "../route";
 
 const mockFetch = jest.fn();
+const originalNextPublicApiUrl = process.env.NEXT_PUBLIC_API_URL;
 
 // Mock crypto.subtle.digest for idempotency key generation
 const mockDigest = jest.fn().mockResolvedValue(
@@ -17,6 +18,14 @@ Object.defineProperty(globalThis, "crypto", {
 beforeEach(() => {
   jest.clearAllMocks();
   global.fetch = mockFetch;
+});
+
+afterEach(() => {
+  if (originalNextPublicApiUrl === undefined) {
+    delete process.env.NEXT_PUBLIC_API_URL;
+  } else {
+    process.env.NEXT_PUBLIC_API_URL = originalNextPublicApiUrl;
+  }
 });
 
 describe("POST /api/comments/[confessionId]", () => {
@@ -120,5 +129,24 @@ describe("POST /api/comments/[confessionId]", () => {
     const body1 = JSON.parse(mockFetch.mock.calls[0][1].body);
     const body2 = JSON.parse(mockFetch.mock.calls[1][1].body);
     expect(body1.idempotencyKey).toBe(body2.idempotencyKey);
+  });
+
+  it("rejects a self-referential Vercel backend URL before posting", async () => {
+    process.env.NEXT_PUBLIC_API_URL = "https://xconfess.vercel.app/api";
+
+    const request = new Request("https://xconfess.vercel.app/api/comments/c1", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ content: "blocked", anonymousContextId: "ctx" }),
+    });
+
+    const response = await POST(request, {
+      params: Promise.resolve({ confessionId: "c1" }),
+    });
+    const body = await response.json();
+
+    expect(response.status).toBe(503);
+    expect(body.code).toBe("BACKEND_API_URL_SELF_REFERENCE");
+    expect(mockFetch).not.toHaveBeenCalled();
   });
 });

@@ -1,5 +1,5 @@
 import { createApiErrorResponse } from "@/lib/apiErrorHandler";
-import { getApiBaseUrl } from "@/app/lib/config";
+import { resolveBackendRoute } from "@/app/lib/api/proxy";
 import { getOrCreateRequestId } from "@/app/lib/utils/requestId";
 
 
@@ -14,7 +14,6 @@ export async function POST(
   request: Request,
   context: { params: Promise<{ confessionId: string }> },
 ) {
-  const BASE_API_URL = getApiBaseUrl();
   let body: Record<string, unknown> = {};
   let content = "";
   let anonymousContextId = "";
@@ -53,9 +52,10 @@ export async function POST(
       `${confessionId}:${anonymousContextId}:${content.trim()}:${parentId ?? ""}`,
     );
 
+    const backend = resolveBackendRoute(request, `/comments/${confessionId}`);
+    correlationId = backend.requestId;
     const authHeader = request.headers.get("Authorization");
     const cookieHeader = request.headers.get("Cookie");
-    const url = `${BASE_API_URL}/comments/${confessionId}`;
     const payload: Record<string, unknown> = {
       content: content.trim(),
       anonymousContextId,
@@ -63,7 +63,7 @@ export async function POST(
     };
     if (parentId != null) payload.parentId = parentId;
 
-    const response = await fetch(url, {
+    const response = await fetch(backend.url, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
