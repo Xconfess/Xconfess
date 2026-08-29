@@ -332,6 +332,10 @@ When your PR is ready for review, include a concise summary, validation results,
 
 When reporting bugs, see [Attaching Logs to Issues and PRs](docs/LOG_ATTACHING_GUIDE.md) for redaction guidelines.
 
+### Backend endpoint checklist
+
+When adding a new API endpoint, follow the [API endpoint contributor checklist](docs/contributing-api-endpoints.md) to cover controller, DTO, auth, tests, Swagger, and frontend proxy updates.
+
 ## Documentation
 
 - [Account Recovery Guide](docs/account-recovery.md) — What to do if you connect the wrong wallet or network
