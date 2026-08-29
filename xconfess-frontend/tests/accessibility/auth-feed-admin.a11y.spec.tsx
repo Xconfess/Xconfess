@@ -515,6 +515,7 @@ describe("Login page accessibility", () => {
     await user.keyboard("{Enter}");
     expect(signIn).toBeInTheDocument();
   });
+
 });
 
 // ---------------------------------------------------------------------------
