@@ -179,6 +179,23 @@ export default function SearchPage() {
     updateUrl("", defaultFilters);
   }, [updateUrl]);
 
+  const handleRemoveFilter = useCallback((key: FilterChipKey) => {
+    if (key === "query") {
+      setQuery("");
+      updateUrl("", filters);
+      return;
+    }
+
+    const nextFilters = { ...filters };
+    if (key === "sort") {
+      nextFilters.sort = "newest";
+    } else {
+      delete nextFilters[key];
+    }
+    setFilters(nextFilters);
+    updateUrl(query, nextFilters);
+  }, [filters, query, updateUrl]);
+
   const handleSuggestion = useCallback((suggestion: string) => {
     setQuery(suggestion);
     updateUrl(suggestion, filters);
@@ -190,8 +207,78 @@ export default function SearchPage() {
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-8">
-      {/* Your existing JSX */}
-      {/* Ensure SearchInput calls handleSubmit, FilterSidebar calls handleApplyFilters, etc. */}
+      <div className="space-y-5">
+        <div className="flex items-center gap-3">
+          <SearchInput
+            value={query}
+            onChange={setQuery}
+            onSubmit={handleSubmit}
+            className="flex-1"
+          />
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => setSidebarOpen((open) => !open)}
+            className="border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800"
+          >
+            <Filter className="h-4 w-4" />
+            Filters
+          </Button>
+        </div>
+
+        <FilterChips
+          filters={filters}
+          query={query}
+          onRemoveFilter={handleRemoveFilter}
+          onClearAll={handleClearAll}
+          statusChip={effectiveStatusMeta?.degraded ? { label: "Partial results", tone: "warning" } : null}
+        />
+
+        <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_18rem]">
+          <div className="min-w-0 space-y-4">
+            {fatalError ? (
+              <ErrorState title="Search failed" error={error ?? "Unable to load search results."} onRetry={retry} />
+            ) : (
+              <>
+                {hasSearched && (
+                  <p className="text-sm text-zinc-400">
+                    {isLoading ? "Searching..." : `${total} result${total === 1 ? "" : "s"}`}
+                  </p>
+                )}
+                {isEmpty && (
+                  <Card className="border-zinc-800 bg-zinc-900 p-6 text-sm text-zinc-400">
+                    No confessions matched your search.
+                  </Card>
+                )}
+                <SearchResults
+                  results={results}
+                  query={query}
+                  isLoading={isLoading}
+                  isEmpty={isEmpty}
+                  hasSearched={hasSearched}
+                  page={page}
+                  isRetrying={isRetrying}
+                  hasMore={hasMore}
+                  total={total}
+                  onLoadMore={loadMore}
+                  onRetry={retry}
+                  statusMeta={effectiveStatusMeta}
+                  hasActiveFilters={hasActiveFilterValues}
+                  onClearFilters={handleResetFilters}
+                  onUseSuggestion={handleSuggestion}
+                />
+              </>
+            )}
+          </div>
+
+          <FilterSidebar
+            filters={filters}
+            onApply={handleApplyFilters}
+            onReset={handleResetFilters}
+            className={cn(sidebarOpen ? "block" : "hidden lg:block")}
+          />
+        </div>
+      </div>
     </div>
   );
 }

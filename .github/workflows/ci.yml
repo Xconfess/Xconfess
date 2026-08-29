@@ -1,10 +1,10 @@
 name: CI
 
 on:
-  pull_request:
   push:
-    branches:
-      - main
+    branches: [main]
+  pull_request:
+    branches: [main]
 
 permissions:
   contents: read
@@ -18,179 +18,143 @@ env:
   NEXT_TELEMETRY_DISABLED: '1'
   RUST_BACKTRACE: 1
   CI: true
-  SKIP_E2E: ${{ vars.SKIP_E2E || 'false' }}
 
 jobs:
   audit:
     name: Security / npm audit
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
           cache-dependency-path: package-lock.json
-
-      - name: Use repository npm version
-        run: npm install --global npm@10.9.3
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Run security audit (fails on unapproved critical/high)
-        run: npm run audit:ci
+      - run: npm install --global npm@10.9.3
+      - run: npm ci --include=optional --no-audit --no-fund
+      - run: npm run audit:ci
 
   secret-scan:
-    name: Security / Secret Scanning Preflight
+    name: Security / Secret Scan
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+      - run: ./scripts/secret-scanning-preflight.sh --self-test
+      - run: ./scripts/secret-scanning-preflight.sh
 
-      - name: Run secret scanning preflight self-test
-        run: ./scripts/secret-scanning-preflight.sh --self-test
-
-      - name: Run secret scanning preflight
-        run: ./scripts/secret-scanning-preflight.sh
-
-  changes:
-    name: Detect Changed Files
+  apps:
+    name: Apps
+    needs: [audit, secret-scan]
     runs-on: ubuntu-latest
-    outputs:
-      backend: ${{ steps.filter.outputs.backend }}
-      frontend: ${{ steps.filter.outputs.frontend }}
-      contracts: ${{ steps.filter.outputs.contracts }}
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: xconfess
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d xconfess"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      NODE_ENV: test
+      APP_ENV: ci
+      PORT: 5000
+      FRONTEND_URL: http://localhost:3000
+      BACKEND_URL: http://localhost:5000
+      DB_HOST: localhost
+      DB_PORT: 5432
+      DB_USERNAME: postgres
+      DB_PASSWORD: postgres
+      DB_NAME: xconfess
+      TYPEORM_SYNCHRONIZE: true
+      TYPEORM_MIGRATIONS_RUN: false
+      JWT_SECRET: ci-jwt-secret-with-more-than-32-characters
+      APP_SECRET: ci-app-secret-with-more-than-32-characters
+      CONFESSION_ENCRYPTION_KEY: 0000000000000000000000000000000000000000000000000000000000000000
+      ENABLE_BACKGROUND_JOBS: false
+      REDIS_HOST: localhost
+      REDIS_PORT: 6379
+      STELLAR_FEATURES_ENABLED: false
+      BACKEND_API_URL: http://localhost:5000/api
+      NEXT_PUBLIC_API_URL: http://localhost:5000/api
+      NEXT_PUBLIC_WS_URL: ws://localhost:5000
+      NEXT_PUBLIC_APP_URL: http://localhost:3000
+      NEXT_PUBLIC_STELLAR_NETWORK: testnet
+      NEXT_PUBLIC_STELLAR_CONTRACT_ID: CBFR2MDZBQPTNBIJCT32MTDDQLW2AQNDWNO777F3QT6ANYKTHETQZWD3
+      NEXT_PUBLIC_DEV_BYPASS_AUTH: false
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Detect Changes
-        uses: dorny/paths-filter@v3
-        id: filter
-        with:
-          filters: |
-            backend:
-              - 'xconfess-backend/**'
-              - 'package.json'
-              - 'package-lock.json'
-            frontend:
-              - 'xconfess-frontend/**'
-              - 'package.json'
-              - 'package-lock.json'
-            contracts:
-              - 'xconfess-contracts/**'
-
-  backend:
-    name: Backend / build and test
-    needs: [audit, secret-scan, changes]
-    if: needs.changes.outputs.backend == 'true'
-    runs-on: ubuntu-latest
-    timeout-minutes: 25
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: package-lock.json
-
-      - name: Use repository npm version
-        run: npm install --global npm@10.9.3
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Build backend
-        run: npm run build --workspace=xconfess-backend
-
-      - name: Test backend (advisory)
-        run: npm run test --workspace=xconfess-backend
-        continue-on-error: true
-
-  frontend:
-    name: Frontend / build and test
-    needs: [audit, secret-scan, changes]
-    if: needs.changes.outputs.frontend == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
           cache-dependency-path: package-lock.json
+      - run: npm install --global npm@10.9.3
+      - run: npm ci --include=optional --no-audit --no-fund
+      - run: npm run ci:apps
 
-      - name: Use repository npm version
-        run: npm install --global npm@10.9.3
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Typecheck frontend
-        run: npm run frontend:typecheck
-
-      - name: Build frontend
-        run: npm run build --workspace=xconfess-frontend
-
-      - name: Test frontend (advisory)
-        run: npm run test --workspace=xconfess-frontend
-        continue-on-error: true
-
-      - name: Run E2E tests
-        if: ${{ env.SKIP_E2E != 'true' }}
-        run: npx playwright install chromium && npm run test:e2e --workspace=xconfess-frontend
-        continue-on-error: true
+  deploy-preflight:
+    name: Deploy Preflight
+    needs: [audit, secret-scan]
+    runs-on: ubuntu-latest
+    env:
+      NODE_ENV: production
+      JWT_SECRET: ci-deploy-preflight-dummy-jwt-secret-32chars-min
+      APP_SECRET: ci-deploy-preflight-dummy-app-secret-32chars-min
+      CONFESSION_ENCRYPTION_KEY: a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2
+      ENCRYPTION_MASTER_KEY_v1: b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3
+      TYPEORM_SYNCHRONIZE: false
+      TYPEORM_MIGRATIONS_RUN: true
+      STELLAR_FEATURES_ENABLED: true
+      STELLAR_NETWORK: testnet
+      STELLAR_HORIZON_URL: https://horizon-testnet.stellar.org
+      STELLAR_SOROBAN_RPC_URL: https://soroban-testnet.stellar.org
+      CONFESSION_ANCHOR_CONTRACT_ID: CBFR2MDZBQPTNBIJCT32MTDDQLW2AQNDWNO777F3QT6ANYKTHETQZWD3
+      REPUTATION_BADGES_CONTRACT_ID: CBFR2MDZBQPTNBIJCT32MTDDQLW2AQNDWNO777F3QT6ANYKTHETQZWD3
+      TIPPING_SYSTEM_CONTRACT_ID: CBFR2MDZBQPTNBIJCT32MTDDQLW2AQNDWNO777F3QT6ANYKTHETQZWD3
+      BACKEND_API_URL: https://xconfess-backend-preflight.onrender.com
+      NEXT_PUBLIC_API_URL: https://xconfess-backend-preflight.onrender.com/api
+      FRONTEND_URL: https://xconfess-frontend-preflight.onrender.com
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm run deploy:preflight
 
   contracts:
-    name: Contracts / fmt clippy and test
-    needs: [audit, secret-scan, changes]
-    if: needs.changes.outputs.contracts == 'true'
+    name: Contracts
+    needs: [audit, secret-scan]
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: xconfess-contracts
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
           targets: wasm32-unknown-unknown
-
-      - name: Cache Rust dependencies
-        uses: swatinem/rust-cache@v2
+      - uses: swatinem/rust-cache@v2
         with:
           workspaces: xconfess-contracts
           cache-targets: true
-
-      - name: Check formatting
-        run: cargo fmt --all -- --check
-
-      - name: Run clippy
-        run: cargo clippy --workspace --all-targets -- -D warnings
-
-      - name: Test contracts (unit)
-        run: cargo test --workspace
-
-      - name: Test contracts (integration — local sandbox)
-        run: cargo test --test integration -p confession-anchor -- --nocapture
-
-      - name: Upload target directory on failure
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: contract-check-logs
-          path: xconfess-contracts/target/
-          retention-days: 7
+      - run: cargo fmt --all -- --check
+      - run: cargo clippy --workspace --all-targets -- -D warnings
+      - run: cargo test --workspace
+      - name: Check contract ABI drift
+        run: bash scripts/check-abi-drift.sh

@@ -1,9 +1,12 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
+import { getRepositoryToken } from '@nestjs/typeorm';
 import { StellarService } from '../stellar.service';
 import { StellarConfigService } from '../stellar-config.service';
 import { TransactionBuilderService } from '../transaction-builder.service';
 import { AnchorFactory } from '../../../test/utils/factories/anchor-factory';
+import { DeploymentMetadataService } from '../services/deployment-metadata.service';
+import { AnonymousConfession } from '../../confession/entities/confession.entity';
 
 /**
  * Test suite for pending anchor states using seed helpers
@@ -21,6 +24,17 @@ describe('Anchor Pending States Tests', () => {
         StellarService,
         StellarConfigService,
         TransactionBuilderService,
+        {
+          provide: DeploymentMetadataService,
+          useValue: {
+            getMetadata: jest.fn().mockReturnValue(null),
+            getAllContractIds: jest.fn().mockReturnValue({}),
+          },
+        },
+        {
+          provide: getRepositoryToken(AnonymousConfession),
+          useValue: {},
+        },
         {
           provide: ConfigService,
           useValue: {

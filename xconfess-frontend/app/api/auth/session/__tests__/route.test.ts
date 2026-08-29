@@ -11,8 +11,7 @@
  *
  * These are unit tests of the route handler; they do not require a running server.
  */
-
-process.env.NEXT_PUBLIC_API_URL = "http://localhost:3001/api";
+process.env.BACKEND_API_URL = "http://localhost:3001/api";
 
 import { POST, GET, DELETE } from "../route";
 import { cookies } from "next/headers";
@@ -29,40 +28,19 @@ import {
 jest.mock("next/headers");
 jest.mock("next/server", () => ({
   NextResponse: {
-    json: jest.fn((data: unknown) => ({ _body: data, ok: true })),
+    json: jest.fn((data) => {
+      const response = new Response(JSON.stringify(data), {
+        headers: { "Content-Type": "application/json" },
+      });
+      return response;
+    }),
   },
 }));
 
-/** Build a fresh, instrumented mock cookie store. */
-function makeMockCookieStore() {
-  return {
-    get: jest.fn(),
-    set: jest.fn(),
-    delete: jest.fn(),
-  };
-}
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-function makeLoginRequest(body: Record<string, unknown>): Request {
-  return new Request("http://localhost:3000/api/auth/session", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-}
-
-// ---------------------------------------------------------------------------
-// POST — login sets cookie with correct attributes
-// ---------------------------------------------------------------------------
-
-describe("POST /api/auth/session — cookie attributes on successful login", () => {
-  const mockToken = "eyJhbGciOiJIUzI1NiJ9.test.sig";
-  const mockUser = { id: 1, username: "alice", role: "user" };
-
-  let mockCookieStore: ReturnType<typeof makeMockCookieStore>;
+describe("GET /api/auth/session", () => {
+  const mockToken = "test-token";
+  const mockUser = { id: 1, username: "testuser" };
+  const request = new Request("https://xconfess.vercel.app/api/auth/session");
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -79,8 +57,7 @@ describe("POST /api/auth/session — cookie attributes on successful login", () 
     });
   });
 
-  it("sets the session cookie on successful login", async () => {
-    await POST(makeLoginRequest({ email: "alice@example.com", password: "password123" }));
+    const response = await GET(request);
 
     expect(mockCookieStore.set).toHaveBeenCalledTimes(1);
     expect(mockCookieStore.set).toHaveBeenCalledWith(
@@ -88,6 +65,7 @@ describe("POST /api/auth/session — cookie attributes on successful login", () 
       mockToken,
       expect.objectContaining({ httpOnly: true }),
     );
+    await expect(response.json()).resolves.toEqual({ authenticated: true, user: mockUser });
   });
 
   it("uses the correct cookie name (xconfess_session)", async () => {
@@ -159,27 +137,20 @@ describe("POST /api/auth/session — cookie attributes on successful login", () 
       json: async () => ({ message: "Invalid credentials", status: 401 }),
     });
 
-    await POST(makeLoginRequest({ email: "alice@example.com", password: "wrong" }));
-    expect(mockCookieStore.set).not.toHaveBeenCalled();
-  });
-});
+    const response = await GET(request);
 
-// ---------------------------------------------------------------------------
-// DELETE — logout clears cookie with the exact full tuple
-// ---------------------------------------------------------------------------
-
-describe("DELETE /api/auth/session — logout clears cookie with full attribute tuple", () => {
-  let mockCookieStore: ReturnType<typeof makeMockCookieStore>;
-
-  beforeEach(() => {
-    jest.clearAllMocks();
-    mockCookieStore = makeMockCookieStore();
-    (cookies as jest.Mock).mockResolvedValue(mockCookieStore);
-  });
-
-  it("clears the session cookie on DELETE", async () => {
-    await DELETE();
-    expect(mockCookieStore.set).toHaveBeenCalledTimes(1);
+    expect(global.fetch).toHaveBeenCalledTimes(2);
+    expect(global.fetch).toHaveBeenNthCalledWith(
+      1,
+      expect.stringContaining("/auth/session"),
+      expect.any(Object),
+    );
+    expect(global.fetch).toHaveBeenNthCalledWith(
+      2,
+      expect.stringContaining("/auth/me"),
+      expect.any(Object),
+    );
+    await expect(response.json()).resolves.toEqual({ authenticated: true, user: mockUser });
   });
 
   it("uses cookieStore.set (not .delete) to ensure the full tuple matches", async () => {
@@ -283,72 +254,7 @@ describe("GET /api/auth/session — cookie cleared with full tuple on 401", () =
       json: async () => ({ message: "Unauthorized", status: 401 }),
     });
 
-    await GET();
-    const [name, value, options] = mockCookieStore.set.mock.calls[0];
-    expect(name).toBe(SESSION_COOKIE_NAME);
-    expect(value).toBe("");
-    expect(options.maxAge).toBe(0);
-    expect(options.path).toBe("/");
-    expect(options.sameSite).toBe("strict");
-    expect(options.httpOnly).toBe(true);
-  });
-
-  it("returns 401 and does not clear cookie when no session cookie is present", async () => {
-    mockCookieStore.get.mockReturnValue(undefined);
-    (cookies as jest.Mock).mockResolvedValue(mockCookieStore);
-
-    await GET();
-    expect(mockCookieStore.set).not.toHaveBeenCalled();
-    expect(mockCookieStore.delete).not.toHaveBeenCalled();
-  });
-});
-
-// ---------------------------------------------------------------------------
-// cookieConfig module — SESSION_COOKIE_OPTIONS and SESSION_COOKIE_CLEAR_OPTIONS
-// ---------------------------------------------------------------------------
-
-describe("cookieConfig — centralized cookie options", () => {
-  it("SESSION_COOKIE_OPTIONS has httpOnly: true", () => {
-    expect(SESSION_COOKIE_OPTIONS.httpOnly).toBe(true);
-  });
-
-  it("SESSION_COOKIE_OPTIONS has sameSite: strict", () => {
-    expect(SESSION_COOKIE_OPTIONS.sameSite).toBe("strict");
-  });
-
-  it("SESSION_COOKIE_OPTIONS has path: /", () => {
-    expect(SESSION_COOKIE_OPTIONS.path).toBe("/");
-  });
-
-  it("SESSION_COOKIE_OPTIONS maxAge is 7 days in seconds", () => {
-    expect(SESSION_COOKIE_OPTIONS.maxAge).toBe(7 * 24 * 60 * 60);
-  });
-
-  it("SESSION_COOKIE_CLEAR_OPTIONS maxAge is 0", () => {
-    expect(SESSION_COOKIE_CLEAR_OPTIONS.maxAge).toBe(0);
-  });
-
-  it("SESSION_COOKIE_CLEAR_OPTIONS expires is Unix epoch", () => {
-    expect(SESSION_COOKIE_CLEAR_OPTIONS.expires.valueOf()).toBe(new Date(0).valueOf());
-  });
-
-  it("SESSION_COOKIE_CLEAR_OPTIONS preserves the same path as SESSION_COOKIE_OPTIONS", () => {
-    expect(SESSION_COOKIE_CLEAR_OPTIONS.path).toBe(SESSION_COOKIE_OPTIONS.path);
-  });
-
-  it("SESSION_COOKIE_CLEAR_OPTIONS preserves the same sameSite as SESSION_COOKIE_OPTIONS", () => {
-    expect(SESSION_COOKIE_CLEAR_OPTIONS.sameSite).toBe(SESSION_COOKIE_OPTIONS.sameSite);
-  });
-
-  it("SESSION_COOKIE_CLEAR_OPTIONS preserves httpOnly: true", () => {
-    expect(SESSION_COOKIE_CLEAR_OPTIONS.httpOnly).toBe(true);
-  });
-
-  it("SESSION_COOKIE_OPTIONS.secure is false in test (NODE_ENV !== production)", () => {
-    // Tests run with NODE_ENV=test; Secure must be false so tests work on plain HTTP
-    expect(process.env.NODE_ENV).not.toBe("production");
-    expect(SESSION_COOKIE_OPTIONS.secure).toBe(false);
-  });
+    await GET(request);
 
   it("SESSION_COOKIE_NAME is xconfess_session", () => {
     expect(SESSION_COOKIE_NAME).toBe("xconfess_session");

@@ -1,12 +1,12 @@
 import { getApiBaseUrl } from "@/app/lib/config";
 import { createApiErrorResponse } from "@/lib/apiErrorHandler";
 
-const BASE_API_URL = getApiBaseUrl();
 
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const BASE_API_URL = getApiBaseUrl();
   const { id } = await params;
   try {
     const body = await request.json();

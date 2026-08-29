@@ -13,8 +13,11 @@ use model::replay::format_action_trace;
 
 /// Invariant 1: Resolved reports cannot transition to any other state except admin actions.
 /// Accepting criteria: Resolved confessions reject React, Report, and Escalate actions.
-fn check_resolved_terminal(reference: &ModelState, observed: &ObservedMachine) -> Result<(), String> {
-    for (_, conf) in reference.confessions.iter() {
+fn check_resolved_terminal(
+    reference: &ModelState,
+    _observed: &ObservedMachine,
+) -> Result<(), String> {
+    for conf in reference.confessions.values() {
         if conf.resolved {
             // Terminal state: no further mutations except documented admin operations
             if conf.escalated {
@@ -29,8 +32,11 @@ fn check_resolved_terminal(reference: &ModelState, observed: &ObservedMachine) -
 }
 
 /// Invariant 2: Escalated reports cannot be further escalated.
-fn check_escalation_idempotent(reference: &ModelState, _observed: &ObservedMachine) -> Result<(), String> {
-    for (_, conf) in reference.confessions.iter() {
+fn check_escalation_idempotent(
+    reference: &ModelState,
+    _observed: &ObservedMachine,
+) -> Result<(), String> {
+    for conf in reference.confessions.values() {
         if conf.escalated && conf.resolved {
             return Err(format!(
                 "INVARIANT VIOLATION: Confession {} is both escalated and resolved (impossible state)",
@@ -42,8 +48,11 @@ fn check_escalation_idempotent(reference: &ModelState, _observed: &ObservedMachi
 }
 
 /// Invariant 3: Reports without pending issues cannot be resolved or escalated.
-fn check_report_prerequisite(reference: &ModelState, _observed: &ObservedMachine) -> Result<(), String> {
-    for (_, conf) in reference.confessions.iter() {
+fn check_report_prerequisite(
+    reference: &ModelState,
+    _observed: &ObservedMachine,
+) -> Result<(), String> {
+    for conf in reference.confessions.values() {
         if (conf.resolved || conf.escalated) && conf.reported_by.is_empty() {
             return Err(format!(
                 "INVARIANT VIOLATION: Confession {} is resolved/escalated but has no reports (invalid state)",
@@ -55,8 +64,11 @@ fn check_report_prerequisite(reference: &ModelState, _observed: &ObservedMachine
 }
 
 /// Invariant 4: Escalated confessions must have been reported.
-fn check_escalated_has_reports(reference: &ModelState, _observed: &ObservedMachine) -> Result<(), String> {
-    for (_, conf) in reference.confessions.iter() {
+fn check_escalated_has_reports(
+    reference: &ModelState,
+    _observed: &ObservedMachine,
+) -> Result<(), String> {
+    for conf in reference.confessions.values() {
         if conf.escalated && conf.reported_by.is_empty() {
             return Err(format!(
                 "INVARIANT VIOLATION: Confession {} is escalated but has no pending reports",
@@ -68,8 +80,11 @@ fn check_escalated_has_reports(reference: &ModelState, _observed: &ObservedMachi
 }
 
 /// Invariant 5: A resolved confession cannot later be escalated.
-fn check_resolved_immutable_escalate(reference: &ModelState, _observed: &ObservedMachine) -> Result<(), String> {
-    for (_, conf) in reference.confessions.iter() {
+fn check_resolved_immutable_escalate(
+    reference: &ModelState,
+    _observed: &ObservedMachine,
+) -> Result<(), String> {
+    for conf in reference.confessions.values() {
         if conf.resolved && conf.escalated {
             return Err(format!(
                 "INVARIANT VIOLATION: Confession {} is marked both resolved and escalated (violates escalate-from-pending constraint)",
@@ -147,9 +162,25 @@ fn resolved_confession_rejects_further_reports() {
     let mut reference = ModelState::new();
 
     // Setup: create, report, resolve
-    assert_eq!(reference.apply(&Action::Create { actor: 0 }), model::actions::Outcome::Applied);
-    assert_eq!(reference.apply(&Action::Report { actor: 1, confession_id: 1, reason_len: 10 }), model::actions::Outcome::Applied);
-    assert_eq!(reference.apply(&Action::Resolve { admin: 0, confession_id: 1 }), model::actions::Outcome::Applied);
+    assert_eq!(
+        reference.apply(&Action::Create { actor: 0 }),
+        model::actions::Outcome::Applied
+    );
+    assert_eq!(
+        reference.apply(&Action::Report {
+            actor: 1,
+            confession_id: 1,
+            reason_len: 10
+        }),
+        model::actions::Outcome::Applied
+    );
+    assert_eq!(
+        reference.apply(&Action::Resolve {
+            admin: 0,
+            confession_id: 1
+        }),
+        model::actions::Outcome::Applied
+    );
 
     // Attempt to report a resolved confession → must fail
     let result = reference.apply(&Action::Report {
@@ -158,7 +189,10 @@ fn resolved_confession_rejects_further_reports() {
         reason_len: 15,
     });
 
-    assert_eq!(result, model::actions::Outcome::Rejected("already_resolved"));
+    assert_eq!(
+        result,
+        model::actions::Outcome::Rejected("already_resolved")
+    );
 }
 
 #[test]
@@ -166,9 +200,25 @@ fn resolved_confession_rejects_escalation() {
     let mut reference = ModelState::new();
 
     // Setup: create, report, resolve
-    assert_eq!(reference.apply(&Action::Create { actor: 0 }), model::actions::Outcome::Applied);
-    assert_eq!(reference.apply(&Action::Report { actor: 1, confession_id: 1, reason_len: 10 }), model::actions::Outcome::Applied);
-    assert_eq!(reference.apply(&Action::Resolve { admin: 0, confession_id: 1 }), model::actions::Outcome::Applied);
+    assert_eq!(
+        reference.apply(&Action::Create { actor: 0 }),
+        model::actions::Outcome::Applied
+    );
+    assert_eq!(
+        reference.apply(&Action::Report {
+            actor: 1,
+            confession_id: 1,
+            reason_len: 10
+        }),
+        model::actions::Outcome::Applied
+    );
+    assert_eq!(
+        reference.apply(&Action::Resolve {
+            admin: 0,
+            confession_id: 1
+        }),
+        model::actions::Outcome::Applied
+    );
 
     // Attempt to escalate a resolved confession → must fail
     let result = reference.apply(&Action::Escalate {
@@ -176,7 +226,10 @@ fn resolved_confession_rejects_escalation() {
         confession_id: 1,
     });
 
-    assert_eq!(result, model::actions::Outcome::Rejected("cannot_escalate_resolved"));
+    assert_eq!(
+        result,
+        model::actions::Outcome::Rejected("cannot_escalate_resolved")
+    );
 }
 
 #[test]
@@ -184,9 +237,25 @@ fn resolved_confession_rejects_reactions() {
     let mut reference = ModelState::new();
 
     // Setup: create, report, resolve
-    assert_eq!(reference.apply(&Action::Create { actor: 0 }), model::actions::Outcome::Applied);
-    assert_eq!(reference.apply(&Action::Report { actor: 1, confession_id: 1, reason_len: 10 }), model::actions::Outcome::Applied);
-    assert_eq!(reference.apply(&Action::Resolve { admin: 0, confession_id: 1 }), model::actions::Outcome::Applied);
+    assert_eq!(
+        reference.apply(&Action::Create { actor: 0 }),
+        model::actions::Outcome::Applied
+    );
+    assert_eq!(
+        reference.apply(&Action::Report {
+            actor: 1,
+            confession_id: 1,
+            reason_len: 10
+        }),
+        model::actions::Outcome::Applied
+    );
+    assert_eq!(
+        reference.apply(&Action::Resolve {
+            admin: 0,
+            confession_id: 1
+        }),
+        model::actions::Outcome::Applied
+    );
 
     // Attempt to react to a resolved confession → must fail
     let result = reference.apply(&Action::React {
@@ -194,7 +263,10 @@ fn resolved_confession_rejects_reactions() {
         confession_id: 1,
     });
 
-    assert_eq!(result, model::actions::Outcome::Rejected("already_resolved"));
+    assert_eq!(
+        result,
+        model::actions::Outcome::Rejected("already_resolved")
+    );
 }
 
 #[test]
@@ -202,9 +274,25 @@ fn escalated_confession_rejects_further_reports() {
     let mut reference = ModelState::new();
 
     // Setup: create, report, escalate
-    assert_eq!(reference.apply(&Action::Create { actor: 0 }), model::actions::Outcome::Applied);
-    assert_eq!(reference.apply(&Action::Report { actor: 1, confession_id: 1, reason_len: 10 }), model::actions::Outcome::Applied);
-    assert_eq!(reference.apply(&Action::Escalate { admin: 0, confession_id: 1 }), model::actions::Outcome::Applied);
+    assert_eq!(
+        reference.apply(&Action::Create { actor: 0 }),
+        model::actions::Outcome::Applied
+    );
+    assert_eq!(
+        reference.apply(&Action::Report {
+            actor: 1,
+            confession_id: 1,
+            reason_len: 10
+        }),
+        model::actions::Outcome::Applied
+    );
+    assert_eq!(
+        reference.apply(&Action::Escalate {
+            admin: 0,
+            confession_id: 1
+        }),
+        model::actions::Outcome::Applied
+    );
 
     // Attempt to report an escalated confession → must fail
     let result = reference.apply(&Action::Report {
@@ -213,7 +301,10 @@ fn escalated_confession_rejects_further_reports() {
         reason_len: 15,
     });
 
-    assert_eq!(result, model::actions::Outcome::Rejected("escalated_terminal"));
+    assert_eq!(
+        result,
+        model::actions::Outcome::Rejected("escalated_terminal")
+    );
 }
 
 #[test]
@@ -221,9 +312,25 @@ fn escalated_confession_rejects_further_escalation() {
     let mut reference = ModelState::new();
 
     // Setup: create, report, escalate
-    assert_eq!(reference.apply(&Action::Create { actor: 0 }), model::actions::Outcome::Applied);
-    assert_eq!(reference.apply(&Action::Report { actor: 1, confession_id: 1, reason_len: 10 }), model::actions::Outcome::Applied);
-    assert_eq!(reference.apply(&Action::Escalate { admin: 0, confession_id: 1 }), model::actions::Outcome::Applied);
+    assert_eq!(
+        reference.apply(&Action::Create { actor: 0 }),
+        model::actions::Outcome::Applied
+    );
+    assert_eq!(
+        reference.apply(&Action::Report {
+            actor: 1,
+            confession_id: 1,
+            reason_len: 10
+        }),
+        model::actions::Outcome::Applied
+    );
+    assert_eq!(
+        reference.apply(&Action::Escalate {
+            admin: 0,
+            confession_id: 1
+        }),
+        model::actions::Outcome::Applied
+    );
 
     // Attempt to escalate again → must fail
     let result = reference.apply(&Action::Escalate {
@@ -231,7 +338,10 @@ fn escalated_confession_rejects_further_escalation() {
         confession_id: 1,
     });
 
-    assert_eq!(result, model::actions::Outcome::Rejected("already_escalated"));
+    assert_eq!(
+        result,
+        model::actions::Outcome::Rejected("already_escalated")
+    );
 }
 
 #[test]
@@ -239,9 +349,25 @@ fn escalated_confession_rejects_reactions() {
     let mut reference = ModelState::new();
 
     // Setup: create, report, escalate
-    assert_eq!(reference.apply(&Action::Create { actor: 0 }), model::actions::Outcome::Applied);
-    assert_eq!(reference.apply(&Action::Report { actor: 1, confession_id: 1, reason_len: 10 }), model::actions::Outcome::Applied);
-    assert_eq!(reference.apply(&Action::Escalate { admin: 0, confession_id: 1 }), model::actions::Outcome::Applied);
+    assert_eq!(
+        reference.apply(&Action::Create { actor: 0 }),
+        model::actions::Outcome::Applied
+    );
+    assert_eq!(
+        reference.apply(&Action::Report {
+            actor: 1,
+            confession_id: 1,
+            reason_len: 10
+        }),
+        model::actions::Outcome::Applied
+    );
+    assert_eq!(
+        reference.apply(&Action::Escalate {
+            admin: 0,
+            confession_id: 1
+        }),
+        model::actions::Outcome::Applied
+    );
 
     // Attempt to react to an escalated confession → must fail
     let result = reference.apply(&Action::React {
@@ -249,7 +375,10 @@ fn escalated_confession_rejects_reactions() {
         confession_id: 1,
     });
 
-    assert_eq!(result, model::actions::Outcome::Rejected("escalated_terminal"));
+    assert_eq!(
+        result,
+        model::actions::Outcome::Rejected("escalated_terminal")
+    );
 }
 
 #[test]
@@ -257,7 +386,10 @@ fn cannot_escalate_without_pending_report() {
     let mut reference = ModelState::new();
 
     // Setup: create confession but don't report
-    assert_eq!(reference.apply(&Action::Create { actor: 0 }), model::actions::Outcome::Applied);
+    assert_eq!(
+        reference.apply(&Action::Create { actor: 0 }),
+        model::actions::Outcome::Applied
+    );
 
     // Attempt to escalate confession without reports → must fail
     let result = reference.apply(&Action::Escalate {
@@ -265,7 +397,10 @@ fn cannot_escalate_without_pending_report() {
         confession_id: 1,
     });
 
-    assert_eq!(result, model::actions::Outcome::Rejected("no_pending_report_to_escalate"));
+    assert_eq!(
+        result,
+        model::actions::Outcome::Rejected("no_pending_report_to_escalate")
+    );
 }
 
 #[test]
@@ -273,9 +408,25 @@ fn cannot_resolve_escalated_directly() {
     let mut reference = ModelState::new();
 
     // Setup: create, report, escalate
-    assert_eq!(reference.apply(&Action::Create { actor: 0 }), model::actions::Outcome::Applied);
-    assert_eq!(reference.apply(&Action::Report { actor: 1, confession_id: 1, reason_len: 10 }), model::actions::Outcome::Applied);
-    assert_eq!(reference.apply(&Action::Escalate { admin: 0, confession_id: 1 }), model::actions::Outcome::Applied);
+    assert_eq!(
+        reference.apply(&Action::Create { actor: 0 }),
+        model::actions::Outcome::Applied
+    );
+    assert_eq!(
+        reference.apply(&Action::Report {
+            actor: 1,
+            confession_id: 1,
+            reason_len: 10
+        }),
+        model::actions::Outcome::Applied
+    );
+    assert_eq!(
+        reference.apply(&Action::Escalate {
+            admin: 0,
+            confession_id: 1
+        }),
+        model::actions::Outcome::Applied
+    );
 
     // Attempt to resolve an escalated confession → must fail
     let result = reference.apply(&Action::Resolve {
@@ -283,7 +434,10 @@ fn cannot_resolve_escalated_directly() {
         confession_id: 1,
     });
 
-    assert_eq!(result, model::actions::Outcome::Rejected("must_resolve_from_escalated"));
+    assert_eq!(
+        result,
+        model::actions::Outcome::Rejected("must_resolve_from_escalated")
+    );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -359,8 +513,14 @@ fn failing_sequence_includes_reproducible_seed_in_output() {
             msg.contains("seed=20260323"),
             "Failing sequence must include seed in error message"
         );
-        assert!(msg.contains("step="), "Failing sequence must include step number");
-        assert!(msg.contains("trace="), "Failing sequence must include action trace");
+        assert!(
+            msg.contains("step="),
+            "Failing sequence must include step number"
+        );
+        assert!(
+            msg.contains("trace="),
+            "Failing sequence must include action trace"
+        );
     }
 }
 
@@ -518,7 +678,10 @@ fn duplicate_report_from_same_actor_fails() {
         confession_id: 1,
         reason_len: 20,
     });
-    assert_eq!(duplicate, model::actions::Outcome::Rejected("duplicate_report"));
+    assert_eq!(
+        duplicate,
+        model::actions::Outcome::Rejected("duplicate_report")
+    );
 }
 
 #[test]
@@ -541,7 +704,10 @@ fn reason_validation_boundaries() {
         confession_id: 1,
         reason_len: 200, // > 128 max
     });
-    assert_eq!(oversized, model::actions::Outcome::Rejected("reason_too_long"));
+    assert_eq!(
+        oversized,
+        model::actions::Outcome::Rejected("reason_too_long")
+    );
 
     // Valid reason succeeds
     let valid = reference.apply(&Action::Report {

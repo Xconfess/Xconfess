@@ -225,6 +225,39 @@ export class AuditLogService {
     });
   }
 
+/**
+ * Log a moderation item's state transition (pending/flagged/escalated/
+ * resolved/hidden/rejected), including actor, previous/next state, and reason.
+ */
+async logModerationStateTransition(
+  moderationLogId: string,
+  from: string,
+  to: string,
+  actorId: string,
+  reason: string,
+  metadata?: { confessionId?: string; notes?: string },
+  context?: AuditLogContext,
+): Promise<void> {
+  await this.log({
+    actionType: AuditActionType.MODERATION_STATE_TRANSITION,
+    metadata: {
+      entityType: 'moderation_log',
+      entityId: moderationLogId,
+      confessionId: metadata?.confessionId,
+      previousState: from,
+      nextState: to,
+      reason,
+      notes: metadata?.notes,
+      transitionedAt: new Date().toISOString(),
+    },
+    context: {
+      ...context,
+      userId: actorId,
+      actor: this.createActor('admin', actorId),
+    },
+  });
+}
+
   /**
    * Log comment deletion
    */
@@ -1072,6 +1105,31 @@ export class AuditLogService {
         actionTypeCounts: [],
       };
     }
+  }
+
+  async getObservabilityMetrics(startDate?: Date, endDate?: Date) {
+    const [statistics, recentFailures] = await Promise.all([
+      this.getStatistics(startDate, endDate),
+      this.findAll({
+        startDate,
+        endDate,
+        search: 'failed',
+        limit: 10,
+        offset: 0,
+      }),
+    ]);
+
+    return {
+      audit: {
+        totalLogs: statistics.totalLogs,
+        actionTypeCounts: statistics.actionTypeCounts,
+      },
+      failures: {
+        total: recentFailures.total,
+        recent: recentFailures.logs,
+      },
+      generatedAt: new Date().toISOString(),
+    };
   }
 
   async getTemplateRolloutHistory(options: {

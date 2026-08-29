@@ -13,6 +13,10 @@ import { Queue } from 'bullmq';
 import { AppLogger } from '../../logger/logger.service';
 import { ConfigService } from '@nestjs/config';
 import { User } from '../../user/entities/user.entity';
+import {
+  NotificationDeliveryOutcome,
+  NotificationDeliveryState,
+} from '../delivery-state';
 
 interface ChannelPreferences {
   inApp?: boolean;
@@ -39,7 +43,7 @@ export class NotificationService {
     type: string,
     payload: any,
     jobId?: string,
-  ): Promise<void> {
+  ): Promise<NotificationDeliveryOutcome> {
     if (this.configService.get<string>('ENABLE_BACKGROUND_JOBS') !== 'true') {
       const requestId =
         payload?.requestId || payload?.messageId || jobId || 'unknown';
@@ -47,7 +51,17 @@ export class NotificationService {
         `[BackgroundJobDisabled] Enqueue skipped for queue "${NOTIFICATION_QUEUE}": type=${type} requestId=${requestId} jobId=${jobId || 'none'}`,
         'NotificationService',
       );
-      return;
+      this.appLogger.incrementCounter('notification_delivery_skipped_total', 1, {
+        queue: NOTIFICATION_QUEUE,
+        notificationType: type,
+        reason: 'background_jobs_disabled',
+      });
+      return {
+        state: NotificationDeliveryState.SKIPPED,
+        reason: 'background_jobs_disabled',
+        queue: NOTIFICATION_QUEUE,
+        jobId,
+      };
     }
 
     const userId = payload?.userId || payload?.recipientId;
@@ -58,7 +72,17 @@ export class NotificationService {
           `enqueueNotification skipped (email preference disabled): type=${type} userId=${userId}`,
           'NotificationService',
         );
-        return;
+        this.appLogger.incrementCounter('notification_delivery_skipped_total', 1, {
+          queue: NOTIFICATION_QUEUE,
+          notificationType: type,
+          reason: 'email_preference_disabled',
+        });
+        return {
+          state: NotificationDeliveryState.SKIPPED,
+          reason: 'email_preference_disabled',
+          queue: NOTIFICATION_QUEUE,
+          jobId,
+        };
       }
     }
 
@@ -76,6 +100,13 @@ export class NotificationService {
       jobName: 'send-notification',
       notificationType: type,
     });
+
+    return {
+      state: NotificationDeliveryState.QUEUED,
+      queue: NOTIFICATION_QUEUE,
+      jobName: 'send-notification',
+      jobId,
+    };
   }
 
   /**
@@ -162,8 +193,41 @@ export class NotificationService {
       return null;
     }
 
-    const notification = this.notificationRepository.create(dto);
-    await this.notificationRepository.save(notification);
+    const sourceKey = dto.sourceKey ?? this.buildSourceKey(dto);
+    if (sourceKey) {
+      const existing = await this.notificationRepository.findOne({
+        where: { sourceKey },
+      });
+      if (existing) {
+        this.appLogger.incrementCounter('notification_duplicate_suppressed_total', 1, {
+          notificationType: dto.type,
+        });
+        return existing;
+      }
+    }
+
+    const notification = this.notificationRepository.create({
+      ...dto,
+      sourceKey: sourceKey ?? undefined,
+    });
+    try {
+      await this.notificationRepository.save(notification);
+    } catch (error) {
+      if (sourceKey && this.isUniqueViolation(error)) {
+        const existing = await this.notificationRepository.findOne({
+          where: { sourceKey },
+        });
+        if (existing) {
+          this.appLogger.incrementCounter(
+            'notification_duplicate_suppressed_total',
+            1,
+            { notificationType: dto.type },
+          );
+          return existing;
+        }
+      }
+      throw error;
+    }
 
     // Queue for email notification if enabled and background jobs are active
     if (
@@ -186,9 +250,45 @@ export class NotificationService {
         jobName: 'send-notification',
         notificationType: dto.type,
       });
+    } else if (this.configService.get<string>('ENABLE_BACKGROUND_JOBS') !== 'true') {
+      this.appLogger.warn(
+        `[BackgroundJobDisabled] Email enqueue skipped for notification ${notification.id}: type=${dto.type} userId=${dto.userId}`,
+        'NotificationService',
+      );
+      this.appLogger.incrementCounter('notification_delivery_skipped_total', 1, {
+        queue: NOTIFICATION_QUEUE,
+        notificationType: dto.type,
+        reason: 'background_jobs_disabled',
+      });
     }
 
     return notification;
+  }
+
+  private buildSourceKey(dto: CreateNotificationDto): string | null {
+    const metadata = dto.metadata || {};
+    const sourceId =
+      metadata.sourceEventId ||
+      metadata.messageId ||
+      metadata.commentId ||
+      metadata.reactionId;
+
+    if (!sourceId) {
+      return null;
+    }
+
+    return `${dto.userId}:${dto.type}:${String(sourceId)}`;
+  }
+
+  private isUniqueViolation(error: unknown): boolean {
+    if (!error || typeof error !== 'object') {
+      return false;
+    }
+
+    const driverError = (error as { driverError?: { code?: string } })
+      .driverError;
+    const code = (error as { code?: string }).code || driverError?.code;
+    return code === '23505';
   }
 
   async createMessageNotification(

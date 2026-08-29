@@ -28,7 +28,7 @@ interface EBState {
   errorCount: number;
 }
 
-export class ErrorBoundary extends Component<EBProps, EBState> {
+class ErrorBoundary extends Component<EBProps, EBState> {
   state: EBState = { hasError: false, error: null, errorCount: 0 };
 
   static getDerivedStateFromError(error: Error): Partial<EBState> {

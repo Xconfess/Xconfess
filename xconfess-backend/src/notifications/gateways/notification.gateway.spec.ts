@@ -40,7 +40,12 @@ describe('Notification websocket auth regression coverage', () => {
     const notificationService = {
       markAsRead: jest.fn(),
       markAllAsRead: jest.fn(),
-      getUserNotifications: jest.fn(),
+      getUserNotifications: jest.fn().mockResolvedValue({
+        notifications: [],
+        total: 0,
+        unreadCount: 0,
+      }),
+      shouldDeliverRealtime: jest.fn().mockResolvedValue(true),
     };
     const configService = {
       get: jest.fn((_key: string, fallback: unknown) => fallback),
@@ -54,6 +59,7 @@ describe('Notification websocket auth regression coverage', () => {
       gateway: new NotificationGateway(
         notificationService as any,
         configService as any,
+        { verifyAsync: jest.fn() } as any,
         wsLogger as unknown as WebSocketLogger,
       ),
       wsLogger,
@@ -194,6 +200,31 @@ describe('Notification websocket auth regression coverage', () => {
       socketId: 'socket-1',
       userId: 'user-1',
       channel: 'user:user-1',
+    });
+  });
+
+  it('emits unread sync on connection for reconnect-safe notification loading', async () => {
+    const { gateway } = createGateway();
+    const client = createSocket({
+      data: { userId: 'user-1' },
+    });
+    gateway.notificationService.getUserNotifications = jest.fn().mockResolvedValue({
+      notifications: [{ id: 'missed-1' }],
+      total: 1,
+      unreadCount: 1,
+    });
+
+    gateway.handleConnection(client);
+    await Promise.resolve();
+
+    expect(gateway.notificationService.getUserNotifications).toHaveBeenCalledWith(
+      'user-1',
+      { page: 1, limit: 20, unreadOnly: true },
+    );
+    expect(client.emit).toHaveBeenCalledWith('notifications:sync', {
+      notifications: [{ id: 'missed-1' }],
+      unreadCount: 1,
+      timestamp: expect.any(String),
     });
   });
 

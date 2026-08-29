@@ -87,6 +87,17 @@ Object.defineProperty(window, "localStorage", {
   value: localStorageMock,
 });
 
+if (typeof window.HTMLFormElement !== "undefined") {
+  Object.defineProperty(window.HTMLFormElement.prototype, "submit", {
+    configurable: true,
+    value: jest.fn(),
+  });
+  Object.defineProperty(window.HTMLFormElement.prototype, "requestSubmit", {
+    configurable: true,
+    value: jest.fn(),
+  });
+}
+
 // Suppress console errors in tests unless explicitly needed
 const originalError = console.error;
 beforeAll(() => {

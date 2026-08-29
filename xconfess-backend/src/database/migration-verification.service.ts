@@ -25,9 +25,9 @@ export interface SchemaReadinessResult {
 function getMigrationHint(column: string): string {
   switch (column) {
     case 'search_vector':
-      return 'Run: npm run migration:run -- xconfess-backend (add FTS migration)';
+      return 'Run: npm run backend:migration:run (or npm run backend:schema:repair for an existing dev database)';
     case 'view_count':
-      return 'Run: npm run migration:run -- xconfess-backend (add view_count column)';
+      return 'Run: npm run backend:migration:run (or npm run backend:schema:repair for an existing dev database)';
     default:
       return '';
   }
@@ -36,9 +36,9 @@ function getMigrationHint(column: string): string {
 function getIndexHint(index: string): string {
   switch (index) {
     case 'idx_confession_search_vector':
-      return 'Run: CREATE INDEX concurrently idx_confession_search_vector ON anonymous_confessions USING GIN(search_vector);';
+      return 'Run: npm run backend:migration:run — or for a dev database: npm run backend:schema:repair';
     case 'idx_confession_created_at':
-      return 'Run: CREATE INDEX concurrently idx_confession_created_at ON anonymous_confessions(created_at DESC);';
+      return 'Run: npm run backend:migration:run — or for a dev database: npm run backend:schema:repair';
     default:
       return '';
   }
@@ -105,6 +105,67 @@ export class MigrationVerificationService implements OnModuleInit {
         queryError: message,
       };
     }
+  }
+
+  /**
+   * Verify migration files across both migration directories for duplicates
+   * and out-of-order timestamps.
+   */
+  async verifyMigrations(): Promise<string[]> {
+    const issues: string[] = [];
+    const fs = await import('fs');
+    const path = await import('path');
+
+    const dirs = [
+      path.join(process.cwd(), 'migrations'),
+      path.join(process.cwd(), 'src', 'migrations'),
+    ];
+
+    const seenTimestamps = new Map<string, string[]>();
+    const seenNames = new Map<string, string[]>();
+
+    for (const dir of dirs) {
+      if (!fs.existsSync(dir)) continue;
+      const files = fs.readdirSync(dir).filter((f) => f.endsWith('.ts'));
+      for (const file of files) {
+        const timestampMatch = file.match(/^(\d{14})-/);
+        if (!timestampMatch) continue;
+        const timestamp = timestampMatch[1];
+        const fullPath = path.join(dir, file);
+
+        if (!seenTimestamps.has(timestamp)) {
+          seenTimestamps.set(timestamp, []);
+        }
+        seenTimestamps.get(timestamp)!.push(fullPath);
+
+        const nameMatch = file.match(/^\d{14}-(.+)\.ts$/);
+        if (nameMatch) {
+          const name = nameMatch[1];
+          if (!seenNames.has(name)) {
+            seenNames.set(name, []);
+          }
+          seenNames.get(name)!.push(fullPath);
+        }
+      }
+    }
+
+    for (const [timestamp, paths] of seenTimestamps) {
+      if (paths.length > 1) {
+        issues.push(
+          `Duplicate migration timestamp: ${timestamp} found in ${paths.join(', ')}`,
+        );
+      }
+    }
+
+    for (const [name, paths] of seenNames) {
+      if (paths.length > 1) {
+        issues.push(
+          `Duplicate migration name: ${name} found in ${paths.join(', ')}`,
+        );
+      }
+    }
+
+    return issues;
   }
 
   private logStartupOutcome(result: SchemaReadinessResult): void {

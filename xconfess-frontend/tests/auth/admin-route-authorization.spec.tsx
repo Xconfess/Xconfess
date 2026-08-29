@@ -288,7 +288,7 @@ describe("Admin route-level authorization (#1444)", () => {
       process.env.NEXT_PUBLIC_DEV_BYPASS_AUTH = ORIGINAL_BYPASS;
     });
 
-    it("renders admin UI for an unauthenticated user when dev bypass is enabled", () => {
+    it("still requires an admin user when dev bypass is enabled", async () => {
       process.env.NODE_ENV = "development";
       process.env.NEXT_PUBLIC_DEV_BYPASS_AUTH = "true";
 
@@ -299,8 +299,10 @@ describe("Admin route-level authorization (#1444)", () => {
       };
       renderAdminRoute(renderRoutePlaceholder(), "/admin/users");
 
-      expect(screen.getByText("Admin Dashboard")).toBeInTheDocument();
-      expect(mockReplace).not.toHaveBeenCalled();
+      expect(screen.queryByText("Admin Dashboard")).not.toBeInTheDocument();
+      await waitFor(() => {
+        expect(mockReplace).toHaveBeenCalledWith("/dashboard");
+      });
     });
   });
 });

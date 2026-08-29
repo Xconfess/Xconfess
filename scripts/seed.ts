@@ -73,10 +73,10 @@ async function seed() {
 
     if (existingSeedUsers > 0) {
       console.log(
-        `Found ${existingSeedUsers} existing seed users. Database already seeded — skipping.`,
+        `Found ${existingSeedUsers} existing seed users. Database already seeded - skipping.`,
       );
+      printSeedCredentials();
       await queryRunner.rollbackTransaction();
-      await dataSource.destroy();
       return;
     }
 
@@ -156,7 +156,7 @@ async function seed() {
       ]},
       { category: "work", messages: [
         "I automated half my job and nobody knows.",
-        "I lied on my resume about Excel skills — learned on the job.",
+        "I overstated my Excel skills, then learned on the job.",
         "I take extra long coffee breaks when stressed.",
         "My boss takes credit for my work and I let them.",
       ]},
@@ -217,22 +217,32 @@ async function seed() {
     console.log(`Created ${confessionIds.length} confessions.`);
 
     // ── 5. Create Reactions ────────────────────────────────────────────────
-    const emojis = ["❤️", "😂", "😢", "🔥", "👍", "👏", "🤔", "💯"];
+    const emojis = ["heart", "laugh", "sad", "fire", "like", "clap", "think", "same"];
+    const usedReactionPairs = new Set<string>();
     for (let i = 0; i < REACTIONS_COUNT; i++) {
       const reactionId = crypto.randomUUID();
       const confessionId = confessionIds[i % confessionIds.length];
+      const anonUserId = anonUserIds[Math.floor(i / confessionIds.length) % anonUserIds.length];
+      const reactionPair = `${confessionId}:${anonUserId}`;
+
+      if (usedReactionPairs.has(reactionPair)) {
+        continue;
+      }
+      usedReactionPairs.add(reactionPair);
+
       await manager.query(
         `INSERT INTO "reaction" (id, emoji, "confession_id", "anonymous_user_id", created_at)
-         VALUES ($1, $2, $3, $4, NOW())`,
+         VALUES ($1, $2, $3, $4, NOW())
+         ON CONFLICT ("confession_id", "anonymous_user_id") DO NOTHING`,
         [
           reactionId,
           emojis[i % emojis.length],
           confessionId,
-          anonUserIds[Math.floor(Math.random() * anonUserIds.length)],
+          anonUserId,
         ],
       );
     }
-    console.log("Created 50 reactions.");
+    console.log(`Created ${usedReactionPairs.size} reactions.`);
 
     // ── 6. Create Comments ─────────────────────────────────────────────────
     const commentTexts = [
@@ -264,13 +274,13 @@ async function seed() {
         `INSERT INTO "comments" (content, "anonymous_user_id", "confessionId", "createdAt", "isDeleted")
          VALUES ($1, $2, $3, NOW(), false)`,
         [
-          commentTexts[i],
+          commentTexts[i % commentTexts.length],
           anonUserIds[(i + 1) % anonUserIds.length],
           confessionId,
         ],
       );
     }
-    console.log("Created 20 comments.");
+    console.log(`Created ${COMMENTS_COUNT} comments.`);
 
     // ── 7. Create Reports ──────────────────────────────────────────────────
     const reportReasons = [
@@ -281,7 +291,7 @@ async function seed() {
 
     for (let i = 0; i < REPORTS_COUNT; i++) {
       const reportId = crypto.randomUUID();
-      const confessionId = confessionIds[i * 5];
+      const confessionId = confessionIds[(i * 5) % confessionIds.length];
       const reportTypes = ["spam", "harassment", "inappropriate_content"];
       const idempotencyKey = `seed_report_${reportId.substring(0, 8)}`;
 
@@ -298,7 +308,7 @@ async function seed() {
         ],
       );
     }
-    console.log("Created 3 reports.");
+    console.log(`Created ${REPORTS_COUNT} reports.`);
 
     // ── 8. Create Pending Notification ─────────────────────────────────────
     const notifId = crypto.randomUUID();
@@ -318,9 +328,8 @@ async function seed() {
     console.log("Created 1 pending notification.");
 
     await queryRunner.commitTransaction();
-    console.log("\nSeed completed successfully! 🎉");
-    console.log("Login credentials for seed users: password = 'password123'");
-    console.log(`Admin user: ${seedUsers[0].username}`);
+    console.log("\nSeed completed successfully.");
+    printSeedCredentials();
   } catch (error) {
     await queryRunner.rollbackTransaction();
     console.error("Seed failed:", error);
@@ -329,6 +338,16 @@ async function seed() {
     await queryRunner.release();
     await dataSource.destroy();
   }
+}
+
+function printSeedCredentials() {
+  console.log("\nDemo accounts");
+  console.log("Password for all seed users: password123");
+  console.log("Admin: seed_admin@example.com / seed_admin");
+  console.log("User:  seed_alice@example.com / seed_alice");
+  console.log("User:  seed_bob@example.com / seed_bob");
+  console.log("User:  seed_charlie@example.com / seed_charlie");
+  console.log("User:  seed_diana@example.com / seed_diana");
 }
 
 seed();

@@ -1,19 +1,25 @@
 @import "tailwindcss";
 
 :root {
-  --background: #f3efe8;
-  --surface: rgba(255, 252, 247, 0.84);
-  --surface-strong: #fffdf9;
-  --surface-muted: rgba(249, 245, 238, 0.88);
-  --foreground: #1c2430;
-  --secondary: #65707c;
-  --primary: #7b8ea3;
-  --primary-deep: #58697d;
-  --accent-soft: rgba(123, 142, 163, 0.12);
-  --accent-border: rgba(123, 142, 163, 0.24);
-  --border: rgba(74, 86, 101, 0.17);
-  --skeleton: #ddd8d0;
-  --shadow: 0 28px 90px -52px rgba(28, 36, 48, 0.22);
+  --brand-ink: #080706;
+  --brand-violet: #8d6cff;
+  --brand-purple: #6c4fd8;
+  --brand-magenta: #8b2435;
+  --brand-rose: #b68b45;
+  --brand-gradient: linear-gradient(135deg, #12110f 0%, #34243a 45%, #7c2432 100%);
+  --background: #080706;
+  --surface: rgba(18, 17, 16, 0.9);
+  --surface-strong: #151413;
+  --surface-muted: rgba(25, 24, 23, 0.88);
+  --foreground: #f4efe5;
+  --secondary: #a9a095;
+  --primary: #c7a35b;
+  --primary-deep: #dfc17a;
+  --accent-soft: rgba(199, 163, 91, 0.1);
+  --accent-border: rgba(199, 163, 91, 0.28);
+  --border: rgba(244, 239, 229, 0.12);
+  --skeleton: #2b2926;
+  --shadow: 0 28px 90px -48px rgba(0, 0, 0, 0.74);
   --font-sans:
     "Aptos", "Avenir Next", "Segoe UI Variable Text", "Inter", sans-serif;
   --font-display:
@@ -21,19 +27,37 @@
 }
 
 .dark {
-  --background: #121821;
-  --surface: rgba(24, 31, 40, 0.86);
-  --surface-strong: #1b2330;
-  --surface-muted: rgba(29, 38, 49, 0.92);
-  --foreground: #edf2f7;
-  --secondary: #a5b1bf;
-  --primary: #95a8bc;
-  --primary-deep: #71859c;
-  --accent-soft: rgba(149, 168, 188, 0.14);
-  --accent-border: rgba(149, 168, 188, 0.24);
-  --border: rgba(165, 177, 191, 0.13);
-  --skeleton: #33404f;
-  --shadow: 0 32px 100px -55px rgba(0, 0, 0, 0.62);
+  --background: #080706;
+  --surface: rgba(18, 17, 16, 0.9);
+  --surface-strong: #151413;
+  --surface-muted: rgba(25, 24, 23, 0.88);
+  --foreground: #f4efe5;
+  --secondary: #a9a095;
+  --primary: #c7a35b;
+  --primary-deep: #dfc17a;
+  --accent-soft: rgba(199, 163, 91, 0.1);
+  --accent-border: rgba(199, 163, 91, 0.28);
+  --border: rgba(244, 239, 229, 0.12);
+  --skeleton: #2b2926;
+  --shadow: 0 28px 90px -48px rgba(0, 0, 0, 0.74);
+}
+
+.light {
+  --brand-ink: #11100e;
+  --brand-gradient: linear-gradient(135deg, #16130f 0%, #4a2a36 52%, #8a4f24 100%);
+  --background: #f1eee7;
+  --surface: rgba(250, 248, 243, 0.9);
+  --surface-strong: #fffdf8;
+  --surface-muted: rgba(239, 235, 225, 0.9);
+  --foreground: #181512;
+  --secondary: #686158;
+  --primary: #7c2432;
+  --primary-deep: #4f1a24;
+  --accent-soft: rgba(124, 36, 50, 0.09);
+  --accent-border: rgba(124, 36, 50, 0.2);
+  --border: rgba(24, 21, 18, 0.13);
+  --skeleton: #ded7ca;
+  --shadow: 0 28px 90px -52px rgba(24, 21, 18, 0.34);
 }
 
 * {
@@ -62,13 +86,13 @@ body {
   background: var(--background);
   color: var(--foreground);
   background-image:
-    radial-gradient(circle at top, var(--accent-soft), transparent 24%),
-    radial-gradient(circle at 15% 15%, rgba(255, 255, 255, 0.7), transparent 20%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.28), transparent 28%),
-    linear-gradient(135deg, rgba(101, 112, 124, 0.03) 25%, transparent 25%),
-    linear-gradient(225deg, rgba(101, 112, 124, 0.03) 25%, transparent 25%);
-  background-size: auto, auto, auto, 26px 26px, 26px 26px;
-  background-position: center top, left top, center top, 0 0, 13px 13px;
+    linear-gradient(180deg, rgba(255, 255, 255, 0.035), transparent 22%),
+    linear-gradient(135deg, rgba(199, 163, 91, 0.05), transparent 32%),
+    linear-gradient(225deg, rgba(124, 36, 50, 0.08), transparent 34%),
+    linear-gradient(135deg, rgba(244, 239, 229, 0.025) 25%, transparent 25%),
+    linear-gradient(225deg, rgba(244, 239, 229, 0.018) 25%, transparent 25%);
+  background-size: auto, auto, auto, 34px 34px, 34px 34px;
+  background-position: center top, left top, right top, 0 0, 14px 14px;
   font-family: var(--font-sans);
   transition: background-color 0.3s ease, color 0.3s ease;
   text-rendering: optimizeLegibility;
@@ -82,7 +106,7 @@ h5,
 h6,
 .font-editorial {
   font-family: var(--font-display);
-  letter-spacing: -0.03em;
+  letter-spacing: 0;
 }
 
 p,
@@ -94,7 +118,7 @@ textarea {
 }
 
 ::selection {
-  background: rgba(123, 142, 163, 0.24);
+  background: rgba(91, 46, 255, 0.2);
 }
 
 .editorial-shell {
@@ -107,8 +131,8 @@ textarea {
   inset: 0;
   pointer-events: none;
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.32), transparent 18%),
-    radial-gradient(circle at top right, var(--accent-soft), transparent 22%);
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04), transparent 18%),
+    linear-gradient(120deg, transparent 0%, var(--accent-soft) 48%, transparent 100%);
   mask-image: linear-gradient(180deg, black 0%, transparent 100%);
 }
 

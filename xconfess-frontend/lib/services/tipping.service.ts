@@ -28,6 +28,20 @@ const TIP_PRECISION = 7;
 export type NetworkKind = "testnet" | "mainnet" | "unknown";
 export type TipStatus = "pending" | "confirmed" | "failed" | "stale_pending";
 
+/**
+ * Typed verify-response state from the backend (issue #1687).
+ * `verified` and `duplicate` are success outcomes; the rest are typed
+ * errors the UI should message distinctly rather than lumping into one
+ * generic failure.
+ */
+export type TipVerifyState =
+  | "verified"
+  | "duplicate"
+  | "pending"
+  | "stale"
+  | "failed"
+  | "conflict";
+
 export interface TipStats {
   totalAmount: number;
   totalCount: number;
@@ -60,6 +74,10 @@ export interface VerifyTipResult {
   tip?: Tip;
   error?: string;
   isIdempotent?: boolean;
+  /** Typed backend state when present (issue #1687). Older backends that
+   *  don't send this yet fall back to the regex heuristics below. */
+  state?: TipVerifyState;
+  canRetry?: boolean;
 }
 
 // -------------------- Helpers --------------------
@@ -107,14 +125,62 @@ function getResponseMessage(body: unknown): string | undefined {
   return typeof message === "string" ? message : undefined;
 }
 
-function isReplayResponse(status: number, message = ""): boolean {
+/** Typed `state` field from the backend, when present (issue #1687). */
+function getResponseState(body: unknown): TipVerifyState | undefined {
+  if (!body || typeof body !== "object") return undefined;
+  const state = (body as { state?: unknown }).state;
+  const known: TipVerifyState[] = [
+    "verified",
+    "duplicate",
+    "pending",
+    "stale",
+    "failed",
+    "conflict",
+  ];
+  return typeof state === "string" && (known as string[]).includes(state)
+    ? (state as TipVerifyState)
+    : undefined;
+}
+
+function getResponseCanRetry(body: unknown): boolean | undefined {
+  if (!body || typeof body !== "object") return undefined;
+  const canRetry = (body as { canRetry?: unknown }).canRetry;
+  return typeof canRetry === "boolean" ? canRetry : undefined;
+}
+
+/**
+ * Whether a response represents a safe, canonical replay of an
+ * already-settled tip (i.e. a success, not an error).
+ *
+ * Prefers the typed `state` field when the backend sends one; falls back to
+ * message-sniffing for backends that haven't rolled it out yet. The regex
+ * fallback is intentionally kept — do not remove it without confirming the
+ * backend always sends `state`.
+ */
+function isReplayResponse(
+  status: number,
+  message = "",
+  state?: TipVerifyState,
+): boolean {
+  if (state) return state === "verified" || state === "duplicate";
   if (status !== 400 && status !== 409) return false;
   return /already (verified|recorded|processed)|idempotent|duplicate|replay/i.test(
     message,
   );
 }
 
-function shouldPollVerification(status: number, message = ""): boolean {
+function shouldPollVerification(
+  status: number,
+  message = "",
+  state?: TipVerifyState,
+  canRetry?: boolean,
+): boolean {
+  // `pending` and `stale` are typed retryable states — the SLA/reconciliation
+  // worker may resolve them shortly, so keep polling rather than surfacing
+  // a hard failure to the user.
+  if (state === "pending" || state === "stale") return true;
+  if (state === "failed" || state === "conflict") return canRetry === true;
+  if (canRetry === true) return true;
   return (
     status === 404 ||
     status === 408 ||
@@ -132,7 +198,7 @@ function shouldPollVerification(status: number, message = ""): boolean {
 /**
  * Fake status checker — replace with actual backend or Stellar SDK call
  */
-export const checkTransactionStatus = async (): Promise<ActivityStatus> => {
+export const checkTransactionStatus = async (_txHash?: string): Promise<ActivityStatus> => {
   await sleep(2000);
 
   const random = Math.random();
@@ -254,20 +320,26 @@ export async function verifyTip(
       );
       const data = await res.json().catch(() => ({}));
       const message = getResponseMessage(data);
+      const state = getResponseState(data);
+      const canRetry = getResponseCanRetry(data);
 
       // Replaying the same verified transaction is a successful, stable state.
-      if (res.ok || isReplayResponse(res.status, message)) {
+      if (res.ok || isReplayResponse(res.status, message, state)) {
         return {
           success: true,
           tip: (data as { tip?: Tip }).tip,
+          state,
           isIdempotent:
-            isReplayResponse(res.status, message) ||
+            state === "duplicate" ||
+            isReplayResponse(res.status, message, state) ||
             (data as { isIdempotent?: boolean }).isIdempotent,
         };
       }
 
       lastError = message || `Verification failed (${res.status})`;
-      if (!shouldPollVerification(res.status, lastError)) break;
+      if (!shouldPollVerification(res.status, lastError, state, canRetry)) {
+        return { success: false, error: lastError, state, canRetry };
+      }
     } catch (error) {
       lastError = error instanceof Error ? error.message : String(error);
     }

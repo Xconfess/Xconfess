@@ -87,7 +87,11 @@ export const TipButton = ({ confessionId, recipientAddress, initialStats }: TipB
   const walletCTA = getWalletCTAState(wallet, { extraDisabled: isBusy });
 
   useEffect(() => {
-    getTipStats(confessionId).then((s) => { if (s) setStats(s); });
+    Promise.resolve(getTipStats(confessionId))
+      .then((s) => { if (s) setStats(s); })
+      .catch(() => {
+        // Stats are supplemental; tipping should remain usable if they fail.
+      });
   }, [confessionId]);
 
   const refreshStats = async () => {

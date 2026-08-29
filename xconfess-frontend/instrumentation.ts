@@ -1,21 +1,23 @@
 export async function register() {
   if (process.env.NEXT_RUNTIME === "nodejs") {
-    validateEnv();
+    validateEnv({
+      strict: process.env.STRICT_ENV_VALIDATION === "true",
+    });
   }
 }
 
-function validateEnv() {
+function validateEnv({ strict }: { strict: boolean }) {
   const required: Array<{ name: string; description: string }> = [
     {
       name: "BACKEND_API_URL",
-      description: "Server-side base URL for the NestJS backend (e.g. http://localhost:5000)",
+      description: "Server-side base URL for the NestJS API (e.g. http://localhost:5000/api)",
     },
   ];
 
   const optional: Array<{ name: string; description: string }> = [
     {
       name: "NEXT_PUBLIC_API_URL",
-      description: "Client-side base URL for the NestJS backend (same host, public)",
+      description: "Client-side base URL for the NestJS API (same host, public)",
     },
     {
       name: "NEXT_PUBLIC_WS_URL",
@@ -37,10 +39,13 @@ function validateEnv() {
     const lines = missing
       .map(({ name, description }) => `  • ${name} — ${description}`)
       .join("\n");
-    // Throw so the process fails immediately at boot rather than at the first request
-    throw new Error(
-      `Missing required environment variable(s):\n${lines}\n\nSee xconfess-frontend/.env.example for the full list.`
-    );
+    const message = `Missing required environment variable(s):\n${lines}\n\nSee xconfess-frontend/.env.example for the full list.`;
+
+    if (strict) {
+      throw new Error(message);
+    }
+
+    console.error(`[xconfess] ${message}`);
   }
 
   const missingOptional = optional.filter(({ name }) => !process.env[name]);

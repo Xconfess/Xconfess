@@ -5,7 +5,7 @@ import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 
 export interface DependencyStatus {
-  status: 'up' | 'degraded' | 'down';
+  status: 'up' | 'degraded' | 'down' | 'disabled';
   details?: Record<string, any>;
   error?: string;
 }
@@ -58,6 +58,19 @@ export class WebSocketHealthService {
   }
 
   private async checkRedisHealth(): Promise<DependencyStatus> {
+    const jobsEnabled =
+      this.configService.get<string>('ENABLE_BACKGROUND_JOBS') === 'true';
+    if (!jobsEnabled) {
+      return {
+        status: 'disabled',
+        details: {
+          mode: 'disabled',
+          reason:
+            'Redis-backed notification queues are not required while ENABLE_BACKGROUND_JOBS is not "true"',
+        },
+      };
+    }
+
     const redisHost = this.configService.get<string>('REDIS_HOST', 'localhost');
     const redisPort = this.configService.get<number>('REDIS_PORT', 6379);
     const redisPassword = this.configService.get<string>('REDIS_PASSWORD');

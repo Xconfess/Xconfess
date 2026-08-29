@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, LessThanOrEqual } from 'typeorm';
+import { Repository, LessThanOrEqual, DataSource } from 'typeorm';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { AnonymousConfession } from './entities/confession.entity';
 
@@ -11,32 +11,52 @@ export class ConfessionSchedulerService {
   constructor(
     @InjectRepository(AnonymousConfession)
     private confessionRepository: Repository<AnonymousConfession>,
+    private readonly dataSource: DataSource,
   ) {}
 
   @Cron(CronExpression.EVERY_MINUTE)
   async publishScheduledConfessions() {
-    const now = new Date();
+    await this.dataSource.transaction(async (manager) => {
+      const repo = manager.getRepository(AnonymousConfession);
+      const now = new Date();
 
-    const scheduledConfessions = await this.confessionRepository.find({
-      where: {
-        status: 'scheduled',
-        publishAt: LessThanOrEqual(now),
-      },
-    });
+      const scheduledConfessions = await repo
+        .createQueryBuilder('confession')
+        .setLock('pessimistic_write')
+        .where('confession.status = :status', { status: 'scheduled' })
+        .andWhere('confession.publishAt <= :now', { now })
+        .getMany();
 
-    for (const confession of scheduledConfessions) {
-      try {
-        confession.status = 'published';
-        confession.created_at = new Date();
-        await this.confessionRepository.save(confession);
+      for (const confession of scheduledConfessions) {
+        try {
+          const result = await repo
+            .createQueryBuilder()
+            .update(AnonymousConfession)
+            .set({
+              status: 'published',
+              created_at: now,
+            })
+            .where('id = :id', { id: confession.id })
+            .andWhere('status = :status', { status: 'scheduled' })
+            .execute();
 
-        this.logger.log(`Published scheduled confession ${confession.id}`);
-      } catch (error) {
-        this.logger.error(
-          `Failed to publish scheduled confession ${confession.id}: ${error.message}`,
-        );
+          if (result.affected && result.affected > 0) {
+            this.logger.log(
+              `Published scheduled confession id=${confession.id} publishAt=${confession.publishAt?.toISOString()}`,
+            );
+          } else {
+            this.logger.warn(
+              `Skipped already-published confession id=${confession.id} (status no longer 'scheduled')`,
+            );
+          }
+        } catch (error) {
+          this.logger.error(
+            `Failed to publish scheduled confession id=${confession.id}: ${error instanceof Error ? error.message : String(error)}`,
+            error instanceof Error ? error.stack : undefined,
+          );
+        }
       }
-    }
+    });
   }
 
   async scheduleConfession(

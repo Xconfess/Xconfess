@@ -51,11 +51,11 @@ test.describe("Public pages smoke", () => {
     await page.goto("/");
     await expect(
       page.getByRole("heading", {
-        name: /quieter, more luxurious home for anonymous truth/i,
+        name: /say it\. anonymously\./i,
       }),
     ).toBeVisible();
     await expect(
-      page.getByRole("button", { name: "Begin writing" }),
+      page.getByRole("button", { name: "Write confession" }),
     ).toBeVisible();
   });
 

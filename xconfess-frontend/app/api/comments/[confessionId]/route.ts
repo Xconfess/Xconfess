@@ -2,7 +2,6 @@ import { createApiErrorResponse } from "@/lib/apiErrorHandler";
 import { getApiBaseUrl } from "@/app/lib/config";
 import { getOrCreateRequestId } from "@/app/lib/utils/requestId";
 
-const BASE_API_URL = getApiBaseUrl();
 
 async function sha256Hex(input: string): Promise<string> {
   const data = new TextEncoder().encode(input);
@@ -15,6 +14,7 @@ export async function POST(
   request: Request,
   context: { params: Promise<{ confessionId: string }> },
 ) {
+  const BASE_API_URL = getApiBaseUrl();
   let body: Record<string, unknown> = {};
   let content = "";
   let anonymousContextId = "";

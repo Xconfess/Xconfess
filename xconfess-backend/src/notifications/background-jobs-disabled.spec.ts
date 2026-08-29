@@ -4,6 +4,7 @@ import { getQueueToken } from '@nestjs/bullmq';
 import { ServiceUnavailableException } from '@nestjs/common';
 import { NotificationService } from './services/notification.service';
 import { NOTIFICATION_QUEUE } from './processors/notification.processor';
+import { NotificationDeliveryState } from './delivery-state';
 
 describe('Background Jobs Disabled Behavior', () => {
   describe('NotificationService.enqueueNotification', () => {
@@ -44,12 +45,18 @@ describe('Background Jobs Disabled Behavior', () => {
     });
 
     it('should not enqueue when ENABLE_BACKGROUND_JOBS is not true', async () => {
-      await service.enqueueNotification('message_notification', {
+      const outcome = await service.enqueueNotification('message_notification', {
         userId: 'user-1',
         requestId: 'req-abc',
       });
 
       expect(mockQueue.add).not.toHaveBeenCalled();
+      expect(outcome).toEqual({
+        state: NotificationDeliveryState.SKIPPED,
+        reason: 'background_jobs_disabled',
+        queue: NOTIFICATION_QUEUE,
+        jobId: undefined,
+      });
     });
 
     it('should log a structured warning with queue name when jobs are disabled', async () => {
@@ -70,7 +77,7 @@ describe('Background Jobs Disabled Behavior', () => {
       mockConfigService.get.mockReturnValue('true');
       (service as any).shouldDeliverEmail = jest.fn().mockResolvedValue(true);
 
-      await service.enqueueNotification('message_notification', {
+      const outcome = await service.enqueueNotification('message_notification', {
         userId: 'user-1',
       });
 
@@ -79,6 +86,12 @@ describe('Background Jobs Disabled Behavior', () => {
         expect.objectContaining({ type: 'message_notification' }),
         expect.anything(),
       );
+      expect(outcome).toEqual({
+        state: NotificationDeliveryState.QUEUED,
+        queue: NOTIFICATION_QUEUE,
+        jobName: 'send-notification',
+        jobId: undefined,
+      });
     });
   });
 });

@@ -15,9 +15,13 @@ extern crate std;
 use confession_registry::events::{
     emit_confession, emit_reaction, emit_report, emit_role, latest_confession_nonce,
     latest_governance_nonce, latest_reaction_nonce, latest_report_nonce, latest_role_nonce,
-    next_governance_nonce,
+    next_governance_nonce, ConfessionEvent,
 };
-use soroban_sdk::{contract, contractimpl, symbol_short, testutils::Address as _, Address, Env};
+use soroban_sdk::{
+    contract, contractimpl, symbol_short,
+    testutils::{Address as _, Events as _, Ledger},
+    Address, Env, IntoVal, Val, Vec,
+};
 
 /// Minimal contract whose sole purpose is to give tests a stable contract ID
 /// so that storage and event calls can execute within a valid contract context.
@@ -29,6 +33,41 @@ impl NonceTestHarness {}
 
 fn harness_id(env: &Env) -> Address {
     env.register(NonceTestHarness, ())
+}
+
+fn identical_timestamp_ordering() -> std::vec::Vec<(u64, u64)> {
+    let env = Env::default();
+    env.ledger().set_timestamp(1_725_000_000);
+    let id = harness_id(&env);
+    let author = Address::generate(&env);
+
+    env.as_contract(&id, || {
+        for hash in [
+            symbol_short!("first"),
+            symbol_short!("second"),
+            symbol_short!("third"),
+        ] {
+            emit_confession(&env, 42, author.clone(), hash, None);
+        }
+    });
+
+    env.events()
+        .all()
+        .iter()
+        .map(|(_, _, value): (Address, Vec<Val>, Val)| {
+            let event: ConfessionEvent = value.into_val(&env);
+            (event.timestamp, event.nonce)
+        })
+        .collect()
+}
+
+#[test]
+fn identical_timestamps_have_stable_nonce_ordering_across_runs() {
+    let expected = std::vec![(1_725_000_000, 1), (1_725_000_000, 2), (1_725_000_000, 3),];
+
+    for _ in 0..10 {
+        assert_eq!(identical_timestamp_ordering(), expected);
+    }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

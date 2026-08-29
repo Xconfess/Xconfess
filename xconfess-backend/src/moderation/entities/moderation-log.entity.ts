@@ -12,10 +12,10 @@ export class ModerationLog {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column({ name: 'confession_id', nullable: true })
+  @Column({ name: 'confession_id', type: 'varchar', nullable: true })
   confessionId: string;
 
-  @Column({ name: 'user_id', nullable: true })
+  @Column({ name: 'user_id', type: 'varchar', nullable: true })
   userId: string;
 
   @Column('text')
@@ -43,10 +43,10 @@ export class ModerationLog {
   @Column({ default: false })
   reviewed: boolean;
 
-  @Column({ name: 'reviewed_by', nullable: true })
+  @Column({ name: 'reviewed_by', type: 'varchar', nullable: true })
   reviewedBy: string;
 
-  @Column({ name: 'reviewed_at', nullable: true })
+  @Column({ name: 'reviewed_at', type: 'timestamp', nullable: true })
   reviewedAt: Date;
 
   @Column('text', { nullable: true })
@@ -55,7 +55,7 @@ export class ModerationLog {
   @Column({ name: 'auto_actioned', default: false })
   autoActioned: boolean;
 
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   apiProvider: string;
 
   @Column('json', { nullable: true })

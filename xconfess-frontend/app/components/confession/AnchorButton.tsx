@@ -171,7 +171,8 @@ export const AnchorButton: FC<AnchorButtonProps> = ({
             href={explorerUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300"
+            className="flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 rounded"
+            aria-label="View transaction on Stellar explorer (opens in a new tab)"
           >
             View on explorer
             <ExternalLink className="h-3 w-3" aria-hidden="true" />
@@ -182,13 +183,63 @@ export const AnchorButton: FC<AnchorButtonProps> = ({
     );
   }
 
+  if (status === "failed") {
+    return (
+      <div
+        className={cn("stellar-anchor-action flex items-center gap-2", className)}
+        role="status"
+        aria-live="polite"
+      >
+        <AlertCircle className="h-4 w-4 text-red-400" aria-hidden="true" />
+        <span className="text-xs text-red-400">{error || "Anchoring failed"}</span>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleAnchor}
+          className="flex items-center gap-1"
+        >
+          <RotateCcw className="h-3 w-3" />
+          Retry
+        </Button>
+      </div>
+    );
+  }
+
   if (walletCTA.status === "not-installed") {
     return (
-      <div className={cn("stellar-wallet-cta stellar-anchor-action flex flex-col gap-1.5", className)}>
+      <div
+        className={cn("stellar-wallet-cta stellar-anchor-action flex flex-col gap-1.5", className)}
+        role="region"
+        aria-label="Wallet installation warning"
+      >
         <div className="flex items-center gap-2 rounded-md border border-yellow-500/30 bg-yellow-500/10 px-2.5 py-1.5">
-          <AlertCircle className="h-3.5 w-3.5 flex-shrink-0 text-yellow-500" />
+          <AlertCircle className="h-3.5 w-3.5 flex-shrink-0 text-yellow-500" aria-hidden="true" />
           <span className="text-xs text-yellow-400">{walletCTA.guidance}</span>
         </div>
+      </div>
+    );
+  }
+
+  if (status === "failed") {
+    return (
+      <div
+        className={cn("stellar-anchor-action flex items-center gap-2", className)}
+        role="status"
+        aria-live="polite"
+      >
+        <AlertCircle className="h-4 w-4 text-red-400" aria-hidden="true" />
+        <span className="text-xs text-red-400">{error || "Anchoring failed"}</span>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleAnchor}
+          className="gap-1.5 rounded-full px-3 py-1 text-xs h-auto"
+          aria-label="Retry anchoring confession"
+        >
+          <RotateCcw className="h-3 w-3" />
+          Retry
+        </Button>
+        <span className="sr-only">{liveMessage}</span>
       </div>
     );
   }
@@ -213,10 +264,11 @@ export const AnchorButton: FC<AnchorButtonProps> = ({
             size="sm"
             onClick={handleAnchor}
             disabled={isPending || walletCTA.disabled}
-            className="h-7 w-fit px-2 text-xs border-red-500/40 text-red-300 hover:bg-red-500/10"
+            aria-busy={isPending}
+            className="h-7 w-fit px-2 text-xs border-red-500/40 text-red-300 hover:bg-red-500/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
           >
-            <RotateCcw className="mr-1 h-3 w-3" />
-            Retry
+            <RotateCcw className="mr-1 h-3 w-3" aria-hidden="true" />
+            Retry Anchoring
           </Button>
         </div>
       ) : (
@@ -227,9 +279,9 @@ export const AnchorButton: FC<AnchorButtonProps> = ({
           disabled={isPending || walletCTA.disabled}
           aria-busy={isPending}
           className={cn(
-            "h-7 px-2 text-xs",
+            "h-7 px-2 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500",
             walletCTA.status === "not-connected" &&
-              "stellar-wallet-cta border-blue-500/40 text-blue-400 hover:bg-blue-500/10 hover:text-blue-300",
+            "stellar-wallet-cta border-blue-500/40 text-blue-400 hover:bg-blue-500/10 hover:text-blue-300",
           )}
         >
           {isPending || (isLoading && isConnected) ? (
@@ -256,7 +308,9 @@ export const AnchorButton: FC<AnchorButtonProps> = ({
       )}
 
       {walletCTA.status === "not-ready" && status !== "failed" && (
-        <div className="text-xs text-orange-400">{walletCTA.guidance}</div>
+        <div className="text-xs text-orange-400" role="status" aria-live="polite">
+          {walletCTA.guidance}
+        </div>
       )}
     </div>
   );

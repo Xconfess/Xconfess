@@ -92,6 +92,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         isAuthenticated: true,
         isLoading: false,
         error: null,
+        isSessionExpired: false,
       });
       return;
     }
@@ -124,6 +125,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
           isAuthenticated: false,
           isLoading: false,
           error: null, // Don't show error for initial check
+          isSessionExpired: false,
         });
       }
     } finally {

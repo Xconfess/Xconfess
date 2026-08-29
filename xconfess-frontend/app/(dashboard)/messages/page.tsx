@@ -140,9 +140,7 @@ function MobileThreadList({
                 <button
                   key={`${thread.confessionId}-${thread.senderId}`}
                   onClick={() => onSelect(thread)}
-                  className={`w-full p-4 text-left hover:bg-gray-50 dark:hover:bg-gray-900 transition-colors flex flex-col gap-1 ${
-                    selectedThread?.confessionId === thread.confessionId && selectedThread?.senderId === thread.senderId ? 'bg-purple-50 dark:bg-purple-900/20' : ''
-                  }`}
+                  className="w-full p-4 text-left hover:bg-gray-50 dark:hover:bg-gray-900 transition-colors flex flex-col gap-1"
                 >
                   <div className="flex justify-between items-start">
                     <span className="text-xs font-semibold text-purple-600 dark:text-purple-400 uppercase tracking-wider">

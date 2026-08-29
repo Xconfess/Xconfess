@@ -218,13 +218,7 @@ pub const PUBLIC_EVENT_SCHEMA_FIXTURES: &[EventSchemaFixture] = &[
         topic: "gov_inv",
         data_format: "single-value",
         event_version: EVENT_VERSION_V1,
-        field_order: &[
-            "nonce",
-            "timestamp",
-            "operation",
-            "reason",
-            "attempted_by",
-        ],
+        field_order: &["nonce", "timestamp", "operation", "reason", "attempted_by"],
     },
     EventSchemaFixture {
         fixture_version: EVENT_FIXTURE_VERSION_V1,
@@ -767,5 +761,26 @@ mod tests {
             ),
             Ok(())
         );
+    }
+
+    #[test]
+    fn public_event_metadata_matches_documented_abi() {
+        let abi_docs = include_str!("../../docs/contract-abi-reference.md");
+
+        for fixture in PUBLIC_EVENT_SCHEMA_FIXTURES {
+            assert!(
+                abi_docs.contains(fixture.event_name),
+                "{} is missing from the ABI reference",
+                fixture.event_name
+            );
+            for field in fixture.field_order {
+                assert!(
+                    abi_docs.contains(field),
+                    "{} field {} is missing from the ABI reference",
+                    fixture.event_name,
+                    field
+                );
+            }
+        }
     }
 }

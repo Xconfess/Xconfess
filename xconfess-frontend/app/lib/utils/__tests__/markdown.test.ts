@@ -19,13 +19,13 @@ describe("markdown utilities", () => {
   describe("insertBold", () => {
     it("should insert bold markdown around selected text", () => {
       const textarea = createMockTextarea("Hello world", 6, 11);
-      insertBold(textarea);
+      textarea.value = insertBold(textarea).newText;
       expect(textarea.value).toBe("Hello **world**");
     });
 
     it("should insert bold markdown at cursor when no selection", () => {
       const textarea = createMockTextarea("Hello world", 6, 6);
-      insertBold(textarea);
+      textarea.value = insertBold(textarea).newText;
       expect(textarea.value).toBe("Hello ****world");
     });
   });
@@ -33,7 +33,7 @@ describe("markdown utilities", () => {
   describe("insertItalic", () => {
     it("should insert italic markdown around selected text", () => {
       const textarea = createMockTextarea("Hello world", 6, 11);
-      insertItalic(textarea);
+      textarea.value = insertItalic(textarea).newText;
       expect(textarea.value).toBe("Hello *world*");
     });
   });
@@ -41,13 +41,13 @@ describe("markdown utilities", () => {
   describe("insertLink", () => {
     it("should insert link markdown with selected text", () => {
       const textarea = createMockTextarea("Hello world", 6, 11);
-      insertLink(textarea);
+      textarea.value = insertLink(textarea).newText;
       expect(textarea.value).toBe("Hello [world](https://)");
     });
 
     it("should use default text when no selection", () => {
       const textarea = createMockTextarea("Hello world", 6, 6);
-      insertLink(textarea);
+      textarea.value = insertLink(textarea).newText;
       expect(textarea.value).toBe("Hello [link text](https://)world");
     });
   });
@@ -55,7 +55,7 @@ describe("markdown utilities", () => {
   describe("insertEmoji", () => {
     it("should insert emoji at cursor position", () => {
       const textarea = createMockTextarea("Hello world", 6, 6);
-      insertEmoji(textarea, "😀");
+      textarea.value = insertEmoji(textarea, "😀").newText;
       expect(textarea.value).toBe("Hello 😀world");
     });
   });

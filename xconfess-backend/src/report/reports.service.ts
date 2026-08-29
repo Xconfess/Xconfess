@@ -16,6 +16,7 @@ import { PaginatedReportsResponseDto } from './dto/get-reports-response.dto';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { User, UserRole } from '../user/entities/user.entity';
 import { AnonymousUser } from '../user/entities/anonymous-user.entity';
+import { assertCanUseAnonymousIdentity } from '../common/security/anonymous-identity-ownership';
 import { RequestUser } from '../auth/interfaces/jwt-payload.interface';
 import {
   OutboxEvent,
@@ -41,6 +42,8 @@ export class ReportsService {
     private readonly reportRepository: Repository<Report>,
     @InjectRepository(AnonymousConfession)
     private readonly confessionRepository: Repository<AnonymousConfession>,
+    @InjectRepository(AnonymousUser)
+    private readonly anonymousUserRepository: Repository<AnonymousUser>,
     @InjectRepository(OutboxEvent)
     private readonly outboxRepository: Repository<OutboxEvent>,
     private readonly auditLogService: AuditLogService,
@@ -57,6 +60,20 @@ export class ReportsService {
     },
     idempotencyKey?: string,
   ): Promise<Report> {
+    if (reporterId === null && !context?.anonymousUserId) {
+      throw new BadRequestException(
+        'Anonymous reports require a valid anonymous identity',
+      );
+    }
+
+    if (reporterId === null && context?.anonymousUserId) {
+      const anonymousReporter = await this.anonymousUserRepository.findOne({
+        where: { id: context.anonymousUserId },
+        relations: ['userLinks'],
+      });
+      assertCanUseAnonymousIdentity(anonymousReporter);
+    }
+
     // ── Idempotency replay ────────────────────────────────────────────────────
     // Only attempt lookup when a key was supplied AND we have a stable user ID.
     if (idempotencyKey && reporterId !== null) {
@@ -106,11 +123,6 @@ export class ReportsService {
         qb.andWhere('report.anonymousReporterId = :anonymousReporterId', {
           anonymousReporterId: context.anonymousUserId,
         });
-      } else {
-        // Issue #1012: Anonymous reports MUST have an identity to enforce rate limits/deduplication
-        throw new BadRequestException(
-          'Anonymous reports require a valid anonymous identity',
-        );
       }
 
       const existingReport = await qb.getOne();

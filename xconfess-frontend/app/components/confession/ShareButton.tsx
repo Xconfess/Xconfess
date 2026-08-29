@@ -115,7 +115,7 @@ export function ShareButton({
                 )}
                 {copied ? "Copied!" : "Copy link"}
               </button>
-              {typeof navigator !== "undefined" && navigator.share && (
+              {typeof navigator !== "undefined" && "share" in navigator && (
                 <button
                   type="button"
                   onClick={shareNative}

@@ -25,6 +25,10 @@ export class CreateNotificationDto {
 
   @IsOptional()
   metadata?: any;
+
+  @IsOptional()
+  @IsString()
+  sourceKey?: string;
 }
 
 export class UpdateNotificationPreferenceDto {

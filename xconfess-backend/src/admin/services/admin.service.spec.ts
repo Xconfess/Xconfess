@@ -400,6 +400,7 @@ describe("AdminService", () => {
       10,
       "moderator" as any,
       1,
+      undefined,
       {} as any,
     );
 
@@ -409,7 +410,13 @@ describe("AdminService", () => {
       AuditActionType.MODERATION_OVERRIDE,
       "user",
       "10",
-      { previousRole: "user", role: "moderator" },
+      expect.objectContaining({
+        previousRole: "user",
+        newRole: "moderator",
+        targetUserId: 10,
+        actorId: 1,
+        reason: null,
+      }),
       "Role changed from user to moderator",
       expect.anything(),
       expect.anything(),

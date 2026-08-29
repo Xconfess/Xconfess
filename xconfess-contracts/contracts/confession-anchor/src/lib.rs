@@ -1,7 +1,7 @@
 #![no_std]
 #![allow(dead_code)]
 
-mod errors;
+pub mod errors;
 mod events;
 
 use soroban_sdk::{

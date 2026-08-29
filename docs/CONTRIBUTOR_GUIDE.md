@@ -1,20 +1,15 @@
-# GrantFox Contributor Guide
+# Contributor Guide
 
-This guide is the starting point for external contributors working on xConfess
-GrantFox campaign issues. It ties together local setup, issue selection, branch
-names, pull request linking, and validation commands.
+This guide is the starting point for external contributors working on xConfess.
+It ties together local setup, issue selection, branch names, pull request
+linking, validation commands, and review handoff.
 
-## Campaign Labels
+## Choosing Work
 
-GrantFox campaign issues should include these labels:
-
-- `Official Campaign`
-- `GrantFox OSS`
-- `Maybe Rewarded`
-
-Before starting work, choose an open issue with the campaign labels, check that
-it is not already assigned, and look for an existing pull request that mentions
-the same issue number or title.
+Before starting work, choose an open issue, check that it is not already
+assigned, and look for an existing pull request that mentions the same issue
+number or title. If the issue is unclear or broad, ask a maintainer to confirm
+scope before opening a large PR.
 
 ## Local Setup
 
@@ -80,7 +75,7 @@ Default local URLs:
 Use a small, issue-focused branch name:
 
 ```bash
-git checkout -b docs/grantfox-contributor-guide
+git checkout -b docs/contributor-guide
 git checkout -b fix/comment-search-proxy
 git checkout -b test/wave-demo-journey-smoke
 ```
@@ -118,6 +113,62 @@ If a full check cannot run locally because a dependency, Docker service, or
 platform tool is unavailable, document the failed command and the exact blocker
 in the pull request body.
 
+## Database Migrations
+
+xConfess uses TypeORM migrations to manage the Postgres schema. There are two
+migration directories:
+
+- `xconfess-backend/migrations/` — historical and feature migrations.
+- `xconfess-backend/src/migrations/` — newer in-source migrations.
+
+Both directories are loaded by the TypeORM CLI and the app at startup.
+
+### Show pending migrations
+
+```bash
+npm run backend:migration:show
+```
+
+This prints the list of all migrations and which ones have already run in the
+connected database. Check that it completes without TypeORM class-name errors
+before opening a migration-related PR.
+
+### Run pending migrations (clean database)
+
+For a fresh Postgres database — for example, a new Docker container — run all
+pending migrations in order:
+
+```bash
+npm run backend:migration:run
+```
+
+This is the standard path for CI, staging, and production deployments.
+
+### Repair a local synchronized database
+
+If your local database was bootstrapped with TypeORM `synchronize: true` (the
+old default for dev), the schema may be missing columns or indexes that
+migrations add. **Use the repair command instead of blowing away your database:**
+
+```bash
+npm run backend:schema:repair
+```
+
+This script is idempotent and data-safe. It adds any missing
+`anonymous_confessions` columns and indexes and backfills `search_vector` for
+existing rows. It must only be used locally — never in staging or production.
+
+### Verify schema readiness
+
+After either path, confirm the readiness probe returns 200:
+
+```
+GET http://localhost:5000/api/health/ready
+```
+
+If the schema check is still failing, the response body includes `missingColumns`,
+`missingIndexes`, and a `hint` with the exact command to run.
+
 ## Pull Request Checklist
 
 Your pull request should include:
@@ -126,17 +177,17 @@ Your pull request should include:
 - The validation commands you ran and their results.
 - Screenshots for visible UI changes.
 - Any known limitations or follow-up work.
-- A closing keyword that links the GrantFox issue.
+- A closing keyword that links the issue.
 
-Use this format in the pull request body so GrantFox and GitHub can connect the
-work to the issue:
+Use this format in the pull request body so GitHub can connect the work to the
+issue:
 
 ```md
 Closes #1118
 ```
 
 Replace `1118` with the actual issue number you are solving. Do not omit the
-closing keyword on GrantFox campaign PRs.
+closing keyword when the PR resolves an issue.
 
 ## Review Handoff
 

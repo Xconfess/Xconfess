@@ -7,6 +7,7 @@ import { ReportsController } from './reports.controller';
 import { Report } from '../admin/entities/report.entity';
 import { AnonymousConfession } from '../confession/entities/confession.entity';
 import { OutboxEvent } from '../common/entities/outbox-event.entity';
+import { AnonymousUser } from '../user/entities/anonymous-user.entity';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { AuditLogModule } from '../audit-log/audit-log.module';
 import { AuthModule } from '../auth/auth.module';
@@ -29,6 +30,7 @@ async function compileReportTestingModule() {
         provide: getRepositoryToken(AnonymousConfession),
         useValue: mockRepository(),
       },
+      { provide: getRepositoryToken(AnonymousUser), useValue: mockRepository() },
       { provide: getRepositoryToken(OutboxEvent), useValue: mockRepository() },
       {
         provide: AuditLogService,
@@ -76,6 +78,7 @@ describe('ReportModule', () => {
       providers: [
         ReportsService,
         { provide: getRepositoryToken(Report), useValue: mockRepository() },
+        { provide: getRepositoryToken(AnonymousUser), useValue: mockRepository() },
         { provide: getRepositoryToken(OutboxEvent), useValue: mockRepository() },
         { provide: AuditLogService, useValue: {} },
       ],
@@ -104,6 +107,7 @@ describe('ReportModule', () => {
       expect.arrayContaining([
         getRepositoryToken(Report),
         getRepositoryToken(AnonymousConfession),
+        getRepositoryToken(AnonymousUser),
         getRepositoryToken(OutboxEvent),
       ]),
     );

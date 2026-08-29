@@ -195,7 +195,7 @@ describe('ReportDetail — resolve flow', () => {
     await user.click(screen.getByRole('button', { name: /^resolve$/i }));
 
     await waitFor(() => expect(onActionSuccess).toHaveBeenCalledTimes(1));
-    expect(mockToast.success).toHaveBeenCalledWith('Report resolved.');
+    expect(mockToast.success).toHaveBeenCalledWith('Report resolved.', undefined);
   });
 
   it('shows an error toast and does not call onActionSuccess when resolve fails', async () => {
@@ -207,7 +207,7 @@ describe('ReportDetail — resolve flow', () => {
     await user.click(screen.getByRole('button', { name: /resolve report/i }));
     await user.click(screen.getByRole('button', { name: /^resolve$/i }));
 
-    await waitFor(() => expect(mockToast.error).toHaveBeenCalledWith('Failed to resolve report'));
+    await waitFor(() => expect(mockToast.error).toHaveBeenCalledWith('Failed to resolve report', undefined));
     expect(onActionSuccess).not.toHaveBeenCalled();
   });
 
@@ -268,7 +268,7 @@ describe('ReportDetail — dismiss flow', () => {
     await user.click(screen.getByRole('button', { name: /^dismiss$/i }));
 
     await waitFor(() => expect(onActionSuccess).toHaveBeenCalledTimes(1));
-    expect(mockToast.success).toHaveBeenCalledWith('Report dismissed.');
+    expect(mockToast.success).toHaveBeenCalledWith('Report dismissed.', undefined);
   });
 
   it('shows an error toast and does not call onActionSuccess when dismiss fails', async () => {
@@ -280,7 +280,7 @@ describe('ReportDetail — dismiss flow', () => {
     await user.click(screen.getByRole('button', { name: /dismiss report/i }));
     await user.click(screen.getByRole('button', { name: /^dismiss$/i }));
 
-    await waitFor(() => expect(mockToast.error).toHaveBeenCalledWith('Failed to dismiss report'));
+    await waitFor(() => expect(mockToast.error).toHaveBeenCalledWith('Failed to dismiss report', undefined));
     expect(onActionSuccess).not.toHaveBeenCalled();
   });
 

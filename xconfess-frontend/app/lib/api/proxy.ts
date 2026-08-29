@@ -1,10 +1,58 @@
 import 'server-only';
 
+import { getApiBaseUrl } from '@/app/lib/config';
+import { getOrCreateRequestId } from '@/app/lib/utils/requestId';
+
 export interface ProxyRequestOptions extends RequestInit {
   timeout?: number;
 }
 
 const DEFAULT_TIMEOUT = 30000;
+
+export interface BackendRoute {
+  url: string;
+  requestId: string;
+}
+
+export function resolveBackendRoute(
+  request: Request,
+  endpoint: string,
+): BackendRoute {
+  const requestId = getOrCreateRequestId(request);
+  const baseApiUrl = getApiBaseUrl();
+  const requestUrl = new URL(request.url);
+  const backendApiUrl = new URL(baseApiUrl);
+
+  if (backendApiUrl.host === requestUrl.host) {
+    throw Object.assign(
+      new Error(
+        'Server misconfiguration: BACKEND_API_URL points to the frontend instead of the Render backend.',
+      ),
+      { code: 'BACKEND_API_URL_SELF_REFERENCE', status: 503, requestId },
+    );
+  }
+
+  const normalizedEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+  return {
+    url: `${baseApiUrl}${normalizedEndpoint}`,
+    requestId,
+  };
+}
+
+export function methodNotAllowed(method: string, allowed: string[]): Response {
+  return Response.json(
+    {
+      code: 'METHOD_NOT_ALLOWED',
+      message: `Method ${method} is not allowed. Use ${allowed.join(', ')}.`,
+    },
+    {
+      status: 405,
+      headers: {
+        Allow: allowed.join(', '),
+      },
+    },
+  );
+}
 
 export async function proxyRequest<T = unknown>(
   targetUrl: string,

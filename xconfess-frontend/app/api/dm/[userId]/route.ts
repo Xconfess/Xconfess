@@ -1,13 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getApiBaseUrl } from '@/app/lib/config';
 
-const BACKEND_URL = process.env.BACKEND_URL ?? 'http://localhost:3001';
+type RouteContext = { params: Promise<{ userId: string }> };
 
 /** GET /api/dm/[userId]/inbox — proxy with IDOR check at the proxy layer */
 export async function GET(
   req: NextRequest,
-  { params }: { params: { userId: string } },
+  { params }: RouteContext,
 ) {
-  const { userId } = params;
+  const BACKEND_URL = getApiBaseUrl();
+  const { userId } = await params;
 
   const sessionUserId = getSessionUserId(req);
   if (!sessionUserId) {
@@ -28,9 +30,10 @@ export async function GET(
 /** DELETE /api/dm/[userId]/thread/[threadId] */
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: { userId: string } },
+  { params }: RouteContext,
 ) {
-  const { userId } = params;
+  const BACKEND_URL = getApiBaseUrl();
+  const { userId } = await params;
   const threadId = req.nextUrl.searchParams.get('threadId');
 
   const sessionUserId = getSessionUserId(req);

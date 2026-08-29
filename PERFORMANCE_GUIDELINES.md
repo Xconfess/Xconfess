@@ -2,7 +2,7 @@
 
 ## Quick Reference
 
-This guide provides best practices for maintaining the performance improvements achieved in Issue #137.
+This guide provides best practices for maintaining the performance improvements achieved in Issue #137..
 
 ## Backend Guidelines
 

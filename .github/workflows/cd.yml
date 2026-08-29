@@ -77,6 +77,7 @@ jobs:
           [[ -z "${{ secrets.DEPLOY_USER }}" ]] && missing+=("DEPLOY_USER")
           [[ -z "${{ secrets.DEPLOY_SSH_KEY }}" ]] && missing+=("DEPLOY_SSH_KEY")
           [[ -z "${{ secrets.BACKEND_ENV_FILE }}" ]] && missing+=("BACKEND_ENV_FILE")
+          [[ -z "${{ secrets.BACKEND_API_URL }}" ]] && missing+=("BACKEND_API_URL")
           [[ -z "${{ secrets.NEXT_PUBLIC_API_URL }}" ]] && missing+=("NEXT_PUBLIC_API_URL")
 
           if [[ ${#missing[@]} -gt 0 ]]; then
@@ -112,7 +113,7 @@ jobs:
 
       - name: Build frontend
         env:
-          BACKEND_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL }}
+          BACKEND_API_URL: ${{ secrets.BACKEND_API_URL }}
           NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL }}
         run: npm run build --workspace=xconfess-frontend
 
@@ -177,7 +178,7 @@ jobs:
       - name: Write frontend environment file
         run: |
           cat > xconfess-frontend/.env.production <<EOF
-          BACKEND_API_URL=${{ secrets.NEXT_PUBLIC_API_URL }}
+          BACKEND_API_URL=${{ secrets.BACKEND_API_URL }}
           NEXT_PUBLIC_API_URL=${{ secrets.NEXT_PUBLIC_API_URL }}
           EOF
 
@@ -189,15 +190,7 @@ jobs:
             xconfess-backend/ \
             "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:~/xconfess/backend/"
 
-      - name: Sync frontend to server
-        run: |
-          rsync -az --delete \
-            --exclude='.git' \
-            --exclude='node_modules' \
-            xconfess-frontend/ \
-            "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:~/xconfess/frontend/"
-
-      - name: Install dependencies and restart services on server
+      - name: Install backend dependencies and restart backend
         run: |
           ssh "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}" bash -s <<'REMOTE'
             set -euo pipefail
@@ -210,6 +203,36 @@ jobs:
             else
               echo "::warning::pm2 not found - restart backend manually."
             fi
+          REMOTE
+
+      - name: Verify backend health
+        run: |
+          echo "Waiting for backend to become ready..."
+          for i in $(seq 1 12); do
+            status=$(ssh "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}" \
+              "curl -sf http://localhost:5000/api/health/ready || echo 'not-ready'")
+            if [[ "$status" != "not-ready" ]]; then
+              echo "Backend is healthy."
+              exit 0
+            fi
+            echo "Attempt $i/12 - not ready yet, waiting 5s..."
+            sleep 5
+          done
+          echo "::error::Backend health check failed after 60 s. Frontend deployment was not started."
+          exit 1
+
+      - name: Sync frontend to server
+        run: |
+          rsync -az --delete \
+            --exclude='.git' \
+            --exclude='node_modules' \
+            xconfess-frontend/ \
+            "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:~/xconfess/frontend/"
+
+      - name: Install frontend dependencies and restart frontend
+        run: |
+          ssh "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}" bash -s <<'REMOTE'
+            set -euo pipefail
 
             cd ~/xconfess/frontend
             npm ci --omit=dev
@@ -219,22 +242,6 @@ jobs:
               echo "::warning::pm2 not found - restart frontend manually."
             fi
           REMOTE
-
-      - name: Verify backend health
-        run: |
-          echo "Waiting for backend to become ready..."
-          for i in $(seq 1 12); do
-            status=$(ssh "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}" \
-              "curl -sf http://localhost:5000/health || echo 'not-ready'")
-            if [[ "$status" != "not-ready" ]]; then
-              echo "Backend is healthy."
-              exit 0
-            fi
-            echo "Attempt $i/12 - not ready yet, waiting 5s..."
-            sleep 5
-          done
-          echo "::error::Backend health check failed after 60 s. Check server logs and initiate rollback if needed."
-          exit 1
 
       - name: Record deployment summary
         if: always()

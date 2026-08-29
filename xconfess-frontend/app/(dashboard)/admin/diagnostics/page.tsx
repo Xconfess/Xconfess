@@ -222,7 +222,7 @@ export default function DiagnosticsPage() {
   } = useQuery<SystemHealthResponse>({
     queryKey: ["admin", "system-health"],
     queryFn: () => adminApi.getSystemHealth(),
-    retry: 1,
+    retry: false,
     staleTime: 30_000,
     refetchInterval: autoRefresh ? 30_000 : false,
   });
@@ -235,7 +235,7 @@ export default function DiagnosticsPage() {
   } = useQuery<StellarDiagnosticsResponse>({
     queryKey: ["stellar", "diagnostics"],
     queryFn: fetchStellarDiagnostics,
-    retry: 2,
+    retry: false,
     staleTime: 60_000,
     refetchInterval: autoRefresh ? 30_000 : false,
   });
@@ -249,7 +249,7 @@ export default function DiagnosticsPage() {
     queryKey: queryKeys.admin.observability.all(),
     queryFn: () => adminApi.getObservability(),
     staleTime: 60_000,
-    retry: 2,
+    retry: false,
     refetchInterval: autoRefresh ? 30_000 : false,
   });
 

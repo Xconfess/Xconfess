@@ -2,16 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { createApiErrorResponse } from "@/lib/apiErrorHandler";
 import { getApiBaseUrl } from "@/app/lib/config";
 
-const BASE_API_URL = getApiBaseUrl();
+type RouteContext = { params: Promise<{ id: string }> };
 
-export async function GET(
-  req: NextRequest,
-  { params }: { params: { id: string } },
-) {
+export async function GET(req: NextRequest, { params }: RouteContext) {
+  const BASE_API_URL = getApiBaseUrl();
   const correlationId = req.headers.get("X-Correlation-ID") || "unknown";
 
   try {
-    const { id } = params;
+    const { id } = await params;
     const backendUrl = `${BASE_API_URL}/users/${id}/public-profile`;
 
     const response = await fetch(backendUrl, {
@@ -25,7 +23,7 @@ export async function GET(
         status: response.status,
         upstreamResponse: response,
         correlationId,
-        route: "GET /api/users/[id]/public-profile"
+        route: "GET /api/users/[id]/public-profile",
       });
     }
 
@@ -40,12 +38,15 @@ export async function GET(
     return createApiErrorResponse(error, {
       status: 500,
       correlationId,
-      route: "GET /api/users/[id]/public-profile"
+      route: "GET /api/users/[id]/public-profile",
     });
   }
 }
 
-function buildForwardHeaders(req: NextRequest, correlationId: string): HeadersInit {
+function buildForwardHeaders(
+  req: NextRequest,
+  correlationId: string,
+): HeadersInit {
   const headers: Record<string, string> = {
     cookie: req.headers.get("cookie") ?? "",
     "content-type": "application/json",

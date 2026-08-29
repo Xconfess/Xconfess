@@ -75,8 +75,23 @@ export class ContractService {
         [operation],
       );
       const signedTx = this.txBuilder.signTransaction(tx, signerSecret);
-      const result: ITransactionResult =
-        await this.txBuilder.submitTransaction(signedTx);
+      const timeoutMs = this.stellarConfig.getConfig().rpcTimeoutMs;
+      let timeoutId: NodeJS.Timeout | undefined;
+      const timeout = new Promise<never>((_, reject) => {
+        timeoutId = setTimeout(
+          () => reject(new Error(`Contract invocation timeout after ${timeoutMs}ms`)),
+          timeoutMs,
+        );
+      });
+      let result: ITransactionResult;
+      try {
+        result = await Promise.race([
+          this.txBuilder.submitTransaction(signedTx),
+          timeout,
+        ]);
+      } finally {
+        if (timeoutId) clearTimeout(timeoutId);
+      }
       const decodedResult = this.decodeContractResult(result);
 
       return {

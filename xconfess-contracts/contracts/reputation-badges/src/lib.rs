@@ -86,7 +86,15 @@ pub enum StorageKey {
     CurrentEpoch,
     /// Emergency pause flag: StorageKey::Paused -> bool (absent means false)
     Paused,
+    /// Storage schema version: StorageKey::SchemaVersion -> u32 (absent means SCHEMA_VERSION_INITIAL)
+    SchemaVersion,
 }
+
+/// Storage schema version for deployments predating explicit versioning.
+pub const SCHEMA_VERSION_INITIAL: u32 = 1;
+/// Current storage schema version. Bump alongside a `migrate()` arm whenever
+/// the storage layout changes.
+pub const SCHEMA_VERSION_CURRENT: u32 = 1;
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -896,6 +904,49 @@ impl ReputationBadges {
             .publish((event_topic, admin), (current_epoch + 1, updated_count));
 
         Ok(updated_count)
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    // Schema migration
+    // ─────────────────────────────────────────────────────────────────────
+
+    /// Apply all pending schema migrations and return the new schema version.
+    ///
+    /// **Idempotent** — safe to call repeatedly; a no-op once storage is at
+    /// `SCHEMA_VERSION_CURRENT`. Caller must be the contract admin.
+    ///
+    /// Schema bumps are purely additive: rollback to a prior WASM build is
+    /// safe because it simply ignores the `SchemaVersion` key.
+    pub fn migrate(env: Env, caller: Address) -> Result<u32, Error> {
+        if !is_authorized(&env, &caller)? {
+            return Err(Error::NotAuthorized);
+        }
+        caller.require_auth();
+
+        let current_version = env
+            .storage()
+            .persistent()
+            .get::<_, u32>(&StorageKey::SchemaVersion)
+            .unwrap_or(SCHEMA_VERSION_INITIAL);
+
+        if current_version >= SCHEMA_VERSION_CURRENT {
+            return Ok(current_version);
+        }
+
+        env.storage()
+            .persistent()
+            .set(&StorageKey::SchemaVersion, &SCHEMA_VERSION_CURRENT);
+
+        Ok(SCHEMA_VERSION_CURRENT)
+    }
+
+    /// Return the current schema version stored on-chain.
+    /// Returns `SCHEMA_VERSION_INITIAL` for pre-versioning deployments.
+    pub fn schema_version(env: Env) -> u32 {
+        env.storage()
+            .persistent()
+            .get::<_, u32>(&StorageKey::SchemaVersion)
+            .unwrap_or(SCHEMA_VERSION_INITIAL)
     }
 }
 #[cfg(test)]

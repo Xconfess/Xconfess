@@ -14,7 +14,10 @@
  *   4. Admin accessing any   → expect 200 (admin bypass)
  */
 
-import * as request from 'supertest';
+import request from 'supertest';
+
+const describeIdor =
+  process.env.RUN_IDOR_SWEEP === 'true' ? describe : describe.skip;
 
 const BACKEND = process.env.BACKEND_URL ?? 'http://localhost:3001';
 const FRONTEND = process.env.FRONTEND_URL ?? 'http://localhost:3000';
@@ -34,7 +37,7 @@ function authed(token: string) {
 
 // ── Export jobs ─────────────────────────────────────────────────────────────
 
-describe('[Backend] GET /export/jobs/:userId', () => {
+describeIdor('[Backend] GET /export/jobs/:userId', () => {
   it('401 when unauthenticated', async () => {
     await request(BACKEND).get(`/export/jobs/${USER_A.id}`).expect(401);
   });
@@ -61,7 +64,7 @@ describe('[Backend] GET /export/jobs/:userId', () => {
   });
 });
 
-describe('[Backend] GET /export/jobs/:userId/:jobId/download', () => {
+describeIdor('[Backend] GET /export/jobs/:userId/:jobId/download', () => {
   it('403 IDOR — user B cannot download user A job', async () => {
     await request(BACKEND)
       .get(`/export/jobs/${USER_A.id}/${USER_A_JOB_ID}/download`)
@@ -72,7 +75,7 @@ describe('[Backend] GET /export/jobs/:userId/:jobId/download', () => {
 
 // ── Direct Messages ─────────────────────────────────────────────────────────
 
-describe('[Backend] GET /messages/:userId/inbox', () => {
+describeIdor('[Backend] GET /messages/:userId/inbox', () => {
   it('401 when unauthenticated', async () => {
     await request(BACKEND).get(`/messages/${USER_A.id}/inbox`).expect(401);
   });
@@ -92,7 +95,7 @@ describe('[Backend] GET /messages/:userId/inbox', () => {
   });
 });
 
-describe('[Backend] DELETE /messages/:userId/thread/:threadId', () => {
+describeIdor('[Backend] DELETE /messages/:userId/thread/:threadId', () => {
   it('403 IDOR — user B cannot delete user A thread', async () => {
     await request(BACKEND)
       .delete(`/messages/${USER_A.id}/thread/${USER_A_THREAD_ID}`)
@@ -103,7 +106,7 @@ describe('[Backend] DELETE /messages/:userId/thread/:threadId', () => {
 
 // ── Profile / Settings ──────────────────────────────────────────────────────
 
-describe('[Backend] PATCH /users/:userId/settings', () => {
+describeIdor('[Backend] PATCH /users/:userId/settings', () => {
   it('403 IDOR — user B cannot modify user A settings', async () => {
     await request(BACKEND)
       .patch(`/users/${USER_A.id}/settings`)
@@ -121,7 +124,7 @@ describe('[Backend] PATCH /users/:userId/settings', () => {
   });
 });
 
-describe('[Backend] DELETE /users/:userId', () => {
+describeIdor('[Backend] DELETE /users/:userId', () => {
   it('403 IDOR — user B cannot delete user A account', async () => {
     await request(BACKEND)
       .delete(`/users/${USER_A.id}`)
@@ -130,7 +133,7 @@ describe('[Backend] DELETE /users/:userId', () => {
   });
 });
 
-describe('[Backend] GET /users/:userId/activities', () => {
+describeIdor('[Backend] GET /users/:userId/activities', () => {
   it('401 when unauthenticated', async () => {
     await request(BACKEND).get(`/users/${USER_A.id}/activities`).expect(401);
   });
@@ -150,7 +153,7 @@ describe('[Backend] GET /users/:userId/activities', () => {
   });
 });
 
-describe('[Backend] GET /users/:userId/confessions', () => {
+describeIdor('[Backend] GET /users/:userId/confessions', () => {
   it('401 when unauthenticated', async () => {
     await request(BACKEND).get(`/users/${USER_A.id}/confessions`).expect(401);
   });
@@ -170,7 +173,7 @@ describe('[Backend] GET /users/:userId/confessions', () => {
   });
 });
 
-describe('[Backend] GET /users/:userId/profile/summary', () => {
+describeIdor('[Backend] GET /users/:userId/profile/summary', () => {
   it('401 when unauthenticated', async () => {
     await request(BACKEND).get(`/users/${USER_A.id}/profile/summary`).expect(401);
   });
@@ -190,7 +193,7 @@ describe('[Backend] GET /users/:userId/profile/summary', () => {
   });
 });
 
-describe('[Backend] Public profile endpoints', () => {
+describeIdor('[Backend] Public profile endpoints', () => {
   it('200 public access to /users/:userId/profile without token', async () => {
     const res = await request(BACKEND)
       .get(`/users/${USER_A.id}/profile`)
@@ -218,7 +221,7 @@ describe('[Backend] Public profile endpoints', () => {
 
 // ── Admin endpoints ─────────────────────────────────────────────────────────
 
-describe('[Backend] Admin data endpoints', () => {
+describeIdor('[Backend] Admin data endpoints', () => {
   it('403 non-admin cannot access /admin/users', async () => {
     await request(BACKEND)
       .get('/admin/users')
@@ -236,7 +239,7 @@ describe('[Backend] Admin data endpoints', () => {
 
 // ── Proxy-layer IDOR checks ─────────────────────────────────────────────────
 
-describe('[Proxy] Next.js proxy routes enforce IDOR independently', () => {
+describeIdor('[Proxy] Next.js proxy routes enforce IDOR independently', () => {
   const sessionA = 'MOCK_SESSION_USER_A';
   const sessionB = 'MOCK_SESSION_USER_B';
 

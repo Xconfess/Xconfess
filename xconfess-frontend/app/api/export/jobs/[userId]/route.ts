@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getApiBaseUrl } from '@/app/lib/config';
 
-const BACKEND_URL = process.env.BACKEND_URL ?? 'http://localhost:3001';
+type RouteContext = { params: Promise<{ userId: string }> };
 
 /**
  * Proxy route: GET /api/export/jobs/[userId]
@@ -17,9 +18,10 @@ const BACKEND_URL = process.env.BACKEND_URL ?? 'http://localhost:3001';
  */
 export async function GET(
   req: NextRequest,
-  { params }: { params: { userId: string } },
+  { params }: RouteContext,
 ) {
-  const { userId } = params;
+  const BACKEND_URL = getApiBaseUrl();
+  const { userId } = await params;
 
   // ── Proxy-layer auth ────────────────────────────────────────────────────────
   const sessionUserId = getSessionUserId(req);

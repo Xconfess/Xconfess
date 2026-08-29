@@ -34,6 +34,8 @@ import {
   handleStellarContractError,
   getClientSafeContractErrorMessage,
 } from '../stellar/utils/stellar-error.handler';
+import { EventEmitter2 } from '@nestjs/event-emitter';
+import { AuditLogService } from '../audit-log/audit-log.service';
 
 describe('Tipping Contract Fixtures', () => {
   let tippingService: TippingService;
@@ -56,6 +58,8 @@ describe('Tipping Contract Fixtures', () => {
           provide: StellarService,
           useValue: {},
         },
+        { provide: EventEmitter2, useValue: { emit: jest.fn() } },
+        { provide: AuditLogService, useValue: { createLog: jest.fn() } },
         {
           provide: ConfigService,
           useValue: {

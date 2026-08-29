@@ -80,16 +80,8 @@ const securityHeaders = [
 const nextConfig = {
   outputFileTracingRoot: path.resolve(__dirname, ".."),
 
-  typescript: {
-    ignoreBuildErrors: true,
-  },
-
   experimental: {
     optimizePackageImports: ["lucide-react", "@stellar/stellar-sdk"],
-    useLightningcss: false,
-    turbopack: {
-      root: __dirname,
-    },
   },
 
   compiler: {

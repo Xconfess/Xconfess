@@ -14,18 +14,18 @@ export function ThemeToggle() {
 
   if (!mounted) {
     return (
-      <div className="h-9 w-24 rounded-full border border-gray-200 bg-white/50 p-1 dark:border-slate-800 dark:bg-slate-950/50" />
+      <div className="h-9 w-24 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-1" />
     );
   }
 
   return (
-    <div className="flex items-center gap-1 rounded-full border border-gray-200 bg-white p-1 shadow-sm dark:border-slate-800 dark:bg-slate-950">
+    <div className="flex items-center gap-1 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-1 shadow-sm">
       <button
         onClick={() => setTheme("light")}
-        className={`flex h-7 w-7 items-center justify-center rounded-full transition-all duration-300 ${
+        className={`flex h-7 w-7 items-center justify-center rounded-lg transition-all duration-300 ${
           theme === "light"
-            ? "bg-purple-100 text-purple-600 shadow-sm dark:bg-slate-800 dark:text-purple-400"
-            : "text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-slate-100"
+            ? "bg-[var(--accent-soft)] text-[var(--primary-deep)] shadow-sm"
+            : "text-[var(--secondary)] hover:text-[var(--foreground)]"
         }`}
         aria-label="Light mode"
         title="Light Mode"
@@ -34,10 +34,10 @@ export function ThemeToggle() {
       </button>
       <button
         onClick={() => setTheme("dark")}
-        className={`flex h-7 w-7 items-center justify-center rounded-full transition-all duration-300 ${
+        className={`flex h-7 w-7 items-center justify-center rounded-lg transition-all duration-300 ${
           theme === "dark"
-            ? "bg-purple-100 text-purple-600 shadow-sm dark:bg-slate-800 dark:text-purple-400"
-            : "text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-slate-100"
+            ? "bg-[var(--accent-soft)] text-[var(--primary-deep)] shadow-sm"
+            : "text-[var(--secondary)] hover:text-[var(--foreground)]"
         }`}
         aria-label="Dark mode"
         title="Dark Mode"
@@ -46,10 +46,10 @@ export function ThemeToggle() {
       </button>
       <button
         onClick={() => setTheme("system")}
-        className={`flex h-7 w-7 items-center justify-center rounded-full transition-all duration-300 ${
+        className={`flex h-7 w-7 items-center justify-center rounded-lg transition-all duration-300 ${
           theme === "system"
-            ? "bg-purple-100 text-purple-600 shadow-sm dark:bg-slate-800 dark:text-purple-400"
-            : "text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-slate-100"
+            ? "bg-[var(--accent-soft)] text-[var(--primary-deep)] shadow-sm"
+            : "text-[var(--secondary)] hover:text-[var(--foreground)]"
         }`}
         aria-label="System preference"
         title="System Preference"

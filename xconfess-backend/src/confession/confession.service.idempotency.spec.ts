@@ -46,6 +46,8 @@ import { AnomalyDetectionService } from '../anomaly/anomaly-detection.service';
 jest.mock('../utils/confession-encryption', () => ({
   decryptConfession: jest.fn((msg: string) => msg),
   encryptConfession: jest.fn((msg: string) => `enc:${msg}`),
+  assertEncryptedBeforeSave: jest.fn(),
+  safeDecryptConfession: jest.fn((msg: string) => msg),
 }));
 
 // ─────────────────────────────────────────────────────────────────────────────

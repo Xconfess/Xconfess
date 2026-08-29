@@ -42,11 +42,16 @@ export function createRequestContext(): RequestContext {
     setRequestId: (id: string) => storage.set(REQUEST_ID_TOKEN, id),
     generateId: () => uuidv4(),
     runWithContext: async <T>(id: string, fn: () => Promise<T>): Promise<T> => {
+      const previousId = storage.get(REQUEST_ID_TOKEN);
       storage.set(REQUEST_ID_TOKEN, id);
       try {
         return await fn();
       } finally {
-        storage.delete(REQUEST_ID_TOKEN);
+        if (previousId) {
+          storage.set(REQUEST_ID_TOKEN, previousId);
+        } else {
+          storage.delete(REQUEST_ID_TOKEN);
+        }
       }
     },
   };

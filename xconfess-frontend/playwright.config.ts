@@ -5,14 +5,14 @@ export default defineConfig({
   timeout: 30000,
   use: {
     headless: process.env.CI === 'true',
-    baseURL: 'http://localhost:3000',
+    baseURL: process.env.BASE_URL ?? 'http://localhost:3000',
     screenshot: 'only-on-failure',
     trace: 'retain-on-failure',
   },
   projects: [
     {
       name: 'smoke',
-      testMatch: /(public-pages-smoke|core-flows-smoke)\.spec\.ts/,
+      testMatch: /(public-pages-smoke|core-flows-smoke|deployment-routes-smoke|admin-responsive-smoke|register-dashboard-smoke)\.spec\.ts/,
       use: { ...devices['Desktop Chrome'] },
     },
     {
