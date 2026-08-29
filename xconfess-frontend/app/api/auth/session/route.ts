@@ -138,15 +138,9 @@ export async function POST(request: Request) {
         const data = result.data as Record<string, unknown>;
         const token = data.access_token as string;
 
-        // Set secure session cookie
+        // Set secure session cookie using centralized options (see lib/cookieConfig.ts)
         const cookieStore = await cookies();
-        cookieStore.set(SESSION_COOKIE_NAME, token, {
-            httpOnly: true,
-            secure: process.env.NODE_ENV === "production",
-            sameSite: "lax",
-            maxAge: 60 * 60 * 24 * 7, // 1 week
-            path: "/",
-        });
+        cookieStore.set(SESSION_COOKIE_NAME, token, SESSION_COOKIE_OPTIONS);
 
         const res = NextResponse.json({
             user: data.user,
@@ -196,9 +190,9 @@ export async function GET(request: Request) {
         }
 
         if (!result.success) {
-            // If 401, clear the invalid session cookie
+            // If 401, clear the invalid session cookie using the full tuple
             if (result.normalized?.originalStatus === 401) {
-                cookieStore.delete(SESSION_COOKIE_NAME);
+                cookieStore.set(SESSION_COOKIE_NAME, "", SESSION_COOKIE_CLEAR_OPTIONS);
             }
             return createErrorResponse(result.normalized!);
         }
@@ -215,7 +209,11 @@ export async function GET(request: Request) {
 
 export async function DELETE() {
     const cookieStore = await cookies();
-    cookieStore.delete(SESSION_COOKIE_NAME);
+    // Must pass the same name + path + sameSite tuple used when setting the cookie.
+    // A bare cookieStore.delete(name) may silently fail if the browser stored the
+    // cookie with non-default attributes (path, SameSite) that don't match the
+    // implicit defaults of the delete call.
+    cookieStore.set(SESSION_COOKIE_NAME, "", SESSION_COOKIE_CLEAR_OPTIONS);
     return NextResponse.json({ success: true });
 }
 
