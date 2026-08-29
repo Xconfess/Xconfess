@@ -16,7 +16,8 @@
     "deploy:testnet": "cd .. && ./scripts/contracts-release.sh deploy --network testnet --source deployer",
     "optimize": "stellar contract optimize --wasm target/wasm32-unknown-unknown/release/confession_anchor.wasm",
     "test:verbose": "cargo test --workspace -- --nocapture",
-    "test:coverage": "echo \"Install cargo-tarpaulin to run coverage (e.g. cargo install cargo-tarpaulin).\""
+    "test:coverage": "echo \"Install cargo-tarpaulin to run coverage (e.g. cargo install cargo-tarpaulin).\"",
+    "abi:check": "bash scripts/check-abi-drift.sh"
   },
   "engines": {
     "node": ">=18"

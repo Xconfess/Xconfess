@@ -156,3 +156,5 @@ jobs:
       - run: cargo fmt --all -- --check
       - run: cargo clippy --workspace --all-targets -- -D warnings
       - run: cargo test --workspace
+      - name: Check contract ABI drift
+        run: bash scripts/check-abi-drift.sh

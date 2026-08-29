@@ -2,6 +2,24 @@
   "version": "1.0.0",
   "event_schema_version": 1,
   "error_registry_version": 1,
-  "functions": [],
-  "description": "ABI compatibility marker for anonymous-tipping contract."
+  "functions": [
+    "claim_receipt",
+    "configure_controls",
+    "get_rate_limit_config",
+    "get_tips",
+    "get_tip_balance",
+    "global_tip_count",
+    "init",
+    "is_paused",
+    "latest_settlement_nonce",
+    "migrate",
+    "pause",
+    "schema_version",
+    "send_tip",
+    "send_tip_with_proof",
+    "unpause",
+    "verify_settlement",
+    "xlm_token"
+  ],
+  "description": "ABI compatibility marker for anonymous-tipping contract. Update event_schema_version or error_registry_version on breaking changes."
 }
