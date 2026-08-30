@@ -140,6 +140,71 @@ Or use markers that are clearly placeholder text:
 
 Pick one style and use it consistently throughout your log snippet.
 
+## Structured Logs
+
+The backend uses the `StructuredLoggingInterceptor` which logs every HTTP request as a JSON object with consistent fields. When sharing structured logs, the same redaction rules apply.
+
+### Structured log format
+
+Every request produces a line like:
+
+```json
+{
+  "method": "POST",
+  "route": "/api/confessions",
+  "status": 201,
+  "duration": 42,
+  "requestId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "userId": "user_a3f9c2d1b5e7",
+  "userRole": "user",
+  "subsystem": "confession",
+  "timestamp": "2026-08-30T12:00:00.000Z",
+  "ip": "192.168.1.100"
+}
+```
+
+### What is automatically redacted
+
+The `StructuredLoggingInterceptor` automatically redacts:
+- Any field named `password`, `token`, `secret`, `apiKey`, etc.
+- JWT-shaped strings (three base64url segments separated by dots)
+- Long hex strings (40+ characters)
+- Long base64 strings (80+ characters)
+
+### What is always preserved
+
+- `requestId` / `correlationId` — essential for tracing
+- `timestamp` — essential for timeline
+- `method`, `route`, `status` — essential for identifying the request
+- `userId` (masked form) — useful for scoping without exposing identity
+- `userRole` — useful for authorization debugging
+- `subsystem` — useful for identifying the affected module
+- `duration` — useful for performance debugging
+
+### Sharing a structured log in an issue
+
+```
+❌ BAD - Contains raw user ID and IP:
+{"method":"POST","route":"/api/confessions","status":500,"requestId":"req-123","userId":"user_550e8400e29b41d4a716446655440000","ip":"192.168.1.100"}
+
+✓ GOOD - Request ID kept, IP masked:
+{"method":"POST","route":"/api/confessions","status":500,"requestId":"req-123","userId":"user_a3f9c2d1b5e7","ip":"192.168.x.x"}
+```
+
+## Tracing a Request End-to-End
+
+When debugging an issue, use the `requestId` (correlation ID) to trace the same request across frontend and backend:
+
+1. **Frontend error response**: Look for `correlationId` in the JSON body.
+2. **Backend logs**: Search for the same ID: `grep 'a1b2c3d4' logs.txt`
+3. **Backend error response**: The `requestId` field in the response body matches.
+
+```
+Frontend error → { "correlationId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890" }
+Backend log    → { "requestId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890", ... }
+Backend error  → { "requestId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890", ... }
+```
+
 ## Still Unsure?
 
 When in doubt, redact it. It's better to redact too much than to leak sensitive information. If you're not sure whether something is sensitive, ask in the issue or PR comments.
