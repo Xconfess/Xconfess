@@ -3,14 +3,14 @@
 import { useMemo, useState } from 'react';
 import type React from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { CheckCircle2, Eye, EyeOff, LogIn, ShieldCheck } from 'lucide-react';
 import { Button } from '@/app/components/ui/button';
+import apiClient from '@/app/lib/api/client';
 import { Input } from '@/app/components/ui/input';
 import { BrandLogo } from '@/app/components/brand/BrandLogo';
 import { useAuth } from '@/app/lib/hooks/useAuth';
-import { getErrorMessage } from '@/app/lib/utils/errorHandler';
+import { getErrorMessage, extractRequestId } from '@/app/lib/utils/errorHandler';
 import { getAuthFieldError } from '@/app/lib/api/authService';
+import { RequestIdNotice } from '@/app/components/auth/RequestIdNotice';
 import {
   validateRegisterForm,
   parseRegisterForm,
@@ -40,6 +40,7 @@ export default function RegisterPage() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [errors, setErrors] = useState<ValidationErrors>({});
   const [submitError, setSubmitError] = useState('');
+  const [errorRequestId, setErrorRequestId] = useState<string | undefined>();
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -56,6 +57,7 @@ export default function RegisterPage() {
     if (field === 'confirmPassword') setConfirmPassword(value);
 
     setSubmitError('');
+    setErrorRequestId(undefined);
     if (errors[field]) {
       setErrors((prev) => ({ ...prev, [field]: undefined }));
     }
@@ -68,6 +70,7 @@ export default function RegisterPage() {
     const validationErrors = validateRegisterForm(formData);
     setErrors(validationErrors);
     setSubmitError('');
+    setErrorRequestId(undefined);
 
     if (hasErrors(validationErrors)) {
       return;
@@ -90,6 +93,7 @@ export default function RegisterPage() {
     } catch (error) {
       const field = getAuthFieldError(error);
       const message = getErrorMessage(error);
+      setErrorRequestId(extractRequestId(error));
       if (field) {
         setErrors((prev) => ({ ...prev, [field]: message }));
         setSubmitError('');
@@ -148,6 +152,10 @@ export default function RegisterPage() {
               >
                 {submitError}
               </div>
+            )}
+
+            {errorRequestId && (submitError || hasErrors(errors)) && (
+              <RequestIdNotice requestId={errorRequestId} />
             )}
 
             <div className="mt-6 grid gap-4 sm:grid-cols-2">
@@ -266,21 +274,23 @@ export default function RegisterPage() {
               </div>
             </div>
 
-            <Button type="submit" disabled={loading} isLoading={loading} className="mt-6 w-full">
-              {loading ? 'Creating account...' : 'Create account'}
-            </Button>
+          <Button
+            type="button"
+            onClick={doRegister}
+            disabled={loading}
+            className="w-full"
+          >
+            {loading ? 'Creating…' : 'Create account'}
+          </Button>
 
-            <Button
-              type="button"
-              onClick={() => router.push(buildAuthSwitchUrl('/login'))}
-              disabled={loading}
-              variant="outline"
-              className="mt-3 w-full"
-            >
-              <LogIn className="h-4 w-4" aria-hidden="true" />
-              Sign in
-            </Button>
-          </form>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => router.push('/login')}
+            className="w-full"
+          >
+            Sign in
+          </Button>
         </div>
       </div>
     </div>

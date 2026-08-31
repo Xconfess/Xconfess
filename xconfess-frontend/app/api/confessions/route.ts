@@ -2,6 +2,7 @@ import { normalizeConfession } from "../../lib/utils/normalizeConfession";
 import { createApiErrorResponse } from "@/lib/apiErrorHandler";
 import { resolveBackendRoute } from "@/app/lib/api/proxy";
 import { getOrCreateRequestId, requestIdResponseHeaders } from "@/app/lib/utils/requestId";
+import { methodNotAllowedHandlers } from "@/app/lib/api/proxy";
 
 export async function POST(request: Request) {
   const correlationId = getOrCreateRequestId(request);
@@ -168,3 +169,6 @@ export async function GET(request: Request) {
     });
   }
 }
+
+export const { PUT, PATCH, DELETE } = methodNotAllowedHandlers(["GET", "POST"]);
+

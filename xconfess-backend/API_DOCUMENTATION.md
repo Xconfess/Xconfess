@@ -249,9 +249,17 @@ partial moderation state is committed.
 }
 ```
 
-## Health (`GET /api/health`)
+## Health endpoints
 
-Terminus health bundle used for operations and load balancers:
+Three health routes are active:
+
+| Route | Purpose |
+|---|---|
+| `GET /api/health` | Aggregate Terminus bundle (app + database + redis + schema). |
+| `GET /api/health/live` | **Liveness** probe — returns HTTP 200 when the process is up; used by load balancers to decide whether to restart the container. |
+| `GET /api/health/ready` | **Readiness** probe — returns HTTP 200 only when all downstream dependencies (database, redis, schema) are healthy; used by orchestrators to decide whether to send traffic. |
+
+Terminus health bundle indicators (reported by `GET /api/health` and `GET /api/health/ready`):
 
 - **`app`**: process up.
 - **`database`**: TypeORM ping to PostgreSQL.
@@ -268,6 +276,8 @@ The following list matches active `@Controller(...)` + method decorators.
 |---|---|
 | GET | `/api` |
 | GET | `/api/health` |
+| GET | `/api/health/live` |
+| GET | `/api/health/ready` |
 | GET | `/api/diagnostics/notifications` |
 | POST | `/api/auth/login` |
 | GET | `/api/auth/me` |

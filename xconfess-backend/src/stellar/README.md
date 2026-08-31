@@ -1,17 +1,3 @@
-# Usage Example
-```typescript
-// Get balance
-const balance = await stellarService.getAccountBalance('GB...');
-// Anchor a confession
-await contractService.anchorConfession('hash', Date.now(), 'SC...');
-```
-
-# Security Best Practices
-- Never log or expose secret keys
-- Always validate input (DTOs, addresses, etc.)
-- Use environment variables for all secrets
-- Restrict contract invocation endpoints to admins only
-- Handle all errors and never leak sensitive info in responses
 # Stellar Integration Service (xConfess Backend)
 
 ## Overview

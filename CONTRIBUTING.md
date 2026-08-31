@@ -1,4 +1,4 @@
-﻿# Contributing to Xconfess
+# Contributing to Xconfess
 
 Thank you for your interest in contributing to Xconfess - an anonymous confession platform built on the Stellar blockchain. This guide covers everything you need to get started.
 
@@ -11,6 +11,7 @@ Thank you for your interest in contributing to Xconfess - an anonymous confessio
 - [Development Workflow](#development-workflow)
 - [Code Style](#code-style)
 - [Testing Requirements](#testing-requirements)
+- [Validation Command Matrix](#validation-command-matrix)
 - [Pull Request Process](#pull-request-process)
 - [Wave / Drips Contribution Guidelines](#wave--drips-contribution-guidelines)
 
@@ -195,6 +196,12 @@ Run the full CI check locally before opening a PR:
     npm run ci
 
 All CI checks must pass before a PR will be reviewed.
+
+---
+
+## Validation Command Matrix
+
+Not sure which commands to run for your change? Refer to the **[Validation Command Matrix](docs/VALIDATION_COMMAND_MATRIX.md)** for a complete table mapping each change area (docs, frontend component, frontend route, backend service, migration, Stellar contract, ops script) to the exact copy-pasteable commands required.
 
 ---
 

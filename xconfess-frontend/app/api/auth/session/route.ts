@@ -5,7 +5,7 @@ import {
   NormalizedAuthError,
 } from "@/lib/normalizeAuthError";
 import { getOrCreateRequestId, requestIdResponseHeaders } from "@/app/lib/utils/requestId";
-import { methodNotAllowed, resolveBackendRoute } from "@/app/lib/api/proxy";
+import { methodNotAllowedHandlers, resolveBackendRoute } from "@/app/lib/api/proxy";
 
 const SESSION_COOKIE_NAME = "xconfess_session";
 const MAX_RETRIES = 1;
@@ -122,7 +122,7 @@ export async function POST(request: Request) {
                 message: "Email and password are required",
                 status: 400,
             });
-            return createErrorResponse(normalized);
+            return createErrorResponse(normalized, requestId);
         }
 
         const backend = resolveBackendRoute(request, "/auth/login");
@@ -132,7 +132,7 @@ export async function POST(request: Request) {
         }, backend.requestId);
 
         if (!result.success) {
-            return createErrorResponse(result.normalized!);
+            return createErrorResponse(result.normalized!, requestId);
         }
 
         const data = result.data as Record<string, unknown>;
@@ -156,7 +156,7 @@ export async function POST(request: Request) {
         return res;
     } catch (error) {
         const normalized = normalizeAuthError(error);
-        return createErrorResponse(normalized);
+        return createErrorResponse(normalized, requestId);
     }
 }
 
@@ -171,7 +171,7 @@ export async function GET(request: Request) {
             message: "Not authenticated",
             status: 401,
         });
-        return createErrorResponse(normalized);
+        return createErrorResponse(normalized, requestId);
     }
 
     try {
@@ -200,7 +200,7 @@ export async function GET(request: Request) {
             if (result.normalized?.originalStatus === 401) {
                 cookieStore.delete(SESSION_COOKIE_NAME);
             }
-            return createErrorResponse(result.normalized!);
+            return createErrorResponse(result.normalized!, requestId);
         }
 
         const user = result.data as Record<string, unknown>;
@@ -209,7 +209,7 @@ export async function GET(request: Request) {
         return response;
     } catch (error) {
         const normalized = normalizeAuthError(error);
-        return createErrorResponse(normalized);
+        return createErrorResponse(normalized, requestId);
     }
 }
 
@@ -219,15 +219,16 @@ export async function DELETE() {
     return NextResponse.json({ success: true });
 }
 
-export async function PUT() {
-  return methodNotAllowed("PUT", ["GET", "POST", "DELETE"]);
-}
+export const { PUT, PATCH } = methodNotAllowedHandlers(["GET", "POST", "DELETE"]);
 
 /**
  * Convert normalized auth error to JSON response.
  * Output shape matches NormalizedAuthError so AuthProvider can consume it directly.
  */
-function createErrorResponse(normalized: NormalizedAuthError): Response {
+function createErrorResponse(
+  normalized: NormalizedAuthError,
+  requestId?: string,
+): Response {
   const isExpectedMissingSession =
     normalized.code === "INVALID_SESSION" && normalized.originalStatus === 401;
 
@@ -244,6 +245,9 @@ function createErrorResponse(normalized: NormalizedAuthError): Response {
 
   const status = normalized.originalStatus || 500;
 
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (requestId) headers["x-request-id"] = requestId;
+
   return new Response(
     JSON.stringify({
       type: normalized.type,
@@ -251,10 +255,11 @@ function createErrorResponse(normalized: NormalizedAuthError): Response {
       message: normalized.message,
       retryable: normalized.retryable,
       originalStatus: normalized.originalStatus,
+      requestId,
     }),
     {
       status,
-      headers: { "Content-Type": "application/json" },
+      headers,
     }
   );
 }
