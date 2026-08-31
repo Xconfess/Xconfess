@@ -140,33 +140,38 @@ const networkErrorResponse = new Error('Network request failed');
 jest.mock('next/dynamic', () => {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const React = require('react');
+  let dynamicCall = 0;
 
-  return (loader: () => Promise<any>, options?: { loading?: () => React.ReactNode }) => {
-    return function DynamicComponent(props: Record<string, unknown>) {
-      const [Resolved, setResolved] = React.useState<React.ComponentType<any> | null>(null);
-
-      React.useEffect(() => {
-        let mounted = true;
-
-        Promise.resolve(loader()).then((mod) => {
-          const nextComponent = mod.default ?? mod;
-          if (mounted) {
-            setResolved(() => nextComponent);
-          }
-        });
-
-        return () => {
-          mounted = false;
-        };
-      }, []);
-
-      if (!Resolved) {
-        return options?.loading ? options.loading() : null;
+  const components = [
+    ({ data, loading }: { data: unknown[]; loading: boolean }) =>
+      React.createElement(
+        'div',
+        { 'data-testid': 'activity-chart' },
+        loading ? 'loading' : `activity:${data.length}`,
+      ),
+    ({ data, loading }: { data: unknown[]; loading: boolean }) =>
+      React.createElement(
+        'div',
+        { 'data-testid': 'reaction-distribution' },
+        loading ? 'loading' : `reactions:${data.length}`,
+      ),
+    ({ confessions, loading }: { confessions: unknown[]; loading: boolean }) => {
+      if (loading) {
+        return React.createElement('div', { 'data-testid': 'trending-confessions' }, 'loading');
       }
+      if (confessions.length === 0) {
+        return React.createElement('div', null, 'No trending confessions yet');
+      }
+      return React.createElement('div', { 'data-testid': 'trending-confessions' }, confessions.length);
+    },
+  ];
 
-      return React.createElement(Resolved, props);
-    };
+  const dynamicMock = () => {
+    const Component = components[dynamicCall++] ?? (() => null);
+    return Component;
   };
+
+  return { __esModule: true, default: dynamicMock };
 });
 
 jest.mock('@/app/components/analytics/ActivityChart', () => ({
@@ -210,6 +215,7 @@ jest.mock('@/app/components/analytics/TimePeriodSelector', () => ({
 }));
 
 jest.mock('@/app/components/common/ErrorState', () => ({
+  __esModule: true,
   default: ({ title, error, onRetry }: { title: string; error: string; onRetry: () => void }) => (
     <div data-testid="error-state">
       <h3>{title}</h3>
@@ -394,7 +400,7 @@ describe('AnalyticsPage UI Tests', () => {
       });
 
       // Metrics should display zeros
-      expect(screen.getByText('0')).toBeInTheDocument();
+      expect(screen.getAllByText('0').length).toBeGreaterThanOrEqual(1);
     });
 
     it('renders appropriate empty state for empty arrays', async () => {

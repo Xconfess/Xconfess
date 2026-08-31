@@ -202,7 +202,7 @@ export const ShortcutsProvider: React.FC<{ children: React.ReactNode }> = ({
           <ShortcutRow keys={["c"]}>Open comment box (detail)</ShortcutRow>
           <ShortcutRow keys={["n"]}>New confession — focus composer</ShortcutRow>
           <ShortcutRow keys={["/"]}>Focus search</ShortcutRow>
-          <ShortcutRow keys={["g", "h"]} or={["g", "p"]} or={["g", "s"]}>Go Home / Profile / Settings</ShortcutRow>
+          <ShortcutRow keys={["g", "h"]} alternatives={[["g", "p"], ["g", "s"]]}>Go Home / Profile / Settings</ShortcutRow>
           <ShortcutRow keys={["?"]}>Open this shortcuts help</ShortcutRow>
           <ShortcutRow keys={["Esc"]}>Close modals / help</ShortcutRow>
         </div>
@@ -214,9 +214,9 @@ export const ShortcutsProvider: React.FC<{ children: React.ReactNode }> = ({
   );
 };
 
-const ShortcutRow: React.FC<{ keys: string[]; or?: string[]; children: React.ReactNode }> = ({
+const ShortcutRow: React.FC<{ keys: string[]; alternatives?: string[][]; children: React.ReactNode }> = ({
   keys,
-  or,
+  alternatives = [],
   children,
 }) => {
   const formatKeys = (k: string[]) => k.map((key, i) => (
@@ -231,12 +231,12 @@ const ShortcutRow: React.FC<{ keys: string[]; or?: string[]; children: React.Rea
       <div className="text-sm text-zinc-300">{children}</div>
       <div className="flex items-center shrink-0 text-xs text-zinc-400">
         {formatKeys(keys)}
-        {or && (
-          <>
+        {alternatives.map((alternative) => (
+          <React.Fragment key={alternative.join("-")}>
             <span className="mx-1 text-zinc-500">or</span>
-            {formatKeys(or)}
-          </>
-        )}
+            {formatKeys(alternative)}
+          </React.Fragment>
+        ))}
       </div>
     </div>
   );

@@ -192,14 +192,21 @@ fn unpause_without_prior_pause_is_rejected() {
 fn owner_can_grant_and_revoke_admin() {
     let (env, client, owner) = setup();
     let admin = Address::generate(&env);
+    let backup_admin = Address::generate(&env);
 
     client.grant_admin(&owner, &admin);
+    client.grant_admin(&owner, &backup_admin);
     assert!(client.is_admin(&admin));
-    assert_eq!(client.get_admin_count(), 1);
+    assert!(client.is_admin(&backup_admin));
+    assert_eq!(client.get_admin_count(), 2);
 
     client.revoke_admin(&owner, &admin);
     assert!(!client.is_admin(&admin));
-    assert_eq!(client.get_admin_count(), 0);
+    assert!(client.is_admin(&backup_admin));
+    assert_eq!(client.get_admin_count(), 1);
+
+    let result = client.try_revoke_admin(&owner, &backup_admin);
+    assert_eq!(result, Err(Ok(Error::CannotRevokeLastAdmin)));
 }
 
 #[test]

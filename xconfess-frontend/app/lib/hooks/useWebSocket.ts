@@ -39,6 +39,8 @@ export function useWebSocket(options: WebSocketOptions) {
   const wsRef = useRef<WebSocket | null>(null);
   const attemptRef = useRef(0);
   const lastEventIdRef = useRef<string | undefined>(initialLastEventId);
+  const timeoutRef = useRef<NodeJS.Timeout | number | null>(null);
+  const isMountedRef = useRef(true);
 
   const buildUrl = useCallback(() => {
     if (!lastEventIdRef.current) return url;
@@ -50,10 +52,16 @@ export function useWebSocket(options: WebSocketOptions) {
   const connect = useCallback(() => {
     if (wsRef.current?.readyState === WebSocket.OPEN) return;
 
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current as NodeJS.Timeout);
+      timeoutRef.current = null;
+    }
+
     setState('connecting');
     const ws = new WebSocket(buildUrl());
 
     ws.onopen = () => {
+      if (!isMountedRef.current || wsRef.current !== ws) return;
       attemptRef.current = 0;
       setReconnectAttempts(0);
       setState('connected');
@@ -61,6 +69,7 @@ export function useWebSocket(options: WebSocketOptions) {
     };
 
     ws.onmessage = (event) => {
+      if (!isMountedRef.current || wsRef.current !== ws) return;
       try {
         const data = JSON.parse(event.data as string);
         // Track lastEventId if the server sends it
@@ -74,6 +83,7 @@ export function useWebSocket(options: WebSocketOptions) {
     };
 
     ws.onclose = () => {
+      if (!isMountedRef.current || wsRef.current !== ws) return;
       setState('disconnected');
       onClose?.();
 
@@ -85,11 +95,12 @@ export function useWebSocket(options: WebSocketOptions) {
           reconnectMaxDelay,
         );
         setState('reconnecting');
-        setTimeout(connect, delay);
+        timeoutRef.current = setTimeout(connect, delay);
       }
     };
 
     ws.onerror = (error) => {
+      if (!isMountedRef.current || wsRef.current !== ws) return;
       onError?.(error);
     };
 
@@ -98,6 +109,10 @@ export function useWebSocket(options: WebSocketOptions) {
 
   const disconnect = useCallback(() => {
     attemptRef.current = maxReconnectAttempts + 1;
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current as NodeJS.Timeout);
+      timeoutRef.current = null;
+    }
     wsRef.current?.close();
     setState('disconnected');
   }, [maxReconnectAttempts]);
@@ -109,12 +124,22 @@ export function useWebSocket(options: WebSocketOptions) {
   }, []);
 
   useEffect(() => {
+    isMountedRef.current = true;
     connect();
     return () => {
+      isMountedRef.current = false;
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current as NodeJS.Timeout);
+        timeoutRef.current = null;
+      }
       wsRef.current?.close();
     };
   }, [connect]);
 
+  // Note: Authentication failures on raw WebSockets are currently indistinguishable
+  // from ordinary network failures. They will trigger standard onError/onClose
+  // events and attempt to reconnect unless maxReconnectAttempts is reached or
+  // reconnect is disabled.
   return { state, reconnectAttempts, connect, disconnect, send };
 }
 

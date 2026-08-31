@@ -17,7 +17,7 @@ fn check_resolved_terminal(
     reference: &ModelState,
     _observed: &ObservedMachine,
 ) -> Result<(), String> {
-    for (_, conf) in reference.confessions.iter() {
+    for conf in reference.confessions.values() {
         if conf.resolved {
             // Terminal state: no further mutations except documented admin operations
             if conf.escalated {
@@ -36,7 +36,7 @@ fn check_escalation_idempotent(
     reference: &ModelState,
     _observed: &ObservedMachine,
 ) -> Result<(), String> {
-    for (_, conf) in reference.confessions.iter() {
+    for conf in reference.confessions.values() {
         if conf.escalated && conf.resolved {
             return Err(format!(
                 "INVARIANT VIOLATION: Confession {} is both escalated and resolved (impossible state)",
@@ -52,7 +52,7 @@ fn check_report_prerequisite(
     reference: &ModelState,
     _observed: &ObservedMachine,
 ) -> Result<(), String> {
-    for (_, conf) in reference.confessions.iter() {
+    for conf in reference.confessions.values() {
         if (conf.resolved || conf.escalated) && conf.reported_by.is_empty() {
             return Err(format!(
                 "INVARIANT VIOLATION: Confession {} is resolved/escalated but has no reports (invalid state)",
@@ -68,7 +68,7 @@ fn check_escalated_has_reports(
     reference: &ModelState,
     _observed: &ObservedMachine,
 ) -> Result<(), String> {
-    for (_, conf) in reference.confessions.iter() {
+    for conf in reference.confessions.values() {
         if conf.escalated && conf.reported_by.is_empty() {
             return Err(format!(
                 "INVARIANT VIOLATION: Confession {} is escalated but has no pending reports",
@@ -84,7 +84,7 @@ fn check_resolved_immutable_escalate(
     reference: &ModelState,
     _observed: &ObservedMachine,
 ) -> Result<(), String> {
-    for (_, conf) in reference.confessions.iter() {
+    for conf in reference.confessions.values() {
         if conf.resolved && conf.escalated {
             return Err(format!(
                 "INVARIANT VIOLATION: Confession {} is marked both resolved and escalated (violates escalate-from-pending constraint)",

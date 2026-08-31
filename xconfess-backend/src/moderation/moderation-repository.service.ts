@@ -1,9 +1,15 @@
 // src/moderation/moderation-repository.service.ts
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { EntityManager, Repository } from 'typeorm';
+import { DataSource, EntityManager, Repository } from 'typeorm';
 import { ModerationLog } from './entities/moderation-log.entity';
 import { ModerationResult, ModerationStatus } from './ai-moderation.service';
+import { AuditLogService } from '../audit-log/audit-log.service';
+import { QueryModerationDto } from './dtos/query-moderation.dto';
+import {
+  assertValidTransition,
+  InvalidModerationTransitionError,
+} from './moderation-state-machine';
 
 @Injectable()
 export class ModerationRepositoryService {
@@ -12,6 +18,8 @@ export class ModerationRepositoryService {
   constructor(
     @InjectRepository(ModerationLog)
     private readonly moderationLogRepo: Repository<ModerationLog>,
+    private readonly dataSource: DataSource,
+    private readonly auditLogService: AuditLogService,
   ) {}
 
   async createLog(
@@ -126,6 +134,98 @@ export class ModerationRepositoryService {
 
     return await this.moderationLogRepo.save(log);
   }
+
+   /**
+   * Replaces the free-form `updateReview`. Validates the transition against
+   * the state machine, persists it, and writes an audit log entry in the
+   * same DB transaction so a failed audit write rolls back the state change.
+   */
+   async transitionState(
+    logId: string,
+    nextState: ModerationStatus,
+    actor: { id: string; email?: string },
+    reason: string,
+    notes?: string,
+  ): Promise<ModerationLog> {
+    return this.dataSource.transaction(async (manager: EntityManager) => {
+      const repo = manager.getRepository(ModerationLog);
+
+      const log = await repo.findOne({
+        where: { id: logId },
+        lock: { mode: 'pessimistic_write' }, // guards against two admins racing the same item
+      });
+      if (!log) {
+        throw new NotFoundException('Moderation log not found');
+      }
+
+      const previousState = log.moderationStatus;
+
+      try {
+        assertValidTransition(previousState, nextState);
+      } catch (err) {
+        if (err instanceof InvalidModerationTransitionError) {
+          // Re-thrown as-is; controller maps it to a 400.
+          throw err;
+        }
+        throw err;
+      }
+
+      log.moderationStatus = nextState;
+      log.reviewed = true;
+      log.reviewedBy = actor.id;
+      log.reviewedAt = new Date();
+      if (notes) log.reviewNotes = notes;
+
+      const saved = await repo.save(log);
+
+      // Audit write happens inside the same transaction's outer flow, but
+      // AuditLogService.log() already swallows its own errors so it never
+      // rolls back the state change — that's intentional (see its try/catch).
+      await this.auditLogService.logModerationStateTransition(
+        saved.id,
+        previousState,
+        nextState,
+        actor.id,
+        reason,
+        { confessionId: saved.confessionId, notes },
+      );
+
+      return saved;
+    });
+  }
+
+  /**
+   * General queue view: filter by state, free-text search, paginate.
+   * Distinct from getPendingReviews (which is hardcoded to the "needs first
+   * look" subset) — this is for browsing any state, e.g. the "Resolved" tab.
+   */
+  async getQueue(query: QueryModerationDto) {
+    const qb = this.moderationLogRepo.createQueryBuilder('log');
+
+    if (query.status) {
+      qb.andWhere('log.moderationStatus = :status', { status: query.status });
+    }
+    if (query.search) {
+      qb.andWhere(
+        '(log.confessionId ILIKE :search OR log.userId ILIKE :search OR log.content ILIKE :search)',
+        { search: `%${query.search}%` },
+      );
+    }
+
+    qb.orderBy('log.updatedAt', 'DESC')
+      .skip((query.page - 1) * query.pageSize)
+      .take(query.pageSize);
+
+    const [items, total] = await qb.getManyAndCount();
+    return {
+      items,
+      total,
+      page: query.page,
+      pageSize: query.pageSize,
+      totalPages: Math.max(1, Math.ceil(total / query.pageSize)),
+    };
+  }
+
 
   async getPendingReviews(limit = 50, offset = 0) {
     return await this.moderationLogRepo.find({

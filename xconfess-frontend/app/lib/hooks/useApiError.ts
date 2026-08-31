@@ -29,7 +29,7 @@ export const useApiError = (options: UseApiErrorOptions = {}) => {
 
       // Show toast notification
       if (showToast) {
-        toast.error(message, 5000);
+        toast.error(message, { duration: 5000 });
       }
 
       // Handle unauthorized
@@ -45,7 +45,7 @@ export const useApiError = (options: UseApiErrorOptions = {}) => {
   const handleSuccess = useCallback(
     (message = 'Operation successful') => {
       if (showToast) {
-        toast.success(message, 3000);
+        toast.success(message, { duration: 3000 });
       }
     },
     [showToast, toast]
@@ -54,7 +54,7 @@ export const useApiError = (options: UseApiErrorOptions = {}) => {
   const handleWarning = useCallback(
     (message: string) => {
       if (showToast) {
-        toast.warning(message, 4000);
+        toast.warning(message, { duration: 4000 });
       }
     },
     [showToast, toast]

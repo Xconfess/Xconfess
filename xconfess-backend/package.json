@@ -7,22 +7,23 @@
   "license": "UNLICENSED",
   "scripts": {
     "dev": "npm run start:dev",
-    "build": "tsc -p tsconfig.build.json --pretty false",
+    "build": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\" && tsc -p tsconfig.build.json --pretty false",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "start": "nest start",
     "start:dev": "ts-node -r tsconfig-paths/register src/main.ts",
     "start:debug": "node --inspect -r ts-node/register -r tsconfig-paths/register src/main.ts",
-    "start:prod": "node dist/main",
+    "start:prod": "node dist/src/main",
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --quiet",
     "lint:fix": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
     "migration:run": "typeorm-ts-node-commonjs -d data-source.ts migration:run",
     "migration:show": "typeorm-ts-node-commonjs -d data-source.ts migration:show",
-    "test": "jest --config jest.config.js",
+    "test": "jest --config jest.config.js --runInBand",
     "test:watch": "jest --watch",
     "test:cov": "jest --config ./jest.admin.config.js --coverage",
     "test:cov:all": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./test/jest-e2e.json",
+    "test:feed:e2e": "jest --config ./test/jest-e2e.json --testPathPattern=public-feed",
     "test:websocket-fanout": "jest --config ./jest.config.js src/notifications/gateways/notification.gateway.load.spec.ts --runInBand"
   },
   "dependencies": {
@@ -39,7 +40,7 @@
     "@nestjs/platform-express": "^11.1.12",
     "@nestjs/platform-socket.io": "^11.1.12",
     "@nestjs/schedule": "^6.1.1",
-    "@nestjs/swagger": "^11.2.5",
+    "@nestjs/swagger": "^11.4.5",
     "@nestjs/terminus": "^11.1.1",
     "@nestjs/throttler": "^6.5.0",
     "@nestjs/websockets": "^11.1.12",
@@ -68,8 +69,9 @@
     "helmet": "^8.1.0",
     "ioredis": "^5.9.2",
     "joi": "^17.13.3",
+    "js-yaml": "^4.3.1",
     "luxon": "^3.5.0",
-    "nodemailer": "^7.0.3",
+    "nodemailer": "^9.0.4",
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",
     "pg": "^8.15.6",
@@ -118,7 +120,7 @@
     "ioredis-mock": "^8.13.1",
     "jest": "^30.4.2",
     "socket.io-client": "^4.8.3",
-    "sqlite3": "^5.1.7",
+    "sqlite3": "^6.0.1",
     "supertest": "^7.2.2",
     "ts-jest": "^29.4.6",
     "ts-node": "^10.9.2",
@@ -127,6 +129,10 @@
     "typescript-eslint": "^8.20.0"
   },
   "overrides": {
+    "@nestjs/swagger": {
+      ".": "11.4.5",
+      "js-yaml": "4.3.1"
+    },
     "ansi-styles": "^5.2.0"
   }
 }

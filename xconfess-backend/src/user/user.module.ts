@@ -2,6 +2,7 @@ import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { UserService } from './user.service';
 import { UserController } from './user.controller';
+import { UserPublicController } from './user-public.controller';
 import { User } from './entities/user.entity';
 import { EmailModule } from '../email/email.module';
 import { AnonymousUser } from './entities/anonymous-user.entity';
@@ -18,7 +19,7 @@ import { AuthModule } from '../auth/auth.module';
     forwardRef(() => ConfessionModule),
   ],
   providers: [UserService, AnonymousUserService],
-  controllers: [UserController],
+  controllers: [UserPublicController, UserController],
   exports: [UserService, AnonymousUserService],
 })
 export class UserModule {}

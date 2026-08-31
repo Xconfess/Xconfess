@@ -15,6 +15,7 @@ import { AnonymousUserService } from '../user/anonymous-user.service';
 import { CryptoUtil } from '../common/crypto.util';
 import { ConfigService } from '@nestjs/config';
 import { LockoutService } from './lockout.service';
+import { StepUpService } from './step-up.service';
 import * as crypto from 'crypto';
 
 const hashToken = (token: string) =>
@@ -86,6 +87,13 @@ describe('Auth Integration Tests - Forgot Password Flow', () => {
               .fn()
               .mockResolvedValue({ isLocked: false }),
             clearLockout: jest.fn().mockResolvedValue(undefined),
+          },
+        },
+        {
+          provide: StepUpService,
+          useValue: {
+            issueStepUpToken: jest.fn(),
+            verifyStepUpToken: jest.fn(),
           },
         },
         {

@@ -1,10 +1,10 @@
-# Xconfess Contract ABI Reference
+# xConfess Contract ABI Reference
 
 > **Version**: 1.0.0  
 > **Last Updated**: 2026-03-23  
 > **Build Metadata**: `xconfess.confession-anchor+2026-03-23`
 
-This document provides a complete interface reference for all Xconfess smart contracts deployed on the Stellar network via Soroban. Each contract section includes data types, function signatures, events, error codes, and invocation examples.
+This document provides a complete interface reference for all xConfess smart contracts deployed on the Stellar network via Soroban. Each contract section includes data types, function signatures, events, error codes, and invocation examples.
 
 ---
 
@@ -1235,6 +1235,38 @@ if (await anchorContract.has_capability({ capability: "anchorv1" })) {
 
 ---
 
+## Public Event Schema Fixtures
+
+The contract test suite validates these public event fixture names and field
+orders against this reference. Keep this section aligned with
+`xconfess-contracts/contracts/events.rs` whenever event payloads change.
+
+| Event | Category | Topic | Data format | Field order |
+| --- | --- | --- | --- | --- |
+| `ConfessionAnchoredEvent` | `anchor` | `confession_anchor` | `vec` | `event_version`, `timestamp`, `anchor_height` |
+| `VersionCompatibilityCheckedEvent` | `anchor` | `version_compatibility_checked` | `vec` | `event_version`, `nonce`, `timestamp`, `from_major`, `from_minor`, `from_patch`, `to_major`, `to_minor`, `to_patch`, `compatible` |
+| `SettlementEvent` | `tip` | `tip_settl` | `single-value` | `recipient`, `event_version`, `settlement_id`, `amount`, `proof_metadata`, `proof_present`, `timestamp` |
+| `ConfessionEvent` | `confession` | `confess` | `single-value` | `event_version`, `confession_id`, `author`, `content_hash`, `nonce`, `timestamp`, `correlation_id` |
+| `ReactionEvent` | `reaction` | `react` | `single-value` | `event_version`, `confession_id`, `reactor`, `reaction_type`, `nonce`, `timestamp`, `correlation_id` |
+| `PauseChangedEvent` | `pause` | `tip_pause` | `single-value` | `actor`, `paused`, `reason`, `timestamp` |
+| `ReportEvent` | `report` | `report` | `single-value` | `event_version`, `confession_id`, `reporter`, `reason`, `nonce`, `timestamp`, `correlation_id` |
+| `ReportSubmittedLedgerEvent` | `report` | `report` | `single-value` | `confession_id`, `actor`, `reason`, `event_version`, `nonce`, `timestamp` |
+| `RoleEvent` | `role` | `role` | `single-value` | `event_version`, `user`, `role`, `granted`, `nonce`, `timestamp`, `correlation_id` |
+| `GovernanceEvent` | `governance` | `<stream>` | `single-value` | `event_version`, `metadata`, `nonce`, `timestamp` |
+| `GovernanceProposedEvent` | `governance` | `gov_prop` | `single-value` | `proposal_id`, `proposer` |
+| `GovernanceApprovedEvent` | `governance` | `gov_app` | `single-value` | `proposal_id`, `approver` |
+| `GovernanceApprovalRevokedEvent` | `governance` | `gov_rev` | `single-value` | `proposal_id`, `actor` |
+| `GovernanceExecutedEvent` | `governance` | `gov_exec` | `single-value` | `proposal_id`, `executor` |
+| `GovInvariantViolationEvent` | `governance` | `gov_inv` | `single-value` | `nonce`, `timestamp`, `operation`, `reason`, `attempted_by` |
+| `BadgeEvent` | `reputation` | `badge` | `single-value` | `event_version`, `badge_id`, `badge_type`, `owner`, `action`, `nonce`, `timestamp` |
+| `BadgeEvent` | `reputation` | `badge_awarded` | `single-value` | `event_version`, `badge_id`, `badge_type`, `owner`, `action`, `timestamp` |
+| `BadgeEvent` | `reputation` | `badge_granted` | `single-value` | `event_version`, `badge_id`, `badge_type`, `owner`, `action`, `timestamp` |
+| `BadgeEvent` | `reputation` | `badge_revoked` | `single-value` | `event_version`, `badge_id`, `badge_type`, `owner`, `action`, `timestamp` |
+| `ReputationAdjustedData` | `reputation` | `reputation_adjusted` | `single-value` | `user`, `amount`, `reason`, `timestamp` |
+| `ReputationDecayedData` | `reputation` | `reputation_decayed` | `single-value` | `user`, `old_reputation`, `new_reputation`, `epochs_applied`, `timestamp` |
+
+---
+
 ## Document Version History
 
 | Version | Date | Changes |
@@ -1246,6 +1278,7 @@ if (await anchorContract.has_capability({ capability: "anchorv1" })) {
 ## References
 
 - [Soroban Documentation](https://soroban.stellar.org/docs)
-- [Xconfess Project README](../README.md)
+- [xConfess Project README](../README.md)
 - [Contract Deployment Guide](./SOROBAN_SETUP.md)
 - [Release Runbook](./contract-release-and-upgrade-runbook.md)
+- [Backend Event Parser Compatibility Layer](./contract-event-parser-compatibility.md)

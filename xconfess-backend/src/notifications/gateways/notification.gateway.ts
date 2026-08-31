@@ -11,6 +11,7 @@ import {
 import { Server, Socket } from 'socket.io';
 import { Logger, UseGuards } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { JwtService } from '@nestjs/jwt';
 import { WsJwtGuard } from '../../auth/guards/ws-jwt.guard';
 import { NotificationService } from '../services/notification.service';
 import { WebSocketLogger } from '../../websocket/websocket.logger';
@@ -35,6 +36,7 @@ export class NotificationGateway
   constructor(
     private notificationService: NotificationService,
     private configService: ConfigService,
+    private readonly jwtService: JwtService,
     private readonly wsLogger: WebSocketLogger,
   ) {}
 
@@ -53,7 +55,43 @@ export class NotificationGateway
         'Socket.IO engine options are unavailable; using gateway CORS defaults',
       );
     }
+    if (typeof server.use === 'function') {
+      server.use(async (socket, next) => {
+        try {
+          const token = this.extractHandshakeToken(socket);
+          if (!token) {
+            return next(new Error('Authentication failed'));
+          }
+
+          const payload: any = await this.jwtService.verifyAsync(token);
+          if (!payload?.sub) {
+            return next(new Error('Authentication failed'));
+          }
+
+          socket.data = socket.data || {};
+          socket.data.userId = String(payload.sub);
+          socket.data.username = payload.username;
+          return next();
+        } catch {
+          return next(new Error('Authentication failed'));
+        }
+      });
+    }
     this.logger.log('Notification Gateway initialized');
+  }
+
+  private extractHandshakeToken(socket: Socket): string | null {
+    const auth = socket.handshake?.auth as any;
+    if (auth && typeof auth.token === 'string' && auth.token.trim()) {
+      return auth.token.trim();
+    }
+
+    const authHeader = socket.handshake?.headers?.authorization;
+    if (typeof authHeader === 'string' && authHeader.startsWith('Bearer ')) {
+      return authHeader.slice('Bearer '.length).trim();
+    }
+
+    return null;
   }
 
   // ─── Connection lifecycle ─────────────────────────────────────────────────
@@ -92,6 +130,8 @@ export class NotificationGateway
       userId,
       channel: userRoom,
     });
+
+    void this.emitUnreadSync(client, userId);
   }
 
   handleDisconnect(client: Socket) {
@@ -160,6 +200,36 @@ export class NotificationGateway
       channel: userRoom,
       timestamp: new Date().toISOString(),
     });
+
+    void this.emitUnreadSync(client, authenticatedUserId);
+  }
+
+  @SubscribeMessage('join-notifications')
+  handleLegacyJoinNotifications(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() requestedUserId?: string,
+  ) {
+    this.handleSubscribeUserNotifications(client, { userId: requestedUserId });
+  }
+
+  private async emitUnreadSync(client: Socket, userId: string) {
+    try {
+      const result = await this.notificationService.getUserNotifications(
+        userId,
+        { page: 1, limit: 20, unreadOnly: true },
+      );
+      client.emit('notifications:sync', {
+        notifications: result.notifications,
+        unreadCount: result.unreadCount,
+        timestamp: new Date().toISOString(),
+      });
+    } catch (error) {
+      this.logger.error(`Error syncing unread notifications:`, error);
+      client.emit('notifications:sync-failed', {
+        message: 'Failed to sync unread notifications',
+        timestamp: new Date().toISOString(),
+      });
+    }
   }
 
   /**

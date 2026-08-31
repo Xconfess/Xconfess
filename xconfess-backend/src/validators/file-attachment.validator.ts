@@ -34,7 +34,7 @@ const ALLOWED_MIME_TYPES = new Set([
   'text/plain',
 ]);
 
-const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024; // 10 MB
+export const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024; // 10 MB
 
 const SUSPICIOUS_MIME_PATTERNS = [
   /text\/html/i,
@@ -45,7 +45,11 @@ const SUSPICIOUS_MIME_PATTERNS = [
   /image\/svg\+xml/i, // SVG can contain scripts
 ];
 
-const INVALID_FILENAME_REGEX = /[<>:"/\\|?*\x00-\x1f]/g;
+const INVALID_FILENAME_CHARS = new Set(['<', '>', ':', '"', '/', '\\', '|', '?', '*']);
+
+function hasInvalidFilenameChar(char: string): boolean {
+  return INVALID_FILENAME_CHARS.has(char) || char.charCodeAt(0) < 32;
+}
 
 // ---------------------------------------------------------------------------
 // Magic bytes: quick content-type verification via file header
@@ -81,12 +85,16 @@ export function matchesMagicBytes(mimeType: string, fileBuffer: Buffer): boolean
  * directory traversal attacks.
  */
 export function sanitizeFileName(filename: string): string {
-  return filename
-    .replace(INVALID_FILENAME_REGEX, '_')
+  const sanitized = filename
+    .split('')
+    .map((char) => (hasInvalidFilenameChar(char) ? '_' : char))
+    .join('')
     .replace(/\.\./g, '_')
     .replace(/^\.+/g, '')
     .trim()
     .slice(0, 255);
+
+  return /[A-Za-z0-9]/.test(sanitized) ? sanitized : '';
 }
 
 // ---------------------------------------------------------------------------

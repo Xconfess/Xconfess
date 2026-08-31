@@ -71,8 +71,8 @@ cp .env.example .env.local
 
 | Variable | Description |
 |---|---|
-| `BACKEND_API_URL` | **Canonical** server-side URL for the NestJS API. Used by all App Router proxy routes. Never exposed to the browser. |
-| `NEXT_PUBLIC_API_URL` | Same backend host, baked into the browser bundle for client-side calls. |
+| `BACKEND_API_URL` | **Canonical** server-side URL for the NestJS API, including `/api` (for example `http://localhost:5000/api`). Used by all App Router proxy routes. Never exposed to the browser. |
+| `NEXT_PUBLIC_API_URL` | Same backend API URL, including `/api`, baked into the browser bundle for client-side calls. |
 | `NEXT_PUBLIC_WS_URL` | WebSocket endpoint for real-time reactions and notifications. |
 
 ### Optional
@@ -85,11 +85,12 @@ cp .env.example .env.local
 | `NEXT_PUBLIC_STELLAR_HORIZON_URL` | — | Horizon REST endpoint. |
 | `NEXT_PUBLIC_STELLAR_SOROBAN_RPC_URL` | — | Soroban RPC endpoint. |
 | `NEXT_PUBLIC_STELLAR_CONTRACT_ID` | — | Deployed confession-anchor contract ID. |
+| `STRICT_ENV_VALIDATION` | `false` | Set to `true` to fail server startup when required environment variables are missing. |
 | `NEXT_PUBLIC_DEBUG_NOTIFICATIONS` | `false` | Verbose notification logs in the browser. |
 | `NEXT_PUBLIC_ENABLE_DEV_MOCK_ADMIN_LOGIN` | `false` | Show mock admin login button (dev only). |
 | `NEXT_PUBLIC_ERROR_TRACKING_URL` | — | Error tracking ingest URL (e.g. Sentry). |
 
-> **Note:** `BACKEND_URL` is not a valid variable in this project. All proxy routes use `BACKEND_API_URL` via `getApiBaseUrl()` in `app/lib/config.ts`. The startup validator (`instrumentation.ts`) will throw at boot if `BACKEND_API_URL` is missing.
+> **Note:** `BACKEND_URL` is not a valid variable in this project. All proxy routes use `BACKEND_API_URL` via `getApiBaseUrl()` in `app/lib/config.ts`. The resolver accepts either `http://localhost:5000` or `http://localhost:5000/api`, but `.env.example` uses the explicit `/api` form so route construction is obvious. The startup validator (`instrumentation.ts`) warns if `BACKEND_API_URL` is missing, or throws at boot when `STRICT_ENV_VALIDATION=true`.
 
 ## Error Handling & Resilience
 

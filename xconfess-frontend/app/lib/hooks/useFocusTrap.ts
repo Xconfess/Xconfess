@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useCallback } from 'react';
+import { RefObject, useEffect, useRef, useCallback } from 'react';
 
 const FOCUSABLE_SELECTORS = [
   'a[href]',
@@ -12,8 +12,14 @@ const FOCUSABLE_SELECTORS = [
 ].join(', ');
 
 interface UseFocusTrapOptions {
-  isOpen: boolean;
+  isOpen?: boolean;
+  active?: boolean;
   onClose?: () => void;
+  onEscape?: () => void;
+  containerRef?: RefObject<HTMLDivElement | null>;
+  initialFocusRef?: RefObject<HTMLElement | null>;
+  restoreFocusRef?: RefObject<HTMLElement | null>;
+  trapFocus?: boolean;
   /** If true, the trap is used as a dialog (focuses first element, restores on close) */
   dialog?: boolean;
 }
@@ -27,8 +33,19 @@ interface UseFocusTrapOptions {
  *   const { containerRef } = useFocusTrap({ isOpen: showModal, onClose: handleClose, dialog: true });
  *   return <div ref={containerRef}>...</div>;
  */
-export function useFocusTrap({ isOpen, onClose, dialog = false }: UseFocusTrapOptions) {
-  const containerRef = useRef<HTMLDivElement>(null);
+export function useFocusTrap({
+  isOpen,
+  active,
+  onClose,
+  onEscape,
+  containerRef: providedContainerRef,
+  initialFocusRef,
+  restoreFocusRef,
+  trapFocus = true,
+  dialog = false,
+}: UseFocusTrapOptions) {
+  const internalContainerRef = useRef<HTMLDivElement>(null);
+  const containerRef = providedContainerRef ?? internalContainerRef;
   const previousFocusRef = useRef<HTMLElement | null>(null);
 
   const getFocusable = useCallback(() => {
@@ -36,10 +53,10 @@ export function useFocusTrap({ isOpen, onClose, dialog = false }: UseFocusTrapOp
     return Array.from(
       containerRef.current.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTORS),
     );
-  }, []);
+  }, [containerRef]);
 
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen && !active) return;
 
     // Save the previously focused element so we can restore it on close
     if (dialog) {
@@ -48,6 +65,11 @@ export function useFocusTrap({ isOpen, onClose, dialog = false }: UseFocusTrapOp
 
     // Auto-focus the first focusable element
     const timer = requestAnimationFrame(() => {
+      if (initialFocusRef?.current) {
+        initialFocusRef.current.focus();
+        return;
+      }
+
       const focusable = getFocusable();
       if (focusable.length > 0) {
         focusable[0].focus();
@@ -58,14 +80,15 @@ export function useFocusTrap({ isOpen, onClose, dialog = false }: UseFocusTrapOp
 
     const handleKeyDown = (e: KeyboardEvent) => {
       // Escape closes the dialog
-      if (e.key === 'Escape' && onClose) {
+      const close = onEscape ?? onClose;
+      if (e.key === 'Escape' && close) {
         e.stopPropagation();
-        onClose();
+        close();
         return;
       }
 
       // Tab trap
-      if (e.key !== 'Tab') return;
+      if (!trapFocus || e.key !== 'Tab') return;
       const focusable = getFocusable();
       if (focusable.length === 0) return;
 
@@ -97,11 +120,23 @@ export function useFocusTrap({ isOpen, onClose, dialog = false }: UseFocusTrapOp
       document.removeEventListener('keydown', handleKeyDown, { capture: true } as EventListenerOptions);
       document.body.style.overflow = prevOverflow;
 
-      if (dialog && previousFocusRef.current) {
-        previousFocusRef.current.focus();
+      const restoreTarget = restoreFocusRef?.current ?? previousFocusRef.current;
+      if (restoreTarget && (dialog || restoreFocusRef)) {
+        restoreTarget.focus();
       }
     };
-  }, [isOpen, onClose, dialog, getFocusable]);
+  }, [
+    isOpen,
+    active,
+    onClose,
+    onEscape,
+    dialog,
+    getFocusable,
+    containerRef,
+    initialFocusRef,
+    restoreFocusRef,
+    trapFocus,
+  ]);
 
   return { containerRef };
 }

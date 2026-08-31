@@ -7,15 +7,20 @@ import {
   BadRequestException,
   Body,
   Get,
+  Headers,
+  HttpStatus,
   Query,
   Param,
   Put,
   Delete,
   Req,
   Patch,
+  Res,
   UseGuards,
   UseInterceptors,
+  Optional,
 } from '@nestjs/common';
+import { Response } from 'express';
 import { Throttle } from '@nestjs/throttler';
 import { Request } from 'express';
 import {
@@ -36,6 +41,8 @@ import { UpdateConfessionDto } from './dto/update-confession.dto';
 import { OptionalJwtAuthGuard } from '../auth/optional-jwt-auth.guard';
 import { SearchDiscoveryService } from '../search-discovery/search-discovery.service';
 import { SparseFieldsetsInterceptor } from '../common/interceptors/sparse-fieldsets.interceptor';
+import { ConfessionSchedulerService } from './confession-scheduler.service';
+import { ConfessionIdempotencyService } from './confession-idempotency.service';
 
 const flattenValidationErrors = (
   errors: ValidationError[],
@@ -82,6 +89,10 @@ export class ConfessionController {
   constructor(
     private readonly service: ConfessionService,
     private readonly searchDiscoveryService: SearchDiscoveryService,
+    @Optional()
+    private readonly schedulerService: ConfessionSchedulerService,
+    @Optional()
+    private readonly idempotencyService: ConfessionIdempotencyService,
   ) {}
 
   @Post()
@@ -107,9 +118,48 @@ export class ConfessionController {
     description:
       'Validation error — message exceeds 1000 chars or invalid enum.',
   })
+  @ApiResponse({
+    status: 200,
+    description: 'Idempotent replay — the confession was already created for this Idempotency-Key.',
+  })
   @UsePipes(new ValidationPipe({ whitelist: true }))
-  create(@Body() dto: CreateConfessionDto) {
-    // Only allow canonical contract
+  async create(
+    @Body() dto: CreateConfessionDto,
+    @Headers('idempotency-key') idempotencyKey: string | undefined,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    if (idempotencyKey && this.idempotencyService) {
+      const payloadHash = this.idempotencyService.computePayloadHash({
+        message: dto.message,
+        gender: (dto as any).gender ?? null,
+        tags: (dto as any).tags ?? null,
+        stellarTxHash: (dto as any).stellarTxHash ?? null,
+      });
+
+      const check = await this.idempotencyService.check(idempotencyKey, payloadHash);
+
+      if (check.isReplay && check.cachedResponse) {
+        res.status(check.cachedStatus ?? HttpStatus.CREATED);
+        return check.cachedResponse;
+      }
+
+      if (!check.isReplay) {
+        try {
+          const confession = await this.service.create(dto);
+          await this.idempotencyService.commitSuccess(
+            check.record,
+            confession as any,
+            confession as any,
+            HttpStatus.CREATED,
+          );
+          return confession;
+        } catch (err) {
+          await this.idempotencyService.commitFailure(check.record);
+          throw err;
+        }
+      }
+    }
+
     return this.service.create(dto);
   }
 
@@ -242,10 +292,7 @@ export class ConfessionController {
     @Param('id') id: string,
     @Body('publishAt') publishAt: string,
   ) {
-    const schedulerService = new (
-      await import('./confession-scheduler.service')
-    ).ConfessionSchedulerService(this.service['confessionRepository']);
-    return schedulerService.scheduleConfession(id, new Date(publishAt));
+    return this.schedulerService.scheduleConfession(id, new Date(publishAt));
   }
 
   @Delete(':id/schedule')
@@ -253,10 +300,7 @@ export class ConfessionController {
   @ApiOperation({ summary: 'Cancel scheduled confession' })
   @ApiParam({ name: 'id', description: 'Confession UUID' })
   async cancelSchedule(@Param('id') id: string) {
-    const schedulerService = new (
-      await import('./confession-scheduler.service')
-    ).ConfessionSchedulerService(this.service['confessionRepository']);
-    return schedulerService.cancelSchedule(id);
+    return this.schedulerService.cancelSchedule(id);
   }
 
   @Get('user/scheduled')
@@ -267,10 +311,7 @@ export class ConfessionController {
     if (!userId) {
       return [];
     }
-    const schedulerService = new (
-      await import('./confession-scheduler.service')
-    ).ConfessionSchedulerService(this.service['confessionRepository']);
-    return schedulerService.getScheduledConfessions(userId);
+    return this.schedulerService.getScheduledConfessions(String(userId));
   }
 
   /**

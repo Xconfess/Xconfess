@@ -18,6 +18,10 @@ export interface MessageKeyPair {
 
 const subtle = globalThis.crypto.subtle;
 
+function asBufferSource(value: Uint8Array | ArrayBuffer): BufferSource {
+  return value as unknown as BufferSource;
+}
+
 function toBase64Url(bytes: Uint8Array): string {
   const binary = Array.from(bytes, (b) => String.fromCharCode(b)).join('');
   return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
@@ -63,7 +67,7 @@ export function isEncryptedPayload(payload: string): boolean {
 async function importX25519PrivateKey(privateKeyBase64Url: string): Promise<CryptoKey> {
   return subtle.importKey(
     'pkcs8',
-    fromBase64Url(privateKeyBase64Url),
+    asBufferSource(fromBase64Url(privateKeyBase64Url)),
     { name: 'X25519' },
     false,
     ['deriveBits'],
@@ -73,7 +77,7 @@ async function importX25519PrivateKey(privateKeyBase64Url: string): Promise<Cryp
 async function importX25519PublicKey(publicKeyBase64Url: string): Promise<CryptoKey> {
   return subtle.importKey(
     'raw',
-    fromBase64Url(publicKeyBase64Url),
+    asBufferSource(fromBase64Url(publicKeyBase64Url)),
     { name: 'X25519' },
     false,
     [],
@@ -81,7 +85,11 @@ async function importX25519PublicKey(publicKeyBase64Url: string): Promise<Crypto
 }
 
 export async function generateMessageKeyPair(): Promise<MessageKeyPair> {
-  const keyPair = await subtle.generateKey({ name: 'X25519' }, true, ['deriveBits']);
+  const keyPair = (await subtle.generateKey(
+    { name: 'X25519' },
+    true,
+    ['deriveBits'],
+  )) as CryptoKeyPair;
   const publicRaw = await subtle.exportKey('raw', keyPair.publicKey);
   const privatePkcs8 = await subtle.exportKey('pkcs8', keyPair.privateKey);
 
@@ -112,8 +120,8 @@ export async function deriveThreadKey(
     {
       name: 'HKDF',
       hash: 'SHA-256',
-      salt,
-      info: new TextEncoder().encode(MESSAGE_E2E_INFO),
+      salt: asBufferSource(salt),
+      info: asBufferSource(new TextEncoder().encode(MESSAGE_E2E_INFO)),
     },
     hkdfKey,
     { name: 'AES-GCM', length: 256 },
@@ -131,9 +139,9 @@ export async function encryptMessage(
   const key = await deriveThreadKey(privateKeyBase64Url, peerPublicKeyBase64Url, threadId);
   const iv = crypto.getRandomValues(new Uint8Array(12));
   const ciphertext = await subtle.encrypt(
-    { name: 'AES-GCM', iv },
+    { name: 'AES-GCM', iv: asBufferSource(iv) },
     key,
-    new TextEncoder().encode(plaintext),
+    asBufferSource(new TextEncoder().encode(plaintext)),
   );
 
   return JSON.stringify({
@@ -157,9 +165,9 @@ export async function decryptMessage(
 
   const key = await deriveThreadKey(privateKeyBase64Url, peerPublicKeyBase64Url, threadId);
   const plaintext = await subtle.decrypt(
-    { name: 'AES-GCM', iv: fromBase64Url(envelope.iv) },
+    { name: 'AES-GCM', iv: asBufferSource(fromBase64Url(envelope.iv)) },
     key,
-    fromBase64Url(envelope.ct),
+    asBufferSource(fromBase64Url(envelope.ct)),
   );
 
   return new TextDecoder().decode(plaintext);
@@ -173,13 +181,13 @@ export async function wrapPrivateKeyWithPassphrase(
   const iv = crypto.getRandomValues(new Uint8Array(12));
   const baseKey = await subtle.importKey(
     'raw',
-    new TextEncoder().encode(passphrase),
+    asBufferSource(new TextEncoder().encode(passphrase)),
     'PBKDF2',
     false,
     ['deriveKey'],
   );
   const wrapKey = await subtle.deriveKey(
-    { name: 'PBKDF2', salt, iterations: 310_000, hash: 'SHA-256' },
+    { name: 'PBKDF2', salt: asBufferSource(salt), iterations: 310_000, hash: 'SHA-256' },
     baseKey,
     { name: 'AES-GCM', length: 256 },
     false,
@@ -187,9 +195,9 @@ export async function wrapPrivateKeyWithPassphrase(
   );
 
   const ciphertext = await subtle.encrypt(
-    { name: 'AES-GCM', iv },
+    { name: 'AES-GCM', iv: asBufferSource(iv) },
     wrapKey,
-    new TextEncoder().encode(privateKeyBase64Url),
+    asBufferSource(new TextEncoder().encode(privateKeyBase64Url)),
   );
 
   return JSON.stringify({
@@ -217,7 +225,7 @@ export async function unwrapPrivateKeyWithPassphrase(
 
   const baseKey = await subtle.importKey(
     'raw',
-    new TextEncoder().encode(passphrase),
+    asBufferSource(new TextEncoder().encode(passphrase)),
     'PBKDF2',
     false,
     ['deriveKey'],
@@ -225,7 +233,7 @@ export async function unwrapPrivateKeyWithPassphrase(
   const wrapKey = await subtle.deriveKey(
     {
       name: 'PBKDF2',
-      salt: fromBase64Url(parsed.salt),
+      salt: asBufferSource(fromBase64Url(parsed.salt)),
       iterations: 310_000,
       hash: 'SHA-256',
     },
@@ -236,9 +244,9 @@ export async function unwrapPrivateKeyWithPassphrase(
   );
 
   const plaintext = await subtle.decrypt(
-    { name: 'AES-GCM', iv: fromBase64Url(parsed.iv) },
+    { name: 'AES-GCM', iv: asBufferSource(fromBase64Url(parsed.iv)) },
     wrapKey,
-    fromBase64Url(parsed.ct),
+    asBufferSource(fromBase64Url(parsed.ct)),
   );
 
   return new TextDecoder().decode(plaintext);

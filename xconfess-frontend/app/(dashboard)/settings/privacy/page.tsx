@@ -3,7 +3,8 @@
 import React, { useEffect, useState } from 'react';
 import { Shield, Eye, EyeOff, MessageSquare, Database, Save, Sun, Moon, Laptop, Lock, Globe, Bell, BellOff } from 'lucide-react';
 import { useGlobalToast } from '@/app/components/common/Toast';
-import { useTheme } from '@/app/components/common/ThemeProvider'; // TODO: point at your actual theme context
+import { normalizeApiError } from '@/app/lib/api/errors';
+import { useTheme } from '@/app/lib/hooks/useTheme';
 
 interface PrivacySettings {
   isDiscoverable: boolean;
@@ -104,15 +105,17 @@ export default function PrivacySettingsPage() {
       });
 
       if (!response.ok) {
-        throw new Error('Failed to load settings');
+        const error = await normalizeApiError(response);
+        throw new Error(error.message);
       }
 
       const data: PrivacySettings = await response.json();
       setSettings(data);
       setDirty(false);
-    } catch {
-      setLoadError('Failed to load privacy settings.');
-      toast.error('Failed to load privacy settings');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to load privacy settings.';
+      setLoadError(message);
+      toast.error(message);
     } finally {
       setLoading(false);
     }
@@ -138,14 +141,17 @@ export default function PrivacySettingsPage() {
         body: JSON.stringify(settings),
       });
 
-      if (!response.ok) throw new Error('Failed to save');
+      if (!response.ok) {
+        const error = await normalizeApiError(response);
+        throw new Error(error.message);
+      }
 
       const updated: PrivacySettings = await response.json();
       setSettings(updated);
       setDirty(false);
       toast.success('Privacy settings saved successfully');
-    } catch {
-      toast.error('Failed to save privacy settings');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to save privacy settings');
     } finally {
       setSaving(false);
     }

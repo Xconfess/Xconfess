@@ -2,9 +2,10 @@ import { normalizeConfession } from "../../lib/utils/normalizeConfession";
 import { createApiErrorResponse } from "@/lib/apiErrorHandler";
 import { getApiBaseUrl } from "@/app/lib/config";
 import { getOrCreateRequestId, requestIdResponseHeaders } from "@/app/lib/utils/requestId";
+import { methodNotAllowedHandlers } from "@/app/lib/api/proxy";
 
-const BASE_API_URL = getApiBaseUrl();
 export async function POST(request: Request) {
+  const BASE_API_URL = getApiBaseUrl();
   const correlationId = getOrCreateRequestId(request);
 
   try {
@@ -91,6 +92,7 @@ export async function POST(request: Request) {
 }
 
 export async function GET(request: Request) {
+  const BASE_API_URL = getApiBaseUrl();
   const { searchParams } = new URL(request.url);
   const page = Math.max(1, parseInt(searchParams.get("page") ?? "1") || 1);
   const limit = Math.max(1, parseInt(searchParams.get("limit") ?? "10") || 10);
@@ -169,4 +171,6 @@ export async function GET(request: Request) {
     });
   }
 }
+
+export const { PUT, PATCH, DELETE } = methodNotAllowedHandlers(["GET", "POST"]);
 

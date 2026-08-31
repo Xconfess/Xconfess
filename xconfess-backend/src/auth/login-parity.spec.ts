@@ -1,37 +1,36 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { AuthController } from './auth.controller';
-import { UserController } from '../user/user.controller';
 import { AuthService } from './auth.service';
-import { UserService } from '../user/user.service';
-import { ConfessionService } from '../confession/confession.service';
+import { StepUpService } from './step-up.service';
 import { AppException } from '../common/errors/app-exception';
 import { ErrorCode } from '../common/errors/error-codes';
 import { HttpStatus, HttpException } from '@nestjs/common';
 
-describe('Login parity between /auth/login and /users/login', () => {
+describe('AuthController login', () => {
   let authController: AuthController;
-  let userController: UserController;
   let mockAuthService: any;
 
   beforeEach(async () => {
     mockAuthService = {
+      validateUser: jest.fn().mockResolvedValue({ id: 1, email: 'a@b.c', role: 'user' }),
+      userService: {
+        findByEmail: jest.fn().mockResolvedValue(null),
+      },
       login: jest.fn(),
     };
 
     const module: TestingModule = await Test.createTestingModule({
-      controllers: [AuthController, UserController],
+      controllers: [AuthController],
       providers: [
         { provide: AuthService, useValue: mockAuthService },
-        { provide: UserService, useValue: {} },
-        { provide: ConfessionService, useValue: {} },
+        { provide: StepUpService, useValue: {} },
       ],
     }).compile();
 
     authController = module.get<AuthController>(AuthController);
-    userController = module.get<UserController>(UserController);
   });
 
-  it('returns identical success payloads for the same credentials', async () => {
+  it('returns the AuthService login payload for valid credentials', async () => {
     const successPayload = {
       access_token: 'jwt-token',
       user: { id: 1, username: 'u', email: 'a@b.c' },
@@ -45,16 +44,10 @@ describe('Login parity between /auth/login and /users/login', () => {
       password: 'pass',
     } as any);
 
-    const userResult = await userController.login({
-      email: 'a@b.c',
-      password: 'pass',
-    } as any);
-
-    expect(authResult).toEqual(userResult);
     expect(authResult).toEqual(successPayload);
   });
 
-  it('propagates identical error status and response for auth failures', async () => {
+  it('propagates auth failure status and response', async () => {
     const appErr = new AppException(
       'Invalid credentials',
       ErrorCode.AUTH_INVALID_CREDENTIALS,
@@ -67,20 +60,8 @@ describe('Login parity between /auth/login and /users/login', () => {
       authController.login({ email: 'x', password: 'y' } as any),
     ).rejects.toThrow(HttpException);
 
-    await expect(
-      userController.login({ email: 'x', password: 'y' } as any),
-    ).rejects.toThrow(HttpException);
-
-    // Verify the status code is the same when caught
     try {
       await authController.login({ email: 'x', password: 'y' } as any);
-    } catch (e: any) {
-      expect(e.getStatus()).toBe(HttpStatus.UNAUTHORIZED);
-      expect(e.getResponse()).toHaveProperty('code');
-    }
-
-    try {
-      await userController.login({ email: 'x', password: 'y' } as any);
     } catch (e: any) {
       expect(e.getStatus()).toBe(HttpStatus.UNAUTHORIZED);
       expect(e.getResponse()).toHaveProperty('code');

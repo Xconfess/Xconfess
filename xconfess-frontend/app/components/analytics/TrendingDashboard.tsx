@@ -82,7 +82,7 @@ function normalizeDailyActivity(value: unknown): DailyActivity[] {
 
 function normalizeAnalyticsData(
   payload: unknown,
-  fallbackPeriod: "7days" | "30days",
+  fallbackPeriod: "24h" | "7days" | "30days" | "all",
 ): AnalyticsData {
   const source: AnalyticsApiResponse = isRecord(payload) ? payload : {};
   const trending = normalizeTrending(source.trending);
@@ -90,7 +90,9 @@ function normalizeAnalyticsData(
     source.reactionDistribution,
   );
   const dailyActivity = normalizeDailyActivity(source.dailyActivity);
-  const metrics = isRecord(source.totalMetrics) ? source.totalMetrics : {};
+  const metrics: Record<string, unknown> = isRecord(source.totalMetrics)
+    ? source.totalMetrics
+    : {};
 
   return {
     trending,
@@ -105,7 +107,10 @@ function normalizeAnalyticsData(
       totalUsers: asNumber(metrics.totalUsers),
     },
     period:
-      source.period === "30days" || source.period === "7days"
+      source.period === "24h" ||
+      source.period === "30days" ||
+      source.period === "7days" ||
+      source.period === "all"
         ? source.period
         : fallbackPeriod,
   };
@@ -131,18 +136,26 @@ export const TrendingDashboard = () => {
       if (!res.ok) throw new Error('Failed to fetch trending');
 
       const rawData = await res.json();
-      const trending = normalizeTrending(rawData.data);
-      setData({
-        trending,
-        reactionDistribution: [],
-        dailyActivity: [],
-        totalMetrics: {
-          totalConfessions: trending.length,
-          totalReactions: trending.reduce((sum, item) => sum + item.reactionCount, 0),
-          totalUsers: 0,
-        },
-        period: period as any,
-      });
+      const trendingPayload =
+        isRecord(rawData) && Array.isArray(rawData.data) ? rawData.data : null;
+      const analyticsData = trendingPayload
+        ? {
+          trending: normalizeTrending(trendingPayload),
+          reactionDistribution: [],
+          dailyActivity: [],
+          totalMetrics: {
+            totalConfessions: trendingPayload.length,
+            totalReactions: normalizeTrending(trendingPayload).reduce(
+              (sum, item) => sum + item.reactionCount,
+              0,
+            ),
+            totalUsers: 0,
+          },
+          period,
+        }
+        : normalizeAnalyticsData(rawData, period);
+
+      setData(analyticsData);
 
       const headerDate =
         typeof res.headers?.get === "function"
@@ -360,7 +373,7 @@ export const TrendingDashboard = () => {
               </p>
               <p className="mx-auto mt-2 max-w-md text-sm text-gray-400">
                 Try a different time period, refresh the dashboard, or seed demo
-                data before a GrantFox walkthrough.
+                data before a product walkthrough.
               </p>
               <button
                 type="button"

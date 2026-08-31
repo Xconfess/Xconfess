@@ -1,7 +1,7 @@
 # XConfess — Go/No-Go Checklist
 
 Use before any demo or review cycle. Check off each item; anything unchecked
-in **Key Flows** or **Known Risks** is a blocker unless explicitly waived.
+in **Key Flows** or **Known Risks** is a blocker unless explicitly waived..
 
 ---
 
@@ -20,7 +20,7 @@ in **Key Flows** or **Known Risks** is a blocker unless explicitly waived.
 - [ ] Frontend dev server starts without console errors (check
       `offline/page.tsx`, `WebSocketReconnectBanner`, service worker
       registration via `public/sw.js` — these fail silently if misconfigured)
-
+,
 ## 2. Build
 
 - [ ] `./scripts/contracts-release.sh build` succeeds and produces all four

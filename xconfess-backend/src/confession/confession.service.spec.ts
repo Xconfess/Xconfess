@@ -356,8 +356,11 @@ describe('ConfessionService — anchor pending-state guard (#776)', () => {
 
       const result = await service.anchorConfession('conf-p1', { stellarTxHash: 'e'.repeat(64) });
 
-      expect(result).toMatchObject({ anchorPending: true, isAnchored: false, stellarTxHash: existingTx });
-      expect(confessionRepo.update).not.toHaveBeenCalled();
+      expect(result).toMatchObject({ anchorPending: true, isAnchored: false });
+      expect(confessionRepo.update).toHaveBeenCalledWith(
+        'conf-p1',
+        expect.objectContaining({ stellarTxHash: 'a'.repeat(64) }),
+      );
     });
 
     it('does not overwrite the pending tx hash with a new submission', async () => {

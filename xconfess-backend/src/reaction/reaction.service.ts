@@ -4,6 +4,7 @@ import {
   NotFoundException,
   ConflictException,
   ForbiddenException,
+  BadRequestException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource, QueryFailedError } from 'typeorm';
@@ -11,6 +12,7 @@ import { CreateReactionDto } from './dto/create-reaction.dto';
 import { AnonymousConfession } from '../confession/entities/confession.entity';
 import { Reaction } from './entities/reaction.entity';
 import { AnonymousUser } from '../user/entities/anonymous-user.entity';
+import { assertCanUseAnonymousIdentity } from '../common/security/anonymous-identity-ownership';
 import {
   OutboxEvent,
   OutboxStatus,
@@ -36,7 +38,16 @@ export class ReactionService {
     private readonly reactionsGateway: ReactionsGateway,
   ) {}
 
-  async createReaction(dto: CreateReactionDto): Promise<Reaction> {
+  async createReaction(
+    dto: CreateReactionDto,
+    actorUserId?: number | string | null,
+  ): Promise<Reaction> {
+    if (!dto.anonymousUserId) {
+      throw new BadRequestException('Anonymous user id is required');
+    }
+
+    const anonymousUserId = dto.anonymousUserId;
+
     // 1. Verify confession exists and is not soft-deleted.
     const confession = await this.confessionRepo.findOne({
       where: { id: dto.confessionId, isDeleted: false },
@@ -59,14 +70,13 @@ export class ReactionService {
 
     // 2. Verify the reacting anonymous user exists.
     const anonymousUser = await this.anonymousUserRepo.findOne({
-      where: { id: dto.anonymousUserId },
+      where: { id: anonymousUserId },
+      relations: ['userLinks'],
     });
 
-    if (!anonymousUser) {
-      throw new NotFoundException('Anonymous user not found');
-    }
+    assertCanUseAnonymousIdentity(anonymousUser, { userId: actorUserId });
 
-    const result = await this.dataSource
+    return this.dataSource
       .transaction(async (manager) => {
         const reactionRepo = manager.getRepository(Reaction);
         const outboxRepo = manager.getRepository(OutboxEvent);
@@ -75,7 +85,7 @@ export class ReactionService {
         const existing = await reactionRepo.findOne({
           where: {
             confession: { id: dto.confessionId },
-            anonymousUser: { id: dto.anonymousUserId },
+            anonymousUser: { id: anonymousUserId },
           },
         });
 
@@ -127,12 +137,12 @@ export class ReactionService {
           ) {
             this.logger.debug(
               `Race-condition duplicate detected for reaction ` +
-                `(confession=${dto.confessionId}, user=${dto.anonymousUserId})`,
+                `(confession=${dto.confessionId}, user=${anonymousUserId})`,
             );
             const raceExisting = await reactionRepo.findOne({
               where: {
                 confession: { id: dto.confessionId },
-                anonymousUser: { id: dto.anonymousUserId },
+                anonymousUser: { id: anonymousUserId },
               },
             });
 
@@ -169,7 +179,7 @@ export class ReactionService {
         if (result.isNew) {
           this.reactionsGateway.broadcastReactionAdded(confession.id, {
             reactionId: result.reaction.id,
-            userId: dto.anonymousUserId,
+            userId: anonymousUserId,
             reactionType: result.reaction.emoji,
             timestamp: result.reaction.createdAt,
             totalCount: await this.getReactionCount(confession.id),
@@ -229,7 +239,7 @@ export class ReactionService {
     if (!anonymousUser) return null;
     const link = anonymousUser.userLinks?.[0];
     if (link?.user) {
-      return link.user.getEmail();
+      return link.user.getEmail() ?? null;
     }
     return null;
   }

@@ -50,6 +50,8 @@ jest.mock("@/app/lib/hooks/useReactions", () => ({
 
 jest.mock("@/app/lib/utils/errorHandler", () => ({
   logError: jest.fn(),
+  getErrorMessage: (error: unknown) =>
+    error instanceof Error ? error.message : "Something went wrong",
 }));
 
 jest.mock("@/app/lib/api/client", () => ({
@@ -82,6 +84,14 @@ jest.mock("lucide-react", () => {
     ThumbsUp: icon("thumbs-up"),
     AlertCircle: icon("alert-circle"),
     RotateCcw: icon("rotate-ccw"),
+    CheckCircle2: icon("check-circle-2"),
+    Eye: icon("eye"),
+    EyeOff: icon("eye-off"),
+    ShieldCheck: icon("shield-check"),
+    UserPlus: icon("user-plus"),
+    LogIn: icon("log-in"),
+    Check: icon("check"),
+    Copy: icon("copy"),
   };
 });
 
@@ -269,10 +279,7 @@ describe("ReactionButton accessibility", () => {
     button.focus();
     await user.keyboard("{Enter}");
 
-    expect(mockAddReaction).toHaveBeenCalledWith({
-      confessionId: "c-1",
-      type: "like",
-    });
+    expect(mockAddReaction).toHaveBeenCalledWith("c-1", "like");
   });
 
   it("can be triggered with Space key", async () => {
@@ -483,7 +490,7 @@ describe("Login page accessibility", () => {
   it("all form controls are labelled", () => {
     render(<LoginPage />);
     expect(screen.getByLabelText(/email/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/password/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/^password$/i)).toBeInTheDocument();
   });
 
   it("Tab moves through inputs then buttons in order", async () => {
@@ -495,6 +502,9 @@ describe("Login page accessibility", () => {
 
     await user.tab();
     expect(document.activeElement?.tagName).toBe("INPUT");
+
+    await user.tab();
+    expect(document.activeElement?.tagName).toBe("A");
 
     await user.tab();
     expect(document.activeElement?.tagName).toBe("BUTTON");
@@ -545,7 +555,7 @@ describe("Register page accessibility", () => {
     render(<RegisterPage />);
     expect(screen.getByLabelText(/username/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/email/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/password/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/^password$/i)).toBeInTheDocument();
   });
 
   it("Sign in button routes to /login without calling the backend", async () => {

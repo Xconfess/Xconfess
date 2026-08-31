@@ -19,6 +19,11 @@ import { encodeCursor } from '../common/pagination';
 import { AnomalyDetectionService } from '../anomaly/anomaly-detection.service';
 import { ConfessionIdempotencyService } from './confession-idempotency.service';
 
+jest.mock('../utils/confession-encryption', () => ({
+  decryptConfession: jest.fn((value: string) => value ?? ''),
+  encryptConfession: jest.fn((value: string) => value),
+}));
+
 const anomalyDetectionProvider = {
   provide: AnomalyDetectionService,
   useValue: { getAdjustmentFactor: jest.fn().mockResolvedValue(1) },

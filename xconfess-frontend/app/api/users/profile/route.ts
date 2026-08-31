@@ -1,9 +1,10 @@
 import { createApiErrorResponse } from "@/lib/apiErrorHandler";
 import { getApiBaseUrl } from "@/app/lib/config";
+import { methodNotAllowedHandlers } from "@/app/lib/api/proxy";
 
-const BASE_API_URL = getApiBaseUrl();
 
 export async function GET(request: Request) {
+  const BASE_API_URL = getApiBaseUrl();
   const correlationId = request.headers.get("X-Correlation-ID") || "unknown";
 
   try {
@@ -48,6 +49,7 @@ export async function GET(request: Request) {
 }
 
 export async function PATCH(request: Request) {
+  const BASE_API_URL = getApiBaseUrl();
   const correlationId = request.headers.get("X-Correlation-ID") || "unknown";
 
   try {
@@ -92,4 +94,6 @@ export async function PATCH(request: Request) {
     });
   }
 }
+
+export const { POST, PUT, DELETE } = methodNotAllowedHandlers(["GET", "PATCH"]);
 

@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createApiErrorResponse } from "@/lib/apiErrorHandler";
 import { getApiBaseUrl } from "@/app/lib/config";
+import { methodNotAllowedHandlers } from "@/app/lib/api/proxy";
 
-const BACKEND_API_URL = getApiBaseUrl();
 
 export async function GET(request: NextRequest) {
+  const BACKEND_API_URL = getApiBaseUrl();
   try {
     const token = request.headers.get("authorization")?.replace("Bearer ", "");
 
@@ -38,6 +39,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function PUT(request: NextRequest) {
+  const BACKEND_API_URL = getApiBaseUrl();
   try {
     const token = request.headers.get("authorization")?.replace("Bearer ", "");
     const body = await request.json();
@@ -73,4 +75,6 @@ export async function PUT(request: NextRequest) {
     });
   }
 }
+
+export const { POST, PATCH, DELETE } = methodNotAllowedHandlers(["GET", "PUT"]);
 

@@ -7,6 +7,8 @@ interface WalletButtonProps {
   className?: string;
 }
 
+const FREIGHTER_INSTALL_URL = "https://www.freighter.app/";
+
 /**
  * Truncate public key for display
  */
@@ -71,6 +73,9 @@ export const WalletButton: React.FC<WalletButtonProps> = ({
     disconnect,
   } = wallet;
   const networkInfo = getNetworkInfo(network);
+  const shouldInstallWallet =
+    !wallet.isFreighterInstalled ||
+    error?.toLowerCase().includes("not installed");
 
   const handleConnect = async () => {
     try {
@@ -83,6 +88,10 @@ export const WalletButton: React.FC<WalletButtonProps> = ({
   const handleDisconnect = () => {
     disconnect();
     setIsDropdownOpen(false);
+  };
+
+  const handleInstallWallet = () => {
+    window.open(FREIGHTER_INSTALL_URL, "_blank", "noopener,noreferrer");
   };
 
   const copyToClipboard = () => {
@@ -111,12 +120,12 @@ export const WalletButton: React.FC<WalletButtonProps> = ({
     return (
       <div className={`relative group ${className}`}>
         <button
-          onClick={handleConnect}
+          onClick={shouldInstallWallet ? handleInstallWallet : handleConnect}
           className="px-4 py-2 rounded-lg bg-red-100 text-red-700 hover:bg-red-200 transition font-medium text-sm border border-red-300"
           title={error}
         >
           ⚠️{" "}
-          {error.includes("not installed")
+          {shouldInstallWallet
             ? "Install Wallet"
             : "Connect Wallet"}
         </button>

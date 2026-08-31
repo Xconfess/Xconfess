@@ -9,6 +9,7 @@ import { AnonymousUser } from '../user/entities/anonymous-user.entity';
 import { OutboxEvent } from '../common/entities/outbox-event.entity';
 import { AnalyticsService } from '../analytics/analytics.service';
 import { ReactionsGateway } from './reactions.gateway';
+import { createAnonymousOwnershipFixture } from '../../test/utils/anonymous-ownership.factory';
 
 // ─── Factories ───────────────────────────────────────────────────────────────
 
@@ -241,6 +242,59 @@ describe('ReactionService', () => {
       expect(reactionRepo.create).not.toHaveBeenCalled();
     });
 
+    it('allows an authenticated user to react with their linked anonymous identity', async () => {
+      const fixture = createAnonymousOwnershipFixture();
+      const user = fixture.ownerLinkedAnon;
+      const reaction = makeReaction({ anonymousUser: user });
+
+      confessionRepo.findOne.mockResolvedValue(makeConfession());
+      anonymousUserRepo.findOne.mockResolvedValue(user);
+      managerReactionRepo.findOne.mockResolvedValue(null);
+      managerReactionRepo.create.mockReturnValue(reaction);
+      managerReactionRepo.save.mockResolvedValue(reaction);
+
+      const result = await service.createReaction(
+        { ...dto, anonymousUserId: fixture.ownerLinkedAnonId },
+        fixture.ownerUserId,
+      );
+
+      expect(result).toBe(reaction);
+    });
+
+    it('returns 404 when a user forges another account linked anonymous identity', async () => {
+      const fixture = createAnonymousOwnershipFixture();
+
+      confessionRepo.findOne.mockResolvedValue(makeConfession());
+      anonymousUserRepo.findOne.mockResolvedValue(fixture.otherLinkedAnon);
+
+      await expect(
+        service.createReaction(
+          { ...dto, anonymousUserId: fixture.otherLinkedAnonId },
+          fixture.ownerUserId,
+        ),
+      ).rejects.toBeInstanceOf(NotFoundException);
+
+      expect(managerReactionRepo.create).not.toHaveBeenCalled();
+    });
+
+    it('keeps public reactions working for unlinked anonymous identities', async () => {
+      const fixture = createAnonymousOwnershipFixture();
+      const reaction = makeReaction({ anonymousUser: fixture.publicAnon });
+
+      confessionRepo.findOne.mockResolvedValue(makeConfession());
+      anonymousUserRepo.findOne.mockResolvedValue(fixture.publicAnon);
+      managerReactionRepo.findOne.mockResolvedValue(null);
+      managerReactionRepo.create.mockReturnValue(reaction);
+      managerReactionRepo.save.mockResolvedValue(reaction);
+
+      const result = await service.createReaction({
+        ...dto,
+        anonymousUserId: fixture.publicAnonId,
+      });
+
+      expect(result).toBe(reaction);
+    });
+
     // ── Schema alignment guard ──────────────────────────────────────────────
 
     it('does NOT access confession.user at any point (invalid field guard)', async () => {
@@ -352,6 +406,7 @@ describe('ReactionService', () => {
       managerReactionRepo.create.mockReturnValue(reaction);
       managerReactionRepo.save.mockResolvedValue(reaction);
       managerReactionRepo.count.mockResolvedValue(3);
+      reactionRepo.count.mockResolvedValue(3);
 
       await service.createReaction(dto);
 

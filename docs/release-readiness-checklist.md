@@ -35,7 +35,7 @@ Use this checklist before any staging or production release that affects the bac
 
 ### Frontend Readiness
 
-- [ ] Build the frontend with the intended API base URL: `NEXT_PUBLIC_API_URL=http://localhost:5000 npm run build --workspace=xconfess-frontend`
+- [ ] Build the frontend with the intended API base URL: `NEXT_PUBLIC_API_URL=http://localhost:5000/api npm run build --workspace=xconfess-frontend`
 - [ ] Lint the frontend: `npm run lint --workspace=xconfess-frontend`
 - [ ] Run frontend tests: `npm run test --workspace=xconfess-frontend`
 - [ ] Smoke-check the primary user journeys affected by the release.

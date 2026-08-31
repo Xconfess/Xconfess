@@ -323,7 +323,7 @@ mod adversarial {
         let (env, id) = setup();
         let c = mk_client(&env, &id);
         let recipient = Address::generate(&env);
-        let amount: i128 = 1_000_000_000_000;
+        let amount: i128 = AnonymousTipping::MAX_TIP_AMOUNT;
         let sid = c.send_tip(&Address::generate(&env), &recipient, &amount);
         assert_eq!(sid, 1);
         assert_eq!(c.get_tips(&recipient), amount);

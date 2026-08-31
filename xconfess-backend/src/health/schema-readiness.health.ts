@@ -35,7 +35,7 @@ export class SchemaReadinessHealthIndicator extends HealthIndicator {
           // Redact the raw DB error; it may contain connection details.
           // Contributors should check backend logs tagged schema_readiness for
           // the full message.
-          hint: 'Run pending migrations: `npm run migration:run` (or check the MigrationVerificationService log output tagged schema_readiness_error).',
+          hint: 'Run pending migrations: `npm run backend:migration:run` (or check the MigrationVerificationService log output tagged schema_readiness_error).',
         }),
       );
     }
@@ -47,7 +47,7 @@ export class SchemaReadinessHealthIndicator extends HealthIndicator {
           table: 'anonymous_confessions',
           missingColumns: result.missingColumns,
           missingIndexes: result.missingIndexes,
-          hint: 'Run pending migrations: `npm run migration:run`. Check the migrations/ directory for any unapplied files.',
+          hint: 'Run `npm run backend:migration:run` (clean database) or `npm run backend:schema:repair` (existing dev database). Check the migrations/ and src/migrations/ directories for any unapplied files.',
         }),
       );
     }

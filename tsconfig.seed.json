@@ -14,8 +14,12 @@
     "declarationMap": true,
     "sourceMap": true,
     "experimentalDecorators": true,
-    "emitDecoratorMetadata": true
+    "emitDecoratorMetadata": true,
+    "baseUrl": ".",
+    "paths": {
+      "src/*": ["xconfess-backend/src/*"]
+    }
   },
-  "include": ["scripts/**/*.ts"],
-  "exclude": ["node_modules", "dist", "xconfess-backend", "xconfess-frontend", "xconfess-contracts"]
+  "include": ["scripts/**/*.ts", "xconfess-backend/src/**/*.ts"],
+  "exclude": ["node_modules", "dist", "xconfess-frontend", "xconfess-contracts"]
 }

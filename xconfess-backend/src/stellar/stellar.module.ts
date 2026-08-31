@@ -11,15 +11,17 @@ import { StellarInvokeContractGuard } from './guards/stellar-invoke-contract.gua
 import { AuditLogModule } from '../audit-log/audit-log.module';
 import { DeploymentMetadataService } from './services/deployment-metadata.service';
 import { StellarReconciliationWorker } from './stellar-reconciliation.worker';
+import { ReputationReconciliationWorker } from './reputation-reconciliation.worker';
 import { StellarAnchor } from './entities/stellar-anchor.entity';
 import { AnonymousConfession } from '../confession/entities/confession.entity';
+import { Tip } from '../tipping/entities/tip.entity';
 
 @Module({
   imports: [
     ConfigModule,
     AuditLogModule,
     ScheduleModule.forRoot(),
-    TypeOrmModule.forFeature([StellarAnchor, AnonymousConfession]),
+    TypeOrmModule.forFeature([StellarAnchor, AnonymousConfession, Tip]),
   ],
   providers: [
     StellarConfigService,
@@ -29,6 +31,7 @@ import { AnonymousConfession } from '../confession/entities/confession.entity';
     StellarInvokeContractGuard,
     DeploymentMetadataService,
     StellarReconciliationWorker,
+    ReputationReconciliationWorker,
   ],
   controllers: [StellarController],
   exports: [

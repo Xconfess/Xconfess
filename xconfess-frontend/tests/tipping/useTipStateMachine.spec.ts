@@ -45,6 +45,30 @@ function renderMachine() {
 // Speed up polling in tests
 jest.useFakeTimers();
 
+beforeEach(() => {
+  globalThis.fetch = mockFetch as unknown as typeof fetch;
+  window.fetch = mockFetch as unknown as typeof fetch;
+
+  const store = new Map<string, string>();
+  Object.defineProperty(window, "localStorage", {
+    configurable: true,
+    value: {
+      get length() {
+        return store.size;
+      },
+      clear: jest.fn(() => store.clear()),
+      getItem: jest.fn((key: string) => store.get(key) ?? null),
+      key: jest.fn((index: number) => Array.from(store.keys())[index] ?? null),
+      removeItem: jest.fn((key: string) => {
+        store.delete(key);
+      }),
+      setItem: jest.fn((key: string, value: string) => {
+        store.set(key, String(value));
+      }),
+    },
+  });
+});
+
 afterEach(() => {
   jest.clearAllMocks();
   jest.clearAllTimers();
@@ -67,16 +91,20 @@ describe("useTipStateMachine", () => {
 
     const { result } = renderMachine();
 
-    const submitPromise = act(async () => {
-      result.current.submit(0.5);
+    let submitPromise!: Promise<void>;
+    act(() => {
+      submitPromise = result.current.submit(0.5);
     });
 
     // submitting immediately
     expect(result.current.info.state).toBe("submitting");
 
     // advance past sendTip
-    await act(async () => { jest.runAllTimersAsync(); });
-    await submitPromise;
+    await act(async () => {
+      await Promise.resolve();
+      await jest.runAllTimersAsync();
+      await submitPromise;
+    });
 
     expect(result.current.info.state).toBe("confirmed");
     expect(result.current.info.txHash).toBe(TX_HASH);
@@ -106,7 +134,7 @@ describe("useTipStateMachine", () => {
 
     const { result } = renderMachine();
     const p = act(async () => { result.current.submit(0.5); });
-    await act(async () => { jest.runAllTimersAsync(); });
+    await act(async () => { await jest.runAllTimersAsync(); });
     await p;
 
     expect(result.current.info.state).toBe("confirmed");
@@ -118,7 +146,7 @@ describe("useTipStateMachine", () => {
 
     const { result } = renderMachine();
     const p = act(async () => { result.current.submit(0.5); });
-    await act(async () => { jest.runAllTimersAsync(); });
+    await act(async () => { await jest.runAllTimersAsync(); });
     await p;
 
     expect(result.current.info.state).toBe("failed");
@@ -141,7 +169,7 @@ describe("useTipStateMachine", () => {
     expect(mockSendTip).toHaveBeenCalledTimes(1);
 
     resolveSend({ success: false, error: "rejected" });
-    await act(async () => { jest.runAllTimersAsync(); });
+    await act(async () => { await jest.runAllTimersAsync(); });
   });
 
   it("retryVerify does not re-send the transaction", async () => {
@@ -153,7 +181,7 @@ describe("useTipStateMachine", () => {
 
     const { result } = renderMachine();
     const p = act(async () => { result.current.submit(0.5); });
-    await act(async () => { jest.runAllTimersAsync(); });
+    await act(async () => { await jest.runAllTimersAsync(); });
     await p;
 
     expect(result.current.info.state).toBe("failed");
@@ -198,7 +226,7 @@ describe("useTipStateMachine", () => {
 
     const { result } = renderMachine();
     const p = act(async () => { result.current.submit(0.5); });
-    await act(async () => { jest.runAllTimersAsync(); });
+    await act(async () => { await jest.runAllTimersAsync(); });
     await p;
 
     expect(result.current.info.explorerUrl).toBe(`https://testnet.steexp.com/tx/${TX_HASH}`);
@@ -217,7 +245,7 @@ describe("useTipStateMachine", () => {
     const persisted = JSON.parse(window.localStorage.getItem(PERSIST_KEY) as string);
     expect(persisted.txHash).toBe(TX_HASH);
 
-    await act(async () => { jest.runAllTimersAsync(); });
+    await act(async () => { await jest.runAllTimersAsync(); });
     await p;
 
     expect(result.current.info.state).toBe("confirmed");
@@ -310,7 +338,7 @@ describe("useTipStateMachine", () => {
     expect(result.current.info.txHash).toBe(TX_HASH);
 
     // Draining any in-flight polling/timers must not flip the state again.
-    await act(async () => { jest.runAllTimersAsync(); });
+    await act(async () => { await jest.runAllTimersAsync(); });
     expect(result.current.info.state).toBe("failed");
     expect(mockVerifyTip).not.toHaveBeenCalled();
   });
@@ -328,7 +356,7 @@ describe("useTipStateMachine", () => {
     expect(result.current.info.txHash).toBeNull();
 
     resolveSend({ success: true, txHash: TX_HASH });
-    await act(async () => { jest.runAllTimersAsync(); });
+    await act(async () => { await jest.runAllTimersAsync(); });
     // The late resolution must not resurrect state after cancellation.
     expect(result.current.info.state).toBe("idle");
   });

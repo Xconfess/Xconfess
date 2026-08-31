@@ -93,7 +93,7 @@ describe("Mobile Navigation Regression Coverage", () => {
       render(<Sidebar isOpen={false} onClose={() => { }} />);
 
       const sidebar = screen.getByRole("dialog", { name: "Mobile Navigation" });
-      expect(sidebar).toHaveClass("-translate-x-full");
+      expect(sidebar).toHaveClass("translate-x-full");
     });
 
     it("closes when overlay is clicked", async () => {
@@ -225,7 +225,7 @@ describe("Mobile Navigation Regression Coverage", () => {
         await user.click(closeButton);
       });
 
-      expect(sidebar).toHaveClass("-translate-x-full");
+      expect(sidebar).toHaveClass("translate-x-full");
       expect(menuButton).toHaveAttribute("aria-expanded", "false");
     });
 

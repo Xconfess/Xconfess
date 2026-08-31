@@ -127,7 +127,21 @@ export class ConfessionDraftService {
 
   async updateDraft(userId: number, id: string, dto: UpdateConfessionDraftDto) {
     const draft = await this.draftRepo.findOne({ where: { id } });
-    if (!draft) throw new NotFoundException('Draft not found');
+    if (!draft) {
+      // A versioned update targets a specific remote revision the client
+      // previously synced. If that draft no longer exists, this is an
+      // offline-sync conflict (deleted elsewhere while the client was
+      // offline), not a generic "unknown id" 404 — the caller still holds
+      // recoverable local content and must be told the remote copy is gone.
+      if (dto.version !== undefined) {
+        throw new ConflictException({
+          reason: 'remote_deleted',
+          message: 'The draft was deleted remotely while you were offline.',
+          draftId: id,
+        });
+      }
+      throw new NotFoundException('Draft not found');
+    }
     if (draft.userId !== userId) throw new ForbiddenException();
 
     if (draft.status === ConfessionDraftStatus.POSTED) {
@@ -136,8 +150,10 @@ export class ConfessionDraftService {
 
     if (dto.version !== undefined && draft.version !== dto.version) {
       throw new ConflictException({
+        reason: 'remote_updated',
         message:
           'Conflict detected: draft has been modified by another session',
+        currentVersion: draft.version,
         currentDraft: this.sanitizeForResponse(draft),
       });
     }

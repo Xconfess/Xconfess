@@ -109,4 +109,24 @@ describe('normalizeApiError — non-429 responses', () => {
     const err = await normalizeApiError(res);
     expect(err.message).toBe('Internal error');
   });
+
+  it('uses normalized fallback status and code for backend validation errors', async () => {
+    const res = makeResponse(422, { message: 'Display name is required' });
+    const err = await normalizeApiError(res);
+    expect(err).toMatchObject({
+      status: 422,
+      code: 'UNPROCESSABLE_ENTITY',
+      message: 'Display name is required',
+    });
+  });
+});
+
+describe('normalizeApiError — network errors', () => {
+  it('normalizes thrown fetch errors into the shared ApiError shape', async () => {
+    const err = await normalizeApiError(new TypeError('fetch failed'));
+    expect(err).toMatchObject({
+      message: 'fetch failed',
+      code: 'NETWORK_ERROR',
+    });
+  });
 });

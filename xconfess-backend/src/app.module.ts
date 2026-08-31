@@ -1,5 +1,6 @@
 ﻿import { Logger, MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { SanitizationMiddleware } from './middleware/sanitization.middleware';
+import { RequestIdMiddleware } from './middleware/request-id.middleware'; // ADAPT: fix path if it lives elsewhere
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { TypeOrmModule } from '@nestjs/typeorm';
@@ -15,7 +16,7 @@ import { SearchDiscoveryModule } from './search-discovery/search-discovery.modul
 import { CommentModule } from './comment/comment.module';
 import { ReactionModule } from './reaction/reaction.module';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
-import { APP_GUARD } from '@nestjs/core';
+import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import throttleConfig from './config/throttle.config';
 import exportConfig from './config/export.config';
 import { HealthModule } from './health/health.module';
@@ -38,6 +39,7 @@ import { KeyRotationModule } from './key-rotation/key-rotation.module';
 // âœ… Canonical queue stack: @nestjs/bullmq (BullMQ v4 + ioredis)
 // The legacy @nestjs/bull import has been removed. All queues use BullMQ.
 import { BullModule } from '@nestjs/bullmq';
+import { StructuredLoggingInterceptor } from './common/logging/structured-logging.interceptor';
 
 @Module({
   imports: [
@@ -154,11 +156,16 @@ import { BullModule } from '@nestjs/bullmq';
       provide: APP_GUARD,
       useClass: ThrottlerGuard,
     },
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: StructuredLoggingInterceptor,
+    },
   ],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
-    consumer.apply(SanitizationMiddleware).forRoutes('*');
+    // RequestIdMiddleware first so downstream handlers/loggers can read
+    // req.requestId, and so it's set even if SanitizationMiddleware throws.
+    consumer.apply(RequestIdMiddleware, SanitizationMiddleware).forRoutes('*');
   }
 }
-

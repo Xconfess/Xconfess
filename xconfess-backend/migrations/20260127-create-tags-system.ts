@@ -6,7 +6,7 @@ import {
   TableForeignKey,
 } from 'typeorm';
 
-export class CreateTagsSystem1738000000000 implements MigrationInterface {
+export class CreateTagsSystem2026012700000 implements MigrationInterface {
   public async up(queryRunner: QueryRunner): Promise<void> {
     // Create tags table
     await queryRunner.createTable(

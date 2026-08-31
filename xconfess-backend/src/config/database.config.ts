@@ -1,6 +1,7 @@
 // src/config/typeorm.config.ts
 import { TypeOrmModuleOptions } from '@nestjs/typeorm';
 import { ConfigService } from '@nestjs/config';
+import * as path from 'path';
 
 const TRUE_VALUES = new Set(['true', '1', 'yes', 'on']);
 
@@ -12,9 +13,17 @@ export const getTypeOrmConfig = (
   const syncOptIn = (
     configService.get<string>('TYPEORM_SYNCHRONIZE') || ''
   ).toLowerCase();
+  const productionSyncOptIn = (
+    configService.get<string>('TYPEORM_ALLOW_PRODUCTION_SYNCHRONIZE') || ''
+  ).toLowerCase();
   const migrationsRunSetting = configService.get<string>(
     'TYPEORM_MIGRATIONS_RUN',
   );
+  const loggingSetting = (
+    configService.get<string>('TYPEORM_LOGGING') || ''
+  ).toLowerCase();
+  const isCompiledRuntime = __dirname.includes(`${path.sep}dist${path.sep}`);
+  const migrationExtension = isCompiledRuntime ? 'js' : 'ts';
 
   const isLocalDevEnv =
     nodeEnv === 'development' ||
@@ -24,8 +33,14 @@ export const getTypeOrmConfig = (
     appEnv === 'dev' ||
     appEnv === 'local';
 
+  if (!isLocalDevEnv && TRUE_VALUES.has(syncOptIn)) {
+    throw new Error(
+      'TYPEORM_SYNCHRONIZE must be false outside local development. Use migrations for production and staging deploys.',
+    );
+  }
+
   // Conservative default: never sync unless explicitly opted-in in local/dev only.
-  const synchronize = isLocalDevEnv && TRUE_VALUES.has(syncOptIn);
+  const synchronize = TRUE_VALUES.has(syncOptIn) && isLocalDevEnv;
   const migrationsRun =
     migrationsRunSetting === undefined
       ? !['test', 'ci'].includes(nodeEnv) && !isLocalDevEnv
@@ -73,7 +88,10 @@ export const getTypeOrmConfig = (
     },
     entities: [__dirname + '/../**/*.entity{.ts,.js}'],
 
-    migrations: [__dirname + '/../../migrations/[0-9]*{.ts,.js}'],
+    migrations: [
+      __dirname + `/../../migrations/[0-9]*.${migrationExtension}`,
+      __dirname + `/../migrations/[0-9]*.${migrationExtension}`,
+    ],
     migrationsRun,
 
     synchronize,
@@ -84,6 +102,6 @@ export const getTypeOrmConfig = (
       idleTimeoutMillis: 30000,
       connectionTimeoutMillis: 2000,
     },
-    logging: nodeEnv === 'development',
+    logging: TRUE_VALUES.has(loggingSetting),
   };
 };

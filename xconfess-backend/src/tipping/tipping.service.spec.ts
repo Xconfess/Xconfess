@@ -451,8 +451,14 @@ describe('TippingService', () => {
         return Promise.resolve({ ...finalRow });
       });
 
-      // txId conflict check: no conflicting row for any call
-      tipRepo.findOne.mockResolvedValue(finalRow as any);
+      let idempotencyReads = 0;
+      tipRepo.findOne.mockImplementation(({ where }: any) => {
+        if (where?.idempotencyKey) {
+          idempotencyReads++;
+          return Promise.resolve(idempotencyReads <= N ? null : finalRow);
+        }
+        return Promise.resolve(null);
+      });
 
       const results = await Promise.all(
         Array.from({ length: N }, () =>

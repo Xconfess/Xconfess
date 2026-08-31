@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import axios from "axios";
 import {
   Card,
@@ -28,6 +29,13 @@ import { Eye, EyeOff, Send, Loader2, CloudDownload } from "lucide-react";
 import { cn } from "@/app/lib/utils/cn";
 import apiClient from "@/app/lib/api/client";
 import { useGlobalToast } from "@/app/components/common/Toast";
+import { useAuth } from "@/app/lib/hooks/useAuth";
+import {
+  buildAuthRedirectUrl,
+  clearPendingConfession,
+  loadPendingConfession,
+  savePendingConfession,
+} from "@/app/lib/utils/pendingConfession";
 
 interface EnhancedConfessionFormProps {
   onSubmit?: (data: ConfessionFormData & { stellarTxHash?: string }) => void;
@@ -91,6 +99,7 @@ export const EnhancedConfessionForm: React.FC<EnhancedConfessionFormProps> = ({
   onSubmit,
   className,
 }) => {
+  const router = useRouter();
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
   const [gender, setGender] = useState<Gender | undefined>();
@@ -117,9 +126,11 @@ export const EnhancedConfessionForm: React.FC<EnhancedConfessionFormProps> = ({
   );
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const restoredPendingRef = useRef(false);
   const { anchor } = useStellarWallet();
   const toast = useGlobalToast();
   const { drafts } = useDrafts();
+  const { isAuthenticated, isLoading: isAuthLoading } = useAuth();
 
   const currentValidationErrors = validateConfessionForm({
     title,
@@ -148,6 +159,28 @@ export const EnhancedConfessionForm: React.FC<EnhancedConfessionFormProps> = ({
       }
     };
   }, []);
+
+  useEffect(() => {
+    if (restoredPendingRef.current || isAuthLoading || !isAuthenticated) return;
+
+    const pending = loadPendingConfession();
+    if (!pending) return;
+
+    restoredPendingRef.current = true;
+    setTitle(pending.title || "");
+    setBody(pending.body);
+    setGender(pending.gender);
+    setEnableStellarAnchor(Boolean(pending.enableStellarAnchor));
+    setErrors({});
+    setSubmitError(null);
+    setSubmitSuccess(false);
+    setIsPreviewMode(false);
+    toast.info("Your confession draft is restored. Review it, then publish when ready.");
+
+    requestAnimationFrame(() => {
+      textareaRef.current?.focus();
+    });
+  }, [isAuthLoading, isAuthenticated, toast]);
 
   const checkForNewerDrafts = useCallback(async () => {
     try {
@@ -241,6 +274,23 @@ export const EnhancedConfessionForm: React.FC<EnhancedConfessionFormProps> = ({
       return;
     }
 
+    if (isAuthLoading) {
+      setSubmitError("Checking your session. Please try again in a moment.");
+      return;
+    }
+
+    if (!isAuthenticated) {
+      savePendingConfession({
+        title,
+        body,
+        gender,
+        enableStellarAnchor,
+      });
+      toast.info("Sign in or create an account to publish. Your confession is saved here.");
+      router.push(buildAuthRedirectUrl("/login"));
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
@@ -286,6 +336,7 @@ export const EnhancedConfessionForm: React.FC<EnhancedConfessionFormProps> = ({
       setSubmitError(null);
       setStellarTxHash(null);
       setIsPreviewMode(false);
+      clearPendingConfession();
 
       if (submitSuccessTimerRef.current) {
         clearTimeout(submitSuccessTimerRef.current);
@@ -326,7 +377,7 @@ export const EnhancedConfessionForm: React.FC<EnhancedConfessionFormProps> = ({
   return (
     <Card
       className={cn(
-        "overflow-hidden rounded-[34px] border border-[var(--border)] bg-[linear-gradient(180deg,var(--surface-strong),var(--surface))] p-0 shadow-[0_30px_90px_-52px_rgba(28,36,48,0.2)]",
+        "overflow-hidden rounded-2xl border border-[var(--border)] bg-[linear-gradient(180deg,var(--surface-strong),var(--surface))] p-0 shadow-[0_30px_90px_-52px_rgba(0,0,0,0.72)]",
         className
       )}
     >
@@ -335,16 +386,15 @@ export const EnhancedConfessionForm: React.FC<EnhancedConfessionFormProps> = ({
         <CardTitle className="mt-3 text-4xl sm:text-5xl">
           Share your confession
         </CardTitle>
-        <CardDescription className="max-w-2xl text-sm leading-8 sm:text-base">
-          Write with privacy, clarity, and restraint. This space is designed to
-          feel more like a journal entry than a social post composer.
+        <CardDescription className="max-w-2xl text-sm leading-7 sm:text-base">
+          Your identity stays private.
         </CardDescription>
       </CardHeader>
 
       <CardContent className="px-6 py-7 sm:px-8">
         {newerCloudDraft && (
           <div
-            className="mb-6 flex flex-col justify-between gap-4 rounded-[24px] border border-[var(--accent-border)] bg-[var(--accent-soft)] p-4 sm:flex-row sm:items-center"
+            className="mb-6 flex flex-col justify-between gap-4 rounded-xl border border-[var(--accent-border)] bg-[var(--accent-soft)] p-4 sm:flex-row sm:items-center"
             role="region"
             aria-label="Newer draft recovered notification"
           >
@@ -362,7 +412,7 @@ export const EnhancedConfessionForm: React.FC<EnhancedConfessionFormProps> = ({
                 size="sm"
                 onClick={() => setNewerCloudDraft(null)}
                 aria-label="Dismiss recovered draft alert"
-                className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]"
               >
                 Dismiss
               </Button>
@@ -370,7 +420,7 @@ export const EnhancedConfessionForm: React.FC<EnhancedConfessionFormProps> = ({
                 size="sm"
                 onClick={recoverCloudDraft}
                 aria-label="Load newer cloud draft"
-                className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]"
               >
                 <CloudDownload className="h-4 w-4" aria-hidden="true" />
                 Load draft
@@ -400,7 +450,7 @@ export const EnhancedConfessionForm: React.FC<EnhancedConfessionFormProps> = ({
               maxLength={200}
               aria-describedby={`${TITLE_HINT_ID}${errors.title ? ` ${TITLE_ERROR_ID}` : ""} title-counter`}
               aria-required="false"
-              className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+              className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]"
             />
             <div className="mt-2 flex items-center justify-between">
               {errors.title ? (
@@ -442,7 +492,8 @@ export const EnhancedConfessionForm: React.FC<EnhancedConfessionFormProps> = ({
                       ? "Switch to edit mode"
                       : "Switch to preview mode"
                   }
-                  className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                  title={isPreviewMode ? "Switch to edit mode" : "Switch to preview mode"}
+                  className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]"
                 >
                   {isPreviewMode ? (
                     <>
@@ -471,7 +522,7 @@ export const EnhancedConfessionForm: React.FC<EnhancedConfessionFormProps> = ({
                 >
                   Minimum 10 characters. Markdown formatting is supported.
                 </p>
-                <div className="rounded-[22px] border border-[var(--border)] bg-[var(--surface-muted)] p-2">
+                <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-muted)] p-2">
                   <FormattingToolbar
                     textareaRef={textareaRef}
                     onTextChange={handleTextChange}
@@ -482,12 +533,21 @@ export const EnhancedConfessionForm: React.FC<EnhancedConfessionFormProps> = ({
                   ref={textareaRef}
                   value={body}
                   onChange={(e) => setBody(e.target.value)}
+                  onKeyDown={(e) => {
+                    if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+                      e.preventDefault();
+                      const form = e.currentTarget.form;
+                      if (form) {
+                        form.requestSubmit();
+                      }
+                    }
+                  }}
                   placeholder="Share your thoughts, feelings, or experiences..."
                   aria-invalid={!!errors.body}
                   className={cn(
-                    "mt-3 flex min-h-[260px] w-full resize-y rounded-[28px] border px-5 py-5 text-[15px] leading-8 text-[var(--foreground)] shadow-[inset_0_1px_0_rgba(255,255,255,0.5)]",
+                    "mt-3 flex min-h-[260px] w-full resize-y rounded-2xl border px-5 py-5 text-[15px] leading-8 text-[var(--foreground)] shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]",
                     "bg-[linear-gradient(180deg,var(--surface-strong),var(--surface-muted))]",
-                    "placeholder:text-[color:rgba(111,101,89,0.78)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)]",
+                    "placeholder:text-[color:rgba(169,160,149,0.7)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)]",
                     errors.body
                       ? "border-red-500"
                       : "border-[var(--border)] focus-visible:border-[var(--primary)]"
@@ -524,7 +584,7 @@ export const EnhancedConfessionForm: React.FC<EnhancedConfessionFormProps> = ({
                   key={g}
                   htmlFor={g}
                   className={cn(
-                    "cursor-pointer rounded-full border px-4 py-2 text-sm transition-colors focus-within:ring-2 focus-within:ring-blue-500",
+                    "cursor-pointer rounded-xl border px-4 py-2 text-sm transition-colors focus-within:ring-2 focus-within:ring-[var(--primary)]",
                     gender === g
                       ? "border-[var(--accent-border)] bg-[var(--accent-soft)] text-[var(--foreground)]"
                       : "border-[var(--border)] bg-[var(--surface-muted)] text-[var(--secondary)] hover:bg-[var(--surface-strong)]"
@@ -546,7 +606,7 @@ export const EnhancedConfessionForm: React.FC<EnhancedConfessionFormProps> = ({
             </div>
           </fieldset>
 
-          <div className="rounded-[26px] border border-[var(--border)] bg-[var(--surface-muted)] p-4">
+          <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-muted)] p-4">
             <StellarAnchorToggle
               enabled={enableStellarAnchor}
               onToggle={setEnableStellarAnchor}
@@ -556,21 +616,21 @@ export const EnhancedConfessionForm: React.FC<EnhancedConfessionFormProps> = ({
 
           {submitError && (
             <div
-              className="rounded-[22px] border border-red-200 bg-red-50 px-4 py-3"
+              className="rounded-xl border border-red-500/25 bg-red-950/30 px-4 py-3"
               role="alert"
               aria-live="assertive"
             >
-              <p className="text-sm text-red-700">{submitError}</p>
+              <p className="text-sm text-red-200">{submitError}</p>
             </div>
           )}
 
           {submitSuccess && (
             <div
-              className="rounded-[22px] border border-emerald-200 bg-emerald-50 px-4 py-3"
+              className="rounded-xl border border-emerald-500/25 bg-emerald-950/30 px-4 py-3"
               role="status"
               aria-live="polite"
             >
-              <p className="text-sm text-emerald-700">
+              <p className="text-sm text-emerald-200">
                 Confession submitted successfully!
               </p>
             </div>
@@ -585,10 +645,11 @@ export const EnhancedConfessionForm: React.FC<EnhancedConfessionFormProps> = ({
                   clearTimeout(submitSuccessTimerRef.current);
                 }
                 resetComposerState();
+                clearPendingConfession();
               }}
               disabled={isSubmitting}
               aria-label="Clear draft and reset form"
-              className="min-h-[44px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+              className="min-h-[44px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]"
             >
               Clear draft
             </Button>
@@ -597,7 +658,7 @@ export const EnhancedConfessionForm: React.FC<EnhancedConfessionFormProps> = ({
               disabled={isSubmitting || hasValidationErrors}
               aria-busy={isSubmitting}
               aria-label={isSubmitting ? "Publishing confession..." : "Publish confession"}
-              className="min-h-[48px] min-w-[160px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+              className="min-h-[48px] min-w-[160px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]"
             >
               {isSubmitting ? (
                 <>

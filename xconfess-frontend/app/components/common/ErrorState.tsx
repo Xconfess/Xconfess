@@ -80,7 +80,7 @@ const ErrorState: React.FC<ErrorStateProps> = ({
 
         <div className="flex flex-wrap justify-center gap-2">
           {showRetry && onRetry && (
-            <RetryButton onRetry={onRetry} variant="primary" />
+            <RetryButton onRetry={() => Promise.resolve(onRetry())} variant="primary" />
           )}
           {primaryActionLabel && onPrimaryAction && (
             <button

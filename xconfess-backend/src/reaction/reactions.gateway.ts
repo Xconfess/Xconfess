@@ -9,7 +9,7 @@ import {
   MessageBody,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
-import { Logger, UseGuards } from '@nestjs/common';
+import { Logger, Optional, UseGuards } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { WsJwtGuard } from '../auth/guards/ws-jwt.guard';
@@ -56,9 +56,15 @@ export class ReactionsGateway
   private readonly wsJwtGuard: WsJwtGuard;
 
   constructor(
-    private readonly jwtService: JwtService,
+    @Optional()
+    private readonly jwtService: JwtService = new JwtService(),
+    @Optional()
     private configService: ConfigService,
-    private readonly wsLogger: WebSocketLogger,
+    @Optional()
+    private readonly wsLogger: WebSocketLogger = {
+      logSubscriptionRejected: () => undefined,
+      logSubscriptionGranted: () => undefined,
+    } as unknown as WebSocketLogger,
   ) {
     this.wsJwtGuard = new WsJwtGuard(this.jwtService);
   }

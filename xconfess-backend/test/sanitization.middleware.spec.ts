@@ -97,7 +97,7 @@ describe('SanitizationMiddleware', () => {
         '/api/comments',
       );
       await run(mw, req);
-      expect(req.body.content).toBe('Nice post! ');
+      expect(req.body.content).toBe('Nice post!');
       expect(req.body.content).not.toContain('<b>');
     });
 

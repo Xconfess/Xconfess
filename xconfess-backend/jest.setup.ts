@@ -1,3 +1,15 @@
+import { Logger } from '@nestjs/common';
+
+if (process.env.XCONFESS_TEST_LOGS !== 'true') {
+  Logger.overrideLogger(false);
+  const noop = () => undefined;
+  Logger.prototype.log = noop;
+  Logger.prototype.error = noop;
+  Logger.prototype.warn = noop;
+  Logger.prototype.debug = noop;
+  Logger.prototype.verbose = noop;
+}
+
 // Global test env defaults for crypto utilities.
 // These keys are ONLY for tests.
 process.env.EMAIL_ENCRYPTION_KEY =

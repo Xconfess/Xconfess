@@ -2,6 +2,27 @@
   "version": "0.1.0",
   "event_schema_version": 1,
   "error_registry_version": 1,
-  "functions": [],
-  "description": "ABI compatibility marker for confession-registry contract."
+  "functions": [
+    "create_confession",
+    "create_confession_seq",
+    "delete_confession",
+    "delete_confession_seq",
+    "get_author_confessions",
+    "get_by_hash",
+    "get_confession",
+    "get_expected_nonce",
+    "get_total_count",
+    "gov_approve",
+    "gov_execute",
+    "gov_propose",
+    "gov_revoke",
+    "initialize",
+    "list_confessions",
+    "migrate",
+    "schema_version",
+    "set_quorum",
+    "update_status",
+    "update_status_seq"
+  ],
+  "description": "ABI compatibility marker for confession-registry contract. Update event_schema_version or error_registry_version on breaking changes."
 }

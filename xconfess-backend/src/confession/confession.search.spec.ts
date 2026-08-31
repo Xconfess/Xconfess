@@ -18,6 +18,11 @@ import { AnomalyDetectionService } from '../anomaly/anomaly-detection.service';
 import { ConfessionIdempotencyService } from './confession-idempotency.service';
 import { encryptConfession } from '../utils/confession-encryption';
 
+jest.mock('../utils/confession-encryption', () => ({
+  decryptConfession: jest.fn((value: string) => value ?? ''),
+  encryptConfession: jest.fn((value: string) => value),
+}));
+
 const AES_KEY = '12345678901234567890123456789012';
 
 describe('ConfessionService - Search Functionality', () => {
@@ -154,7 +159,13 @@ describe('ConfessionService - Search Functionality', () => {
 
       const result = await service.search(searchDto);
 
-      expect(result.data).toEqual(mockResult.confessions);
+      expect(result.data).toEqual([
+        expect.objectContaining({
+          id: '1',
+          message: 'I love programming',
+          reactions: [],
+        }),
+      ]);
       expect(result.meta.total).toBe(1);
       expect(result.meta.searchTerm).toBe('love');
     });
@@ -238,7 +249,13 @@ describe('ConfessionService - Search Functionality', () => {
 
       const result = await service.fullTextSearch(searchDto);
 
-      expect(result.data).toEqual(mockResult.confessions);
+      expect(result.data).toEqual([
+        expect.objectContaining({
+          id: '1',
+          message: 'Need relationship advice',
+          reactions: [],
+        }),
+      ]);
       expect(result.meta.searchType).toBe('fulltext');
     });
 

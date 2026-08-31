@@ -18,15 +18,15 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
         disabled={disabled || isLoading}
         aria-disabled={disabled || isLoading}
         className={cn(
-          "inline-flex items-center justify-center gap-2 rounded-full font-medium transition-all duration-200",
+          "inline-flex items-center justify-center gap-2 rounded-xl font-medium transition-all duration-200",
           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2",
           "focus-visible:ring-[var(--primary)] focus-visible:ring-offset-[var(--background)] disabled:pointer-events-none disabled:opacity-50 cursor-pointer",
           {
-            "border border-[var(--accent-border)] bg-[linear-gradient(135deg,var(--primary),var(--primary-deep))] text-white shadow-[0_18px_40px_-22px_rgba(88,105,125,0.55)] hover:-translate-y-0.5 hover:brightness-105":
+            "border border-[var(--accent-border)] bg-[image:var(--brand-gradient)] text-white shadow-[0_18px_42px_-22px_rgba(0,0,0,0.85)] hover:-translate-y-0.5 hover:brightness-110":
               variant === "default",
             "border border-[var(--border)] bg-[var(--surface)] text-[var(--foreground)] hover:bg-[var(--surface-strong)]":
               variant === "outline",
-            "text-[var(--secondary)] hover:bg-white/50 hover:text-[var(--foreground)]":
+            "text-[var(--secondary)] hover:bg-[var(--surface-muted)] hover:text-[var(--foreground)]":
               variant === "ghost",
             "bg-red-600 text-white hover:bg-red-700": variant === "destructive",
             "h-9 px-4 text-sm": size === "sm",

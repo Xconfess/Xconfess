@@ -19,8 +19,8 @@ use confession_registry::events::{
 };
 use soroban_sdk::{
     contract, contractimpl, symbol_short,
-    testutils::{Address as _, Ledger},
-    Address, Env, IntoVal,
+    testutils::{Address as _, Events as _, Ledger},
+    Address, Env, IntoVal, Val, Vec,
 };
 
 /// Minimal contract whose sole purpose is to give tests a stable contract ID
@@ -54,7 +54,7 @@ fn identical_timestamp_ordering() -> std::vec::Vec<(u64, u64)> {
     env.events()
         .all()
         .iter()
-        .map(|(_, _, value)| {
+        .map(|(_, _, value): (Address, Vec<Val>, Val)| {
             let event: ConfessionEvent = value.into_val(&env);
             (event.timestamp, event.nonce)
         })

@@ -22,7 +22,7 @@ export class SearchHistory {
   @JoinColumn({ name: 'user_id' })
   user: User;
 
-  @Column({ nullable: true })
+  @Column({ type: 'text', nullable: true })
   query: string;
 
   @Column({ type: 'jsonb' })

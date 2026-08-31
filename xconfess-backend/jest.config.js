@@ -9,14 +9,19 @@
         diagnostics: false,
       },
     ],
+    '^.+\\.m?js$': [
+      'babel-jest',
+      {
+        presets: [['@babel/preset-env', { targets: { node: 'current' } }]],
+      },
+    ],
   },
   // Jest 30 ships nested ESM-only packages (ansi-styles v6, chalk v5, etc.)
   // that must be transformed by ts-jest/babel rather than executed as-is.
-  transformIgnorePatterns: [
-    '/node_modules/(?!(ansi-styles|chalk|strip-ansi|ansi-regex|@jest/console|@jest/reporters|@jest/core|jest-circus|jest-config|jest-each|jest-cli|jest-message-util|jest-diff|jest-matcher-utils|jest-snapshot|@jest/expect)/)',
-  ],
   testMatch: ['<rootDir>/src/**/*.spec.ts', '<rootDir>/test/**/*.spec.ts'],
-  transformIgnorePatterns: ['/node_modules/(?!(ansi-styles)/)'],
+  transformIgnorePatterns: [
+    '/node_modules/(?!(ansi-styles|sanitize-html|htmlparser2|domhandler|domutils|dom-serializer|domelementtype|entities)/)',
+  ],
   testPathIgnorePatterns: [
     '/node_modules/',
     '<rootDir>/xconfess-backend/',
@@ -31,6 +36,11 @@
     '^bcrypt$': 'bcryptjs',
     '^@faker-js/faker$': '<rootDir>/test/utils/faker-stub.ts',
     '^@faker-js/faker/\\.$': '<rootDir>/test/utils/faker-stub.ts',
+    // ansi-styles v6+ is ESM-only; Jest (CJS) cannot parse `export`.
+    // Point to a CJS shim that provides the minimal surface packages need.
+    '^ansi-styles$': '<rootDir>/test/utils/ansi-styles-shim.js',
   },
+  // Some specs intentionally exercise queues, sockets, and failed transports.
+  // Disable Jest's one-second open-handle warning while the suite tears down.
+  openHandlesTimeout: 0,
 };
-

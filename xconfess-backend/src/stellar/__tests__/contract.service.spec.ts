@@ -11,6 +11,7 @@ import {
 } from '../utils/stellar-error.handler';
 import { InvokeContractDto } from '../dto/invoke-contract.dto';
 import * as encoder from '../utils/parameter.encoder';
+import { DeploymentMetadataService } from '../services/deployment-metadata.service';
 
 // ─── Shared fixtures ──────────────────────────────────────────────────────────
 
@@ -63,6 +64,13 @@ describe('ContractService', () => {
         ContractService,
         StellarConfigService,
         TransactionBuilderService,
+        {
+          provide: DeploymentMetadataService,
+          useValue: {
+            getMetadata: jest.fn().mockReturnValue(null),
+            getAllContractIds: jest.fn().mockReturnValue({}),
+          },
+        },
       ],
     }).compile();
 
@@ -272,9 +280,12 @@ describe('ContractService', () => {
         },
         VALID_SIGNER_SECRET,
       );
+      const expectation = expect(invocation).rejects.toThrow(
+        StellarTimeoutError,
+      );
 
       await jest.advanceTimersByTimeAsync(25);
-      await expect(invocation).rejects.toThrow(StellarTimeoutError);
+      await expectation;
       expect(jest.getTimerCount()).toBe(0);
       jest.useRealTimers();
     });

@@ -112,7 +112,7 @@ describe("PrivacySettingsPage", () => {
       expect(screen.getByText("Profile Discovery")).toBeInTheDocument();
     });
 
-    const saveButton = screen.getByRole("button", { name: /save settings/i });
+    const saveButton = screen.getByRole("button", { name: /save privacy settings/i });
     // Save should be disabled initially (no changes)
     expect(saveButton).toBeDisabled();
 
@@ -139,7 +139,7 @@ describe("PrivacySettingsPage", () => {
     const dataToggle = screen.getAllByRole("switch")[3];
     await user.click(dataToggle);
 
-    const saveButton = screen.getByRole("button", { name: /save settings/i });
+    const saveButton = screen.getByRole("button", { name: /save privacy settings/i });
     await user.click(saveButton);
 
     await waitFor(() => {
@@ -197,7 +197,7 @@ describe("PrivacySettingsPage", () => {
 
     // Toggle and save
     await user.click(screen.getAllByRole("switch")[0]);
-    await user.click(screen.getByRole("button", { name: /save settings/i }));
+    await user.click(screen.getByRole("button", { name: /save privacy settings/i }));
 
     await waitFor(() => {
       expect(mockToast.error).toHaveBeenCalledWith(

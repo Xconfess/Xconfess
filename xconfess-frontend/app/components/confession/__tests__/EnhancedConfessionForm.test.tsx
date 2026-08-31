@@ -6,6 +6,17 @@ import apiClient from "@/app/lib/api/client";
 import { useGlobalToast } from "@/app/components/common/Toast";
 import { useStellarWallet } from "@/lib/hooks/useStellarWallet";
 import { useDrafts } from "@/app/lib/hooks/useDrafts";
+import { useAuth } from "@/app/lib/hooks/useAuth";
+import {
+  pendingConfessionStorageKey,
+  savePendingConfession,
+} from "@/app/lib/utils/pendingConfession";
+
+const push = jest.fn();
+
+jest.mock("next/navigation", () => ({
+  useRouter: () => ({ push }),
+}));
 
 jest.mock("@/app/lib/api/client", () => ({
   __esModule: true,
@@ -25,6 +36,10 @@ jest.mock("@/lib/hooks/useStellarWallet", () => ({
 
 jest.mock("@/app/lib/hooks/useDrafts", () => ({
   useDrafts: jest.fn(),
+}));
+
+jest.mock("@/app/lib/hooks/useAuth", () => ({
+  useAuth: jest.fn(),
 }));
 
 jest.mock("../FormattingToolbar", () => ({
@@ -63,7 +78,26 @@ function getForm(container: HTMLElement) {
 }
 
 beforeEach(() => {
+  const storage = new Map<string, string>();
   jest.clearAllMocks();
+  (window.localStorage.setItem as jest.Mock).mockImplementation((key, value) => {
+    storage.set(key, value);
+  });
+  (window.localStorage.getItem as jest.Mock).mockImplementation((key) => {
+    return storage.get(key) ?? null;
+  });
+  (window.localStorage.removeItem as jest.Mock).mockImplementation((key) => {
+    storage.delete(key);
+  });
+  (window.localStorage.clear as jest.Mock).mockImplementation(() => {
+    storage.clear();
+  });
+  window.localStorage.clear();
+  (useAuth as jest.Mock).mockReturnValue({
+    isAuthenticated: true,
+    isLoading: false,
+    user: { id: "user-1", username: "alice" },
+  });
   (useGlobalToast as jest.Mock).mockReturnValue(toast);
   (useStellarWallet as jest.Mock).mockReturnValue({
     anchor: jest.fn(),
@@ -95,7 +129,7 @@ describe("EnhancedConfessionForm", () => {
       target: { value: "a".repeat(201) },
     });
     await user.type(
-      screen.getByLabelText(/confession/i),
+      screen.getByRole("textbox", { name: /^confession/i }),
       "short"
     );
 
@@ -124,7 +158,7 @@ describe("EnhancedConfessionForm", () => {
     const user = userEvent.setup();
     renderComposer();
 
-    await user.type(screen.getByLabelText(/confession/i), "A valid confession body.");
+    await user.type(screen.getByRole("textbox", { name: /^confession/i }), "A valid confession body.");
     await user.click(screen.getByRole("button", { name: /publish confession/i }));
 
     expect(
@@ -143,7 +177,7 @@ describe("EnhancedConfessionForm", () => {
     renderComposer();
 
     const titleInput = screen.getByLabelText(/title/i);
-    const bodyInput = screen.getByLabelText(/confession/i);
+    const bodyInput = screen.getByRole("textbox", { name: /^confession/i });
 
     await user.type(titleInput, "Quiet apology");
     await user.type(bodyInput, "This is a valid confession body.");
@@ -156,5 +190,56 @@ describe("EnhancedConfessionForm", () => {
     await waitFor(() => expect(titleInput).toHaveValue(""));
     await waitFor(() => expect(bodyInput).toHaveValue(""));
     expect(screen.queryByText("Please review the highlighted fields and try again.")).not.toBeInTheDocument();
+  });
+
+  it("saves a valid pending confession and redirects guests to login", async () => {
+    (useAuth as jest.Mock).mockReturnValue({
+      isAuthenticated: false,
+      isLoading: false,
+      user: null,
+    });
+    const user = userEvent.setup();
+    renderComposer();
+
+    await user.type(screen.getByLabelText(/title/i), "Almost posted");
+    await user.type(
+      screen.getByRole("textbox", { name: /^confession/i }),
+      "This should survive login.",
+    );
+    await user.click(screen.getByRole("button", { name: /publish confession/i }));
+
+    expect(apiClient.post).not.toHaveBeenCalled();
+    expect(push).toHaveBeenCalledWith("/login?next=%2F%23composer");
+    await waitFor(() =>
+      expect(window.localStorage.getItem(pendingConfessionStorageKey())).toBeTruthy(),
+    );
+    expect(
+      JSON.parse(window.localStorage.getItem(pendingConfessionStorageKey()) || "{}"),
+    ).toEqual(
+      expect.objectContaining({
+        title: "Almost posted",
+        body: "This should survive login.",
+      }),
+    );
+  });
+
+  it("restores a pending confession after authentication", async () => {
+    savePendingConfession({
+      title: "Saved before login",
+      body: "This intended post returns after signup.",
+      gender: undefined,
+      enableStellarAnchor: false,
+    });
+    expect(window.localStorage.getItem(pendingConfessionStorageKey())).toBeTruthy();
+
+    renderComposer();
+
+    expect(await screen.findByDisplayValue("Saved before login")).toBeInTheDocument();
+    expect(
+      await screen.findByDisplayValue("This intended post returns after signup."),
+    ).toBeInTheDocument();
+    expect(toast.info).toHaveBeenCalledWith(
+      "Your confession draft is restored. Review it, then publish when ready.",
+    );
   });
 });

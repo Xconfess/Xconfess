@@ -1,13 +1,12 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
-import { getApiBaseUrl } from "@/app/lib/config";
 import {
   normalizeAuthError,
   NormalizedAuthError,
 } from "@/lib/normalizeAuthError";
 import { getOrCreateRequestId, requestIdResponseHeaders } from "@/app/lib/utils/requestId";
+import { methodNotAllowedHandlers, resolveBackendRoute } from "@/app/lib/api/proxy";
 
-const API_URL = getApiBaseUrl();
 const SESSION_COOKIE_NAME = "xconfess_session";
 const MAX_RETRIES = 1;
 
@@ -40,7 +39,10 @@ async function fetchBackendWithRetry(
       });
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
+        const errorData =
+          typeof response.json === "function"
+            ? await response.json().catch(() => ({}))
+            : {};
         const normalized = normalizeAuthError({
           ...errorData,
           status: response.status,
@@ -120,16 +122,17 @@ export async function POST(request: Request) {
                 message: "Email and password are required",
                 status: 400,
             });
-            return createErrorResponse(normalized);
+            return createErrorResponse(normalized, requestId);
         }
 
-        const result = await fetchBackendWithRetry(`${API_URL}/auth/login`, {
+        const backend = resolveBackendRoute(request, "/auth/login");
+        const result = await fetchBackendWithRetry(backend.url, {
             method: "POST",
             body: JSON.stringify({ email, password }),
-        }, requestId);
+        }, backend.requestId);
 
         if (!result.success) {
-            return createErrorResponse(result.normalized!);
+            return createErrorResponse(result.normalized!, requestId);
         }
 
         const data = result.data as Record<string, unknown>;
@@ -153,11 +156,12 @@ export async function POST(request: Request) {
         return res;
     } catch (error) {
         const normalized = normalizeAuthError(error);
-        return createErrorResponse(normalized);
+        return createErrorResponse(normalized, requestId);
     }
 }
 
-export async function GET() {
+export async function GET(request: Request) {
+    const requestId = getOrCreateRequestId(request);
     const cookieStore = await cookies();
     const token = cookieStore.get(SESSION_COOKIE_NAME)?.value;
 
@@ -167,26 +171,28 @@ export async function GET() {
             message: "Not authenticated",
             status: 401,
         });
-        return createErrorResponse(normalized);
+        return createErrorResponse(normalized, requestId);
     }
 
     try {
         // Try new canonical endpoint first
-        let result = await fetchBackendWithRetry(`${API_URL}/auth/session`, {
+        let backend = resolveBackendRoute(request, "/auth/session");
+        let result = await fetchBackendWithRetry(backend.url, {
             method: "GET",
             headers: {
                 Authorization: `Bearer ${token}`,
             },
-        });
+        }, requestId);
 
         // 404 Not Found? Try fallback to legacy endpoint
         if (!result.success && result.normalized?.originalStatus === 404) {
-            result = await fetchBackendWithRetry(`${API_URL}/auth/me`, {
+            backend = resolveBackendRoute(request, "/auth/me");
+            result = await fetchBackendWithRetry(backend.url, {
                 method: "GET",
                 headers: {
                     Authorization: `Bearer ${token}`,
                 },
-            });
+            }, requestId);
         }
 
         if (!result.success) {
@@ -194,14 +200,16 @@ export async function GET() {
             if (result.normalized?.originalStatus === 401) {
                 cookieStore.delete(SESSION_COOKIE_NAME);
             }
-            return createErrorResponse(result.normalized!);
+            return createErrorResponse(result.normalized!, requestId);
         }
 
         const user = result.data as Record<string, unknown>;
-        return NextResponse.json({ authenticated: true, user });
+        const response = NextResponse.json({ authenticated: true, user });
+        response.headers.set("x-request-id", requestId);
+        return response;
     } catch (error) {
         const normalized = normalizeAuthError(error);
-        return createErrorResponse(normalized);
+        return createErrorResponse(normalized, requestId);
     }
 }
 
@@ -211,13 +219,20 @@ export async function DELETE() {
     return NextResponse.json({ success: true });
 }
 
+export const { PUT, PATCH } = methodNotAllowedHandlers(["GET", "POST", "DELETE"]);
+
 /**
  * Convert normalized auth error to JSON response.
  * Output shape matches NormalizedAuthError so AuthProvider can consume it directly.
  */
-function createErrorResponse(normalized: NormalizedAuthError): Response {
-  // Log for debugging
-  if (process.env.NODE_ENV === "development") {
+function createErrorResponse(
+  normalized: NormalizedAuthError,
+  requestId?: string,
+): Response {
+  const isExpectedMissingSession =
+    normalized.code === "INVALID_SESSION" && normalized.originalStatus === 401;
+
+  if (process.env.NODE_ENV === "development" && !isExpectedMissingSession) {
     console.error(
       `[Auth Error] ${normalized.code} (${normalized.originalStatus || "N/A"})`,
       {
@@ -230,6 +245,9 @@ function createErrorResponse(normalized: NormalizedAuthError): Response {
 
   const status = normalized.originalStatus || 500;
 
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (requestId) headers["x-request-id"] = requestId;
+
   return new Response(
     JSON.stringify({
       type: normalized.type,
@@ -237,10 +255,11 @@ function createErrorResponse(normalized: NormalizedAuthError): Response {
       message: normalized.message,
       retryable: normalized.retryable,
       originalStatus: normalized.originalStatus,
+      requestId,
     }),
     {
       status,
-      headers: { "Content-Type": "application/json" },
+      headers,
     }
   );
 }

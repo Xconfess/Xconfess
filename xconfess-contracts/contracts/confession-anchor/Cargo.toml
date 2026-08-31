@@ -29,3 +29,7 @@ path = "tests/migration.rs"
 [[test]]
 name = "integration"
 path = "tests/integration.rs"
+
+[[test]]
+name = "error_code_mapping"
+path = "../tests/error_code_mapping.rs"

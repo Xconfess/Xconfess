@@ -812,5 +812,5 @@ stellar contract fetch --id "$CONTRACT_ID" --network testnet --out-file check.wa
 ---
 
 **Last updated:** 2026-03-28  
-**Owner:** XConfess Platform Team  
+**Owner:** xConfess Platform Team<br>
 **Status:** Canonical — All releases use this runbook

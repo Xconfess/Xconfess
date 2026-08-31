@@ -72,7 +72,7 @@ export class DataExportService {
   async requestExport(userId: string) {
     if (this.configService.get<string>('ENABLE_BACKGROUND_JOBS') !== 'true') {
       this.auditLogService?.logExportLifecycleEvent({
-        action: 'enqueue_skipped',
+        action: 'request_created',
         actorType: 'system',
         actorId: 'data-export-service',
         requestId: 'n/a',
