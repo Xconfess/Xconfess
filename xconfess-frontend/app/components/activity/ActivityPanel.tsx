@@ -24,7 +24,7 @@ export default function ActivityPanel() {
       <h2 className="text-lg font-semibold mb-4">Chain Activity</h2>
 
       {activities.length === 0 && (
-        <p className="text-sm text-gray-500">No activity yet</p>
+        <p className="text-lg text-gray-500">No activity yet</p>
       )}
 
       <div className="space-y-3">

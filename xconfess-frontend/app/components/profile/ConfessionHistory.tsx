@@ -25,7 +25,7 @@ const ConfessionHistory = ({ userId }: Props) => {
   }, [userId]);
 
   if (loading) return <p>Loading confessions...</p>;
-  if (!confessions.length) return <p>No confessions yet.</p>;
+  if (!confessions.length) return <p className="text-lg">No confessions yet.</p>;
 
   return (
     <div className="space-y-4">
