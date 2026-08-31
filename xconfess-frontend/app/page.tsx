@@ -15,13 +15,13 @@ const EnhancedConfessionForm = dynamic(
     })),
   {
     loading: () => (
-        <div className="luxury-panel animate-pulse rounded-2xl p-8">
+        <div className="luxury-panel animate-pulse rounded-[30px] p-8">
           <div className="mb-4 h-4 w-28 rounded-full bg-[var(--skeleton)]" />
           <div className="mb-3 h-8 w-64 rounded-full bg-[var(--skeleton)]" />
           <div className="mb-8 h-5 w-72 rounded-full bg-[var(--surface-muted)]" />
-          <div className="mb-4 h-14 w-full rounded-xl bg-[var(--surface-muted)]" />
-          <div className="mb-4 h-12 w-full rounded-xl bg-[var(--surface-muted)]" />
-          <div className="h-64 w-full rounded-2xl bg-[var(--surface-muted)]" />
+          <div className="mb-4 h-14 w-full rounded-[30px] bg-[var(--surface-muted)]" />
+          <div className="mb-4 h-12 w-full rounded-[30px] bg-[var(--surface-muted)]" />
+          <div className="h-64 w-full rounded-[30px] bg-[var(--surface-muted)]" />
       </div>
     ),
     ssr: false,
