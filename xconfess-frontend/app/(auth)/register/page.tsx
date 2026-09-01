@@ -3,8 +3,9 @@
 import { useMemo, useState } from 'react';
 import type React from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { CheckCircle2, Eye, EyeOff, ShieldCheck } from 'lucide-react';
 import { Button } from '@/app/components/ui/button';
-import apiClient from '@/app/lib/api/client';
 import { Input } from '@/app/components/ui/input';
 import { BrandLogo } from '@/app/components/brand/BrandLogo';
 import { useAuth } from '@/app/lib/hooks/useAuth';
@@ -21,7 +22,10 @@ import {
 type RegisterField = keyof ValidationErrors;
 
 const passwordChecks = [
-  { label: '8 to 72 characters', test: (value: string) => value.length >= 8 && value.length <= 72 },
+  {
+    label: '8 to 72 characters',
+    test: (value: string) => value.length >= 8 && value.length <= 72,
+  },
   { label: 'One uppercase letter', test: (value: string) => /[A-Z]/.test(value) },
   { label: 'One lowercase letter', test: (value: string) => /[a-z]/.test(value) },
   { label: 'One number', test: (value: string) => /\d/.test(value) },
@@ -139,7 +143,7 @@ export default function RegisterPage() {
               </h2>
               <p className="text-sm leading-7 text-[var(--secondary)]">
                 Already have an account?{' '}
-                <Link href="/login" className="text-[var(--primary-deep)] hover:text-[var(--primary)]">
+                <Link href={buildAuthSwitchUrl('/login')} className="text-[var(--primary-deep)] hover:text-[var(--primary)]">
                   Sign in
                 </Link>
               </p>
@@ -159,11 +163,7 @@ export default function RegisterPage() {
             )}
 
             <div className="mt-6 grid gap-4 sm:grid-cols-2">
-              <Field
-                id="register-username"
-                label="Username"
-                error={errors.username}
-              >
+              <Field id="register-username" label="Username" error={errors.username}>
                 <Input
                   id="register-username"
                   value={username}
@@ -274,23 +274,20 @@ export default function RegisterPage() {
               </div>
             </div>
 
-          <Button
-            type="button"
-            onClick={doRegister}
-            disabled={loading}
-            className="w-full"
-          >
-            {loading ? 'Creating…' : 'Create account'}
-          </Button>
+            <Button type="submit" disabled={loading} isLoading={loading} className="mt-6 w-full">
+              {loading ? 'Creating account...' : 'Create account'}
+            </Button>
 
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => router.push('/login')}
-            className="w-full"
-          >
-            Sign in
-          </Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => router.push(buildAuthSwitchUrl('/login'))}
+              className="mt-3 w-full"
+              disabled={loading}
+            >
+              Sign in
+            </Button>
+          </form>
         </div>
       </div>
     </div>
@@ -335,7 +332,7 @@ function Field({
       </label>
       {children}
       {error && (
-        <p id={`${id}-error`} className="mt-2 text-sm text-red-600" role="alert">
+        <p id={`${id}-error`} className="mt-2 text-sm text-red-300" role="alert">
           {error}
         </p>
       )}

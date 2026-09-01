@@ -96,9 +96,9 @@ export const ConfessionFeed = () => {
   if (error) {
     return (
       <ErrorState
-        error={undefined}
+        error="The backend service is not responding yet."
         title="Unable to load feed"
-        description="We couldn't load recent confessions. Please try again or check your connection."
+        description="This can happen while the Render instance is waking or a new backend deploy is finishing."
         showRetry
         onRetry={handleRetry}
       />
@@ -108,7 +108,7 @@ export const ConfessionFeed = () => {
   if (isEmpty) {
     return (
       <div
-        className="luxury-panel rounded-[30px] p-8 text-center"
+        className="luxury-panel rounded-2xl p-8 text-center"
         role="region"
         aria-label="Empty feed state"
       >
@@ -122,14 +122,14 @@ export const ConfessionFeed = () => {
           <button
             type="button"
             onClick={scrollToComposer}
-            className="rounded-full bg-[var(--brand-gradient)] px-5 py-2.5 text-sm font-medium text-white shadow-[0_18px_42px_-22px_rgba(91,46,255,0.58)] transition-colors hover:brightness-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+            className="rounded-xl bg-[var(--brand-gradient)] px-5 py-2.5 text-sm font-medium text-white shadow-[0_18px_42px_-22px_rgba(0,0,0,0.85)] transition-colors hover:brightness-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]"
           >
             Begin writing
           </button>
           <button
             type="button"
             onClick={handleRetry}
-            className="rounded-full border border-[var(--border)] bg-[var(--surface-muted)] px-5 py-2.5 text-sm font-medium text-[var(--secondary)] transition-colors hover:bg-[var(--surface-strong)] hover:text-[var(--foreground)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+            className="rounded-xl border border-[var(--border)] bg-[var(--surface-muted)] px-5 py-2.5 text-sm font-medium text-[var(--secondary)] transition-colors hover:bg-[var(--surface-strong)] hover:text-[var(--foreground)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]"
           >
             Refresh
           </button>

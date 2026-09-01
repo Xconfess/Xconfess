@@ -91,11 +91,13 @@ function UserSummarySection() {
       </div>
 
       {isError ? (
-        <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-center">
-          <p className="mb-2 text-sm text-red-700">Failed to load stats</p>
+        <div className="rounded-2xl border border-red-500/25 bg-red-950/30 p-4 text-center">
+          <p className="mb-2 text-sm text-red-200">
+            Stats are temporarily unavailable.
+          </p>
           <button
             onClick={() => void refetch()}
-            className="text-xs font-semibold text-red-700 hover:underline"
+            className="text-xs font-semibold text-[var(--primary-deep)] hover:text-[var(--primary)]"
           >
             Retry
           </button>
