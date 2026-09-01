@@ -1,18 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createApiErrorResponse } from "@/lib/apiErrorHandler";
-import { getApiBaseUrl } from "@/app/lib/config";
+import { resolveBackendRoute } from "@/app/lib/api/proxy";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
 export async function GET(req: NextRequest, { params }: RouteContext) {
-  const BASE_API_URL = getApiBaseUrl();
   const correlationId = req.headers.get("X-Correlation-ID") || "unknown";
 
   try {
     const { id } = await params;
-    const backendUrl = `${BASE_API_URL}/users/${id}/public-profile`;
+    const backend = resolveBackendRoute(req, `/users/${id}/public-profile`);
 
-    const response = await fetch(backendUrl, {
+    const response = await fetch(backend.url, {
       method: "GET",
       headers: buildForwardHeaders(req, correlationId),
     });

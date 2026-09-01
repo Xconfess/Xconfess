@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getApiBaseUrl } from "@/app/lib/config";
+import { resolveBackendRoute } from "@/app/lib/api/proxy";
 import { createApiErrorResponse } from "@/lib/apiErrorHandler";
 
 
@@ -8,18 +8,20 @@ import { createApiErrorResponse } from "@/lib/apiErrorHandler";
  * Server-side proxy — browser-facing code must call this route, never the backend directly.
  */
 export async function GET(request: NextRequest) {
-  const BASE_API_URL = getApiBaseUrl();
   const correlationId =
     request.headers.get("X-Correlation-ID") || "unknown";
 
   try {
     const { searchParams } = new URL(request.url);
     const qs = searchParams.toString();
-    const backendUrl = `${BASE_API_URL}/users/profile/summary${qs ? `?${qs}` : ""}`;
+    const backend = resolveBackendRoute(
+      request,
+      `/users/profile/summary${qs ? `?${qs}` : ""}`,
+    );
 
     const cookie = request.headers.get("cookie") || "";
 
-    const response = await fetch(backendUrl, {
+    const response = await fetch(backend.url, {
       method: "GET",
       headers: {
         "X-Correlation-ID": correlationId,

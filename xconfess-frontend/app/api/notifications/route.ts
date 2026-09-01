@@ -5,7 +5,6 @@ import { methodNotAllowedHandlers } from "@/app/lib/api/proxy";
 
 
 export async function GET(request: NextRequest) {
-  const BACKEND_API_URL = getApiBaseUrl();
   const correlationId = request.headers.get("X-Correlation-ID") || "unknown";
 
   try {
@@ -18,10 +17,14 @@ export async function GET(request: NextRequest) {
     const isRead = searchParams.get("isRead");
     const page = parseInt(searchParams.get("page") || "1");
     const limit = parseInt(searchParams.get("limit") || "20");
+    const backend = resolveBackendRoute(
+      request,
+      `/notifications?type=${type || ""}&isRead=${isRead || ""}&page=${page}&limit=${limit}`,
+    );
 
     // Call your backend API
     const response = await fetch(
-      `${BACKEND_API_URL}/notifications?type=${type || ""}&isRead=${isRead || ""}&page=${page}&limit=${limit}`,
+      backend.url,
       {
         headers: {
           Authorization: `Bearer ${token}`,

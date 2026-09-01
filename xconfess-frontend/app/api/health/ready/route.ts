@@ -1,14 +1,14 @@
-import { getApiBaseUrl } from "@/app/lib/config";
+import { resolveBackendRoute } from "@/app/lib/api/proxy";
 import { createApiErrorResponse } from "@/lib/apiErrorHandler";
 import { getOrCreateRequestId, requestIdResponseHeaders } from "@/app/lib/utils/requestId";
 
 
 export async function GET(request: Request) {
-  const BASE_API_URL = getApiBaseUrl();
   const requestId = getOrCreateRequestId(request);
 
   try {
-    const response = await fetch(`${BASE_API_URL}/health/ready`, {
+    const backend = resolveBackendRoute(request, "/health/ready");
+    const response = await fetch(backend.url, {
       method: "GET",
       headers: {
         "Content-Type": "application/json",

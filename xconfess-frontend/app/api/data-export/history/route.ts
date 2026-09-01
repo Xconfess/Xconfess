@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
-import { getApiBaseUrl } from "@/app/lib/config";
+import { resolveBackendRoute } from "@/app/lib/api/proxy";
 
 const SESSION_COOKIE_NAME = "xconfess_session";
 
@@ -8,8 +8,7 @@ const SESSION_COOKIE_NAME = "xconfess_session";
  * GET /api/data-export/history
  * Server-side proxy — browser-facing code must call this route, never the backend directly.
  */
-export async function GET(_req: NextRequest) {
-  const BASE_API_URL = getApiBaseUrl();
+export async function GET(req: NextRequest) {
   const cookieStore = await cookies();
   const token = cookieStore.get(SESSION_COOKIE_NAME)?.value;
 
@@ -18,7 +17,8 @@ export async function GET(_req: NextRequest) {
   }
 
   try {
-    const response = await fetch(`${BASE_API_URL}/data-export/history`, {
+    const backend = resolveBackendRoute(req, "/data-export/history");
+    const response = await fetch(backend.url, {
       method: "GET",
       headers: {
         "Content-Type": "application/json",

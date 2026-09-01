@@ -1,4 +1,4 @@
-import { getApiBaseUrl } from "@/app/lib/config";
+import { resolveBackendRoute } from "@/app/lib/api/proxy";
 import { createApiErrorResponse } from "@/lib/apiErrorHandler";
 import { getOrCreateRequestId, requestIdResponseHeaders } from "@/app/lib/utils/requestId";
 
@@ -7,7 +7,6 @@ export async function GET(
   _request: Request,
   context: { params: Promise<{ id: string }> },
 ) {
-  const BASE_API_URL = getApiBaseUrl();
   try {
     const { id } = await context.params;
     const requestId = getOrCreateRequestId(_request);
@@ -15,8 +14,8 @@ export async function GET(
       return createApiErrorResponse("Confession ID is required", { status: 400, correlationId: requestId });
     }
 
-    const url = `${BASE_API_URL}/confessions/${id}`;
-    const response = await fetch(url, {
+    const backend = resolveBackendRoute(_request, `/confessions/${id}`);
+    const response = await fetch(backend.url, {
       method: "GET",
       headers: { "Content-Type": "application/json", "x-request-id": requestId },
       next: { revalidate: 30 },

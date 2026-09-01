@@ -2,7 +2,7 @@ import {
   isValidReactionType,
   REACTION_EMOJI_MAP,
 } from "@/app/lib/constants/reactions";
-import { getApiBaseUrl } from "@/app/lib/config";
+import { resolveBackendRoute } from "@/app/lib/api/proxy";
 import { createApiErrorResponse } from "@/lib/apiErrorHandler";
 
 
@@ -14,7 +14,6 @@ export async function POST(
   request: Request,
   context: { params: Promise<{ id: string }> }
 ) {
-  const BASE_API_URL = getApiBaseUrl();
   let correlationId: string | undefined;
   try {
     const { id } = await context.params;
@@ -44,7 +43,9 @@ export async function POST(
     const emoji = REACTION_EMOJI_MAP[type];
 
     // Send reaction to backend /reactions endpoint
-    const reactionRes = await fetch(`${BASE_API_URL}/reactions`, {
+    const reactionBackend = resolveBackendRoute(request, "/reactions");
+    correlationId = reactionBackend.requestId;
+    const reactionRes = await fetch(reactionBackend.url, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -71,7 +72,8 @@ export async function POST(
     }
 
     // Fetch updated confession to return fresh reaction counts
-    const confessionRes = await fetch(`${BASE_API_URL}/confessions/${id}`, {
+    const confessionBackend = resolveBackendRoute(request, `/confessions/${id}`);
+    const confessionRes = await fetch(confessionBackend.url, {
       method: "GET",
       headers: { "Content-Type": "application/json" },
       next: { revalidate: 0 }, // Don't cache to get fresh counts
@@ -137,4 +139,3 @@ export async function POST(
     });
   }
 }
-
