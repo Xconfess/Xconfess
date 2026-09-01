@@ -319,7 +319,7 @@ export class ConfessionService {
       .createQueryBuilder('confession')
       .leftJoin('confession.anonymousUser', 'anonymousUser')
       .leftJoin('anonymousUser.userLinks', 'userLinks')
-      .leftJoin('userLinks.user', 'user')
+      .leftJoin('userLinks.user', 'linked_user')
       .andWhere('confession.isDeleted = false')
       .andWhere('confession.isHidden = false')
       .andWhere('confession.moderationStatus IN (:...statuses)', {
@@ -342,9 +342,9 @@ export class ConfessionService {
         new Brackets((sub) => {
           sub
             .where('userLinks.id IS NULL')
-            .orWhere('user.privacy_settings IS NULL')
+            .orWhere('linked_user.privacy_settings IS NULL')
             .orWhere(
-              "user.privacy_settings->>'isDiscoverable' IS DISTINCT FROM 'false'",
+              "linked_user.privacy_settings->>'isDiscoverable' IS DISTINCT FROM 'false'",
             );
         }),
       )

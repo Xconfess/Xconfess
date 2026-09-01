@@ -496,6 +496,24 @@ export class UserService {
     };
   }
 
+  async getDashboardStats(userId: number) {
+    const summary = await this.getProfileSummary(userId, 1, 1);
+    const latestConfession = summary.history?.data?.[0]?.message;
+
+    return {
+      totalConfessions: Number(summary.stats?.confessions ?? 0),
+      totalReactions: Number(summary.stats?.reactions ?? 0),
+      mostPopularConfession:
+        typeof latestConfession === 'string' && latestConfession.length > 0
+          ? latestConfession
+          : 'No confessions yet',
+      badges: Array.isArray(summary.badges)
+        ? summary.badges.map((badge: any) => badge.name ?? badge.id ?? String(badge))
+        : [],
+      streak: 0,
+    };
+  }
+
   private buildReputationBadges(confessionCount: number) {
     const contractId = process.env.REPUTATION_BADGES_CONTRACT_ID ?? null;
     const badges = [

@@ -8,6 +8,7 @@ describe('UserController', () => {
   const mockUserService = {
     getPublicProfile: jest.fn(),
     getProfileSummary: jest.fn(),
+    getDashboardStats: jest.fn(),
     getUserActivitiesList: jest.fn(),
     getUserConfessionsList: jest.fn(),
     updateSettings: jest.fn(),
@@ -51,6 +52,14 @@ describe('UserController', () => {
 
     await controller.getProfileSummary('42');
     expect(mockUserService.getProfileSummary).toHaveBeenCalledWith(42);
+  });
+
+  it('returns authenticated dashboard stats', async () => {
+    const stats = { totalConfessions: 2, totalReactions: 5 };
+    mockUserService.getDashboardStats.mockResolvedValue(stats);
+
+    await expect(controller.getMyStats({ user: { id: 42 } })).resolves.toBe(stats);
+    expect(mockUserService.getDashboardStats).toHaveBeenCalledWith(42);
   });
 
   it('returns paginated user activities', async () => {
