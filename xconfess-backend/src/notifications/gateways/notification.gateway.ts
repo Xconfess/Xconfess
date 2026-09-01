@@ -224,7 +224,10 @@ export class NotificationGateway
         timestamp: new Date().toISOString(),
       });
     } catch (error) {
-      this.logger.error(`Error syncing unread notifications:`, error);
+      this.logger.error(
+        `Failed to sync unread notification count for user ${userId}`,
+        error,
+      );
       client.emit('notifications:sync-failed', {
         message: 'Failed to sync unread notifications',
         timestamp: new Date().toISOString(),
