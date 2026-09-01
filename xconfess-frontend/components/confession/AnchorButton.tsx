@@ -98,7 +98,7 @@ export function AnchorButton({
   }
 
   return (
-    <div className="anchor-action flex flex-col gap-2">
+    <div className="anchor-action flex flex-col gap-2" aria-live="polite">
       <button
         type="button"
         onClick={handleAnchor}
