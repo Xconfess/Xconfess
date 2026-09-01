@@ -16,7 +16,7 @@ import { redactLogPayload } from './log-redaction';
  *   – route, status, requestId, user scope, subsystem, and error class
  *     are always present.
  */
-interface StructuredRequestLog {
+interface StructuredRequestLog extends Record<string, unknown> {
   /** HTTP method (GET, POST, …) */
   method: string;
   /** Route path (e.g. /api/confessions) */

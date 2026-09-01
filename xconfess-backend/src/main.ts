@@ -13,12 +13,11 @@ import { WebSocketAdapter } from './websocket/websocket.adapter';
 import { AppLogger } from './logger/logger.service';
 import { configureRequestBodyParsing } from './common/request-body-limits';
 
-import cookieParser from 'cookie-parser';
 import {
   cookieParserMiddleware,
   csrfMiddleware,
   csrfCookieSetter,
-} from './common/midleware/middleware';
+} from './common/middleware/middleware';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, { bodyParser: false });
   const configService = app.get(ConfigService);

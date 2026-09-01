@@ -185,7 +185,7 @@ export class HealthController {
   @ApiResponse({ status: 200, description: 'Health state returned' })
   async status() {
     const result = await this.health.check([
-      async () => this.db.pingCheck('database'),
+      async () => this.db.isHealthy('database'),
       async () => this.redis.isHealthy('redis'),
       async () => this.queues.isHealthy('queues'),
       async () => this.schemaReadiness.isHealthy('schema'),
