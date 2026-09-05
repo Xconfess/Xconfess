@@ -1,7 +1,9 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { getRepositoryToken } from '@nestjs/typeorm';
 import { StellarDiagnosticsService } from './stellar-diagnostics.service';
 import { StellarConfigService } from '../../stellar/stellar-config.service';
 import { DeploymentMetadataService } from '../../stellar/services/deployment-metadata.service';
+import { Tip, TipVerificationStatus } from '../../tipping/entities/tip.entity';
 
 const mockConfig = {
   network: 'testnet',
@@ -20,7 +22,10 @@ const mockFreshness = {
   daysSinceGeneration: 7,
 };
 
-function buildModule(fetchImpl: () => Promise<Response>) {
+function buildModule(
+  fetchImpl: () => Promise<Response>,
+  tipRepository?: { count: jest.Mock },
+) {
   const stellarConfigService = {
     getConfig: jest.fn().mockReturnValue(mockConfig),
   };
@@ -38,6 +43,9 @@ function buildModule(fetchImpl: () => Promise<Response>) {
       StellarDiagnosticsService,
       { provide: StellarConfigService, useValue: stellarConfigService },
       { provide: DeploymentMetadataService, useValue: deploymentMetadataService },
+      ...(tipRepository
+        ? [{ provide: getRepositoryToken(Tip), useValue: tipRepository }]
+        : []),
     ],
   }).compile();
 }
@@ -118,5 +126,34 @@ describe('StellarDiagnosticsService', () => {
     const result = await service.getDiagnostics();
 
     expect(new Date(result.checkedAt).toISOString()).toBe(result.checkedAt);
+  });
+
+  it('includes aggregate pending and stale tip reconciliation counts', async () => {
+    const tipRepository = {
+      count: jest.fn().mockResolvedValueOnce(7).mockResolvedValueOnce(2),
+    };
+    const module: TestingModule = await buildModule(
+      () => Promise.resolve({ ok: true } as Response),
+      tipRepository,
+    );
+    const service = module.get<StellarDiagnosticsService>(StellarDiagnosticsService);
+
+    const result = await service.getDiagnostics();
+
+    expect(result.pendingTipCount).toBe(7);
+    expect(result.staleTipCount).toBe(2);
+    expect(tipRepository.count).toHaveBeenCalledWith({
+      where: {
+        verificationStatus: expect.objectContaining({
+          _value: [
+            TipVerificationStatus.PENDING,
+            TipVerificationStatus.STALE_PENDING,
+          ],
+        }),
+      },
+    });
+    expect(tipRepository.count).toHaveBeenCalledWith({
+      where: { verificationStatus: TipVerificationStatus.STALE_PENDING },
+    });
   });
 });

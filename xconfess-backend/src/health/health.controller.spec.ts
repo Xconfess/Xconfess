@@ -48,6 +48,22 @@ describe('HealthController', () => {
     jest.clearAllMocks();
 
     configService = { get: jest.fn().mockReturnValue('false') };
+    dbIndicator.isHealthy.mockResolvedValue(
+      UP('database', { latencyMs: 2, version: 'PostgreSQL 16.3', activeConnections: 5, maxConnections: 100 }),
+    );
+    redisIndicator.isHealthy.mockResolvedValue(
+      UP('redis', { host: 'localhost', port: 6379, latencyMs: 1, version: '7.2.0', connectedClients: 3 }),
+    );
+    schemaIndicator.isHealthy.mockResolvedValue(UP('schema'));
+    queueIndicator.isHealthy.mockResolvedValue(UP('queues'));
+    healthService.check.mockImplementation((checks: Array<() => Promise<unknown>>) =>
+      Promise.all(checks.map((fn) => fn())).then((results) => ({
+        status: 'ok',
+        info: Object.assign({}, ...results),
+        error: {},
+        details: Object.assign({}, ...results),
+      })),
+    );
 
     const module: TestingModule = await Test.createTestingModule({
       controllers: [HealthController],

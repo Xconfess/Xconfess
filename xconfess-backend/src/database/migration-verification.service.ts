@@ -128,19 +128,26 @@ export class MigrationVerificationService implements OnModuleInit {
       if (!fs.existsSync(dir)) continue;
       const files = fs.readdirSync(dir).filter((f) => f.endsWith('.ts'));
       for (const file of files) {
-        const timestampMatch = file.match(/^(\d{14})-/);
-        if (!timestampMatch) continue;
-        const timestamp = timestampMatch[1];
         const fullPath = path.join(dir, file);
+        const text = fs.readFileSync(fullPath, 'utf8');
+        const nameMatch = text.match(/name\s*=\s*['"][A-Za-z0-9_]+?(\d{13,14})['"]/);
+        const classMatch = text.match(
+          /class\s+[A-Za-z0-9_]+?(\d{13,14})\s+implements\s+MigrationInterface/,
+        );
+        const fileTimestampMatch = file.match(/^(\d{14})-/);
+        const rawTimestamp =
+          nameMatch?.[1] || classMatch?.[1] || fileTimestampMatch?.[1];
+        if (!rawTimestamp) continue;
+        const timestamp = rawTimestamp.slice(-13);
 
         if (!seenTimestamps.has(timestamp)) {
           seenTimestamps.set(timestamp, []);
         }
         seenTimestamps.get(timestamp)!.push(fullPath);
 
-        const nameMatch = file.match(/^\d{14}-(.+)\.ts$/);
-        if (nameMatch) {
-          const name = nameMatch[1];
+        const filenameNameMatch = file.match(/^\d{14}-(.+)\.ts$/);
+        if (filenameNameMatch) {
+          const name = filenameNameMatch[1];
           if (!seenNames.has(name)) {
             seenNames.set(name, []);
           }

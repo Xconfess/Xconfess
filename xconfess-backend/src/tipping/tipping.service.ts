@@ -5,8 +5,10 @@ import {
   ConflictException,
   GatewayTimeoutException,
   Logger,
+  Optional,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { ConfigService } from '@nestjs/config';
 import { DataSource, QueryFailedError, Repository } from 'typeorm';
 import { Tip, TipVerificationStatus } from './entities/tip.entity';
 import { AnonymousConfession } from '../confession/entities/confession.entity';
@@ -16,6 +18,13 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { AuditActionType } from '../audit-log/audit-log.entity';
 import * as crypto from 'crypto';
+import { AnalyticsEventService } from '../analytics/analytics-event.service';
+import { AnalyticsNetwork } from '../analytics/entities/analytics-event.entity';
+import {
+  MAX_TIP_AMOUNT,
+  MIN_TIP_AMOUNT,
+  TIP_PRECISION,
+} from './tipping.constants';
 
 export interface TipStats {
   totalAmount: number;
@@ -78,10 +87,6 @@ const PG_UNIQUE_VIOLATION = '23505';
  * - MAX_TIP_AMOUNT: 10,000 XLM (upper bound to prevent overflow and abuse)
  * - TIP_PRECISION: 7 decimal places (Stellar's native precision for assets)
  */
-export const MIN_TIP_AMOUNT = 0.1;
-export const MAX_TIP_AMOUNT = 10_000;
-export const TIP_PRECISION = 7;
-
 @Injectable()
 export class TippingService {
   private static readonly MAX_RECEIPT_PROOF_METADATA_LEN = 128;
@@ -96,6 +101,10 @@ export class TippingService {
     private readonly stellarService: StellarService,
     private readonly eventEmitter: EventEmitter2,
     private readonly auditLogService: AuditLogService,
+    @Optional()
+    private readonly configService?: ConfigService,
+    @Optional()
+    private readonly analyticsEventService?: AnalyticsEventService,
   ) {}
 
   // ──────────────────────────────────────────────────────────────────────────
@@ -433,6 +442,53 @@ export class TippingService {
       sentinelTip.lockedBy = null;
 
       const savedTip = await this.tipRepository.save(sentinelTip);
+      const amountAtomic = Math.round(
+        processedData.amount * 10_000_000,
+      ).toString();
+      const network = this.getAnalyticsNetwork();
+
+      this.analyticsEventService
+        ?.record({
+          eventName: 'tip_completed',
+          txHash: dto.txId,
+          assetCode: 'XLM',
+          amountAtomic,
+          network,
+          idempotencyKey: `tip_completed:${dto.txId}`,
+          metadata: {
+            source: 'tipping_service',
+            tipId: savedTip.id,
+            confessionId,
+            requestId: requestId ?? null,
+          },
+        })
+        .catch((err) =>
+          this.logger.warn({
+            message: 'Failed to record tip analytics',
+            requestId,
+            confessionId,
+            txHash: dto.txId,
+            error: err instanceof Error ? err.message : String(err),
+          }),
+        );
+      this.analyticsEventService
+        ?.record({
+          eventName: 'stellar_tx_confirmed',
+          txHash: dto.txId,
+          assetCode: 'XLM',
+          amountAtomic,
+          network,
+          idempotencyKey: `stellar_tx_confirmed:${dto.txId}`,
+          metadata: { source: 'tipping_service', requestId: requestId ?? null },
+        })
+        .catch((err) =>
+          this.logger.warn({
+            message: 'Failed to record Stellar confirmation analytics',
+            requestId,
+            txHash: dto.txId,
+            error: err instanceof Error ? err.message : String(err),
+          }),
+        );
 
       // ── 9. Post-success side-effects (emitted exactly once) ───────────
 
@@ -496,6 +552,19 @@ export class TippingService {
         requestId,
         error: error instanceof Error ? error.message : 'Unknown error',
       });
+      this.analyticsEventService
+        ?.record({
+          eventName: 'stellar_tx_failed',
+          txHash: dto.txId,
+          network: this.getAnalyticsNetwork(),
+          idempotencyKey: `stellar_tx_failed:${dto.txId}`,
+          metadata: {
+            source: 'tipping_service',
+            state: 'failed',
+            requestId: requestId ?? null,
+          },
+        })
+        .catch(() => undefined);
 
       throw error;
     }
@@ -514,6 +583,12 @@ export class TippingService {
       .createHash('sha256')
       .update(`${confessionId}:${txHash}`)
       .digest('hex');
+  }
+
+  private getAnalyticsNetwork(): AnalyticsNetwork {
+    return this.configService?.get<string>('STELLAR_NETWORK') === 'mainnet'
+      ? 'mainnet'
+      : 'testnet';
   }
 
   private async findTipByIdempotencyKey(

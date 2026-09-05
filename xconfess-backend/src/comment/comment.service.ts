@@ -4,10 +4,12 @@
   Injectable,
   Logger,
   NotFoundException,
+  Optional,
 } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { DataSource, Repository } from "typeorm";
 import { AnalyticsService } from "../analytics/analytics.service";
+import { AnalyticsEventService } from "../analytics/analytics-event.service";
 import {
   OutboxEvent,
   OutboxStatus,
@@ -57,6 +59,8 @@ export class CommentService {
     private outboxRepo: Repository<OutboxEvent>,
     private readonly dataSource: DataSource,
     private readonly analyticsService: AnalyticsService,
+    @Optional()
+    private readonly analyticsEventService?: AnalyticsEventService,
   ) {}
 
   // ---------------------------------------------------------------------------
@@ -218,6 +222,27 @@ export class CommentService {
         return savedComment;
       })
       .then(async (result) => {
+        this.analyticsEventService
+          ?.record({
+            eventName: "comment_created",
+            actorId: `anon:${user.id}`,
+            occurredAt: result.createdAt,
+            idempotencyKey: idempotencyKey
+              ? `comment_created:${idempotencyKey}`
+              : `comment_created:${result.id}`,
+            metadata: {
+              source: "comment_service",
+              commentId: result.id,
+              confessionId,
+            },
+          })
+          .catch((err) =>
+            this.logger.warn(
+              `Failed to record comment analytics: ${
+                err instanceof Error ? err.message : String(err)
+              }`,
+            ),
+          );
         this.analyticsService
           .invalidateTrendingCache("comment-created")
           .catch((err) =>

@@ -12,14 +12,32 @@ function joinUrl(base, path) {
 
 async function request(name, url, options = {}, expectedStatuses = [200]) {
   const started = Date.now();
-  const response = await fetch(url, {
-    ...options,
-    headers: {
-      accept: 'application/json',
-      ...(options.body ? { 'content-type': 'application/json' } : {}),
-      ...(options.headers || {}),
-    },
-  });
+  const controller = new AbortController();
+  const timeoutMs = Number(process.env.SMOKE_TIMEOUT_MS || 15000);
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  let response;
+  try {
+    response = await fetch(url, {
+      ...options,
+      signal: controller.signal,
+      headers: {
+        accept: 'application/json',
+        ...(options.body ? { 'content-type': 'application/json' } : {}),
+        ...(options.headers || {}),
+      },
+    });
+  } catch (error) {
+    const latencyMs = Date.now() - started;
+    const reason =
+      error && error.name === 'AbortError'
+        ? `timed out after ${timeoutMs}ms`
+        : error && error.message
+          ? error.message
+          : String(error);
+    throw new Error(`${name} request to ${url} failed in ${latencyMs}ms: ${reason}`);
+  } finally {
+    clearTimeout(timeoutId);
+  }
   const latencyMs = Date.now() - started;
   if (!expectedStatuses.includes(response.status)) {
     const body = await response.text().catch(() => '');
@@ -29,9 +47,51 @@ async function request(name, url, options = {}, expectedStatuses = [200]) {
   return response;
 }
 
+async function requestJson(name, url, options = {}, expectedStatuses = [200]) {
+  const response = await request(name, url, options, expectedStatuses);
+  return response.json();
+}
+
+function assertObject(name, value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new Error(`${name} did not return a JSON object`);
+  }
+}
+
+function assertNoSensitiveKeys(name, value, path = '') {
+  if (!value || typeof value !== 'object') return;
+
+  const sensitive = /content|body|message|password|private.?key|seed|token|authorization|email|phone|ip|user.?agent/i;
+  for (const [key, child] of Object.entries(value)) {
+    const nextPath = path ? `${path}.${key}` : key;
+    if (sensitive.test(key)) {
+      throw new Error(`${name} exposed sensitive key: ${nextPath}`);
+    }
+    assertNoSensitiveKeys(name, child, nextPath);
+  }
+}
+
 async function main() {
-  await request('backend liveness', joinUrl(backendUrl, '/api/health/live'));
-  await request('backend readiness', joinUrl(backendUrl, '/api/health/ready'));
+  await requestJson('backend liveness', joinUrl(backendUrl, '/api/health/live'));
+  await requestJson('backend readiness', joinUrl(backendUrl, '/api/health/ready'));
+  const healthStatus = await requestJson('backend health status', joinUrl(backendUrl, '/api/health/status'), {}, [200, 503]);
+  assertObject('backend health status', healthStatus);
+
+  const traction = await requestJson('public traction API', joinUrl(backendUrl, '/api/public/traction'));
+  assertObject('public traction API', traction);
+  assertNoSensitiveKeys('public traction API', traction);
+  if (!traction.product || !traction.engagement || !traction.stellar || !traction.methodology) {
+    throw new Error('public traction API is missing required aggregate sections');
+  }
+
+  const stellarConfig = await requestJson('public Stellar config', joinUrl(backendUrl, '/api/stellar/config'));
+  assertObject('public Stellar config', stellarConfig);
+  assertNoSensitiveKeys('public Stellar config', stellarConfig);
+  if (!stellarConfig.network || !stellarConfig.contractIds) {
+    throw new Error('public Stellar config is missing network or contractIds');
+  }
+
+  await request('frontend traction page', joinUrl(frontendUrl, '/traction'), {}, [200]);
   await request('frontend session anonymous', joinUrl(frontendUrl, '/api/auth/session'), {}, [401]);
   await request('frontend register method guard', joinUrl(frontendUrl, '/api/users/register'), {}, [405]);
 

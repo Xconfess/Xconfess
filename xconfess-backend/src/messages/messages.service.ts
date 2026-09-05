@@ -3,6 +3,7 @@ import {
   ForbiddenException,
   NotFoundException,
   BadRequestException,
+  Optional,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In, DataSource } from 'typeorm';
@@ -31,6 +32,7 @@ import {
   ENCRYPTED_PREVIEW,
   isEncryptedPayload,
 } from './crypto/message-e2e.crypto';
+import { AnalyticsEventService } from '../analytics/analytics-event.service';
 
 @Injectable()
 export class MessagesService {
@@ -46,6 +48,8 @@ export class MessagesService {
     private readonly customMessageRepository: MessageRepository,
     private readonly anonymousUserService: AnonymousUserService,
     private readonly dataSource: DataSource,
+    @Optional()
+    private readonly analyticsEventService?: AnalyticsEventService,
   ) {}
 
   private resolveThreadViewerRole(
@@ -97,7 +101,7 @@ export class MessagesService {
       user.id,
     );
 
-    return this.dataSource.transaction(async (manager) => {
+    const saved = await this.dataSource.transaction(async (manager) => {
       const messageRepo = manager.getRepository(Message);
       const outboxRepo = manager.getRepository(OutboxEvent);
 
@@ -131,6 +135,22 @@ export class MessagesService {
 
       return savedMessage;
     });
+
+    this.analyticsEventService
+      ?.record({
+        eventName: 'message_sent',
+        actorId: `anon:${sender.id}`,
+        occurredAt: saved.createdAt,
+        idempotencyKey: `message_sent:${saved.id}`,
+        metadata: {
+          source: 'messages_service',
+          messageId: saved.id,
+          confessionId: confession.id,
+        },
+      })
+      .catch(() => undefined);
+
+    return saved;
   }
 
   async findForConfessionThread(

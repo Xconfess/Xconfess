@@ -5,6 +5,25 @@
 ![Node](https://img.shields.io/badge/node-%3E%3D18-brightgreen)
 
 
+xConfess is a privacy-first anonymous social app powered by Stellar.
+
+- Live app: https://xconfess.vercel.app/
+- Public traction: https://xconfess.vercel.app/traction
+- Public traction API: `/api/public/traction`
+- Network: Stellar testnet by default, configurable for mainnet
+- Contract deployments: [deployments/README.md](deployments/README.md)
+- Metrics methodology: [docs/traction-metrics.md](docs/traction-metrics.md)
+
+## Live Product Metrics
+
+Current public metrics are calculated from persisted product records and privacy-safe analytics events. The repository does not manually seed or hard-code traction numbers; open the traction page or API endpoint for the latest aggregate snapshot.
+
+## Stellar Integration
+
+Xconfess uses Stellar/Soroban for optional confession anchoring, anonymous tipping, contract invocation diagnostics, deployment metadata, and reconciliation-oriented transaction verification. Wallet secrets, private keys, seed phrases, auth tokens, confession text, and private message bodies are never included in public traction metrics.
+
+## Architecture
+
 xConfess is a monorepo for an anonymous confession platform built with NestJS, Next.js 16, PostgreSQL, Redis-backed queues, WebSockets, and Soroban smart contracts on Stellar.
 
 ## Repository Layout

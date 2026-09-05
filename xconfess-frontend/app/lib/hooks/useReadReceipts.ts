@@ -68,7 +68,10 @@ export function useReadReceipts({
   const socketRef = useRef<Socket | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const onUpdateRef = useRef(onUpdate);
-  onUpdateRef.current = onUpdate;
+
+  useEffect(() => {
+    onUpdateRef.current = onUpdate;
+  }, [onUpdate]);
 
   const applyReceipt = useCallback((next: ReadReceipt) => {
     setReceipt(next);

@@ -5,6 +5,7 @@ import {
   ConflictException,
   ForbiddenException,
   BadRequestException,
+  Optional,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource, QueryFailedError } from 'typeorm';
@@ -18,6 +19,7 @@ import {
   OutboxStatus,
 } from '../common/entities/outbox-event.entity';
 import { AnalyticsService } from '../analytics/analytics.service';
+import { AnalyticsEventService } from '../analytics/analytics-event.service';
 import { ReactionsGateway } from './reactions.gateway';
 
 @Injectable()
@@ -36,6 +38,8 @@ export class ReactionService {
     private readonly dataSource: DataSource,
     private readonly analyticsService: AnalyticsService,
     private readonly reactionsGateway: ReactionsGateway,
+    @Optional()
+    private readonly analyticsEventService?: AnalyticsEventService,
   ) {}
 
   async createReaction(
@@ -177,6 +181,25 @@ export class ReactionService {
         // 5. Broadcast canonical WebSocket event for new reactions only.
         // Duplicate / idempotent requests must not emit extra events.
         if (result.isNew) {
+          this.analyticsEventService
+            ?.record({
+              eventName: 'reaction_created',
+              actorId: `anon:${anonymousUserId}`,
+              occurredAt: result.reaction.createdAt,
+              idempotencyKey: `reaction_created:${result.reaction.id}`,
+              metadata: {
+                source: 'reaction_service',
+                reactionId: result.reaction.id,
+                confessionId: confession.id,
+              },
+            })
+            .catch((err) =>
+              this.logger.warn(
+                `Failed to record reaction analytics: ${
+                  err instanceof Error ? err.message : String(err)
+                }`,
+              ),
+            );
           this.reactionsGateway.broadcastReactionAdded(confession.id, {
             reactionId: result.reaction.id,
             userId: anonymousUserId,

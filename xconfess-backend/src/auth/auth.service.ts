@@ -6,6 +6,7 @@ import {
   GoneException,
   UnprocessableEntityException,
   Logger,
+  Optional,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { UserService } from '../user/user.service';
@@ -24,6 +25,7 @@ import { AppException } from '../common/errors/app-exception';
 import { ErrorCode } from '../common/errors/error-codes';
 import { HttpStatus } from '@nestjs/common';
 import { getDefaultAdminStellarInvocationScopes } from '../stellar/stellar-invocation-policy';
+import { AnalyticsEventService } from '../analytics/analytics-event.service';
 
 @Injectable()
 export class AuthService {
@@ -36,6 +38,8 @@ export class AuthService {
     private passwordResetService: PasswordResetService,
     private anonymousUserService: AnonymousUserService,
     private lockoutService: LockoutService,
+    @Optional()
+    private readonly analyticsEventService?: AnalyticsEventService,
   ) {}
 
   async validateUser(
@@ -117,6 +121,19 @@ export class AuthService {
       role,
       scopes,
     };
+    this.analyticsEventService
+      ?.record({
+        eventName: 'user_login',
+        actorId: `user:${user.id}`,
+        metadata: { source: 'auth_service' },
+      })
+      .catch((err) =>
+        this.logger.warn(
+          `Failed to record login analytics: ${
+            err instanceof Error ? err.message : String(err)
+          }`,
+        ),
+      );
     return {
       access_token: this.jwtService.sign(payload),
       user,
@@ -331,4 +348,3 @@ export class AuthService {
     }
   }
 }
-
