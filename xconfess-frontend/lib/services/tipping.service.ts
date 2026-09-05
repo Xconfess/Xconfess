@@ -198,7 +198,8 @@ function shouldPollVerification(
 /**
  * Fake status checker — replace with actual backend or Stellar SDK call
  */
-export const checkTransactionStatus = async (_txHash?: string): Promise<ActivityStatus> => {
+export const checkTransactionStatus = async (txHash?: string): Promise<ActivityStatus> => {
+  void txHash;
   await sleep(2000);
 
   const random = Math.random();

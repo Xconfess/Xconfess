@@ -1,5 +1,6 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import apiClient from '@/app/lib/api/client';
 
 const mockPush = jest.fn();
 
@@ -44,7 +45,6 @@ describe('Login page register navigation', () => {
 
   it('Create account button routes to /register without calling the backend', async () => {
     const user = userEvent.setup();
-    const apiClient = require('@/app/lib/api/client').default;
     const LoginPage = (await import('@/app/(auth)/login/page')).default;
 
     render(<LoginPage />);

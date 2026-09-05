@@ -3,7 +3,6 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { UserPlus } from 'lucide-react';
 import { Button } from '@/app/components/ui/button';
 import { Input } from '@/app/components/ui/input';
 import { BrandLogo } from '@/app/components/brand/BrandLogo';
@@ -235,13 +234,3 @@ function getAuthRedirectTarget(fallback: string): string {
   const next = new URLSearchParams(window.location.search).get('next');
   return isSafeAuthRedirect(next) ? next : fallback;
 }
-
-function buildAuthSwitchUrl(path: '/register' | '/login'): string {
-  if (typeof window === 'undefined') return path;
-
-  const next = new URLSearchParams(window.location.search).get('next');
-  return isSafeAuthRedirect(next)
-    ? `${path}?next=${encodeURIComponent(next)}`
-    : path;
-}
-

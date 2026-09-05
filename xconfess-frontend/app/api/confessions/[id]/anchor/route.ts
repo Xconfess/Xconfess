@@ -54,7 +54,7 @@ export async function POST(
         status: 200,
         headers: { "Content-Type": "application/json" },
       });
-    } catch (fetchError) {
+    } catch {
       // Demo mode fallback
       const isDemoMode =
         process.env.NODE_ENV === "development" ||
@@ -90,7 +90,7 @@ export async function POST(
         },
       );
     }
-  } catch (error) {
+  } catch {
     return createApiErrorResponse(
       "An unexpected error occurred during anchor processing.",
       {

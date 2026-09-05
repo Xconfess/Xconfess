@@ -21,7 +21,7 @@ export async function PUT(
 
     const data = await res.json();
     return NextResponse.json(data);
-  } catch (error) {
+  } catch {
     return NextResponse.json(
       { error: "Failed to update flag" },
       { status: 500 },
@@ -46,7 +46,7 @@ export async function DELETE(
 
     const data = await res.json();
     return NextResponse.json(data);
-  } catch (error) {
+  } catch {
     return NextResponse.json(
       { error: "Failed to delete flag" },
       { status: 500 },

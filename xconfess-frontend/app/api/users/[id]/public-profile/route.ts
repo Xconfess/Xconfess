@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { createApiErrorResponse } from "@/lib/apiErrorHandler";
 import { resolveBackendRoute } from "@/app/lib/api/proxy";
 

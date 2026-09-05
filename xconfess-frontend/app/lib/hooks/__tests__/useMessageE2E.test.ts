@@ -4,7 +4,6 @@ import apiClient from '@/app/lib/api/client';
 import {
   generateMessageKeyPair,
   unwrapPrivateKeyWithPassphrase,
-  wrapPrivateKeyWithPassphrase,
 } from '@/app/lib/crypto/messageE2E';
 import {
   loadLocalKeyPair,
@@ -43,9 +42,6 @@ const mockSaveLocalKeyPair = saveLocalKeyPair as jest.Mock;
 const mockGenerateMessageKeyPair = generateMessageKeyPair as jest.Mock;
 const mockUnwrapPrivateKeyWithPassphrase =
   unwrapPrivateKeyWithPassphrase as jest.Mock;
-const mockWrapPrivateKeyWithPassphrase =
-  wrapPrivateKeyWithPassphrase as jest.Mock;
-
 const anonymousUserId = 'anon-1';
 
 beforeEach(() => {

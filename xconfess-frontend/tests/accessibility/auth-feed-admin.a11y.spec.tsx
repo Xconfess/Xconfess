@@ -1,6 +1,7 @@
 import { render, screen, within, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { axe, toHaveNoViolations } from "jest-axe";
+import apiClient from "@/app/lib/api/client";
 
 expect.extend(toHaveNoViolations);
 
@@ -560,7 +561,6 @@ describe("Register page accessibility", () => {
 
   it("Sign in button routes to /login without calling the backend", async () => {
     const user = userEvent.setup();
-    const apiClient = require("@/app/lib/api/client").default;
     render(<RegisterPage />);
 
     const signInButton = screen.getByRole("button", { name: /sign in/i });
