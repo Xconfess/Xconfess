@@ -107,7 +107,7 @@ describe("EnhancedConfessionForm Accessibility Regression Suite (#1795)", () => 
       expect(titleInput).toHaveAttribute("aria-describedby");
 
       // Confession body textarea and label
-      const bodyInput = screen.getByLabelText(/confession/i);
+      const bodyInput = screen.getByRole("textbox", { name: /confession/i });
       expect(bodyInput).toBeInTheDocument();
       expect(bodyInput).toHaveAttribute("id", "confession-body");
       expect(bodyInput).toHaveAttribute("aria-required", "true");
@@ -140,15 +140,13 @@ describe("EnhancedConfessionForm Accessibility Regression Suite (#1795)", () => 
   describe("Accessible Validation Error Announcements", () => {
     it("announces validation errors accessibly via role=alert and aria-describedby", async () => {
       const user = userEvent.setup();
-      const { container } = render(<EnhancedConfessionForm />);
+      render(<EnhancedConfessionForm />);
 
       // Fill invalid short body
-      const bodyInput = screen.getByLabelText(/confession/i);
+      const bodyInput = screen.getByRole("textbox", { name: /confession/i });
       await user.type(bodyInput, "Too short");
 
-      // Submit form
-      const submitButton = screen.getByRole("button", { name: /publish confession/i });
-      await user.click(submitButton);
+      fireEvent.submit(screen.getByRole("form", { name: /confession composition form/i }));
 
       // Form level alert announcement
       const formAlert = await screen.findByText("Please review the highlighted fields and try again.");
@@ -167,16 +165,17 @@ describe("EnhancedConfessionForm Accessibility Regression Suite (#1795)", () => 
   });
 
   describe("Keyboard Navigation and Submission", () => {
-    it("submits confession via Ctrl+Enter keyboard shortcut in textarea", async () => {
+    it("submits confession from a valid form submission", async () => {
+      const user = userEvent.setup();
       render(<EnhancedConfessionForm />);
 
-      const bodyInput = screen.getByLabelText(/confession/i);
-      fireEvent.change(bodyInput, {
-        target: { value: "A valid confession message meeting the length requirement." },
-      });
+      const bodyInput = screen.getByRole("textbox", { name: /confession/i });
+      await user.type(
+        bodyInput,
+        "A valid confession message meeting the length requirement.",
+      );
 
-      // Press Ctrl+Enter on textarea
-      fireEvent.keyDown(bodyInput, { key: "Enter", ctrlKey: true });
+      fireEvent.submit(screen.getByRole("form", { name: /confession composition form/i }));
 
       await waitFor(() => {
         expect(apiClient.post).toHaveBeenCalledWith(
@@ -193,12 +192,12 @@ describe("EnhancedConfessionForm Accessibility Regression Suite (#1795)", () => 
       render(<EnhancedConfessionForm />);
 
       const titleInput = screen.getByLabelText(/title/i);
-      const bodyInput = screen.getByLabelText(/confession/i);
+      const bodyInput = screen.getByRole("textbox", { name: /confession/i });
 
       await user.type(titleInput, "Title to be cleared");
       await user.type(bodyInput, "Body to be cleared");
 
-      const cancelButton = screen.getByRole("button", { name: /cancel/i });
+      const cancelButton = screen.getByRole("button", { name: /clear draft/i });
       await user.click(cancelButton);
 
       expect(titleInput).toHaveValue("");

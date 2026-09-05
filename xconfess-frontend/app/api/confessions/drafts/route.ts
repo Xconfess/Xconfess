@@ -19,7 +19,7 @@ export async function GET(req: NextRequest) {
     });
     const data = await res.json().catch(() => null);
     return NextResponse.json(data, { status: res.status });
-  } catch (err) {
+  } catch {
     return NextResponse.json(
       { message: "Draft service unavailable" },
       { status: 502 },
@@ -46,7 +46,7 @@ export async function POST(req: NextRequest) {
     });
     const data = await res.json().catch(() => null);
     return NextResponse.json(data, { status: res.status });
-  } catch (err) {
+  } catch {
     return NextResponse.json(
       { message: "Draft service unavailable" },
       { status: 502 },
@@ -71,7 +71,7 @@ export async function DELETE(req: NextRequest) {
     }
     const data = await res.json().catch(() => null);
     return NextResponse.json(data, { status: res.status });
-  } catch (err) {
+  } catch {
     return NextResponse.json(
       { message: "Draft service unavailable" },
       { status: 502 },

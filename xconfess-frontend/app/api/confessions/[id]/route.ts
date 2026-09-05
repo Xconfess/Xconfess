@@ -1,6 +1,6 @@
 import { resolveBackendRoute } from "@/app/lib/api/proxy";
 import { createApiErrorResponse } from "@/lib/apiErrorHandler";
-import { getOrCreateRequestId, requestIdResponseHeaders } from "@/app/lib/utils/requestId";
+import { getOrCreateRequestId } from "@/app/lib/utils/requestId";
 
 
 export async function GET(

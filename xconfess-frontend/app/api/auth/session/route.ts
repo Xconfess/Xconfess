@@ -4,7 +4,7 @@ import {
   normalizeAuthError,
   NormalizedAuthError,
 } from "@/lib/normalizeAuthError";
-import { getOrCreateRequestId, requestIdResponseHeaders } from "@/app/lib/utils/requestId";
+import { getOrCreateRequestId } from "@/app/lib/utils/requestId";
 import { methodNotAllowedHandlers, resolveBackendRoute } from "@/app/lib/api/proxy";
 
 const SESSION_COOKIE_NAME = "xconfess_session";

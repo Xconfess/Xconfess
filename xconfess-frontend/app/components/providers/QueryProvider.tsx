@@ -6,7 +6,7 @@ import { useNetwork } from '@/app/lib/providers/NetworkStatusProvider';
 import { isNetworkError } from '@/app/lib/utils/errorHandler';
 
 export default function QueryProvider({ children }: { children: React.ReactNode }) {
-  const { setDegraded, setApiOnline, checkApiStatus } = useNetwork();
+  const { setDegraded, setApiOnline } = useNetwork();
   const [client] = useState(
     () =>
       new QueryClient({

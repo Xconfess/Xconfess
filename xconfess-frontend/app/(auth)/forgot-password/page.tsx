@@ -16,7 +16,6 @@ export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('');
   const [errors, setErrors] = useState<ValidationErrors>({});
   const [loading, setLoading] = useState(false);
-  const [submitted, setSubmitted] = useState(false);
   const [statusMessage, setStatusMessage] = useState('');
 
   const onSubmit = async () => {
@@ -48,11 +47,10 @@ export default function ForgotPasswordPage() {
         throw new Error('Unable to send reset instructions right now. Please try again later.');
       }
 
-      setSubmitted(true);
       setStatusMessage(
         'If an account exists for this email, reset instructions have been sent. Please check your inbox.'
       );
-    } catch (error) {
+    } catch {
       setStatusMessage(
         'If an account exists for this email, reset instructions have been sent. Please check your inbox.'
       );

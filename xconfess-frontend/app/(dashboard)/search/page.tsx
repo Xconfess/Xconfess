@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { SearchInput } from "@/app/components/search/SearchInput";
 import { FilterSidebar } from "@/app/components/search/FilterSidebar";
@@ -9,22 +9,12 @@ import { SearchResults } from "@/app/components/search/SearchResults";
 import ErrorState from "@/app/components/common/ErrorState";
 import { useDebounce } from "@/app/lib/hooks/useDebounce";
 import { useSearch } from "@/app/lib/hooks/useSearch";
-import { useAuth } from "@/app/lib/hooks/useAuth";
 import { Card } from "@/app/components/ui/card";
 import { Button } from "@/app/components/ui/button";
 import { DEFAULT_FILTERS, type SearchFilters } from "@/app/lib/types/search";
 import type { FilterChipKey } from "@/app/components/search/FilterChips";
-import {
-  Filter,
-  X,
-  HelpCircle,
-  Save,
-  History,
-  Bookmark,
-  Trash2,
-} from "lucide-react";
+import { Filter } from "lucide-react";
 import { cn } from "@/app/lib/utils/cn";
-import { useFocusTrap } from "@/app/lib/hooks/useFocusTrap";
 
 const DEBOUNCE_MS = 300;
 
@@ -87,23 +77,11 @@ export default function SearchPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const pathname = usePathname();
-  const { user } = useAuth();
 
   const [query, setQuery] = useState("");
   const [filters, setFilters] = useState<SearchFilters>({ ...DEFAULT_FILTERS });
   const [isInitialized, setIsInitialized] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [saveStatus, setSaveStatus] = useState<string | null>(null);
-  const [isSaving, setIsSaving] = useState(false);
-
-  const [historyItems, setHistoryItems] = useState<any[]>([]);
-  const [presetItems, setPresetItems] = useState<any[]>([]);
-  const [showDiscoveryDropdown, setShowDiscoveryDropdown] = useState(false);
-
-  const filterButtonRef = useRef<HTMLButtonElement>(null);
-  const sidebarRef = useRef<HTMLDivElement>(null);
-  const closeButtonRef = useRef<HTMLButtonElement>(null);
-  const dropdownRef = useRef<HTMLDivElement>(null);
 
   // Initialize from URL
   useEffect(() => {
@@ -127,7 +105,6 @@ export default function SearchPage() {
     error,
     statusMeta,
     loadMore,
-    reset,
     retry,
   } = useSearch({
     query,
@@ -156,7 +133,6 @@ export default function SearchPage() {
     const trimmed = q.trim();
     setQuery(trimmed);
     updateUrl(trimmed, filters);
-    setShowDiscoveryDropdown(false);
   }, [filters, updateUrl]);
 
   const handleApplyFilters = useCallback((f: SearchFilters) => {
@@ -199,7 +175,6 @@ export default function SearchPage() {
   const handleSuggestion = useCallback((suggestion: string) => {
     setQuery(suggestion);
     updateUrl(suggestion, filters);
-    setShowDiscoveryDropdown(false);
   }, [filters, updateUrl]);
 
   // Keep your existing discovery, save search, and other logic here...

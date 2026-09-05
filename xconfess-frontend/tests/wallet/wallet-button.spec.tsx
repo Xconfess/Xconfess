@@ -6,7 +6,6 @@ import { WalletContext } from "@/lib/providers/WalletProvider";
 import type { UseWalletReturn } from "@/lib/hooks/useWallet";
 import {
   disconnectedWallet,
-  connectedWallet,
   createWalletMock,
   walletNotInstalled,
 } from "@/tests/mocks/wallet-fixtures";

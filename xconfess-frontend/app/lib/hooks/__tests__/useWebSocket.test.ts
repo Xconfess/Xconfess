@@ -212,7 +212,7 @@ describe('useWebSocket hook behavior', () => {
 
   it('4. Duplicate listener / stale socket cleanup', () => {
     const onMessage = jest.fn();
-    const { result } = renderHook(() =>
+    renderHook(() =>
       useWebSocket({
         url: 'ws://example.com',
         onMessage,

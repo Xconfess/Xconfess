@@ -105,7 +105,7 @@ export function useWebSocket(options: WebSocketOptions) {
     };
 
     wsRef.current = ws;
-  }, [url, buildUrl, reconnect, maxReconnectAttempts, reconnectBaseDelay, reconnectMaxDelay, onMessage, onOpen, onClose, onError]);
+  }, [buildUrl, reconnect, maxReconnectAttempts, reconnectBaseDelay, reconnectMaxDelay, onMessage, onOpen, onClose, onError]);
 
   const disconnect = useCallback(() => {
     attemptRef.current = maxReconnectAttempts + 1;
