@@ -107,7 +107,7 @@ export function SearchResults({
         )}
         role="status"
       >
-        <p className="text-center text-[var(--foreground)]">
+        <p className="text-center font-editorial text-3xl text-[var(--foreground)]">
           Enter a search term or use filters to find confessions.
         </p>
         <p className="mt-2 text-center text-sm text-[var(--secondary)]">
@@ -127,7 +127,7 @@ export function SearchResults({
         role="status"
         aria-live="polite"
       >
-        <p className="text-center text-[var(--foreground)]">
+        <p className="text-center font-editorial text-3xl text-[var(--foreground)]">
           No confessions match your search.
         </p>
         <p className="mt-2 text-center text-sm text-[var(--secondary)]">
