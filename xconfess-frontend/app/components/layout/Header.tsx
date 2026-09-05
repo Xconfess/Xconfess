@@ -59,6 +59,9 @@ export default function Header() {
               <Link href="/anchors" className={navLinkClass}>
                 Anchors
               </Link>
+              <Link href="/traction" className={navLinkClass}>
+                Traction
+              </Link>
               {user?.role === "admin" && (
                 <Link href="/admin" className={navLinkClass + " font-bold"}>
                   Admin

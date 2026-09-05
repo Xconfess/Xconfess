@@ -13,15 +13,22 @@ import { DeploymentMetadataService } from './services/deployment-metadata.servic
 import { StellarReconciliationWorker } from './stellar-reconciliation.worker';
 import { ReputationReconciliationWorker } from './reputation-reconciliation.worker';
 import { StellarAnchor } from './entities/stellar-anchor.entity';
+import { SorobanEventCheckpoint } from './entities/soroban-event-checkpoint.entity';
 import { AnonymousConfession } from '../confession/entities/confession.entity';
 import { Tip } from '../tipping/entities/tip.entity';
+import { SorobanEventCheckpointService } from './soroban-event-checkpoint.service';
 
 @Module({
   imports: [
     ConfigModule,
     AuditLogModule,
     ScheduleModule.forRoot(),
-    TypeOrmModule.forFeature([StellarAnchor, AnonymousConfession, Tip]),
+    TypeOrmModule.forFeature([
+      StellarAnchor,
+      SorobanEventCheckpoint,
+      AnonymousConfession,
+      Tip,
+    ]),
   ],
   providers: [
     StellarConfigService,
@@ -32,6 +39,7 @@ import { Tip } from '../tipping/entities/tip.entity';
     DeploymentMetadataService,
     StellarReconciliationWorker,
     ReputationReconciliationWorker,
+    SorobanEventCheckpointService,
   ],
   controllers: [StellarController],
   exports: [
@@ -40,6 +48,7 @@ import { Tip } from '../tipping/entities/tip.entity';
     StellarService,
     ContractService,
     DeploymentMetadataService,
+    SorobanEventCheckpointService,
   ],
 })
 export class StellarModule {}

@@ -6,6 +6,7 @@ import {
   Logger,
   forwardRef,
   HttpStatus,
+  Optional,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -27,6 +28,7 @@ import { decryptConfession } from '../utils/confession-encryption';
 import { ConfigService } from '@nestjs/config';
 import { AppException } from '../common/errors/app-exception';
 import { ErrorCode } from '../common/errors/error-codes';
+import { AnalyticsEventService } from '../analytics/analytics-event.service';
 
 @Injectable()
 export class UserService {
@@ -38,6 +40,8 @@ export class UserService {
     @Inject(forwardRef(() => EmailService))
     private emailService: EmailService,
     private readonly configService: ConfigService,
+    @Optional()
+    private readonly analyticsEventService?: AnalyticsEventService,
   ) {}
 
   // =========================
@@ -129,6 +133,21 @@ export class UserService {
       });
 
       const savedUser = await this.userRepository.save(user);
+
+      this.analyticsEventService
+        ?.record({
+          eventName: 'user_registered',
+          actorId: `user:${savedUser.id}`,
+          idempotencyKey: `user_registered:${savedUser.id}`,
+          metadata: { requestId: requestId ?? null, source: 'user_service' },
+        })
+        .catch((err) =>
+          this.logger.warn(
+            `Failed to record registration analytics${trace}: ${
+              err instanceof Error ? err.message : String(err)
+            }`,
+          ),
+        );
 
       try {
         await this.emailService.sendWelcomeEmail(

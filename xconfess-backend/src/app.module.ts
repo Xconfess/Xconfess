@@ -36,6 +36,7 @@ import { DatabaseModule } from './database/database.module';
 import { FeatureFlagsModule } from './feature-flags/feature-flags.module';
 import { BookmarkModule } from './bookmark/bookmark.module';
 import { KeyRotationModule } from './key-rotation/key-rotation.module';
+import { AnalyticsModule } from './analytics/analytics.module';
 // âœ… Canonical queue stack: @nestjs/bullmq (BullMQ v4 + ioredis)
 // The legacy @nestjs/bull import has been removed. All queues use BullMQ.
 import { BullModule } from '@nestjs/bullmq';
@@ -127,6 +128,7 @@ import { StructuredLoggingInterceptor } from './common/logging/structured-loggin
     EventEmitterModule.forRoot(),
     ScheduleModule.forRoot(),
     HealthModule,
+    AnalyticsModule,
     UserModule,
     AuthModule,
     ConfessionModule,

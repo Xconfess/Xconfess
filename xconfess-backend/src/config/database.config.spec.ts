@@ -29,7 +29,7 @@ describe('getTypeOrmConfig', () => {
         }),
       ),
     ).toThrow(
-      'TYPEORM_SYNCHRONIZE=true is only permitted in local development. Disable it and run migrations instead.',
+      'TYPEORM_SYNCHRONIZE must be false outside local development. Use migrations for production and staging deploys.',
     );
   });
 

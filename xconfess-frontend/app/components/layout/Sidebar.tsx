@@ -2,7 +2,7 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { X, LogOut, User, MessageSquare, Home, Search, BarChart3, Anchor, Keyboard } from "lucide-react";
+import { X, LogOut, User, MessageSquare, Home, Search, BarChart3, Anchor, Keyboard, Gauge } from "lucide-react";
 import { useAuth } from "../../lib/hooks/useAuth";
 import { useFocusTrap } from "@/app/lib/hooks/useFocusTrap";
 import { Modal } from "@/app/components/ui/modal";
@@ -120,6 +120,16 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                 >
                   <Anchor size={20} />
                   <span>Anchors</span>
+                </Link>
+              </li>
+              <li>
+                <Link
+                  href="/traction"
+                  className="flex min-h-[44px] items-center gap-3 rounded-lg px-4 py-3 text-[var(--secondary)] transition-colors hover:bg-[var(--accent-soft)] hover:text-[var(--primary)]"
+                  onClick={onClose}
+                >
+                  <Gauge size={20} />
+                  <span>Traction</span>
                 </Link>
               </li>
               {user?.role === "admin" && (

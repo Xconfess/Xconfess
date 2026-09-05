@@ -4,6 +4,7 @@ import {
   ConflictException,
   NotFoundException,
   InternalServerErrorException,
+  Optional,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
@@ -52,6 +53,7 @@ import { GetUserConfessionsDto } from './dto/get-user-confessions.dto';
 import { mapToSlimConfession } from './utils/confession-mapper';
 import { AnomalyDetectionService } from '../anomaly/anomaly-detection.service';
 import { ConfessionIdempotencyService } from './confession-idempotency.service';
+import { AnalyticsEventService } from '../analytics/analytics-event.service';
 
 @Injectable()
 export class ConfessionService {
@@ -71,6 +73,8 @@ export class ConfessionService {
     private readonly configService: ConfigService,
     private readonly anomalyDetection: AnomalyDetectionService,
     private readonly idempotencyService: ConfessionIdempotencyService,
+    @Optional()
+    private readonly analyticsEventService?: AnalyticsEventService,
   ) {}
 
   private get aesKey(): string {
@@ -209,6 +213,31 @@ export class ConfessionService {
       });
 
       const savedConfession = await confessionRepo.save(conf);
+
+      this.analyticsEventService
+        ?.record({
+          eventName: 'confession_created',
+          actorId: `anon:${anonymousUser.id}`,
+          occurredAt: savedConfession.created_at,
+          idempotencyKey: dto.idempotencyKey
+            ? `confession_created:${dto.idempotencyKey}`
+            : `confession_created:${savedConfession.id}`,
+          metadata: {
+            source: 'confession_service',
+            confessionId: savedConfession.id,
+          },
+        })
+        .catch((err) =>
+          this.logger.warn(
+            {
+              action: 'analytics_record_failed',
+              eventName: 'confession_created',
+              confessionId: savedConfession.id,
+              error: err instanceof Error ? err.message : String(err),
+            },
+            'ConfessionsService',
+          ),
+        );
 
       // Step 2.5: Create ConfessionTag entries if tags were provided
       if (validatedTags.length > 0) {

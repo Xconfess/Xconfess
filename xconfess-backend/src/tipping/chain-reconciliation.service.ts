@@ -1,12 +1,19 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, In, LessThan } from 'typeorm';
+import { Repository, In } from 'typeorm';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { ConfigService } from '@nestjs/config';
 import { Tip, TipVerificationStatus } from './entities/tip.entity';
 import { StellarService } from '../stellar/stellar.service';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { AuditActionType } from '../audit-log/audit-log.entity';
+import { AnalyticsEventService } from '../analytics/analytics-event.service';
+import { AnalyticsNetwork } from '../analytics/entities/analytics-event.entity';
+import {
+  MAX_TIP_AMOUNT,
+  MIN_TIP_AMOUNT,
+  TIP_PRECISION,
+} from './tipping.constants';
 
 interface ReconciliationMetrics {
   totalPending: number;
@@ -55,6 +62,8 @@ export class ChainReconciliationService {
     private readonly stellarService: StellarService,
     private readonly auditLogService: AuditLogService,
     private readonly configService: ConfigService,
+    @Optional()
+    private readonly analyticsEventService?: AnalyticsEventService,
   ) {}
 
   /**
@@ -123,6 +132,89 @@ export class ChainReconciliationService {
     };
   }
 
+  private validatePersistedTipAmount(tip: Tip): string | null {
+    const amount = Number(tip.amount);
+
+    if (!Number.isFinite(amount)) {
+      return 'Tip amount is not a finite number';
+    }
+
+    if (amount < MIN_TIP_AMOUNT) {
+      return `Tip amount ${amount} XLM is below minimum of ${MIN_TIP_AMOUNT} XLM`;
+    }
+
+    if (amount > MAX_TIP_AMOUNT) {
+      return `Tip amount ${amount} XLM exceeds maximum of ${MAX_TIP_AMOUNT} XLM`;
+    }
+
+    const [, decimalPart = ''] = String(tip.amount).split('.');
+    if (decimalPart.length > TIP_PRECISION) {
+      return `Tip amount has ${decimalPart.length} decimal places, maximum allowed is ${TIP_PRECISION}`;
+    }
+
+    return null;
+  }
+
+  private getAnalyticsNetwork(): AnalyticsNetwork {
+    return this.configService.get<string>('STELLAR_NETWORK') === 'mainnet'
+      ? 'mainnet'
+      : 'testnet';
+  }
+
+  private async recordReconciliationAnalytics(
+    tip: Tip,
+    status: TipVerificationStatus,
+  ): Promise<void> {
+    if (!this.analyticsEventService) {
+      return;
+    }
+
+    const network = this.getAnalyticsNetwork();
+    if (status === TipVerificationStatus.VERIFIED) {
+      const amountAtomic = Math.round(Number(tip.amount) * 10_000_000).toString();
+      await Promise.all([
+        this.analyticsEventService.record({
+          eventName: 'tip_completed',
+          txHash: tip.txId,
+          assetCode: 'XLM',
+          amountAtomic,
+          network,
+          idempotencyKey: `tip_completed:${tip.txId}`,
+          metadata: {
+            source: 'chain_reconciliation',
+            tipId: tip.id,
+            confessionId: tip.confessionId,
+          },
+        }),
+        this.analyticsEventService.record({
+          eventName: 'stellar_tx_confirmed',
+          txHash: tip.txId,
+          assetCode: 'XLM',
+          amountAtomic,
+          network,
+          idempotencyKey: `stellar_tx_confirmed:${tip.txId}`,
+          metadata: { source: 'chain_reconciliation' },
+        }),
+      ]);
+      return;
+    }
+
+    if (status === TipVerificationStatus.REJECTED) {
+      await this.analyticsEventService.record({
+        eventName: 'stellar_tx_failed',
+        txHash: tip.txId,
+        network,
+        idempotencyKey: `stellar_tx_failed:${tip.txId}`,
+        metadata: {
+          source: 'chain_reconciliation',
+          state: 'failed',
+          tipId: tip.id,
+          confessionId: tip.confessionId,
+        },
+      });
+    }
+  }
+
   /**
    * Reconcile a single pending tip
    * Issue #173: Re-check chain status and progress records
@@ -141,6 +233,14 @@ export class ChainReconciliationService {
         return {
           success: true,
           newStatus: TipVerificationStatus.REJECTED,
+        };
+      }
+
+      const amountError = this.validatePersistedTipAmount(tip);
+      if (amountError) {
+        return {
+          success: false,
+          error: `Cannot mark reconciled tip as verified: ${amountError}`,
         };
       }
 
@@ -280,6 +380,13 @@ export class ChainReconciliationService {
                 newStatus === TipVerificationStatus.VERIFIED
                   ? new Date()
                   : null,
+              lastChainStatus:
+                newStatus === TipVerificationStatus.VERIFIED
+                  ? 'verified'
+                  : 'rejected',
+              processingLock: null,
+              lockedAt: null,
+              lockedBy: null,
               reconciliationMetadata: {
                 ...tip.reconciliationMetadata,
                 lastReconciliationAttempt: new Date().toISOString(),
@@ -291,7 +398,36 @@ export class ChainReconciliationService {
 
             if (newStatus === TipVerificationStatus.VERIFIED) {
               metrics.confirmed++;
+              await this.auditLogService.log({
+                actionType: AuditActionType.TIP_SETTLEMENT_VERIFIED,
+                context: {
+                  userId: null,
+                  actor: {
+                    type: 'system',
+                    id: 'chain-reconciliation',
+                  },
+                },
+                metadata: {
+                  entityType: 'tip',
+                  entityId: tip.id,
+                  tipId: tip.id,
+                  confessionId: tip.confessionId,
+                  txId: tip.txId,
+                  amount: Number(tip.amount),
+                  settledBy: 'chain_reconciliation',
+                  settledAt: new Date().toISOString(),
+                },
+              });
             }
+
+            await this.recordReconciliationAnalytics(tip, newStatus).catch(
+              (err) =>
+                this.logger.warn(
+                  `Failed to record reconciliation analytics for tip ${tip.txId}: ${
+                    err instanceof Error ? err.message : String(err)
+                  }`,
+                ),
+            );
 
             metrics.reconciled++;
 
@@ -403,13 +539,51 @@ export class ChainReconciliationService {
               reconcileResult.newStatus === TipVerificationStatus.VERIFIED
                 ? new Date()
                 : null,
+            lastChainStatus:
+              reconcileResult.newStatus === TipVerificationStatus.VERIFIED
+                ? 'verified'
+                : 'rejected',
+            processingLock: null,
+            lockedAt: null,
+            lockedBy: null,
           });
 
           metrics.reconciled++;
 
           if (reconcileResult.newStatus === TipVerificationStatus.VERIFIED) {
             metrics.confirmed++;
+            await this.auditLogService.log({
+              actionType: AuditActionType.TIP_SETTLEMENT_VERIFIED,
+              context: {
+                userId: null,
+                actor: {
+                  type: 'system',
+                  id: 'chain-reconciliation',
+                },
+              },
+              metadata: {
+                entityType: 'tip',
+                entityId: tip.id,
+                tipId: tip.id,
+                confessionId: tip.confessionId,
+                txId: tip.txId,
+                amount: Number(tip.amount),
+                settledBy: 'chain_reconciliation',
+                settledAt: new Date().toISOString(),
+              },
+            });
           }
+
+          await this.recordReconciliationAnalytics(
+            tip,
+            reconcileResult.newStatus,
+          ).catch((err) =>
+            this.logger.warn(
+              `Failed to record reconciliation analytics for tip ${tip.txId}: ${
+                err instanceof Error ? err.message : String(err)
+              }`,
+            ),
+          );
         } else if (!reconcileResult.success) {
           metrics.failed++;
         }
