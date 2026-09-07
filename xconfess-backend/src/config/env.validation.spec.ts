@@ -38,6 +38,33 @@ describe('Environment Validation', () => {
     expect(value.CONFESSION_ENCRYPTION_KEY).toBe(validKey);
   });
 
+  it('should validate traction exclusion IDs without sensitive personal values', () => {
+    const config = {
+      ...baseConfig,
+      CONFESSION_ENCRYPTION_KEY: validKey,
+      TRACTION_EXCLUDED_USER_IDS: '1,2',
+      TRACTION_EXCLUDED_ANONYMOUS_USER_IDS: 'anon-test,anon_internal',
+      TRACTION_EXCLUDED_ACTOR_IDS: 'actor-smoke,41',
+    };
+
+    const { error } = envValidationSchema.validate(config);
+
+    expect(error).toBeUndefined();
+  });
+
+  it('should reject email-like values in traction exclusions', () => {
+    const config = {
+      ...baseConfig,
+      CONFESSION_ENCRYPTION_KEY: validKey,
+      TRACTION_EXCLUDED_ACTOR_IDS: 'qa@example.com',
+    };
+
+    const { error } = envValidationSchema.validate(config);
+
+    expect(error).toBeDefined();
+    expect(error!.message).toContain('TRACTION_EXCLUDED_ACTOR_IDS');
+  });
+
   it('should fail if CONFESSION_ENCRYPTION_KEY is missing', () => {
     const config = { ...baseConfig };
     const { error } = envValidationSchema.validate(config);

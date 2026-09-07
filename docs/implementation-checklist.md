@@ -59,4 +59,4 @@ This checklist tracks implementation against the attached GrantFox readiness bri
 - [x] No private message body in analytics.
 - [x] No email, phone, JWT, auth token, password hash, seed phrase, private key, or raw IP in analytics.
 - [x] Public metrics are aggregate-only.
-- [ ] Test and internal account exclusions are explicit and documented before use.
+- [x] Test and internal account exclusions are explicit and documented before use.
