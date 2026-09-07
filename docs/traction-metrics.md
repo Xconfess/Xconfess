@@ -17,6 +17,9 @@ The endpoint is public, read-only, short-cacheable, rate limited, and versioned 
 - Meaningful actions: login, confession creation, comment creation, reaction creation, message sent, wallet connected, or completed tip.
 - Engagement totals: counts from authoritative domain tables for confessions, comments, reactions, and messages.
 - Stellar totals: counts from verified tip records and privacy-safe analytics events.
+- Test/internal exclusions: configured by ID through
+  `TRACTION_EXCLUDED_USER_IDS`, `TRACTION_EXCLUDED_ANONYMOUS_USER_IDS`, and
+  `TRACTION_EXCLUDED_ACTOR_IDS` before metrics are used in public reporting.
 
 ## Privacy Rules
 
@@ -31,6 +34,11 @@ The analytics ingestion boundary rejects sensitive field names before persistenc
 - Stellar private keys, secret seeds, or seed phrases.
 
 Public responses include aggregates only. They do not expose user-level records, emails, wallet secrets, confession text, message text, or private moderation payloads.
+
+Do not configure exclusions with emails, names, wallet addresses, raw IPs, auth
+tokens, or any other sensitive personal value. Use only comma-separated
+registered user IDs, anonymous user IDs, or analytics actor IDs that have been
+approved as test/internal accounts.
 
 ## Data Integrity
 
