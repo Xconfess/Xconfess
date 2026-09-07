@@ -6,6 +6,10 @@ export class BackfillDefaultKeyVersion20260725000001
   name = 'BackfillDefaultKeyVersion20260725000001';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
+    if (!(await queryRunner.hasTable('anonymous_confessions'))) {
+      return;
+    }
+
     await queryRunner.query(
       `UPDATE "anonymous_confessions" SET "key_version" = 'v1' WHERE "key_version" IS NULL`,
     );

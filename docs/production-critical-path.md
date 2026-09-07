@@ -64,7 +64,55 @@ Because the first Render database may have been created by TypeORM synchronize, 
 - core tables already exist
 - the `migrations` table is empty
 
-Fresh databases skip the baseline and run migrations normally. Existing databases with migration history skip only the baseline; the readiness index repair still runs.
+Fresh databases skip the baseline and run migrations normally. Existing
+databases with migration history skip only the baseline; the readiness index
+repair still runs.
+
+Fresh migration validation:
+
+```bash
+npm run backend:build
+
+# Create a disposable database first, then from the repository root:
+DB_HOST=localhost \
+DB_PORT=55432 \
+DB_USERNAME=postgres \
+DB_NAME=xconfess_fresh_migration_validation \
+npm run backend:migration:run
+
+DB_NAME=xconfess_fresh_migration_validation npm run backend:migration:show
+```
+
+The expected result is that all migrations apply and `backend:migration:show`
+reports every migration as applied.
+
+To validate this path locally without touching production data, use a
+disposable Postgres database. The schema sync step below is only used to
+reproduce the legacy Render state where tables exist but TypeORM migration
+history is empty:
+
+```bash
+npm run backend:build
+
+# Create a disposable database first, then from xconfess-backend:
+DB_NAME=xconfess_migration_validation npx typeorm-ts-node-commonjs -d data-source.ts schema:sync
+
+# From the repository root:
+TYPEORM_BASELINE_EXISTING_SCHEMA=true \
+TYPEORM_MIGRATIONS_RUN=true \
+DB_HOST=localhost \
+DB_PORT=55432 \
+DB_USERNAME=postgres \
+DB_PASSWORD=postgres \
+DB_NAME=xconfess_migration_validation \
+npm run render:prestart
+
+DB_NAME=xconfess_migration_validation npm run backend:migration:show
+```
+
+The expected result is that `render:prestart` baselines the compiled migrations
+once, and `backend:migration:show` reports all migrations as applied. Never run
+schema sync against staging or production.
 
 ## Secrets
 

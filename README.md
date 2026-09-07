@@ -314,6 +314,7 @@ npm run backend:schema:repair
 |-----------|---------|
 | Fresh Postgres container or CI run | `npm run backend:migration:run` |
 | Existing local dev database (may have been created via `synchronize`) | `npm run backend:schema:repair` |
+| Existing Render database with tables but no migration history | `npm run render:prestart` with `TYPEORM_BASELINE_EXISTING_SCHEMA=true` |
 | Debugging a migration list error | `npm run backend:migration:show` |
 
 After running either migration command, verify the readiness probe returns 200:

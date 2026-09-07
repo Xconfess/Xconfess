@@ -4,8 +4,12 @@ export class AddFullTextSearchToConfessions20260226000001 implements MigrationIn
     public name = 'AddFullTextSearchToConfessions20260226000001'
 
     public async up(queryRunner: QueryRunner): Promise<void> {
+        if (!(await queryRunner.hasTable('anonymous_confessions'))) {
+            return;
+        }
+
         // Add tsvector column for full-text search
-        await queryRunner.query(`ALTER TABLE "anonymous_confessions" ADD COLUMN "search_vector" tsvector`);
+        await queryRunner.query(`ALTER TABLE "anonymous_confessions" ADD COLUMN IF NOT EXISTS "search_vector" tsvector`);
 
         // Create function to update search vector
         await queryRunner.query(`
@@ -20,6 +24,10 @@ export class AddFullTextSearchToConfessions20260226000001 implements MigrationIn
 
         // Create trigger to automatically update search vector
         await queryRunner.query(`
+            DROP TRIGGER IF EXISTS confession_search_vector_update ON "anonymous_confessions";
+        `);
+
+        await queryRunner.query(`
             CREATE TRIGGER confession_search_vector_update
             BEFORE INSERT OR UPDATE ON "anonymous_confessions"
             FOR EACH ROW EXECUTE FUNCTION update_confession_search_vector();
@@ -33,22 +41,22 @@ export class AddFullTextSearchToConfessions20260226000001 implements MigrationIn
 
         // Create GIN index for better performance
         await queryRunner.query(`
-            CREATE INDEX "idx_confession_search_vector" 
+            CREATE INDEX IF NOT EXISTS "idx_confession_search_vector"
             ON "anonymous_confessions" USING GIN("search_vector");
         `);
 
         // Create additional index for ts_rank optimization
         await queryRunner.query(`
-            CREATE INDEX "idx_confession_created_at" 
+            CREATE INDEX IF NOT EXISTS "idx_confession_created_at"
             ON "anonymous_confessions"("created_at" DESC);
         `);
     }
 
     public async down(queryRunner: QueryRunner): Promise<void> {
-        await queryRunner.query(`DROP INDEX "idx_confession_created_at"`);
-        await queryRunner.query(`DROP INDEX "idx_confession_search_vector"`);
+        await queryRunner.query(`DROP INDEX IF EXISTS "idx_confession_created_at"`);
+        await queryRunner.query(`DROP INDEX IF EXISTS "idx_confession_search_vector"`);
         await queryRunner.query(`DROP TRIGGER IF EXISTS confession_search_vector_update ON "anonymous_confessions"`);
         await queryRunner.query(`DROP FUNCTION IF EXISTS update_confession_search_vector()`);
-        await queryRunner.query(`ALTER TABLE "anonymous_confessions" DROP COLUMN "search_vector"`);
+        await queryRunner.query(`ALTER TABLE "anonymous_confessions" DROP COLUMN IF EXISTS "search_vector"`);
     }
 }

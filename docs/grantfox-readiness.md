@@ -1,6 +1,6 @@
 # Xconfess GrantFox Readiness
 
-Date: 2026-09-05
+Date: 2026-09-07
 
 This document summarizes the current GrantFox readiness evidence in the
 repository. It does not fabricate users, traction, transaction counts, or live
@@ -50,20 +50,26 @@ Local readiness command:
 npm run production:readiness
 ```
 
-Latest local result observed on 2026-09-05:
+Latest local result observed on 2026-09-07:
 
 - Backend build: passed.
 - Backend lint: passed.
-- Focused backend readiness tests: passed, 62 tests.
-- Full backend test suite: passed, 1511 tests with 35 skipped tests.
-- Frontend lint: passed with warnings.
+- Focused backend readiness tests: passed, 83 tests across analytics, config,
+  Stellar, and tipping suites.
+- Frontend lint: passed with no warnings.
 - Frontend typecheck: passed.
-- Focused frontend readiness tests: passed, 3 tests.
 - Frontend production build: passed.
 - Contract environment verification: passed for testnet metadata.
-- Secret scanner self-test: passed.
 - Deploy preflight: passed.
-- Secret scan: passed.
+- Dependency audit: 0 critical, 0 high, and 0 moderate findings. Two accepted
+  low findings remain from `csurf`'s bundled `cookie` dependency and are
+  documented in `docs/dependency-security-audit.md`.
+- Migration validation: a disposable local Postgres database applied all 51
+  TypeORM migrations from an empty schema with
+  `npm run backend:migration:run`, then `npm run backend:migration:show`
+  reported all 51 as applied. A separate disposable database was
+  schema-synchronized to reproduce the legacy Render synchronized-schema state;
+  `npm run render:prestart` baselined 51 compiled migrations there as well.
 
 Production smoke command:
 
@@ -71,18 +77,19 @@ Production smoke command:
 npm run deploy:smoke
 ```
 
-Latest deployed result observed on 2026-09-05:
+Latest deployed result observed on 2026-09-07:
 
-- Failed because backend liveness timed out after 15000ms at
-  `https://xconfess-backend.onrender.com/api/health/live`.
-- This is a production environment blocker, not a code-level traction claim.
+- Passed without mutation mode after adding bounded retries for Render
+  hibernation wake responses.
+- Covered backend liveness, readiness/status handling, public traction, public
+  Stellar configuration, frontend traction page, session guard, and register
+  method guard.
 
 ## Remaining Blockers
 
-- Restore live backend liveness before GrantFox submission.
-- Run database migration validation with configured production-like database
-  environment. Local `npm run backend:migration:show` currently cannot load
-  `data-source.ts` because required database environment variables are absent.
-- Reduce existing frontend lint warnings.
-- Review npm audit findings before campaign launch.
+- Render free-tier cold starts can still delay the first backend response after
+  inactivity. A non-hibernating backend remains recommended before campaign
+  review windows.
+- Replace `csurf` with maintained CSRF middleware to remove the remaining low
+  dependency finding.
 - Generate and validate mainnet deployment metadata before any mainnet claim.

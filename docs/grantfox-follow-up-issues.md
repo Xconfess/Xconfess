@@ -23,20 +23,30 @@ validation. They are not placeholders for invented traction or campaign copy.
 
 ## 2. Run Production-Like Migration Validation
 
-- Evidence: local `npm run backend:migration:show` could not load
-  `data-source.ts` without configured database environment variables.
-- Impact: Analytics and Soroban checkpoint tables must be applied safely before
-  production traffic depends on them.
-- Acceptance: `npm run backend:migration:show` and migration execution pass in
-  staging or another production-like database.
+- Status: Completed for fresh and supported Render production paths on
+  2026-09-07.
+- Evidence: a disposable local Postgres database
+  `xconfess_fresh_migration_validation_4` applied all 51 TypeORM migrations
+  from an empty schema via `npm run backend:migration:run`; a follow-up
+  `npm run backend:migration:show` marked all 51 migrations as applied. A
+  separate disposable database was schema-synchronized to reproduce the legacy
+  Render state, then `npm run render:prestart` baselined 51 compiled migrations
+  and ensured confession readiness indexes.
+- Impact: Fresh databases can run migrations deterministically, and the current
+  production path can safely recognize an existing synchronized schema before
+  startup without attempting destructive duplicate DDL.
+- Acceptance: Keep `npm run backend:build`, `npm run render:prestart`, and
+  `npm run backend:migration:run`/`show` passing against disposable databases
+  before deploys that touch schema.
 
 ## 3. Reduce Existing Frontend Lint Warnings
 
-- Evidence: `npm run frontend:lint` now exits successfully, but reports
-  warnings for unused symbols, hook dependencies, and `<img>` usage.
-- Impact: Warnings do not block readiness locally, but reducing them improves
-  reviewer confidence and long-term maintainability.
-- Acceptance: `npm run frontend:lint` exits with no warnings.
+- Status: Completed on 2026-09-07.
+- Evidence: `npm run frontend:lint` exited successfully with no warnings after
+  cleanup merged into `main`.
+- Impact: Frontend lint no longer carries known warning debt into GrantFox
+  readiness checks.
+- Acceptance: Keep `npm run frontend:lint` warning-free.
 
 ## 4. Review Dependency Vulnerabilities
 

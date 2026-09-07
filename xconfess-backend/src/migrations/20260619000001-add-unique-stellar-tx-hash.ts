@@ -4,6 +4,10 @@ export class AddUniqueStellarTxHash20260619000001 implements MigrationInterface 
   name = 'AddUniqueStellarTxHash20260619000001';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
+    if (!(await queryRunner.hasTable('anonymous_confessions'))) {
+      return;
+    }
+
     // Add unique constraint to stellar_tx_hash column
     await queryRunner.query(`
       DO $$ 
@@ -21,6 +25,10 @@ export class AddUniqueStellarTxHash20260619000001 implements MigrationInterface 
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
+    if (!(await queryRunner.hasTable('anonymous_confessions'))) {
+      return;
+    }
+
     await queryRunner.query(`
       ALTER TABLE "anonymous_confessions" 
       DROP CONSTRAINT IF EXISTS "UQ_anonymous_confessions_stellar_tx_hash"

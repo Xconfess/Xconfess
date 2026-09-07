@@ -14,9 +14,9 @@ This checklist tracks implementation against the attached GrantFox readiness bri
 - [x] Add `GET /api/public/traction`.
 - [x] Add tests for privacy rejection, idempotency, and public aggregate shape.
 - [x] Update safe analytics environment variable examples.
-- [x] Run backend lint, focused tests, build, and attempted migration validation.
+- [x] Run backend lint, focused tests, build, and migration validation.
 - [x] Resolve pre-existing unrelated backend suite failures.
-- [ ] Run migration validation with configured database environment.
+- [x] Run migration validation with configured database environment.
 
 ## Milestone 2 - Show Reality
 
