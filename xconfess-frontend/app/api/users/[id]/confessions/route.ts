@@ -1,14 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createApiErrorResponse } from "@/lib/apiErrorHandler";
-import { getApiBaseUrl } from "@/app/lib/config";
+import { resolveBackendRoute } from "@/app/lib/api/proxy";
 
-const BASE_API_URL = getApiBaseUrl();
 type RouteContext = { params: Promise<{ id: string }> };
 
-export async function GET(
-  req: NextRequest,
-  { params }: RouteContext,
-) {
+export async function GET(req: NextRequest, { params }: RouteContext) {
   const { id } = await params;
   const correlationId = req.headers.get("X-Correlation-ID") || "unknown";
 
@@ -18,14 +14,16 @@ export async function GET(
     return NextResponse.json({ error: "Unauthenticated" }, { status: 401 });
   }
   if (String(sessionUserId) !== String(id)) {
-    console.warn(`[proxy/confessions] IDOR attempt blocked: session=${sessionUserId} param=${id}`);
+    console.warn(
+      `[proxy/confessions] IDOR attempt blocked: session=${sessionUserId} param=${id}`,
+    );
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   try {
-    const backendUrl = `${BASE_API_URL}/users/${id}/confessions`;
+    const backend = resolveBackendRoute(req, `/users/${id}/confessions`);
 
-    const response = await fetch(backendUrl, {
+    const response = await fetch(backend.url, {
       method: "GET",
       headers: buildForwardHeaders(req, correlationId),
     });
@@ -36,7 +34,7 @@ export async function GET(
         status: response.status,
         upstreamResponse: response,
         correlationId,
-        route: "GET /api/users/[id]/confessions"
+        route: "GET /api/users/[id]/confessions",
       });
     }
 
@@ -51,7 +49,7 @@ export async function GET(
     return createApiErrorResponse(error, {
       status: 500,
       correlationId,
-      route: "GET /api/users/[id]/confessions"
+      route: "GET /api/users/[id]/confessions",
     });
   }
 }
@@ -70,7 +68,10 @@ function getSessionUserId(req: NextRequest): string | null {
   }
 }
 
-function buildForwardHeaders(req: NextRequest, correlationId: string): HeadersInit {
+function buildForwardHeaders(
+  req: NextRequest,
+  correlationId: string,
+): HeadersInit {
   const headers: Record<string, string> = {
     cookie: req.headers.get("cookie") ?? "",
     "content-type": "application/json",

@@ -8,6 +8,7 @@ import {
 } from '../../common/entities/outbox-event.entity';
 import { NotificationService } from './notification.service';
 import * as os from 'os';
+import { NotificationDeliveryState } from '../delivery-state';
 
 @Injectable()
 export class OutboxDispatcherService {
@@ -154,13 +155,21 @@ export class OutboxDispatcherService {
         case 'reply_notification':
         case 'reaction_notification':
         case 'reaction_update':
-        case 'report_notification':
-          await this.notificationService.enqueueNotification(
+        case 'report_notification': {
+          const outcome = await this.notificationService.enqueueNotification(
             event.type,
             event.payload,
             dispatchIdempotencyKey,
           );
+          if (outcome.state === NotificationDeliveryState.SKIPPED) {
+            event.status = OutboxStatus.SKIPPED;
+            event.processedAt = new Date();
+            event.lastError = outcome.reason;
+            await this.outboxRepo.save(event);
+            return;
+          }
           break;
+        }
         default:
           this.logger.warn(`Unknown outbox event type: ${event.type}`);
           event.status = OutboxStatus.COMPLETED;

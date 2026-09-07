@@ -5,6 +5,7 @@ import {
   ConflictException,
   ForbiddenException,
   BadRequestException,
+  Optional,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource, QueryFailedError } from 'typeorm';
@@ -12,11 +13,13 @@ import { CreateReactionDto } from './dto/create-reaction.dto';
 import { AnonymousConfession } from '../confession/entities/confession.entity';
 import { Reaction } from './entities/reaction.entity';
 import { AnonymousUser } from '../user/entities/anonymous-user.entity';
+import { assertCanUseAnonymousIdentity } from '../common/security/anonymous-identity-ownership';
 import {
   OutboxEvent,
   OutboxStatus,
 } from '../common/entities/outbox-event.entity';
 import { AnalyticsService } from '../analytics/analytics.service';
+import { AnalyticsEventService } from '../analytics/analytics-event.service';
 import { ReactionsGateway } from './reactions.gateway';
 
 @Injectable()
@@ -35,9 +38,14 @@ export class ReactionService {
     private readonly dataSource: DataSource,
     private readonly analyticsService: AnalyticsService,
     private readonly reactionsGateway: ReactionsGateway,
+    @Optional()
+    private readonly analyticsEventService?: AnalyticsEventService,
   ) {}
 
-  async createReaction(dto: CreateReactionDto): Promise<Reaction> {
+  async createReaction(
+    dto: CreateReactionDto,
+    actorUserId?: number | string | null,
+  ): Promise<Reaction> {
     if (!dto.anonymousUserId) {
       throw new BadRequestException('Anonymous user id is required');
     }
@@ -67,11 +75,10 @@ export class ReactionService {
     // 2. Verify the reacting anonymous user exists.
     const anonymousUser = await this.anonymousUserRepo.findOne({
       where: { id: anonymousUserId },
+      relations: ['userLinks'],
     });
 
-    if (!anonymousUser) {
-      throw new NotFoundException('Anonymous user not found');
-    }
+    assertCanUseAnonymousIdentity(anonymousUser, { userId: actorUserId });
 
     return this.dataSource
       .transaction(async (manager) => {
@@ -174,6 +181,25 @@ export class ReactionService {
         // 5. Broadcast canonical WebSocket event for new reactions only.
         // Duplicate / idempotent requests must not emit extra events.
         if (result.isNew) {
+          this.analyticsEventService
+            ?.record({
+              eventName: 'reaction_created',
+              actorId: `anon:${anonymousUserId}`,
+              occurredAt: result.reaction.createdAt,
+              idempotencyKey: `reaction_created:${result.reaction.id}`,
+              metadata: {
+                source: 'reaction_service',
+                reactionId: result.reaction.id,
+                confessionId: confession.id,
+              },
+            })
+            .catch((err) =>
+              this.logger.warn(
+                `Failed to record reaction analytics: ${
+                  err instanceof Error ? err.message : String(err)
+                }`,
+              ),
+            );
           this.reactionsGateway.broadcastReactionAdded(confession.id, {
             reactionId: result.reaction.id,
             userId: anonymousUserId,

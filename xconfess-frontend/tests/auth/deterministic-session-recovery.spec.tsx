@@ -10,7 +10,7 @@
  * 4. Mid-navigation expiry scenarios
  * 5. Consistent behavior across all entry points
  */
-import { render, screen, waitFor, act } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 

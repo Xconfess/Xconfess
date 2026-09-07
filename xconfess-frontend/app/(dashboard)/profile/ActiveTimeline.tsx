@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { MessageSquare, Heart, DollarSign, Award, Clock, ExternalLink, Anchor } from "lucide-react";
+import { MessageSquare, Heart, DollarSign, Award, Clock, ExternalLink } from "lucide-react";
 
 type ActivityType =
   | "confession"

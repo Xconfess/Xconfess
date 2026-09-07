@@ -1,7 +1,7 @@
 import { MigrationInterface, QueryRunner } from "typeorm";
 
-export class CreateMessagesTable20250627 implements MigrationInterface {
-    name = 'CreateMessagesTable20250627'
+export class CreateMessagesTable2025062700000 implements MigrationInterface {
+    name = 'CreateMessagesTable2025062700000'
 
     public async up(queryRunner: QueryRunner): Promise<void> {
         await queryRunner.query(`CREATE TABLE "messages" (

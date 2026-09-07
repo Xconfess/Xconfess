@@ -9,6 +9,9 @@ import {
   HttpCode,
   HttpStatus,
   UseGuards,
+  BadRequestException,
+  Req,
+  Patch,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -22,6 +25,8 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { AdminGuard } from '../auth/admin.guard';
 import { AiModerationService, ModerationStatus } from './ai-moderation.service';
 import { ModerationRepositoryService } from './moderation-repository.service';
+import { InvalidModerationTransitionError } from './moderation-state-machine';
+import { TransitionModerationDto } from './dtos/transition-moderation.dto';
 
 class TestModerationDto {
   content!: string;
@@ -152,5 +157,37 @@ export class ModerationController {
       userId,
       Number(limit),
     );
+  }
+
+  @Patch(':id/transition')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Transition a moderation item to a new state (Admin only)' })
+  @ApiParam({ name: 'id', description: 'Moderation log ID' })
+  @ApiResponse({ status: 200, description: 'State transitioned.' })
+  @ApiResponse({ status: 400, description: 'Invalid transition for the item\'s current state.' })
+  async transitionModeration(
+    @Param('id') id: string,
+    @Body() dto: TransitionModerationDto,
+    @Req() req: any, // adjust to your actual JwtAuthGuard's request.user shape
+  ) {
+    const actor = { id: req.user?.id ?? req.user?.sub, email: req.user?.email };
+    if (!actor.id) {
+      throw new BadRequestException('Unable to resolve acting admin from request');
+    }
+
+    try {
+      return await this.moderationRepoService.transitionState(
+        id,
+        dto.nextState,
+        actor,
+        dto.reason,
+        dto.notes,
+      );
+    } catch (err) {
+      if (err instanceof InvalidModerationTransitionError) {
+        throw new BadRequestException(err.message);
+      }
+      throw err;
+    }
   }
 }

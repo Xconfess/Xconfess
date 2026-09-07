@@ -107,6 +107,36 @@ jobs:
       - run: npm ci --include=optional --no-audit --no-fund
       - run: npm run ci:apps
 
+  deploy-preflight:
+    name: Deploy Preflight
+    needs: [audit, secret-scan]
+    runs-on: ubuntu-latest
+    env:
+      NODE_ENV: production
+      JWT_SECRET: ci-deploy-preflight-dummy-jwt-secret-32chars-min
+      APP_SECRET: ci-deploy-preflight-dummy-app-secret-32chars-min
+      CONFESSION_ENCRYPTION_KEY: a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2
+      ENCRYPTION_MASTER_KEY_v1: b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3
+      TYPEORM_SYNCHRONIZE: false
+      TYPEORM_MIGRATIONS_RUN: true
+      STELLAR_FEATURES_ENABLED: true
+      STELLAR_NETWORK: testnet
+      STELLAR_HORIZON_URL: https://horizon-testnet.stellar.org
+      STELLAR_SOROBAN_RPC_URL: https://soroban-rpc-testnet.stellar.org
+      DEPLOYMENT_METADATA_PATH: deployments/testnet.json
+      CONFESSION_ANCHOR_CONTRACT_ID: CB5XMDHT66EISB4WXM4YGNDHYRMZDX42TOHZEAENIUTSSMRFHJSFRNHB
+      REPUTATION_BADGES_CONTRACT_ID: CDAN4HZHY6XNQR3TRPLPJKVKNURVMMQMF7XNZ6AUNJNFLR77J4DNAEYI
+      TIPPING_SYSTEM_CONTRACT_ID: CC74UWNAAYDTPEPVKR4CPANWJSF6GI2PCI7BLN6M46KB6CSQYVYLHIWM
+      BACKEND_API_URL: https://xconfess-backend-preflight.onrender.com
+      NEXT_PUBLIC_API_URL: https://xconfess-backend-preflight.onrender.com/api
+      FRONTEND_URL: https://xconfess-frontend-preflight.onrender.com
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm run deploy:preflight
+
   contracts:
     name: Contracts
     needs: [audit, secret-scan]
@@ -127,3 +157,5 @@ jobs:
       - run: cargo fmt --all -- --check
       - run: cargo clippy --workspace --all-targets -- -D warnings
       - run: cargo test --workspace
+      - name: Check contract ABI drift
+        run: bash scripts/check-abi-drift.sh

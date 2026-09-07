@@ -69,7 +69,7 @@ export const TipButton = ({ confessionId, recipientAddress, initialStats }: TipB
   const { info, submit, retryVerify, cancel, reset } = useTipStateMachine({
     confessionId,
     recipientAddress,
-    onConfirmed: (hash, amount) => {
+    onConfirmed: (hash) => {
       if (activityIdRef.current) {
         updateActivity(activityIdRef.current, { txHash: hash, status: "confirmed", updatedAt: Date.now() });
       }

@@ -52,8 +52,13 @@ export class SearchDiscoveryService {
     const parameters: any[] = [];
     let paramIndex = 1;
 
-    // Clamp limit to safe range [1, 100]; use 40 as default
-    const limit = Math.min(Math.max(Number(dto.limit) || 40, 1), 100);
+    // Clamp limit to safe range [1, 100]; use 40 only when omitted/invalid.
+    const requestedLimit =
+      dto.limit === undefined || dto.limit === null ? 40 : Number(dto.limit);
+    const limit = Math.min(
+      Math.max(Number.isFinite(requestedLimit) ? requestedLimit : 40, 1),
+      100,
+    );
 
     let selectFields = `id, title, body as "highlightedBody", category, reaction_count as "reactionCount", gender, created_at as "createdAt"`;
     let orderBy = `"createdAt" DESC`;

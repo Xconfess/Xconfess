@@ -59,6 +59,7 @@ export enum AuditActionType {
   TEMPLATE_ROLLOUT_KILLSWITCH = 'template_rollout_killswitch',
   TEMPLATE_FALLBACK_ACTIVATED = 'template_fallback_activated',
   TEMPLATE_ROLLOUT_DIFF_RECORDED = 'template_rollout_diff_recorded',
+  MODERATION_STATE_TRANSITION = 'moderation_state_transition',
 
   // Data export lifecycle
   EXPORT_REQUEST_CREATED = 'export_request_created',

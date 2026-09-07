@@ -546,7 +546,7 @@ export class AdminController {
         horizonUrl: 'https://horizon-testnet.stellar.org',
         sorobanRpcUrl: 'https://soroban-rpc-testnet.stellar.org',
         contractIds: {
-          confessionAnchor: 'CBFR2MDZBQPTNBIJCT32MTDDQLW2AQNDWNO777F3QT6ANYKTHETQZWD3',
+          confessionAnchor: 'CB5XMDHT66EISB4WXM4YGNDHYRMZDX42TOHZEAENIUTSSMRFHJSFRNHB',
           reputationBadges: null,
           tippingSystem: null,
         },

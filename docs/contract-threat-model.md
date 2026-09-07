@@ -1,10 +1,10 @@
-# XConfess Contract Threat Model & Security Assumptions
+# xConfess Contract Threat Model & Security Assumptions
 
 This document outlines the security assumptions, trust model, privileges, and known threat mitigations for the `ConfessionAnchor` smart contract on the Stellar network.
 
 ## 1. Trust Model and Privileges
 
-The XConfess smart contract uses a role-based access control (RBAC) system with two highly privileged roles: **Owner** and **Admin**.
+The xConfess smart contract uses a role-based access control (RBAC) system with two highly privileged roles: **Owner** and **Admin**.
 
 ### 1.1 Owner (Deployer)
 - **Role Definition:** The solitary address specified during the `initialize()` function immediately after contract deployment.
@@ -50,7 +50,7 @@ The contract relies on an off-chain/on-chain hybrid architecture:
 
 ## 4. Invariants
 
-The integrity of the XConfess smart contract hinges on these invariants holding true always:
+The integrity of the xConfess smart contract hinges on these invariants holding true always:
 1. `get_confession_count()` monotonically increases.
 2. A `verify_confession()` lookup for a successfully anchored hash will always return the unchanging original `timestamp`.
 3. Only the `Owner` can modify the administrative access control lists.

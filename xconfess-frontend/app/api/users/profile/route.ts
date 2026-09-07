@@ -1,18 +1,17 @@
 import { createApiErrorResponse } from "@/lib/apiErrorHandler";
-import { getApiBaseUrl } from "@/app/lib/config";
+import { methodNotAllowedHandlers, resolveBackendRoute } from "@/app/lib/api/proxy";
 
-const BASE_API_URL = getApiBaseUrl();
 
 export async function GET(request: Request) {
   const correlationId = request.headers.get("X-Correlation-ID") || "unknown";
 
   try {
-    const backendUrl = `${BASE_API_URL}/users/profile`;
+    const backend = resolveBackendRoute(request, "/users/profile");
 
     // Forward cookies for auth
     const cookie = request.headers.get("cookie") || "";
 
-    const response = await fetch(backendUrl, {
+    const response = await fetch(backend.url, {
       method: "GET",
       headers: {
         "X-Correlation-ID": correlationId,
@@ -52,11 +51,11 @@ export async function PATCH(request: Request) {
 
   try {
     const body = await request.json();
-    const backendUrl = `${BASE_API_URL}/users/profile`;
+    const backend = resolveBackendRoute(request, "/users/profile");
 
     const cookie = request.headers.get("cookie") || "";
 
-    const response = await fetch(backendUrl, {
+    const response = await fetch(backend.url, {
       method: "PATCH",
       headers: {
         "Content-Type": "application/json",
@@ -93,3 +92,4 @@ export async function PATCH(request: Request) {
   }
 }
 
+export const { POST, PUT, DELETE } = methodNotAllowedHandlers(["GET", "PATCH"]);

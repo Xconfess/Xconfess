@@ -6,6 +6,7 @@ import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { ReportsService } from './reports.service';
 import { ReportStatus, ReportType } from '../admin/entities/report.entity';
 import { AuditActionType } from '../audit-log/audit-log.entity';
+import { createAnonymousOwnershipFixture } from '../../test/utils/anonymous-ownership.factory';
 
 // Minimal stub factory for chained query-builder
 function makeQb(result: any = null) {
@@ -29,6 +30,9 @@ describe('ReportsService — idempotency & replay safety (#780)', () => {
   };
 
   const confessionRepository: any = {};
+  const anonymousUserRepository: any = {
+    findOne: jest.fn(),
+  };
   const outboxRepository: any = {};
 
   const auditLogService: any = {
@@ -40,8 +44,12 @@ describe('ReportsService — idempotency & replay safety (#780)', () => {
     service = new ReportsService(
       reportRepository,
       confessionRepository,
+      anonymousUserRepository,
       outboxRepository,
       auditLogService,
+    );
+    anonymousUserRepository.findOne.mockResolvedValue(
+      createAnonymousOwnershipFixture().publicAnon,
     );
   });
 
@@ -223,6 +231,22 @@ describe('ReportsService — idempotency & replay safety (#780)', () => {
     await expect(
       service.createReport(confessionId, reporterId, dto, context)
     ).rejects.toThrow();
+  });
+
+  it('returns 404 when anonymous report forges a linked account identity', async () => {
+    const fixture = createAnonymousOwnershipFixture();
+    anonymousUserRepository.findOne.mockResolvedValue(fixture.ownerLinkedAnon);
+
+    await expect(
+      service.createReport(
+        'conf-123',
+        null,
+        { type: ReportType.SPAM },
+        { anonymousUserId: fixture.ownerLinkedAnonId },
+      ),
+    ).rejects.toBeInstanceOf(NotFoundException);
+
+    expect(reportRepository.manager.transaction).not.toHaveBeenCalled();
   });
 
   // ── New report (no duplicate) — happy path ────────────────────────────────

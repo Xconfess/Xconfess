@@ -87,6 +87,7 @@ export function ShareButton({
           onClick={() => setOpen((o) => !o)}
           className="gap-2"
           aria-label="Share options"
+          title="Open share options"
         >
           <Share2 className="h-4 w-4" />
           Share
@@ -107,6 +108,7 @@ export function ShareButton({
                 onClick={copyLink}
                 className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-zinc-200 hover:bg-zinc-800"
                 role="menuitem"
+                title="Copy confession link to clipboard"
               >
                 {copied ? (
                   <Check className="h-4 w-4 text-green-400" />
@@ -121,6 +123,7 @@ export function ShareButton({
                   onClick={shareNative}
                   className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-zinc-200 hover:bg-zinc-800"
                   role="menuitem"
+                  title="Share using native app"
                 >
                   <Share2 className="h-4 w-4" />
                   Share via...
@@ -131,6 +134,7 @@ export function ShareButton({
                 onClick={shareToTwitter}
                 className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-zinc-200 hover:bg-zinc-800"
                 role="menuitem"
+                title="Share to X (formerly Twitter)"
               >
                 Share to X
               </button>
@@ -139,6 +143,7 @@ export function ShareButton({
                 onClick={shareViaEmail}
                 className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-zinc-200 hover:bg-zinc-800"
                 role="menuitem"
+                title="Send via email"
               >
                 <Mail className="h-4 w-4" />
                 Email
@@ -158,6 +163,7 @@ export function ShareButton({
         onClick={shareNative}
         className="gap-2"
         aria-label="Share"
+        title="Share this confession"
       >
         <Share2 className="h-4 w-4" />
         Share
@@ -168,6 +174,7 @@ export function ShareButton({
         onClick={copyLink}
         className="gap-2"
         aria-label="Copy link"
+        title="Copy link to clipboard"
       >
         {copied ? (
           <Check className="h-4 w-4 text-green-400" />

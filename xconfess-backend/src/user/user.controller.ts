@@ -32,6 +32,13 @@ export class UserController {
     return this.userService.getProfileSummary(userId);
   }
 
+  /** Get authenticated user's dashboard stats */
+  @Get('stats')
+  async getMyStats(@Req() req: any) {
+    const userId = req.user.id ?? req.user.sub;
+    return this.userService.getDashboardStats(Number(userId));
+  }
+
   /** Get specific user's profile summary (with ownership check) */
   @Get(':userId/profile/summary')
   @UseGuards(OwnershipGuard)

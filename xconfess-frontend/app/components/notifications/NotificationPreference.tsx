@@ -24,7 +24,7 @@ export function NotificationPreferences({
     badge: true,
     mention: true,
     follow: true,
-    emailNotifications: false,
+    emailNotifications: true,
     pushNotifications: true,
   });
 

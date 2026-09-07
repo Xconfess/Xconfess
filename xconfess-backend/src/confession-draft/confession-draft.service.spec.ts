@@ -1,3 +1,4 @@
+import { ConflictException, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
@@ -127,6 +128,58 @@ describe('ConfessionDraftService', () => {
           version: 1,
         }),
       ).rejects.toThrow('Conflict detected');
+    });
+
+    it('version-mismatch conflict carries reason, currentVersion and remote content', async () => {
+      const draft = {
+        id: 'draft1',
+        userId: 1,
+        content: encryptConfession('server content', AES_KEY),
+        version: 2,
+        revisions: [],
+        status: ConfessionDraftStatus.DRAFT,
+      } as any;
+
+      repo.findOne.mockResolvedValue(draft);
+
+      expect.assertions(4);
+      try {
+        await service.updateDraft(1, 'draft1', {
+          content: 'stale client content',
+          version: 1,
+        });
+      } catch (err) {
+        expect(err).toBeInstanceOf(ConflictException);
+        const body = (err as ConflictException).getResponse() as any;
+        expect(body.reason).toBe('remote_updated');
+        expect(body.currentVersion).toBe(2);
+        expect(body.currentDraft.content).toBe('server content');
+      }
+    });
+
+    it('throws a remote_deleted conflict when a versioned update targets a missing draft', async () => {
+      repo.findOne.mockResolvedValue(null);
+
+      expect.assertions(3);
+      try {
+        await service.updateDraft(1, 'gone', {
+          content: 'offline edit',
+          version: 3,
+        });
+      } catch (err) {
+        expect(err).toBeInstanceOf(ConflictException);
+        const body = (err as ConflictException).getResponse() as any;
+        expect(body.reason).toBe('remote_deleted');
+        expect(body.draftId).toBe('gone');
+      }
+    });
+
+    it('still throws a plain NotFoundException for an unversioned update to a missing draft', async () => {
+      repo.findOne.mockResolvedValue(null);
+
+      await expect(
+        service.updateDraft(1, 'gone', { content: 'no version' }),
+      ).rejects.toBeInstanceOf(NotFoundException);
     });
 
     it('allows autosave updates without a version', async () => {

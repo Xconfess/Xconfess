@@ -17,6 +17,9 @@ export enum ModerationStatus {
   APPROVED = 'approved',
   REJECTED = 'rejected',
   FLAGGED = 'flagged',
+  ESCALATED = 'escalated',
+  RESOLVED = 'resolved',
+  HIDDEN = 'hidden',
 }
 
 export interface ModerationResult {

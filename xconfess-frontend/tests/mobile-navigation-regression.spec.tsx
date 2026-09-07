@@ -1,6 +1,7 @@
 import { render, screen, act, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { axe, toHaveNoViolations } from "jest-axe";
+import { useAuth } from "@/app/lib/hooks/useAuth";
 
 expect.extend(toHaveNoViolations);
 
@@ -269,7 +270,7 @@ describe("Mobile Navigation Regression Coverage", () => {
       mockUserRole = "user";
 
       const AdminGuardMock = () => {
-        const { user } = require("@/app/lib/hooks/useAuth").useAuth();
+        const { user } = useAuth();
         if (user.role !== "admin") {
           return <div data-testid="unauthorized-banner">Access Denied</div>;
         }

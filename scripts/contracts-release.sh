@@ -5,7 +5,8 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="${XCONFESS_REPO_ROOT:-$(cd "$SCRIPT_DIR/.." && pwd)}"
 CONTRACTS_DIR="${XCONFESS_CONTRACTS_DIR:-$REPO_ROOT/xconfess-contracts}"
-TARGET_DIR="${XCONFESS_TARGET_DIR:-$CONTRACTS_DIR/target/wasm32-unknown-unknown/release}"
+TARGET_TRIPLE="${XCONFESS_TARGET_TRIPLE:-wasm32v1-none}"
+TARGET_DIR="${XCONFESS_TARGET_DIR:-$CONTRACTS_DIR/target/$TARGET_TRIPLE/release}"
 if [[ -z "${PYTHON_BIN:-}" ]]; then
   if command -v python3 >/dev/null 2>&1; then
     PYTHON_BIN="python3"
@@ -27,10 +28,34 @@ timestamp_utc() {
 
 require_cmd() {
   local cmd="$1"
-  if ! command -v "$cmd" >/dev/null 2>&1; then
+  local exe="${2:-$cmd}"
+  if ! command -v "$exe" >/dev/null 2>&1; then
     echo "Missing required command: $cmd" >&2
     exit 1
   fi
+}
+
+resolve_cmd() {
+  local cmd="$1"
+  if command -v "$cmd" >/dev/null 2>&1; then
+    command -v "$cmd"
+    return 0
+  fi
+  if command -v "$cmd.exe" >/dev/null 2>&1; then
+    command -v "$cmd.exe"
+    return 0
+  fi
+  return 1
+}
+
+stellar_arg_path() {
+  local path="$1"
+  local stellar_bin="$2"
+  if [[ "$stellar_bin" == *.exe ]] && command -v wslpath >/dev/null 2>&1; then
+    wslpath -w "$path"
+    return 0
+  fi
+  echo "$path"
 }
 
 crate_to_wasm_name() {
@@ -83,7 +108,7 @@ write_manifest() {
       sha256="$(sha256sum "$wasm_path" | awk '{print $1}')"
       local bytes
       bytes="$(wc -c < "$wasm_path" | tr -d '[:space:]')"
-      local wasm_file="target/wasm32-unknown-unknown/release/$wasm_name"
+      local wasm_file="target/$TARGET_TRIPLE/release/$wasm_name"
 
       printf '    "%s": {\n' "$crate"
       printf '      "bytes": %s,\n' "$bytes"
@@ -101,17 +126,25 @@ write_manifest() {
     printf '  },\n'
     printf '  "generated_at_utc": "%s",\n' "$generated_at"
     printf '  "profile": "release",\n'
-    printf '  "target": "wasm32-unknown-unknown"\n'
+    printf '  "target": "%s"\n' "$TARGET_TRIPLE"
     printf '}\n'
   } > "$output_file"
 }
 
 build_all() {
-  require_cmd cargo
-  require_cmd rustup
+  local cargo_bin
+  local rustup_bin
+  cargo_bin="$(resolve_cmd cargo)" || {
+    echo "Missing required command: cargo" >&2
+    exit 1
+  }
+  rustup_bin="$(resolve_cmd rustup)" || {
+    echo "Missing required command: rustup" >&2
+    exit 1
+  }
   pushd "$CONTRACTS_DIR" >/dev/null
-  rustup target add wasm32-unknown-unknown >/dev/null
-  cargo build --locked --workspace --release --target wasm32-unknown-unknown
+  "$rustup_bin" target add "$TARGET_TRIPLE" >/dev/null
+  "$cargo_bin" build --locked --workspace --release --target "$TARGET_TRIPLE"
   popd >/dev/null
   verify_wasm_outputs
 
@@ -135,7 +168,11 @@ deploy_all() {
   local dry_run="$3"
   local force="$4"
 
-  require_cmd stellar
+  local stellar_bin
+  stellar_bin="$(resolve_cmd stellar)" || {
+    echo "Missing required command: stellar" >&2
+    exit 1
+  }
   verify_only
 
   local output_file="$REPO_ROOT/deployments/${network}.json"
@@ -165,9 +202,11 @@ deploy_all() {
     local wasm_file
     wasm_file="$(crate_to_wasm_name "$crate")"
     local wasm_path="$TARGET_DIR/$wasm_file"
+    local stellar_wasm_path
+    stellar_wasm_path="$(stellar_arg_path "$wasm_path" "$stellar_bin")"
     echo "Deploying $crate ($wasm_file) to $network..."
     local contract_id
-    contract_id="$(stellar contract deploy --wasm "$wasm_path" --network "$network" --source "$source_key")"
+    contract_id="$("$stellar_bin" contract deploy --wasm "$stellar_wasm_path" --network "$network" --source "$source_key")"
     echo "$crate=$contract_id" >> "$ids_file"
   done
 
@@ -217,7 +256,7 @@ for crate in crates:
 payload = {
     "generated_at_utc": generated_at,
     "network": network,
-    "target": "wasm32-unknown-unknown",
+    "target": target_dir.parent.name,
     "contracts": contracts,
 }
 

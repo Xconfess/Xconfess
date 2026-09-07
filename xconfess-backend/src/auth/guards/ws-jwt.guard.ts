@@ -9,6 +9,7 @@ import {
 import { JwtService, TokenExpiredError } from '@nestjs/jwt';
 import { Socket } from 'socket.io';
 import { UserService } from '../../user/user.service';
+import { WebSocketLogger } from '../../websocket/websocket.logger';
 import { randomUUID } from 'crypto';
 
 const SENSITIVE_HEADERS = new Set([
@@ -25,6 +26,7 @@ export class WsJwtGuard implements CanActivate {
   constructor(
     private jwtService: JwtService,
     @Optional() private userService?: UserService,
+    @Optional() private websocketLogger?: WebSocketLogger,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -41,6 +43,11 @@ export class WsJwtGuard implements CanActivate {
         correlationId,
         msg: 'No authentication token provided on socket handshake',
       });
+      this.websocketLogger?.logAuthFailure({
+        socketId: client.id,
+        reasonCode,
+        correlationId,
+      });
       throw this.buildAuthException(reasonCode, correlationId);
     }
 
@@ -54,6 +61,11 @@ export class WsJwtGuard implements CanActivate {
           socketId: client.id,
           correlationId,
           msg: 'Verified WS token did not contain a subject',
+        });
+        this.websocketLogger?.logAuthFailure({
+          socketId: client.id,
+          reasonCode,
+          correlationId,
         });
         throw this.buildAuthException(reasonCode, correlationId);
       }
@@ -101,6 +113,11 @@ export class WsJwtGuard implements CanActivate {
         correlationId,
         error: err instanceof Error ? err.message : String(err),
         msg: `WebSocket auth failed: ${reasonCode}`,
+      });
+      this.websocketLogger?.logAuthFailure({
+        socketId: client.id,
+        reasonCode,
+        correlationId,
       });
       throw this.buildAuthException(reasonCode, correlationId);
     }

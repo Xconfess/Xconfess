@@ -5,8 +5,10 @@ import {
   ConflictException,
   GatewayTimeoutException,
   Logger,
+  Optional,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { ConfigService } from '@nestjs/config';
 import { DataSource, QueryFailedError, Repository } from 'typeorm';
 import { Tip, TipVerificationStatus } from './entities/tip.entity';
 import { AnonymousConfession } from '../confession/entities/confession.entity';
@@ -16,6 +18,13 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { AuditActionType } from '../audit-log/audit-log.entity';
 import * as crypto from 'crypto';
+import { AnalyticsEventService } from '../analytics/analytics-event.service';
+import { AnalyticsNetwork } from '../analytics/entities/analytics-event.entity';
+import {
+  MAX_TIP_AMOUNT,
+  MIN_TIP_AMOUNT,
+  TIP_PRECISION,
+} from './tipping.constants';
 
 export interface TipStats {
   totalAmount: number;
@@ -23,10 +32,33 @@ export interface TipStats {
   averageAmount: number;
 }
 
+/**
+ * Canonical, typed outcome of a verify request (issue #1687).
+ *
+ * - `verified`  — this request performed first-writer settlement.
+ * - `duplicate` — a prior request already settled this exact (confession, tx)
+ *                 pair; this is a safe, canonical replay, not an error.
+ * - `pending`   — another request is actively settling this pair right now.
+ * - `stale`     — verification has exceeded the SLA threshold and is under
+ *                 reconciliation review; not a terminal failure.
+ * - `failed`    — verification failed terminally (invalid tx, bad amount,
+ *                 not found on chain) or hit a transient/retryable error.
+ * - `conflict`  — the transaction ID is already bound to a different
+ *                 confession, or a reconciliation pass flagged a conflict.
+ */
+export type TipResponseState =
+  | 'verified'
+  | 'duplicate'
+  | 'pending'
+  | 'stale'
+  | 'failed'
+  | 'conflict';
+
 export interface TipVerificationResult {
   tip: Tip;
   isNew: boolean;
   isIdempotent: boolean;
+  state: TipResponseState;
   conflictDetails?: {
     reason: 'DIFFERENT_CONFESSION' | 'ALREADY_PROCESSING' | 'ALREADY_VERIFIED';
     originalConfessionId?: string;
@@ -55,10 +87,6 @@ const PG_UNIQUE_VIOLATION = '23505';
  * - MAX_TIP_AMOUNT: 10,000 XLM (upper bound to prevent overflow and abuse)
  * - TIP_PRECISION: 7 decimal places (Stellar's native precision for assets)
  */
-export const MIN_TIP_AMOUNT = 0.1;
-export const MAX_TIP_AMOUNT = 10_000;
-export const TIP_PRECISION = 7;
-
 @Injectable()
 export class TippingService {
   private static readonly MAX_RECEIPT_PROOF_METADATA_LEN = 128;
@@ -73,6 +101,10 @@ export class TippingService {
     private readonly stellarService: StellarService,
     private readonly eventEmitter: EventEmitter2,
     private readonly auditLogService: AuditLogService,
+    @Optional()
+    private readonly configService?: ConfigService,
+    @Optional()
+    private readonly analyticsEventService?: AnalyticsEventService,
   ) {}
 
   // ──────────────────────────────────────────────────────────────────────────
@@ -189,11 +221,7 @@ export class TippingService {
           tipId: existingByIdempotencyKey.id,
           status: existingByIdempotencyKey.verificationStatus,
         });
-        return {
-          tip: existingByIdempotencyKey,
-          isNew: false,
-          isIdempotent: true,
-        };
+        return this.resolveIdempotentOutcome(existingByIdempotencyKey);
       }
 
       this.logger.warn({
@@ -227,6 +255,7 @@ export class TippingService {
         // this read.  Let the caller retry.
         throw new ConflictException({
           message: `Transaction ${dto.txId} is currently being processed. Please retry in a moment.`,
+          state: 'pending' as TipResponseState,
           conflictReason: 'ALREADY_PROCESSING',
           canRetry: true,
         });
@@ -241,7 +270,7 @@ export class TippingService {
         status: canonical.verificationStatus,
       });
 
-      return { tip: canonical, isNew: false, isIdempotent: true };
+      return this.resolveIdempotentOutcome(canonical);
     }
 
     // ── 4. Guard: txId must not be bound to a different confession ────────
@@ -267,6 +296,7 @@ export class TippingService {
 
       throw new ConflictException({
         message: `Transaction ${dto.txId} was already used for a different confession`,
+        state: 'conflict' as TipResponseState,
         conflictReason: 'DIFFERENT_CONFESSION',
         originalConfessionId: tipByTxId.confessionId,
         canRetry: false,
@@ -296,6 +326,7 @@ export class TippingService {
         await this.releaseProcessingLock(sentinelTip.id);
         throw new ConflictException({
           message: `Transaction ${dto.txId} verification temporarily failed due to network error. Will be retried.`,
+          state: 'failed' as TipResponseState,
           conflictReason: 'NETWORK_ERROR',
           canRetry: true,
         });
@@ -334,6 +365,7 @@ export class TippingService {
           await this.releaseProcessingLock(sentinelTip.id);
           throw new ConflictException({
             message: `Transaction ${dto.txId} data fetch failed temporarily. Will be retried.`,
+            state: 'failed' as TipResponseState,
             conflictReason: 'NETWORK_ERROR',
             canRetry: true,
           });
@@ -410,6 +442,53 @@ export class TippingService {
       sentinelTip.lockedBy = null;
 
       const savedTip = await this.tipRepository.save(sentinelTip);
+      const amountAtomic = Math.round(
+        processedData.amount * 10_000_000,
+      ).toString();
+      const network = this.getAnalyticsNetwork();
+
+      this.analyticsEventService
+        ?.record({
+          eventName: 'tip_completed',
+          txHash: dto.txId,
+          assetCode: 'XLM',
+          amountAtomic,
+          network,
+          idempotencyKey: `tip_completed:${dto.txId}`,
+          metadata: {
+            source: 'tipping_service',
+            tipId: savedTip.id,
+            confessionId,
+            requestId: requestId ?? null,
+          },
+        })
+        .catch((err) =>
+          this.logger.warn({
+            message: 'Failed to record tip analytics',
+            requestId,
+            confessionId,
+            txHash: dto.txId,
+            error: err instanceof Error ? err.message : String(err),
+          }),
+        );
+      this.analyticsEventService
+        ?.record({
+          eventName: 'stellar_tx_confirmed',
+          txHash: dto.txId,
+          assetCode: 'XLM',
+          amountAtomic,
+          network,
+          idempotencyKey: `stellar_tx_confirmed:${dto.txId}`,
+          metadata: { source: 'tipping_service', requestId: requestId ?? null },
+        })
+        .catch((err) =>
+          this.logger.warn({
+            message: 'Failed to record Stellar confirmation analytics',
+            requestId,
+            txHash: dto.txId,
+            error: err instanceof Error ? err.message : String(err),
+          }),
+        );
 
       // ── 9. Post-success side-effects (emitted exactly once) ───────────
 
@@ -454,7 +533,7 @@ export class TippingService {
         isNew: true,
       });
 
-      return { tip: savedTip, isNew: true, isIdempotent: false };
+      return { tip: savedTip, isNew: true, isIdempotent: false, state: 'verified' };
     } catch (error) {
       // Best-effort: release the processing lock so the reconciler can retry.
       // If the sentinel row itself is the problem (e.g. amount/fetch error),
@@ -473,6 +552,19 @@ export class TippingService {
         requestId,
         error: error instanceof Error ? error.message : 'Unknown error',
       });
+      this.analyticsEventService
+        ?.record({
+          eventName: 'stellar_tx_failed',
+          txHash: dto.txId,
+          network: this.getAnalyticsNetwork(),
+          idempotencyKey: `stellar_tx_failed:${dto.txId}`,
+          metadata: {
+            source: 'tipping_service',
+            state: 'failed',
+            requestId: requestId ?? null,
+          },
+        })
+        .catch(() => undefined);
 
       throw error;
     }
@@ -493,10 +585,63 @@ export class TippingService {
       .digest('hex');
   }
 
+  private getAnalyticsNetwork(): AnalyticsNetwork {
+    return this.configService?.get<string>('STELLAR_NETWORK') === 'mainnet'
+      ? 'mainnet'
+      : 'testnet';
+  }
+
   private async findTipByIdempotencyKey(
     idempotencyKey: string,
   ): Promise<Tip | null> {
     return this.tipRepository.findOne({ where: { idempotencyKey } });
+  }
+
+  /**
+   * Given an existing tip row that matches the (confession, tx) idempotency
+   * key, decide the safe, typed outcome to hand back to the caller. This is
+   * the single place that maps a replayed row's *real* status onto a typed
+   * response — earlier code returned a blanket success for any matching row,
+   * which could mask a stale, rejected, or conflicted tip as "verified".
+   * Issue #1687.
+   */
+  private resolveIdempotentOutcome(tip: Tip): TipVerificationResult {
+    switch (tip.verificationStatus) {
+      case TipVerificationStatus.VERIFIED:
+        return { tip, isNew: false, isIdempotent: true, state: 'duplicate' };
+
+      case TipVerificationStatus.PENDING:
+        throw new ConflictException({
+          message: `Transaction ${tip.txId} is currently being processed. Please retry in a moment.`,
+          state: 'pending' as TipResponseState,
+          conflictReason: 'ALREADY_PROCESSING',
+          canRetry: true,
+        });
+
+      case TipVerificationStatus.STALE_PENDING:
+        throw new ConflictException({
+          message: `Transaction ${tip.txId} verification has exceeded the expected processing time and is under review. It has not failed — check back shortly or contact support with this reference.`,
+          state: 'stale' as TipResponseState,
+          conflictReason: 'ALREADY_PROCESSING',
+          canRetry: true,
+        });
+
+      case TipVerificationStatus.REJECTED:
+        throw new BadRequestException({
+          message: `Transaction ${tip.txId} could not be verified for this confession.`,
+          state: 'failed' as TipResponseState,
+          canRetry: false,
+        });
+
+      case TipVerificationStatus.CONFLICT:
+      default:
+        throw new ConflictException({
+          message: `Transaction ${tip.txId} could not be processed due to a conflicting prior record.`,
+          state: 'conflict' as TipResponseState,
+          conflictReason: 'DIFFERENT_CONFESSION',
+          canRetry: false,
+        });
+    }
   }
 
   /**

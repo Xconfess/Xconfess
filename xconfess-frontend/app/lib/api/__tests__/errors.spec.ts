@@ -59,14 +59,14 @@ describe('normalizeApiError — 429 from backend (direct)', () => {
 
 describe('normalizeApiError — 429 fallback to headers', () => {
   it('falls back to Retry-After header when body retryAfter missing', async () => {
-    const { retryAfter, ...bodyWithout } = BACKEND_429_BODY;
+    const bodyWithout = { ...BACKEND_429_BODY, retryAfter: undefined };
     const res = makeResponse(429, bodyWithout, { 'retry-after': '60' });
     const err = await normalizeApiError(res);
     expect(err.retryAfter).toBe(60);
   });
 
   it('falls back to x-request-id header when body requestId missing', async () => {
-    const { requestId, ...bodyWithout } = BACKEND_429_BODY;
+    const bodyWithout = { ...BACKEND_429_BODY, requestId: undefined };
     const res = makeResponse(429, bodyWithout, { 'x-request-id': 'header-id' });
     const err = await normalizeApiError(res);
     expect(err.requestId).toBe('header-id');
@@ -84,7 +84,7 @@ describe('normalizeApiError — 429 fallback to headers', () => {
   });
 
   it('retryAfter is null when no body field and no header', async () => {
-    const { retryAfter, ...bodyWithout } = BACKEND_429_BODY;
+    const bodyWithout = { ...BACKEND_429_BODY, retryAfter: undefined };
     const res = makeResponse(429, bodyWithout);
     const err = await normalizeApiError(res);
     expect(err.retryAfter).toBeNull();
@@ -108,5 +108,25 @@ describe('normalizeApiError — non-429 responses', () => {
     const res = makeResponse(500, { message: 'Internal error' });
     const err = await normalizeApiError(res);
     expect(err.message).toBe('Internal error');
+  });
+
+  it('uses normalized fallback status and code for backend validation errors', async () => {
+    const res = makeResponse(422, { message: 'Display name is required' });
+    const err = await normalizeApiError(res);
+    expect(err).toMatchObject({
+      status: 422,
+      code: 'UNPROCESSABLE_ENTITY',
+      message: 'Display name is required',
+    });
+  });
+});
+
+describe('normalizeApiError — network errors', () => {
+  it('normalizes thrown fetch errors into the shared ApiError shape', async () => {
+    const err = await normalizeApiError(new TypeError('fetch failed'));
+    expect(err).toMatchObject({
+      message: 'fetch failed',
+      code: 'NETWORK_ERROR',
+    });
   });
 });

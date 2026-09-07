@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
-import { getApiBaseUrl } from "@/app/lib/config";
+import { resolveBackendRoute } from "@/app/lib/api/proxy";
 
-const BASE_API_URL = getApiBaseUrl();
 const SESSION_COOKIE_NAME = "xconfess_session";
 
 /**
@@ -27,8 +26,9 @@ export async function GET(
   }
 
   try {
+    const backend = resolveBackendRoute(_req, `/confessions/${id}/tips/stats`);
     const response = await fetch(
-      `${BASE_API_URL}/confessions/${id}/tips/stats`,
+      backend.url,
       {
         method: "GET",
         headers,

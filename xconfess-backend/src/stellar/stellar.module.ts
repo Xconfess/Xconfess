@@ -11,15 +11,24 @@ import { StellarInvokeContractGuard } from './guards/stellar-invoke-contract.gua
 import { AuditLogModule } from '../audit-log/audit-log.module';
 import { DeploymentMetadataService } from './services/deployment-metadata.service';
 import { StellarReconciliationWorker } from './stellar-reconciliation.worker';
+import { ReputationReconciliationWorker } from './reputation-reconciliation.worker';
 import { StellarAnchor } from './entities/stellar-anchor.entity';
+import { SorobanEventCheckpoint } from './entities/soroban-event-checkpoint.entity';
 import { AnonymousConfession } from '../confession/entities/confession.entity';
+import { Tip } from '../tipping/entities/tip.entity';
+import { SorobanEventCheckpointService } from './soroban-event-checkpoint.service';
 
 @Module({
   imports: [
     ConfigModule,
     AuditLogModule,
     ScheduleModule.forRoot(),
-    TypeOrmModule.forFeature([StellarAnchor, AnonymousConfession]),
+    TypeOrmModule.forFeature([
+      StellarAnchor,
+      SorobanEventCheckpoint,
+      AnonymousConfession,
+      Tip,
+    ]),
   ],
   providers: [
     StellarConfigService,
@@ -29,6 +38,8 @@ import { AnonymousConfession } from '../confession/entities/confession.entity';
     StellarInvokeContractGuard,
     DeploymentMetadataService,
     StellarReconciliationWorker,
+    ReputationReconciliationWorker,
+    SorobanEventCheckpointService,
   ],
   controllers: [StellarController],
   exports: [
@@ -37,6 +48,7 @@ import { AnonymousConfession } from '../confession/entities/confession.entity';
     StellarService,
     ContractService,
     DeploymentMetadataService,
+    SorobanEventCheckpointService,
   ],
 })
 export class StellarModule {}

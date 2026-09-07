@@ -2,7 +2,6 @@ import { useState, useEffect } from "react";
 
 export function useFeatureFlag(flagName: string): boolean {
   const [enabled, setEnabled] = useState(false);
-  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const checkFlag = async () => {
@@ -13,12 +12,10 @@ export function useFeatureFlag(flagName: string): boolean {
           const override = params.get(`ff_${flagName}`);
           if (override === "true") {
             setEnabled(true);
-            setLoading(false);
             return;
           }
           if (override === "false") {
             setEnabled(false);
-            setLoading(false);
             return;
           }
         }
@@ -37,8 +34,6 @@ export function useFeatureFlag(flagName: string): boolean {
       } catch (error) {
         console.error("Feature flag check failed:", error);
         setEnabled(false);
-      } finally {
-        setLoading(false);
       }
     };
 

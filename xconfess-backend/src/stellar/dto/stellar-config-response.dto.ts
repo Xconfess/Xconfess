@@ -4,21 +4,21 @@ export class StellarContractIdsDto {
   @ApiProperty({
     description: 'Deployed confession-anchor Soroban contract ID',
     nullable: true,
-    example: 'CBFR2MDZBQPTNBIJCT32MTDDQLW2AQNDWNO777F3QT6ANYKTHETQZWD3',
+    example: 'CB5XMDHT66EISB4WXM4YGNDHYRMZDX42TOHZEAENIUTSSMRFHJSFRNHB',
   })
   confessionAnchor: string | null;
 
   @ApiProperty({
     description: 'Deployed reputation-badges Soroban contract ID',
     nullable: true,
-    example: 'CDD7WPESW54SN6YTXY7PH6JLG6S4MWNREHN5FD6XENAITEDOVLWKIQTC',
+    example: 'CDAN4HZHY6XNQR3TRPLPJKVKNURVMMQMF7XNZ6AUNJNFLR77J4DNAEYI',
   })
   reputationBadges: string | null;
 
   @ApiProperty({
     description: 'Deployed tipping-system Soroban contract ID',
     nullable: true,
-    example: 'CAJK27UHTBUGQFUMN5TG5LOQXYODT6NHOY7Z5DVRRMR7CZ4SCIZUE5A3',
+    example: 'CC74UWNAAYDTPEPVKR4CPANWJSF6GI2PCI7BLN6M46KB6CSQYVYLHIWM',
   })
   tippingSystem: string | null;
 }

@@ -188,7 +188,7 @@ export const ShortcutsProvider: React.FC<{ children: React.ReactNode }> = ({
       window.removeEventListener("keydown", onKeyDown);
       resetG();
     };
-  }, [selectedIndex, gPending]);
+  }, [selectedIndex, gPending, router]);
 
   return (
     <>

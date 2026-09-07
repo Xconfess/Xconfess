@@ -9,8 +9,7 @@
  *  5. No redirect when already on /login
  *  6. Counter reset after successful authentication
  */
-import { render, screen, waitFor, act } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { render, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 
 // ---------- mocks ----------
@@ -237,7 +236,7 @@ describe("AuthGuard – redirect-loop & stale-session hardening (#714)", () => {
     it("handles transition from authenticated to expired gracefully", async () => {
       // Start authenticated
       mockAuthState = { ...authenticatedState };
-      const { unmount, rerender } = renderGuard();
+      const { unmount } = renderGuard();
       expect(screen.getByText("Protected Content")).toBeInTheDocument();
 
       // Session expires mid-use

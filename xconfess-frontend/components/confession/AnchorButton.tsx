@@ -28,7 +28,6 @@ interface AnchorButtonProps {
 type AnchorStatus = "idle" | "pending" | "confirmed" | "failed" | "stale";
 
 export function AnchorButton({
-  confessionId,
   content,
   initialStatus = "idle",
   onSuccess,

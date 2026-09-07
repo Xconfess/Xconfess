@@ -9,7 +9,9 @@ import { Button } from '@/app/components/ui/button';
 import { Input } from '@/app/components/ui/input';
 import { BrandLogo } from '@/app/components/brand/BrandLogo';
 import { useAuth } from '@/app/lib/hooks/useAuth';
-import { getErrorMessage } from '@/app/lib/utils/errorHandler';
+import { getErrorMessage, extractRequestId } from '@/app/lib/utils/errorHandler';
+import { getAuthFieldError } from '@/app/lib/api/authService';
+import { RequestIdNotice } from '@/app/components/auth/RequestIdNotice';
 import {
   validateRegisterForm,
   parseRegisterForm,
@@ -20,7 +22,10 @@ import {
 type RegisterField = keyof ValidationErrors;
 
 const passwordChecks = [
-  { label: '8 to 72 characters', test: (value: string) => value.length >= 8 && value.length <= 72 },
+  {
+    label: '8 to 72 characters',
+    test: (value: string) => value.length >= 8 && value.length <= 72,
+  },
   { label: 'One uppercase letter', test: (value: string) => /[A-Z]/.test(value) },
   { label: 'One lowercase letter', test: (value: string) => /[a-z]/.test(value) },
   { label: 'One number', test: (value: string) => /\d/.test(value) },
@@ -39,6 +44,7 @@ export default function RegisterPage() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [errors, setErrors] = useState<ValidationErrors>({});
   const [submitError, setSubmitError] = useState('');
+  const [errorRequestId, setErrorRequestId] = useState<string | undefined>();
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -55,6 +61,7 @@ export default function RegisterPage() {
     if (field === 'confirmPassword') setConfirmPassword(value);
 
     setSubmitError('');
+    setErrorRequestId(undefined);
     if (errors[field]) {
       setErrors((prev) => ({ ...prev, [field]: undefined }));
     }
@@ -67,6 +74,7 @@ export default function RegisterPage() {
     const validationErrors = validateRegisterForm(formData);
     setErrors(validationErrors);
     setSubmitError('');
+    setErrorRequestId(undefined);
 
     if (hasErrors(validationErrors)) {
       return;
@@ -85,9 +93,17 @@ export default function RegisterPage() {
         email: parsed.data.email,
         password: parsed.data.password,
       });
-      router.push('/dashboard');
+      router.push(getAuthRedirectTarget('/dashboard'));
     } catch (error) {
-      setSubmitError(getErrorMessage(error));
+      const field = getAuthFieldError(error);
+      const message = getErrorMessage(error);
+      setErrorRequestId(extractRequestId(error));
+      if (field) {
+        setErrors((prev) => ({ ...prev, [field]: message }));
+        setSubmitError('');
+      } else {
+        setSubmitError(message);
+      }
     } finally {
       setLoading(false);
     }
@@ -108,18 +124,18 @@ export default function RegisterPage() {
               Post anonymously. Stay in control.
             </p>
             <div className="flex flex-wrap gap-3 text-sm text-[var(--secondary)]">
-              <span className="inline-flex items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--surface)] px-4 py-2">
+              <span className="inline-flex items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-2">
                 <ShieldCheck className="h-4 w-4 text-[var(--primary)]" aria-hidden="true" />
                 Encrypted identity
               </span>
-              <span className="inline-flex items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--surface)] px-4 py-2">
+              <span className="inline-flex items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-2">
                 <CheckCircle2 className="h-4 w-4 text-emerald-600" aria-hidden="true" />
-                Auto sign-in
+                Automatic sign-in
               </span>
             </div>
           </div>
 
-          <form onSubmit={doRegister} className="luxury-panel rounded-[34px] p-7 sm:p-8">
+          <form onSubmit={doRegister} className="luxury-panel rounded-2xl p-7 sm:p-8">
             <div className="space-y-3">
               <p className="eyebrow">Account setup</p>
               <h2 className="font-editorial text-4xl text-[var(--foreground)]">
@@ -127,24 +143,27 @@ export default function RegisterPage() {
               </h2>
               <p className="text-sm leading-7 text-[var(--secondary)]">
                 Already have an account?{' '}
-                <Link href="/login" className="text-indigo-600 hover:text-indigo-500">
+                <Link href={buildAuthSwitchUrl('/login')} className="text-[var(--primary-deep)] hover:text-[var(--primary)]">
                   Sign in
                 </Link>
               </p>
             </div>
 
             {submitError && (
-              <div className="mt-5 rounded-[20px] border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+              <div
+                className="mt-5 rounded-xl border border-red-500/25 bg-red-950/30 p-3 text-sm text-red-200"
+                role="alert"
+              >
                 {submitError}
               </div>
             )}
 
+            {errorRequestId && (submitError || hasErrors(errors)) && (
+              <RequestIdNotice requestId={errorRequestId} />
+            )}
+
             <div className="mt-6 grid gap-4 sm:grid-cols-2">
-              <Field
-                id="register-username"
-                label="Username"
-                error={errors.username}
-              >
+              <Field id="register-username" label="Username" error={errors.username}>
                 <Input
                   id="register-username"
                   value={username}
@@ -152,6 +171,9 @@ export default function RegisterPage() {
                   placeholder="alice_42"
                   autoComplete="username"
                   error={Boolean(errors.username)}
+                  aria-invalid={Boolean(errors.username)}
+                  aria-describedby={errors.username ? 'register-username-error' : undefined}
+                  disabled={loading}
                 />
               </Field>
 
@@ -164,6 +186,9 @@ export default function RegisterPage() {
                   placeholder="you@example.com"
                   autoComplete="email"
                   error={Boolean(errors.email)}
+                  aria-invalid={Boolean(errors.email)}
+                  aria-describedby={errors.email ? 'register-email-error' : undefined}
+                  disabled={loading}
                 />
               </Field>
 
@@ -178,6 +203,9 @@ export default function RegisterPage() {
                     autoComplete="new-password"
                     error={Boolean(errors.password)}
                     className="pr-12"
+                    aria-invalid={Boolean(errors.password)}
+                    aria-describedby={errors.password ? 'register-password-error' : undefined}
+                    disabled={loading}
                   />
                   <IconButton
                     label={showPassword ? 'Hide password' : 'Show password'}
@@ -205,6 +233,13 @@ export default function RegisterPage() {
                     autoComplete="new-password"
                     error={Boolean(errors.confirmPassword)}
                     className="pr-12"
+                    aria-invalid={Boolean(errors.confirmPassword)}
+                    aria-describedby={
+                      errors.confirmPassword
+                        ? 'register-confirm-password-error'
+                        : undefined
+                    }
+                    disabled={loading}
                   />
                   <IconButton
                     label={showConfirmPassword ? 'Hide password' : 'Show password'}
@@ -216,7 +251,7 @@ export default function RegisterPage() {
               </Field>
             </div>
 
-            <div className="mt-5 rounded-[22px] border border-[var(--border)] bg-[var(--surface)] p-4">
+            <div className="mt-5 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4">
               <div className="mb-3 h-2 overflow-hidden rounded-full bg-[var(--surface-strong)]">
                 <div
                   className="h-full rounded-full bg-[var(--primary)] transition-all"
@@ -239,14 +274,44 @@ export default function RegisterPage() {
               </div>
             </div>
 
-            <Button type="submit" isLoading={loading} className="mt-6 w-full">
+            <Button type="submit" disabled={loading} isLoading={loading} className="mt-6 w-full">
               {loading ? 'Creating account...' : 'Create account'}
+            </Button>
+
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => router.push(buildAuthSwitchUrl('/login'))}
+              className="mt-3 w-full"
+              disabled={loading}
+            >
+              Sign in
             </Button>
           </form>
         </div>
       </div>
     </div>
   );
+}
+
+function getAuthRedirectTarget(fallback: string): string {
+  if (typeof window === 'undefined') return fallback;
+
+  const next = new URLSearchParams(window.location.search).get('next');
+  return isSafeAuthRedirect(next) ? next : fallback;
+}
+
+function buildAuthSwitchUrl(path: '/register' | '/login'): string {
+  if (typeof window === 'undefined') return path;
+
+  const next = new URLSearchParams(window.location.search).get('next');
+  return isSafeAuthRedirect(next)
+    ? `${path}?next=${encodeURIComponent(next)}`
+    : path;
+}
+
+function isSafeAuthRedirect(value: string | null): value is string {
+  return Boolean(value && value.startsWith('/') && !value.startsWith('//'));
 }
 
 function Field({
@@ -266,7 +331,11 @@ function Field({
         {label}
       </label>
       {children}
-      {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
+      {error && (
+        <p id={`${id}-error`} className="mt-2 text-sm text-red-300" role="alert">
+          {error}
+        </p>
+      )}
     </div>
   );
 }
@@ -286,7 +355,7 @@ function IconButton({
       aria-label={label}
       title={label}
       onClick={onClick}
-      className="absolute right-3 top-1/2 inline-flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full text-[var(--secondary)] hover:bg-[var(--surface-strong)] hover:text-[var(--foreground)]"
+      className="absolute right-3 top-1/2 inline-flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-lg text-[var(--secondary)] hover:bg-[var(--surface-strong)] hover:text-[var(--foreground)]"
     >
       {children}
     </button>

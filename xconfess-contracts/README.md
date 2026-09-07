@@ -212,6 +212,26 @@ npm run test:coverage --workspace=xconfess-contracts
 # Coverage report written to xconfess-contracts/coverage/lcov.info
 ```
 
+### Gas baseline workflow
+
+Gas usage is tracked in `gas-baseline.json` to catch performance regressions.
+
+```bash
+# Run gas regression check from monorepo root
+./scripts/contracts-gas-checks.sh
+
+# Update baseline after intentional gas changes
+./scripts/contracts-gas-checks.sh --update
+
+# Generate gas snapshot (contract-level)
+./contracts/scripts/gas-snapshot.sh
+
+# Compare current vs baseline (contract-level)
+./contracts/scripts/gas-compare.sh
+```
+
+See [docs/soroban-gas-baseline-maintenance.md](../docs/soroban-gas-baseline-maintenance.md) for the full workflow and PR review expectations.
+
 ---
 
 ## Linting and formatting

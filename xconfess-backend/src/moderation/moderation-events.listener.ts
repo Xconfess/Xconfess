@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
-import { NotificationService } from 'src/notifications/services/notification.service';
-import { NotificationType } from 'src/notifications/entities/notification.entity';
+import { NotificationService } from '../notifications/services/notification.service';
+import { NotificationType } from '../notifications/entities/notification.entity';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { AuditActionType } from '../audit-log/audit-log.entity';
 import { ModerationStatus } from './ai-moderation.service';

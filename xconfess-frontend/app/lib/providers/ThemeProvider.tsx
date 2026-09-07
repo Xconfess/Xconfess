@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 
 type Theme = "light" | "dark" | "system";
+const THEME_VERSION = "premium-dark-v1";
 
 interface ThemeContextType {
   theme: Theme;
@@ -15,16 +16,22 @@ const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [theme, setThemeState] = useState<Theme>(() => {
     if (typeof window !== "undefined") {
-      return (localStorage.getItem("theme") as Theme) || "system";
+      if (localStorage.getItem("theme-version") !== THEME_VERSION) {
+        localStorage.setItem("theme", "dark");
+        localStorage.setItem("theme-version", THEME_VERSION);
+        return "dark";
+      }
+      return (localStorage.getItem("theme") as Theme) || "dark";
     }
-    return "system";
+    return "dark";
   });
 
-  const [resolvedTheme, setResolvedTheme] = useState<"light" | "dark">("light");
+  const [resolvedTheme, setResolvedTheme] = useState<"light" | "dark">("dark");
 
   const setTheme = (newTheme: Theme) => {
     setThemeState(newTheme);
     localStorage.setItem("theme", newTheme);
+    localStorage.setItem("theme-version", THEME_VERSION);
   };
 
   useEffect(() => {
@@ -45,8 +52,10 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
       if (activeTheme === "dark") {
         root.classList.add("dark");
+        root.classList.remove("light");
       } else {
         root.classList.remove("dark");
+        root.classList.add("light");
       }
     };
 

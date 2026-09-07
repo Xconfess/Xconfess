@@ -19,7 +19,6 @@ interface AnchorButtonProps {
 type SubmitState = "idle" | "pending" | "success" | "error";
 
 export function AnchorButton({
-  confessionId,
   content,
   onSuccess,
   onError,

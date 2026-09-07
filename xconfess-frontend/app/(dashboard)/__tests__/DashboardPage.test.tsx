@@ -7,7 +7,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 // Set environment variables before imports that might use them
 process.env.NEXT_PUBLIC_API_URL = "http://localhost:3000";
 
-import DashboardPage from "../page";
+import DashboardPage from "../DashboardPage";
 import { useAuthContext } from "../../lib/providers/AuthProvider";
 import { fetchUserStats } from "@/app/api/user.api";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";

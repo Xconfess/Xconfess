@@ -1,9 +1,9 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-export class HashExportDownloadTokens20260723000001
+export class HashExportDownloadTokens20260723000002
   implements MigrationInterface
 {
-  name = 'HashExportDownloadTokens20260723000001';
+  name = 'HashExportDownloadTokens20260723000002';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(`

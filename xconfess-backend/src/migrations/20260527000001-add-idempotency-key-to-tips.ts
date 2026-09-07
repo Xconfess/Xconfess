@@ -1,6 +1,6 @@
 import { MigrationInterface, QueryRunner, TableColumn, TableIndex } from 'typeorm';
 
-export class AddIdempotencyKeyToTips1716316800000 implements MigrationInterface {
+export class AddIdempotencyKeyToTips20260527000001 implements MigrationInterface {
   public async up(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.addColumn(
       'tips',

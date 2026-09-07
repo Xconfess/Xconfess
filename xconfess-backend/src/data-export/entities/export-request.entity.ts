@@ -30,7 +30,7 @@ export class ExportRequest {
   @Column({ type: 'bigint', default: 0 })
   totalSize!: string; // Stored as string to handle bigint safely in JS
 
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', length: 64, nullable: true })
   combinedChecksum!: string; // SHA-256 of the concatenated chunks
 
   @CreateDateColumn()

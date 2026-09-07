@@ -11,6 +11,7 @@ export interface ApiErrorResponse {
   message: string;
   status: number;
   correlationId?: string;
+  details?: Record<string, unknown>;
   // Rate-limit specific fields
   code?: string;
   retryAfter?: number | null;
@@ -44,12 +45,13 @@ export function normalizeApiError(
     message = typeof error.error === 'string' ? error.error : (error.error.message || message);
   }
 
-  console.error(
-    `[API Error] status=${status} cid=${correlationId || 'none'} message="${message}"`,
-    { originalError: error },
-  );
-
-  const base: ApiErrorResponse = { message, status, correlationId };
+  const base: ApiErrorResponse = {
+    message,
+    status,
+    correlationId,
+    code: error?.code,
+    details: error?.details,
+  };
 
   // Preserve rate-limit metadata when the backend sends the normalized 429 shape
   if (status === 429) {
@@ -79,11 +81,22 @@ export function createApiErrorResponse(
 ): Response {
   const normalized = normalizeApiError(error, context);
 
-  if (context.route) {
+  if (context.route && process.env.NODE_ENV === 'development' && normalized.status >= 500) {
     console.debug(`[${context.route}] Error response generated`);
   }
 
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+
+  // Always echo the correlation / request id so failed calls can be traced from
+  // the frontend to backend logs (issue #1729).
+  const requestId =
+    normalized.requestId ??
+    normalized.correlationId ??
+    context.upstreamResponse?.headers.get('x-request-id') ??
+    (context.correlationId && context.correlationId !== 'unknown'
+      ? context.correlationId
+      : undefined);
+  if (requestId) headers['X-Request-Id'] = requestId;
 
   // Forward rate-limit headers from the upstream backend response
   if (normalized.status === 429) {

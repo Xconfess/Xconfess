@@ -1,9 +1,8 @@
 import {
     AppError,
-    getStatusMessage,
-    getStatusCodeString,
     logError
 } from '@/app/lib/utils/errorHandler';
+import { normalizeApiError } from '@/app/lib/api/errors';
 
 export interface UserProfile {
   id: string;
@@ -26,15 +25,12 @@ const ensureApiResponse = async (
   fallbackMessage: string,
 ): Promise<void> => {
   if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
-    const status = res.status;
-    const message =
-      (body as any)?.message || (body as any)?.error || getStatusMessage(status);
-    const code = getStatusCodeString(status);
-    const apiError = new AppError(message || fallbackMessage, code, status, {
-      responseBody: body,
+    const normalized = await normalizeApiError(res);
+    const apiError = new AppError(normalized.message || fallbackMessage, normalized.code, normalized.status, {
       action,
-      status,
+      retryAfter: normalized.retryAfter,
+      requestId: normalized.requestId,
+      timestamp: normalized.timestamp,
     });
 
     logError(apiError, `userApi.${action}`);

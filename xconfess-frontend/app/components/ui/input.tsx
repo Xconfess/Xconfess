@@ -12,8 +12,8 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
       <input
         aria-invalid={error ? "true" : "false"}
         className={cn(
-          "flex w-full rounded-[18px] border bg-[rgba(255,252,247,0.92)] px-4 py-3 text-sm text-[var(--foreground)] shadow-[inset_0_1px_0_rgba(255,255,255,0.55)]",
-          "placeholder:text-[color:rgba(111,101,89,0.78)]",
+          "flex w-full rounded-xl border bg-[var(--surface-strong)] px-4 py-3 text-sm text-[var(--foreground)] shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]",
+          "placeholder:text-[color:rgba(169,160,149,0.7)]",
           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2",
           "focus-visible:ring-[var(--primary)] focus-visible:ring-offset-[var(--background)] disabled:cursor-not-allowed disabled:opacity-50",
           error

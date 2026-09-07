@@ -1,7 +1,7 @@
 /**
  * @jest-environment jsdom
  */
-process.env.NEXT_PUBLIC_API_URL = "http://localhost:3001/api";
+process.env.BACKEND_API_URL = "http://localhost:3001/api";
 
 import { GET } from "../route";
 import { cookies } from "next/headers";
@@ -9,13 +9,19 @@ import { cookies } from "next/headers";
 jest.mock("next/headers");
 jest.mock("next/server", () => ({
   NextResponse: {
-    json: jest.fn((data) => data),
+    json: jest.fn((data) => {
+      const response = new Response(JSON.stringify(data), {
+        headers: { "Content-Type": "application/json" },
+      });
+      return response;
+    }),
   },
 }));
 
 describe("GET /api/auth/session", () => {
   const mockToken = "test-token";
   const mockUser = { id: 1, username: "testuser" };
+  const request = new Request("https://xconfess.vercel.app/api/auth/session");
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -32,13 +38,13 @@ describe("GET /api/auth/session", () => {
       json: async () => mockUser,
     });
 
-    const response = await GET();
+    const response = await GET(request);
 
     expect(global.fetch).toHaveBeenCalledWith(
       expect.stringContaining("/auth/session"),
       expect.any(Object),
     );
-    expect(response).toEqual({ authenticated: true, user: mockUser });
+    await expect(response.json()).resolves.toEqual({ authenticated: true, user: mockUser });
   });
 
   it("should fallback to /auth/me if /auth/session returns 404", async () => {
@@ -53,7 +59,7 @@ describe("GET /api/auth/session", () => {
       json: async () => mockUser,
     });
 
-    const response = await GET();
+    const response = await GET(request);
 
     expect(global.fetch).toHaveBeenCalledTimes(2);
     expect(global.fetch).toHaveBeenNthCalledWith(
@@ -66,7 +72,7 @@ describe("GET /api/auth/session", () => {
       expect.stringContaining("/auth/me"),
       expect.any(Object),
     );
-    expect(response).toEqual({ authenticated: true, user: mockUser });
+    await expect(response.json()).resolves.toEqual({ authenticated: true, user: mockUser });
   });
 
   it("should return 401 and clear cookie if both fail with 401", async () => {
@@ -81,7 +87,7 @@ describe("GET /api/auth/session", () => {
       status: 401,
     });
 
-    await GET();
+    await GET(request);
 
     expect(mockCookieStore.delete).toHaveBeenCalledWith("xconfess_session");
   });

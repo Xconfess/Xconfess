@@ -13,6 +13,10 @@ export enum ModerationStatus {
   PENDING = 'pending',
   APPROVED = 'approved',
   REJECTED = 'rejected',
+  FLAGGED = 'flagged',
+  ESCALATED = 'escalated',
+  RESOLVED = 'resolved',
+  HIDDEN = 'hidden',
 }
 
 @Entity('moderation_comments')
@@ -37,7 +41,7 @@ export class ModerationComment {
   @Column({ type: 'timestamp', nullable: true })
   moderatedAt?: Date;
 
-  @Column({ nullable: true })
+  @Column({ type: 'int', nullable: true })
   moderatedById?: number;
 
   @ManyToOne(() => User, { nullable: true, onDelete: 'SET NULL' })

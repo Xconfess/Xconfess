@@ -9,13 +9,12 @@
 
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
-import { getApiBaseUrl } from "@/app/lib/config";
+import { resolveBackendRoute } from "@/app/lib/api/proxy";
 import {
   normalizeAuthError,
   NormalizedAuthError,
 } from "@/lib/normalizeAuthError";
 
-const API_URL = getApiBaseUrl();
 const SESSION_COOKIE_NAME = "xconfess_session";
 const MAX_RETRIES = 1;
 
@@ -129,7 +128,8 @@ export async function POST(request: Request) {
     }
 
     // Fetch with automatic retry for TRANSIENT errors
-    const result = await fetchBackendWithRetry(`${API_URL}/auth/login`, {
+    const backend = resolveBackendRoute(request, "/auth/login");
+    const result = await fetchBackendWithRetry(backend.url, {
       method: "POST",
       body: JSON.stringify({ email, password }),
     });
@@ -166,7 +166,7 @@ export async function POST(request: Request) {
  * Verify session and get current user info.
  * Tries new endpoint, falls back to legacy endpoint.
  */
-export async function GET() {
+export async function GET(request: Request) {
   const cookieStore = await cookies();
   const token = cookieStore.get(SESSION_COOKIE_NAME)?.value;
 
@@ -180,7 +180,8 @@ export async function GET() {
 
   try {
     // Try new canonical endpoint first
-    let result = await fetchBackendWithRetry(`${API_URL}/auth/session`, {
+    let backend = resolveBackendRoute(request, "/auth/session");
+    let result = await fetchBackendWithRetry(backend.url, {
       method: "GET",
       headers: {
         Authorization: `Bearer ${token}`,
@@ -189,7 +190,8 @@ export async function GET() {
 
     // 404 Not Found? Try fallback to legacy endpoint
     if (!result.success && result.normalized?.originalStatus === 404) {
-      result = await fetchBackendWithRetry(`${API_URL}/auth/me`, {
+      backend = resolveBackendRoute(request, "/auth/me");
+      result = await fetchBackendWithRetry(backend.url, {
         method: "GET",
         headers: {
           Authorization: `Bearer ${token}`,

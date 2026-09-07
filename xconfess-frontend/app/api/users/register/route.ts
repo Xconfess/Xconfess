@@ -1,31 +1,33 @@
 import { createApiErrorResponse } from "@/lib/apiErrorHandler";
-import { getApiBaseUrl } from "@/app/lib/config";
-
-const BASE_API_URL = getApiBaseUrl();
+import { methodNotAllowedHandlers, resolveBackendRoute } from "@/app/lib/api/proxy";
 
 export async function POST(request: Request) {
-  const correlationId = request.headers.get("X-Correlation-ID") || "unknown";
+  let correlationId = request.headers.get("X-Request-ID") || request.headers.get("X-Correlation-ID") || "unknown";
 
   try {
     const body = await request.json();
-    const backendUrl = `${BASE_API_URL}/users/register`;
+    const backend = resolveBackendRoute(request, "/users/register");
+    correlationId = backend.requestId;
 
-    const response = await fetch(backendUrl, {
+    const response = await fetch(backend.url, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        "X-Request-ID": correlationId,
         "X-Correlation-ID": correlationId,
       },
       body: JSON.stringify(body),
     });
 
     if (!response.ok) {
-      const errData = await response.json().catch(() => ({}));
+      const errData = await response.clone().json().catch(async () => ({
+        message: await response.text().catch(() => response.statusText),
+      }));
       return createApiErrorResponse(errData, {
         status: response.status,
-          upstreamResponse: response,
+        upstreamResponse: response,
         correlationId,
-        route: "POST /api/users/register"
+        route: "POST /api/users/register",
       });
     }
 
@@ -34,14 +36,19 @@ export async function POST(request: Request) {
       status: 200,
       headers: {
         "Content-Type": "application/json",
+        "X-Request-ID": correlationId,
       },
     });
   } catch (error) {
     return createApiErrorResponse(error, {
-      status: 500,
+      status:
+        error instanceof Error && error.message.includes("BACKEND_API_URL")
+          ? 503
+          : 500,
       correlationId,
-      route: "POST /api/users/register"
+      route: "POST /api/users/register",
     });
   }
 }
 
+export const { GET, PUT, PATCH, DELETE } = methodNotAllowedHandlers(["POST"]);

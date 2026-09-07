@@ -12,6 +12,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 CONTRACTS_DIR="$REPO_ROOT/xconfess-contracts"
+TARGET_TRIPLE="${XCONFESS_TARGET_TRIPLE:-wasm32v1-none}"
 
 DEPLOY_MODE=0
 if [[ "${1:-}" == "--deploy" ]]; then
@@ -35,13 +36,31 @@ header() {
   printf "\n==> %s\n" "$1"
 }
 
+resolve_cmd() {
+  local cmd="$1"
+  if command -v "$cmd" >/dev/null 2>&1; then
+    command -v "$cmd"
+    return 0
+  fi
+  if command -v "$cmd.exe" >/dev/null 2>&1; then
+    command -v "$cmd.exe"
+    return 0
+  fi
+  return 1
+}
+
 # ---------------------------------------------------------------------------
 # 1. Rust / Cargo
 # ---------------------------------------------------------------------------
 header "Rust toolchain"
 
-if command -v rustc >/dev/null 2>&1; then
-  rust_version="$(rustc --version 2>&1 | awk '{print $2}')"
+rustc_bin="$(resolve_cmd rustc || true)"
+cargo_bin="$(resolve_cmd cargo || true)"
+rustup_bin="$(resolve_cmd rustup || true)"
+stellar_bin="$(resolve_cmd stellar || true)"
+
+if [[ -n "$rustc_bin" ]]; then
+  rust_version="$("$rustc_bin" --version 2>&1 | awk '{print $2}')"
   required_major=1
   required_minor=81
   actual_major="$(echo "$rust_version" | cut -d. -f1)"
@@ -56,14 +75,14 @@ else
   fail "rustc not found. Install via: curl https://sh.rustup.rs -sSf | sh"
 fi
 
-if command -v cargo >/dev/null 2>&1; then
-  ok "cargo $(cargo --version 2>&1 | awk '{print $2}')"
+if [[ -n "$cargo_bin" ]]; then
+  ok "cargo $("$cargo_bin" --version 2>&1 | awk '{print $2}')"
 else
   fail "cargo not found (should be installed alongside rustc)"
 fi
 
-if command -v rustup >/dev/null 2>&1; then
-  ok "rustup $(rustup --version 2>&1 | head -1 | awk '{print $2}')"
+if [[ -n "$rustup_bin" ]]; then
+  ok "rustup $("$rustup_bin" --version 2>&1 | head -1 | awk '{print $2}')"
 else
   fail "rustup not found. Install via: curl https://sh.rustup.rs -sSf | sh"
 fi
@@ -73,11 +92,11 @@ fi
 # ---------------------------------------------------------------------------
 header "WASM target"
 
-if command -v rustup >/dev/null 2>&1; then
-  if rustup target list --installed 2>/dev/null | grep -q "wasm32-unknown-unknown"; then
-    ok "wasm32-unknown-unknown target is installed"
+if [[ -n "$rustup_bin" ]]; then
+  if "$rustup_bin" target list --installed 2>/dev/null | grep -q "$TARGET_TRIPLE"; then
+    ok "$TARGET_TRIPLE target is installed"
   else
-    fail "wasm32-unknown-unknown target is missing. Fix: rustup target add wasm32-unknown-unknown"
+    fail "$TARGET_TRIPLE target is missing. Fix: rustup target add $TARGET_TRIPLE"
   fi
 fi
 
@@ -125,8 +144,8 @@ done
 # ---------------------------------------------------------------------------
 header "Stellar CLI"
 
-if command -v stellar >/dev/null 2>&1; then
-  stellar_raw="$(stellar --version 2>&1)"
+if [[ -n "$stellar_bin" ]]; then
+  stellar_raw="$("$stellar_bin" --version 2>&1)"
   stellar_version="$(echo "$stellar_raw" | grep -o '[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*' | head -1)"
   req_major=22
   actual_stellar_major="$(echo "$stellar_version" | cut -d. -f1)"
@@ -150,10 +169,10 @@ fi
 if [[ "$DEPLOY_MODE" -eq 1 ]]; then
   header "Deploy prerequisites"
 
-  if ! command -v stellar >/dev/null 2>&1; then
+  if [[ -z "$stellar_bin" ]]; then
     printf "  [SKIP] remaining deploy checks require stellar CLI\n"
   else
-    stellar_keys="$(stellar keys list 2>/dev/null || true)"
+    stellar_keys="$("$stellar_bin" keys ls 2>/dev/null || true)"
     if [[ -n "$stellar_keys" ]]; then
       ok "at least one Stellar key is configured"
       printf "         Keys: %s\n" "$(echo "$stellar_keys" | tr '\n' ' ')"
@@ -161,7 +180,7 @@ if [[ "$DEPLOY_MODE" -eq 1 ]]; then
       fail "no Stellar keys found. Generate one: stellar keys generate --name deployer"
     fi
 
-    stellar_networks="$(stellar network list 2>/dev/null || true)"
+    stellar_networks="$("$stellar_bin" network ls 2>/dev/null || true)"
     if echo "$stellar_networks" | grep -q "testnet"; then
       ok "testnet network is configured"
     else

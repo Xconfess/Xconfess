@@ -1,21 +1,22 @@
-﻿# Contributing to Xconfess
+# Contributing to Xconfess
 
 Thank you for your interest in contributing to Xconfess - an anonymous confession platform built on the Stellar blockchain. This guide covers everything you need to get started.
 
 ---
 
-## Table of Contents
+## Table of Contents.
 
 - [Prerequisites](#prerequisites)
 - [Environment Setup](#environment-setup)
 - [Development Workflow](#development-workflow)
 - [Code Style](#code-style)
 - [Testing Requirements](#testing-requirements)
+- [Validation Command Matrix](#validation-command-matrix)
 - [Pull Request Process](#pull-request-process)
 - [Wave / Drips Contribution Guidelines](#wave--drips-contribution-guidelines)
 
 ---
-
+.
 ## Prerequisites
 
 Make sure you have the following installed before cloning:
@@ -43,7 +44,7 @@ Make sure you have the following installed before cloning:
 
 ### 1. Clone the repository
 
-    git clone https://github.com/Jay-dev57/Xconfess.git
+    git clone https://github.com/Xconfess/Xconfess.git
     cd Xconfess
 
 ### 2. Install dependencies
@@ -86,6 +87,26 @@ Both xconfess-postgres and xconfess-redis should show healthy.
 ---
 
 ## Development Workflow
+
+### Picking an OSS issue
+
+If you are contributing through an OSS campaign or grant program:
+
+- Start with issues labeled `good first issue`, `help wanted`, `Stellar Wave`, `GrantFox OSS`, or `Maybe Rewarded`.
+- Comment on the issue before starting so maintainers can confirm it is still available.
+- Keep the PR focused on one issue. Do not bundle unrelated cleanup.
+- Follow the acceptance criteria and validation commands listed in the issue.
+- Ask for clarification in the issue thread instead of guessing when scope is unclear.
+
+Recommended first picks:
+
+| Area | Good starter work |
+|------|-------------------|
+| Docs | Setup guides, troubleshooting, diagrams, screenshots |
+| Frontend | Empty states, auth polish, proxy route tests, mobile fixes |
+| Backend | DTO validation, error handling, health checks, focused tests |
+| Stellar | Contract metadata checks, docs, testnet smoke scripts |
+| Ops | CI checks, deployment preflight, env validation |
 
 ### Branch Naming
 
@@ -178,6 +199,12 @@ All CI checks must pass before a PR will be reviewed.
 
 ---
 
+## Validation Command Matrix
+
+Not sure which commands to run for your change? Refer to the **[Validation Command Matrix](docs/VALIDATION_COMMAND_MATRIX.md)** for a complete table mapping each change area (docs, frontend component, frontend route, backend service, migration, Stellar contract, ops script) to the exact copy-pasteable commands required.
+
+---
+
 ## Pull Request Process
 
 ### Before opening a PR
@@ -218,15 +245,15 @@ Use Conventional Commits format: feat(backend): add GDPR data export endpoint
 
 ## Wave / Drips Contribution Guidelines
 
-Xconfess participates in the Stellar Wave grant program. If your contribution is tied to a Wave issue:
+Xconfess participates in multiple OSS programs, including Stellar Wave and GrantFox OSS. If your contribution is tied to a program issue:
 
-- Reference the Wave issue number in your PR description
-- Keep each Wave contribution as a single focused PR — one issue, one PR
-- Do not bundle multiple Wave issues into one PR
+- Reference the issue number in your PR description
+- Keep each program contribution as a single focused PR - one issue, one PR
+- Do not bundle multiple program issues into one PR
 - Ensure your implementation matches the acceptance criteria listed in the issue exactly
 - Add or update tests that validate the acceptance criteria
 
-### Contribution checklist for Wave PRs
+### Contribution checklist for program PRs
 
 - Branch named after the feature area
 - PR title references the feature area

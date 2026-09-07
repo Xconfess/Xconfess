@@ -1,4 +1,4 @@
-# XConfess Glossary
+# xConfess Glossary
 
 ## A
 

@@ -1,6 +1,6 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-export class AddFeedSearchPerformanceIndexes20260423 implements MigrationInterface {
+export class AddFeedSearchPerformanceIndexes2026042300000 implements MigrationInterface {
   public async up(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(`
       CREATE INDEX IF NOT EXISTS idx_confessions_moderation_created 

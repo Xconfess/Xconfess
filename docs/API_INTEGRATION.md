@@ -215,6 +215,64 @@ Request body:
 }
 ```
 
+#### Response states
+
+Every response carries a typed `state` field. Consumers should switch on
+`state` rather than parsing the `message` text, since message wording may
+change across releases. `verified` and `duplicate` are success outcomes
+(2xx); everything else is a typed error.
+
+| `state`     | HTTP status | Meaning | `canRetry` |
+|-------------|-------------|---------|------------|
+| `verified`  | 201 | This request performed first-writer settlement. | — |
+| `duplicate` | 201 | A prior request already settled this exact `(confessionId, txId)` pair. This is a safe, canonical replay — not an error. | — |
+| `pending`   | 409 | Another request is actively settling this pair right now. | `true` |
+| `stale`     | 409 | Verification exceeded the SLA threshold and is under reconciliation review. This is not a terminal failure. | `true` |
+| `conflict`  | 409 | The transaction ID is already bound to a *different* confession, or reconciliation flagged a genuine conflict. | `false` |
+| `failed`    | 400 | Verification failed terminally (invalid amount, transaction not found or invalid on-chain) — or a transient/retryable error such as a Horizon network failure. | `true` for transient errors, `false` for terminal ones |
+
+Malformed transaction IDs (not a 64-character hex string) are rejected by
+request validation before reaching this logic, returning a standard
+`400 Bad Request` with a `message` array — they do not carry a `state`
+field, since they never reach the verification pipeline.
+
+Success response body (`verified` or `duplicate`):
+
+```json
+{
+  "state": "verified",
+  "success": true,
+  "isNew": true,
+  "isIdempotent": false,
+  "tip": {
+    "id": "tip-abc-123",
+    "confessionId": "4f8f8eb0-b6d8-4a92-8f77-6fa3c7aa2e67",
+    "amount": 100,
+    "txId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "senderAddress": null,
+    "status": "verified",
+    "verifiedAt": "2026-04-25T10:00:00.000Z",
+    "createdAt": "2026-04-25T10:00:00.000Z"
+  }
+}
+```
+
+The `tip` object in this response is intentionally a reduced, public-safe
+view. Internal-only fields (`idempotencyKey`, `processingLock`, `lockedAt`,
+`lockedBy`, `retryCount`, `lastChainStatus`, `lastCheckedAt`,
+`reconciliationMetadata`) are never included on the wire.
+
+Typed error response body (`pending` / `stale` / `conflict` / `failed`):
+
+```json
+{
+  "message": "Transaction aaaa...aaaa verification has exceeded the expected processing time and is under review. It has not failed — check back shortly or contact support with this reference.",
+  "state": "stale",
+  "conflictReason": "ALREADY_PROCESSING",
+  "canRetry": true
+}
+```
+
 ### Health checks
 
 - `GET /api/health/live`

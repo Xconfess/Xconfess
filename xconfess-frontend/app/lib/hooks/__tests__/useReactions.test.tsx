@@ -27,7 +27,7 @@ const mockSocket = {
     on: jest.fn(),
   },
 };
-const mockIo = jest.fn((..._args: unknown[]) => mockSocket);
+const mockIo = jest.fn(() => mockSocket);
 jest.mock("socket.io-client", () => ({
   io: (...args: unknown[]) => mockIo(...args),
 }));

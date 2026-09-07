@@ -7,6 +7,7 @@ interface ConnectionMetrics {
   eventsByType: Record<string, number>;
   avgLatency: number;
   errors: number;
+  authFailures: Record<string, number>;
 }
 
 interface EventLog {
@@ -29,6 +30,7 @@ export class WebSocketLogger {
     eventsByType: {},
     avgLatency: 0,
     errors: 0,
+    authFailures: {},
   };
 
   private eventLogs: EventLog[] = [];
@@ -139,6 +141,32 @@ export class WebSocketLogger {
   logRateLimit(socketId: string, ip: string) {
     this.metrics.errors++;
     this.logger.warn(`[RATE_LIMIT] Socket: ${socketId}, IP: ${ip}`);
+  }
+
+  /**
+   * Log a WebSocket authentication failure with reason code.
+   * Tracks failure counts by reason for operational metrics.
+   */
+  logAuthFailure(meta: {
+    socketId: string;
+    reasonCode: string;
+    correlationId?: string;
+  }) {
+    this.metrics.errors++;
+    this.metrics.authFailures[meta.reasonCode] =
+      (this.metrics.authFailures[meta.reasonCode] || 0) + 1;
+
+    this.logger.warn(
+      `[AUTH_FAILURE] Socket: ${meta.socketId}, Reason: ${meta.reasonCode}${meta.correlationId ? `, CorrelationId: ${meta.correlationId}` : ''}`,
+    );
+
+    this.logEvent(
+      'auth_failure',
+      meta.socketId,
+      undefined,
+      false,
+      meta.reasonCode,
+    );
   }
 
   /**
@@ -259,6 +287,7 @@ export class WebSocketLogger {
       eventsByType: {},
       avgLatency: 0,
       errors: 0,
+      authFailures: {},
     };
     this.eventLogs = [];
     this.latencies = [];
@@ -291,6 +320,14 @@ ${Object.entries(metrics.eventsByType)
   .map(
     ([type, count]) =>
       `║ - ${type.padEnd(20)} ${count.toString().padStart(30)} ║`,
+  )
+  .join('\n')}
+╠════════════════════════════════════════════════════════════╣
+║ Auth Failures by Reason:                                   ║
+${Object.entries(metrics.authFailures)
+  .map(
+    ([reason, count]) =>
+      `║ - ${reason.padEnd(20)} ${count.toString().padStart(30)} ║`,
   )
   .join('\n')}
 ╚════════════════════════════════════════════════════════════╝

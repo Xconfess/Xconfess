@@ -108,6 +108,8 @@ export function useFocusTrap({
       }
     };
 
+    const restoreTarget = restoreFocusRef?.current ?? previousFocusRef.current;
+
     // Use capture phase to intercept Tab before it reaches the browser chrome
     document.addEventListener('keydown', handleKeyDown, { capture: true });
 
@@ -120,7 +122,6 @@ export function useFocusTrap({
       document.removeEventListener('keydown', handleKeyDown, { capture: true } as EventListenerOptions);
       document.body.style.overflow = prevOverflow;
 
-      const restoreTarget = restoreFocusRef?.current ?? previousFocusRef.current;
       if (restoreTarget && (dialog || restoreFocusRef)) {
         restoreTarget.focus();
       }

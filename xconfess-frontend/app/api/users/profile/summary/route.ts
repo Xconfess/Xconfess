@@ -1,8 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
-import { getApiBaseUrl } from "@/app/lib/config";
+import { NextRequest } from "next/server";
+import { resolveBackendRoute } from "@/app/lib/api/proxy";
 import { createApiErrorResponse } from "@/lib/apiErrorHandler";
 
-const BASE_API_URL = getApiBaseUrl();
 
 /**
  * GET /api/users/profile/summary
@@ -15,11 +14,14 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const qs = searchParams.toString();
-    const backendUrl = `${BASE_API_URL}/users/profile/summary${qs ? `?${qs}` : ""}`;
+    const backend = resolveBackendRoute(
+      request,
+      `/users/profile/summary${qs ? `?${qs}` : ""}`,
+    );
 
     const cookie = request.headers.get("cookie") || "";
 
-    const response = await fetch(backendUrl, {
+    const response = await fetch(backend.url, {
       method: "GET",
       headers: {
         "X-Correlation-ID": correlationId,

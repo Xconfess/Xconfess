@@ -1,7 +1,6 @@
-import { getApiBaseUrl } from "@/app/lib/config";
+import { resolveBackendRoute } from "@/app/lib/api/proxy";
 import { createApiErrorResponse } from "@/lib/apiErrorHandler";
 
-const BASE_API_URL = getApiBaseUrl();
 
 const ALLOWED_TYPES = new Set([
   "spam",
@@ -48,7 +47,8 @@ export async function POST(
     if (anonymousUserId) forwardedHeaders["x-anonymous-user-id"] = anonymousUserId;
     if (idempotencyKey) forwardedHeaders["idempotency-key"] = idempotencyKey;
 
-    const res = await fetch(`${BASE_API_URL}/confessions/${id}/report`, {
+    const backend = resolveBackendRoute(request, `/confessions/${id}/report`);
+    const res = await fetch(backend.url, {
       method: "POST",
       headers: forwardedHeaders,
       body: JSON.stringify({ type, reason }),
@@ -82,4 +82,3 @@ export async function POST(
     });
   }
 }
-

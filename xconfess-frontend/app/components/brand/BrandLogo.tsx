@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { cn } from "@/app/lib/utils/cn";
 
 type BrandLogoProps = {
@@ -39,13 +40,12 @@ export function BrandLogo({
   const size = logoSize[variant];
 
   const image = (
-    <img
+    <Image
       src={src}
       width={size.width}
       height={size.height}
       alt="xConfess"
-      decoding="async"
-      fetchPriority={priority ? "high" : undefined}
+      priority={priority}
       className={cn(
         "block h-auto max-w-full select-none",
         variant === "icon" ? "w-11" : "w-[150px] sm:w-[172px]",

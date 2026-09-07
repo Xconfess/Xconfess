@@ -182,6 +182,9 @@ jobs:
       - name: Test contracts
         run: cargo test --workspace
 
+      - name: Check contract ABI drift
+        run: bash scripts/check-abi-drift.sh
+
       - name: Build contracts (debug)
         run: cargo build --target wasm32-unknown-unknown
 

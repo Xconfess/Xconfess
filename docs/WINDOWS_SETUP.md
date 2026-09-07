@@ -1,6 +1,6 @@
 # Windows Local Setup Guide
 
-This guide covers Windows-specific setup steps and common issues for XConfess development.
+This guide covers Windows-specific setup steps and common issues for xConfess development.
 
 ## Prerequisites
 

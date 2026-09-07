@@ -144,3 +144,63 @@ fn boundary_amounts_are_accepted() {
     assert_eq!(id2, 2);
     assert_eq!(client.get_tip_balance(&recipient), 1 + max_amount);
 }
+
+// ── #1665 boundary / overflow regression tests ────────────────────────────────
+
+#[test]
+fn i128_min_is_rejected() {
+    // i128::MIN is negative — must be rejected as InvalidTipAmount, not panic.
+    let (env, client, _token_id) = setup();
+    let sender = Address::generate(&env);
+    let recipient = Address::generate(&env);
+    assert_eq!(
+        client.try_send_tip(&sender, &recipient, &i128::MIN),
+        Err(Ok(Error::InvalidTipAmount))
+    );
+    assert_eq!(client.get_tip_balance(&recipient), 0);
+}
+
+#[test]
+fn one_below_max_is_accepted_and_one_above_max_is_rejected() {
+    // MAX_TIP_AMOUNT - 1: last valid amount before the ceiling.
+    // MAX_TIP_AMOUNT + 1: first invalid amount above the ceiling.
+    // Verifies the boundary is inclusive on the correct side.
+    let (env, client, token_id) = setup();
+    let token = TestTokenClient::new(&env, &token_id);
+    let sender = Address::generate(&env);
+    let recipient = Address::generate(&env);
+
+    let below_max = AnonymousTipping::MAX_TIP_AMOUNT - 1;
+    token.mint(&sender, &below_max);
+    let id = client.send_tip(&sender, &recipient, &below_max);
+    assert_eq!(id, 1);
+    assert_eq!(client.get_tip_balance(&recipient), below_max);
+
+    assert_eq!(
+        client.try_send_tip(&sender, &recipient, &(AnonymousTipping::MAX_TIP_AMOUNT + 1)),
+        Err(Ok(Error::InvalidTipAmount))
+    );
+}
+
+#[test]
+fn settlement_id_is_monotonically_increasing_across_senders() {
+    // Each successful tip increments the global settlement counter regardless
+    // of which sender/recipient pair is involved.
+    let (env, client, token_id) = setup();
+    let token = TestTokenClient::new(&env, &token_id);
+    let sender_a = Address::generate(&env);
+    let sender_b = Address::generate(&env);
+    let recipient = Address::generate(&env);
+
+    token.mint(&sender_a, &500);
+    token.mint(&sender_b, &500);
+
+    let id1 = client.send_tip(&sender_a, &recipient, &100);
+    let id2 = client.send_tip(&sender_b, &recipient, &200);
+    let id3 = client.send_tip(&sender_a, &recipient, &50);
+
+    assert_eq!(id1, 1);
+    assert_eq!(id2, 2);
+    assert_eq!(id3, 3);
+    assert_eq!(client.get_tip_balance(&recipient), 350);
+}

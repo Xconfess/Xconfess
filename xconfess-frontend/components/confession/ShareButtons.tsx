@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Share2, Twitter, Facebook, Link2, Check } from "lucide-react";
+import { Twitter, Facebook, Link2, Check } from "lucide-react";
 
 interface ShareButtonsProps {
   confessionId: string;
@@ -22,8 +22,8 @@ export function ShareButtons({ confessionId, content }: ShareButtonsProps) {
       await navigator.clipboard.writeText(url);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
-    } catch (err) {
-      console.error("Failed to copy:", err);
+    } catch {
+      setCopied(false);
     }
   };
 
