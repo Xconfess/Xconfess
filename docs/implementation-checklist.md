@@ -42,6 +42,7 @@ This checklist tracks implementation against the attached GrantFox readiness bri
 - [x] Tighten observability and correlation IDs where needed.
 - [x] Add production smoke suite command.
 - [x] Add focused security regression suite.
+- [x] Review dependency vulnerabilities and document remaining accepted low-risk findings.
 - [x] Add production readiness command.
 - [x] Run local production readiness command.
 - [ ] Resolve live deployed smoke failure: backend liveness timed out after 15000ms.
