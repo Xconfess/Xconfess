@@ -32,7 +32,12 @@ validation. They are not placeholders for invented traction or campaign copy.
 
 ## 4. Review Dependency Vulnerabilities
 
-- Evidence: `npm install` reported npm audit findings earlier in this worktree.
-- Impact: Security review should be complete before campaign launch.
-- Acceptance: `npm audit` findings are triaged, fixed, or explicitly accepted
-  with documented rationale.
+- Status: Safe remediations completed; see
+  `docs/dependency-security-audit.md`.
+- Evidence: `npm audit` now reports 0 critical, 0 high, and 0 moderate
+  findings. Two low findings remain from `csurf`'s bundled `cookie`
+  dependency.
+- Impact: Security review is documented for readiness. The remaining low
+  finding should still be removed in a dedicated CSRF middleware replacement.
+- Acceptance: Replace `csurf` with a maintained CSRF middleware and verify the
+  backend CSRF regression suite, backend build, and deployed smoke flow.
