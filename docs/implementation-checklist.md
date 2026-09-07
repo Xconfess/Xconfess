@@ -45,7 +45,8 @@ This checklist tracks implementation against the attached GrantFox readiness bri
 - [x] Review dependency vulnerabilities and document remaining accepted low-risk findings.
 - [x] Add production readiness command.
 - [x] Run local production readiness command.
-- [ ] Resolve live deployed smoke failure: backend liveness timed out after 15000ms.
+- [x] Resolve live deployed smoke failure: deployed smoke now retries Render
+  hibernate wake responses and passed without mutation mode on 2026-09-07.
 
 ## Milestone 5 - Prepare For Campaign
 

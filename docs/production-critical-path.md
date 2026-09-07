@@ -23,6 +23,15 @@ npm run deploy:smoke
 
 Set `SMOKE_RUN_MUTATION=true` only when you want the smoke test to create a disposable registration account.
 
+The smoke runner retries transient Render wake-up failures. Override the
+defaults only when the hosting plan or route latency profile changes:
+
+```bash
+SMOKE_TIMEOUT_MS=45000
+SMOKE_MAX_ATTEMPTS=5
+SMOKE_RETRY_DELAY_MS=5000
+```
+
 ## API contract
 
 The canonical browser-to-production auth path is:
