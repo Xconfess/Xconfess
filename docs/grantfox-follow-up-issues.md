@@ -7,11 +7,19 @@ validation. They are not placeholders for invented traction or campaign copy.
 
 ## 1. Restore Live Backend Liveness
 
+- Status: Code-side smoke validation remediated with bounded Render wake
+  retries; `npm run deploy:smoke` passed without mutation mode on 2026-09-07.
 - Evidence: `npm run deploy:smoke` timed out after 15000ms for
-  `https://xconfess-backend.onrender.com/api/health/live`.
+  `https://xconfess-backend.onrender.com/api/health/live`. On 2026-09-07,
+  direct liveness reached 200 after about 21.6s, while readiness/status returned
+  empty 503 responses with `x-render-routing: hibernate-wake-error`.
 - Impact: Reviewers cannot verify a fully live production product while the
-  backend liveness endpoint is unavailable.
-- Acceptance: `npm run deploy:smoke` passes without mutation mode enabled.
+  backend liveness endpoint is unavailable. The smoke runner now handles the
+  observed hibernation wake path, but a paid or non-hibernating backend remains
+  recommended before campaign launch.
+- Acceptance: Keep `npm run deploy:smoke` passing without mutation mode and
+  monitor Render wake failures. Move off hibernating infrastructure if wake
+  errors recur during review.
 
 ## 2. Run Production-Like Migration Validation
 
