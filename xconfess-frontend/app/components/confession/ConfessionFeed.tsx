@@ -2,12 +2,10 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useWindowVirtualizer } from "@tanstack/react-virtual";
-import { useRouter } from "next/navigation";
-import { ArrowRight, ArrowUp, Scale, X } from "lucide-react";
+import { ArrowUp } from "lucide-react";
 import { ConfessionCard } from "./ConfessionCard";
 import { ConfessionFeedSkeleton } from "./LoadingSkeleton";
 import { useInfiniteConfessions } from "../../lib/hooks/useConfessionsQuery";
-import { useComparisonStore } from "../../lib/store/comparisonStore";
 import ErrorState from "../common/ErrorState";
 
 const ESTIMATED_CARD_HEIGHT = 300;
@@ -22,8 +20,6 @@ const SORT_OPTIONS: Array<{ value: FeedSort; label: string }> = [
 ];
 
 export const ConfessionFeed = () => {
-  const router = useRouter();
-  const { selectedIds, clearItems } = useComparisonStore();
   const [showScrollTop, setShowScrollTop] = useState(false);
   const [sort, setSort] = useState<FeedSort>("newest");
   const loadMoreRef = useRef<HTMLDivElement>(null);
@@ -64,12 +60,6 @@ export const ConfessionFeed = () => {
     window.scrollTo({ top: 0, behavior: "smooth" });
   }, []);
 
-  const handleNavigateToComparison = () => {
-    if (selectedIds.length > 1) {
-      router.push(`/compare?ids=${selectedIds.join(",")}`);
-    }
-  };
-
   const sortControls = (
     <div
       className="flex w-full flex-wrap items-center gap-2 rounded-2xl border border-[var(--border)] bg-[var(--surface-muted)] p-1.5"
@@ -85,7 +75,7 @@ export const ConfessionFeed = () => {
           onClick={() => setSort(option.value)}
           className={`rounded-xl px-3.5 py-2 text-xs font-semibold transition-colors sm:text-sm ${
             sort === option.value
-              ? "bg-[var(--foreground)] text-[var(--background)] shadow-sm"
+              ? "bg-[var(--primary)] text-white shadow-[0_8px_18px_-10px_rgba(120,33,213,0.9)]"
               : "text-[var(--secondary)] hover:bg-[var(--surface-strong)] hover:text-[var(--foreground)]"
           }`}
         >
@@ -252,68 +242,13 @@ export const ConfessionFeed = () => {
         <button
           type="button"
           onClick={scrollToTop}
-          className="fixed bottom-8 right-8 z-40 flex h-12 w-12 items-center justify-center rounded-full bg-[var(--primary)] text-white shadow-lg transition-all hover:-translate-y-1 hover:bg-[var(--primary-deep)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+          className="fixed bottom-5 right-4 z-40 flex h-11 w-11 items-center justify-center rounded-full bg-[var(--primary)] text-white shadow-lg transition-all hover:-translate-y-1 hover:bg-[var(--primary-deep)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)] sm:bottom-8 sm:right-8"
           aria-label="Scroll to top"
         >
           <ArrowUp className="h-5 w-5" aria-hidden="true" />
         </button>
       )}
 
-      {selectedIds.length > 0 && (
-        <aside
-          className="fixed bottom-6 left-1/2 z-50 flex w-[calc(100%-2rem)] max-w-md -translate-x-1/2 animate-in items-center justify-between gap-4 rounded-2xl border border-zinc-800 bg-zinc-950 p-4 shadow-2xl fade-in slide-in-from-bottom-4 duration-300"
-          aria-label="Metrics comparison inspector"
-        >
-          <div className="flex items-center gap-3">
-            <div
-              className="shrink-0 rounded-xl border border-zinc-800 bg-zinc-900 p-2 text-[var(--primary)]"
-              aria-hidden="true"
-            >
-              <Scale className="h-4 w-4" />
-            </div>
-            <div>
-              <p className="text-xs font-semibold text-white">
-                Compare
-              </p>
-              <p className="text-[11px] text-zinc-400" aria-live="polite">
-                {selectedIds.length === 1
-                  ? "Select one more"
-                  : `${selectedIds.length} selected`}
-              </p>
-            </div>
-          </div>
-
-          <div className="flex shrink-0 items-center gap-1.5">
-            <button
-              type="button"
-              onClick={clearItems}
-              className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-xl text-zinc-500 transition-colors hover:bg-zinc-900 hover:text-zinc-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
-              title="Clear selection queue"
-              aria-label="Clear selection queue"
-            >
-              <X className="h-4 w-4" aria-hidden="true" />
-            </button>
-            <button
-              type="button"
-              disabled={selectedIds.length < 2}
-              onClick={handleNavigateToComparison}
-              className={`flex h-8 items-center gap-1.5 rounded-xl px-3.5 text-xs font-semibold transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${
-                selectedIds.length >= 2
-                  ? "cursor-pointer bg-[var(--primary)] text-white shadow-md hover:brightness-105"
-                  : "cursor-not-allowed border border-zinc-800/60 bg-zinc-900 text-zinc-600 opacity-60"
-              }`}
-              aria-label={
-                selectedIds.length >= 2
-                  ? `Compare ${selectedIds.length} selected confessions`
-                  : "Compare selected confessions (requires at least 2)"
-              }
-            >
-              <span>Compare</span>
-              <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
-            </button>
-          </div>
-        </aside>
-      )}
     </div>
   );
 };

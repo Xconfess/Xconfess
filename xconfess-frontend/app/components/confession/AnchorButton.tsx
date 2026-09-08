@@ -165,7 +165,7 @@ export const AnchorButton: FC<AnchorButtonProps> = ({
         aria-live="polite"
       >
         <CheckCircle2 className="h-4 w-4 text-green-400" aria-hidden="true" />
-        <span className="text-xs text-green-400">Anchored</span>
+        <span className="text-xs font-medium text-emerald-600 dark:text-emerald-400">Anchored</span>
         <span className="rounded-full border border-[var(--border)] px-2 py-0.5 text-[10px] uppercase tracking-wide text-[var(--secondary)]">
           {network === "PUBLIC_NETWORK" ? "Mainnet" : "Testnet"}
         </span>
@@ -196,7 +196,7 @@ export const AnchorButton: FC<AnchorButtonProps> = ({
         aria-live="polite"
       >
         <Loader2 className="h-4 w-4 animate-spin text-amber-400" aria-hidden="true" />
-        <span className="text-xs text-amber-400">Anchor pending</span>
+        <span className="text-xs font-medium text-amber-700 dark:text-amber-400">Anchor pending</span>
         <span className="rounded-full border border-[var(--border)] px-2 py-0.5 text-[10px] uppercase tracking-wide text-[var(--secondary)]">
           {network === "PUBLIC_NETWORK" ? "Mainnet" : "Testnet"}
         </span>
@@ -224,12 +224,13 @@ export const AnchorButton: FC<AnchorButtonProps> = ({
         aria-live="polite"
       >
         <AlertCircle className="h-4 w-4 text-red-400" aria-hidden="true" />
-        <span className="text-xs text-red-400">{error || "Anchoring failed"}</span>
+        <span className="text-xs font-medium text-amber-700 dark:text-amber-400">Anchor unavailable</span>
         <Button
           variant="outline"
           size="sm"
           onClick={handleAnchor}
           className="flex items-center gap-1"
+          title={error || "Retry Stellar anchoring"}
         >
           <RotateCcw className="h-3 w-3" />
           Retry
@@ -265,6 +266,7 @@ export const AnchorButton: FC<AnchorButtonProps> = ({
           onClick={handleAnchor}
           disabled={isPending || walletCTA.disabled}
           aria-busy={isPending}
+          title="Anchor this confession on Stellar"
           className={cn(
             "h-7 px-2 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500",
             walletCTA.status === "not-connected" &&
@@ -284,13 +286,13 @@ export const AnchorButton: FC<AnchorButtonProps> = ({
           ) : (
             <>
               <Anchor className="mr-1 h-3 w-3" aria-hidden="true" />
-              Anchor
+              Anchor on Stellar
             </>
           )}
       </Button>
 
-      <span className="text-[10px] uppercase tracking-wide text-zinc-500">
-        Stellar: {network === "PUBLIC_NETWORK" ? "Mainnet" : "Testnet"}
+      <span className="text-[10px] uppercase tracking-wide text-[var(--secondary)]">
+        Not anchored · {network === "PUBLIC_NETWORK" ? "Mainnet" : "Testnet"}
       </span>
 
       {walletCTA.status === "not-connected" && walletCTA.guidance && (

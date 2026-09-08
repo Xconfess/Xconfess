@@ -65,10 +65,10 @@ export const ReactionButton = ({
           "relative flex items-center gap-2 px-4 py-2 rounded-full",
           "min-w-11 min-h-11 touch-manipulation",
           "transition-all duration-200 ease-out",
-          "bg-zinc-800 hover:bg-zinc-700",
-          "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-purple-500",
+          "border border-[var(--border)] bg-[var(--surface)] text-[var(--secondary)] hover:border-[var(--accent-border)] hover:bg-[var(--accent-soft)] hover:text-[var(--foreground)]",
+          "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--primary)]",
           "active:scale-95",
-          computedIsActive && "bg-pink-600 text-white",
+          computedIsActive && "border-[var(--accent-border)] bg-[var(--accent-soft)] text-[var(--primary-deep)] ring-1 ring-[var(--accent-border)]",
           isAnimating && "animate-reaction-bounce",
           error && "ring-2 ring-red-500"
         )}
@@ -84,7 +84,7 @@ export const ReactionButton = ({
           title={statusLabel}
           className={cn(
             "h-2 w-2 rounded-full",
-            connectionState === "connected" && "bg-emerald-400",
+            connectionState === "connected" && "bg-[var(--primary)]",
             connectionState === "reconnecting" && "bg-amber-400 animate-pulse",
             connectionState === "disconnected" && "bg-zinc-500"
           )}
