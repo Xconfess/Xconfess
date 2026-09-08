@@ -38,7 +38,7 @@ const securityHeaders = [
       "default-src 'self'",
       "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
       "style-src 'self' 'unsafe-inline'",
-      "img-src 'self' data: blob:",
+      "img-src 'self' data: blob: https://stellar.creit.tech",
         "font-src 'self' data:",
       [
         "connect-src 'self'",
@@ -48,6 +48,14 @@ const securityHeaders = [
         "https://horizon-testnet.stellar.org",
         "https://soroban-rpc.stellar.org",
         "https://soroban-testnet.stellar.org",
+        // WalletConnect is used by Freighter Mobile when the app is opened
+        // in a phone browser. Keep these explicit so the CSP stays narrow.
+        "https://echo.walletconnect.org",
+        "https://pulse.walletconnect.org",
+        "https://rpc.walletconnect.org",
+        "https://relay.walletconnect.org",
+        "https://verify.walletconnect.org",
+        "wss://relay.walletconnect.org",
         isDev ? "ws://localhost:*" : "",
       ]
         .filter(Boolean)
