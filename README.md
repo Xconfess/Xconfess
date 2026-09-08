@@ -13,7 +13,7 @@ xConfess is a privacy-first anonymous social app powered by Stellar.
 - Network: Stellar testnet by default, configurable for mainnet
 - Contract deployments: [deployments/README.md](deployments/README.md)
 - Metrics methodology: [docs/traction-metrics.md](docs/traction-metrics.md)
-- Readiness evidence: [docs/grantfox-readiness.md](docs/grantfox-readiness.md)
+- Readiness evidence: [docs/product-readiness.md](docs/product-readiness.md)
 
 ## Live Product Metrics
 

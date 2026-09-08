@@ -9,7 +9,7 @@ Every contributor-ready issue should have:
 - one type label: `bug`, `feature`, `chore`, `docs`, or `test`
 - one or two area labels: `frontend`, `backend`, `stellar`, `contracts`, `ops`, `security`, `ux`, `api`
 - one priority label: `P0`, `P1`, `P2`, or `P3`
-- optionally a program label: `Stellar Wave`, `GrantFox OSS`, `Maybe Rewarded`, `Official Campaign`
+- optionally a program label: `Stellar Wave`, `Maybe Rewarded`, `Official Campaign`
 
 Use `good first issue` only when the contributor can complete the task without deep product context.
 Use `help wanted` when maintainers want external implementation but the work may require reading code.
