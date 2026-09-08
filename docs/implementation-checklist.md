@@ -45,6 +45,7 @@ This checklist tracks implementation against the attached GrantFox readiness bri
 - [x] Review dependency vulnerabilities and document remaining accepted low-risk findings.
 - [x] Add production readiness command.
 - [x] Run local production readiness command.
+- [x] Add machine-readable and human-readable production readiness scorecard output.
 - [x] Resolve live deployed smoke failure: deployed smoke now retries Render
   hibernate wake responses and passed without mutation mode on 2026-09-07.
 

@@ -1,8 +1,8 @@
 ﻿# xConfess
 
-![CI](https://github.com/Dataguru-tech/Xconfess/actions/workflows/ci.yml/badge.svg)
-![License](https://img.shields.io/github/license/Dataguru-tech/Xconfess)
-![Node](https://img.shields.io/badge/node-%3E%3D18-brightgreen)
+![CI](https://github.com/Xconfess/Xconfess/actions/workflows/ci.yml/badge.svg)
+![License](https://img.shields.io/github/license/Xconfess/Xconfess)
+![Node](https://img.shields.io/badge/node-22.x-brightgreen)
 
 
 xConfess is a privacy-first anonymous social app powered by Stellar.
@@ -13,6 +13,7 @@ xConfess is a privacy-first anonymous social app powered by Stellar.
 - Network: Stellar testnet by default, configurable for mainnet
 - Contract deployments: [deployments/README.md](deployments/README.md)
 - Metrics methodology: [docs/traction-metrics.md](docs/traction-metrics.md)
+- Readiness evidence: [docs/grantfox-readiness.md](docs/grantfox-readiness.md)
 
 ## Live Product Metrics
 
@@ -265,7 +266,7 @@ cd xconfess-contracts
 # Format
 cargo fmt --all
 
-# Lint (clippy, warnings as errors â€” mirrors CI)
+# Lint (clippy, warnings as errors - mirrors CI)
 cargo clippy --workspace --all-targets --all-features -- -D warnings
 
 # Tests
@@ -340,7 +341,7 @@ npm run contract:lint
 npm run ci
 ```
 
-This runs `ci:backend`, `ci:frontend`, and `ci:contract` in sequence â€” build, lint, and test for each package.
+This runs `ci:backend`, `ci:frontend`, and `ci:contract` in sequence - build, lint, and test for each package.
 
 ## Contributing
 
