@@ -14,6 +14,15 @@ const makeRawCountQuery = (count: string) => ({
   getRawOne: jest.fn().mockResolvedValue({ count }),
 });
 
+const makeQuery = (count = 0, raw: Record<string, string> = { count: String(count) }) => ({
+  select: jest.fn().mockReturnThis(),
+  innerJoin: jest.fn().mockReturnThis(),
+  where: jest.fn().mockReturnThis(),
+  andWhere: jest.fn().mockReturnThis(),
+  getCount: jest.fn().mockResolvedValue(count),
+  getRawOne: jest.fn().mockResolvedValue(raw),
+});
+
 describe('TractionMetricsService', () => {
   it('returns aggregate-only public metrics with real repository counts', async () => {
     const eventRepo = {
@@ -102,5 +111,102 @@ describe('TractionMetricsService', () => {
     });
     expect(JSON.stringify(result)).not.toContain('content');
     expect(JSON.stringify(result)).not.toContain('email');
+  });
+
+  it('excludes configured test and internal IDs from public aggregates', async () => {
+    const eventQueries = [
+      makeQuery(0, { count: '2' }),
+      makeQuery(0, { count: '3' }),
+      makeQuery(0, { count: '4' }),
+      makeQuery(5),
+      makeQuery(0, { count: '6' }),
+      makeQuery(0, { count: '7' }),
+      makeQuery(0, { count: '1' }),
+      makeQuery(8),
+    ];
+    const eventRepo = {
+      count: jest.fn(),
+      createQueryBuilder: jest.fn(() => eventQueries.shift()),
+    };
+    const userQuery = makeQuery(9);
+    const confessionQuery = makeQuery(10);
+    const commentQuery = makeQuery(11);
+    const reactionQuery = makeQuery(12);
+    const messageQuery = makeQuery(13);
+    const tipCountQuery = makeQuery(14);
+    const tipSumQuery = makeQuery(0, { total: '2.5000000' });
+    const cache = {
+      get: jest.fn().mockResolvedValue(null),
+      set: jest.fn().mockResolvedValue(undefined),
+    } as unknown as CacheService;
+    const config = {
+      get: jest.fn((key: string, fallback?: string) => {
+        const values: Record<string, string> = {
+          STELLAR_NETWORK: 'testnet',
+          TRACTION_CACHE_TTL_SECONDS: '60',
+          TRACTION_EXCLUDED_USER_IDS: '41,42',
+          TRACTION_EXCLUDED_ANONYMOUS_USER_IDS: 'anon-test,anon-internal',
+          TRACTION_EXCLUDED_ACTOR_IDS: 'actor-smoke',
+        };
+        return values[key] ?? fallback;
+      }),
+    } as unknown as ConfigService;
+
+    const service = new TractionMetricsService(
+      eventRepo as any,
+      { createQueryBuilder: jest.fn(() => userQuery) } as any,
+      { createQueryBuilder: jest.fn(() => confessionQuery) } as any,
+      { createQueryBuilder: jest.fn(() => commentQuery) } as any,
+      { createQueryBuilder: jest.fn(() => reactionQuery) } as any,
+      { createQueryBuilder: jest.fn(() => messageQuery) } as any,
+      {
+        createQueryBuilder: jest
+          .fn()
+          .mockReturnValueOnce(tipCountQuery)
+          .mockReturnValueOnce(tipSumQuery),
+      } as any,
+      makeCountRepo(1) as any,
+      cache,
+      config,
+    );
+
+    const result = await service.getPublicMetrics();
+
+    expect(result.users).toMatchObject({ totalRegistered: 9, dau: 2, wau: 3, mau: 4 });
+    expect(result.engagement).toMatchObject({
+      confessionsCreated: 10,
+      commentsCreated: 11,
+      reactionsCreated: 12,
+      messagesSent: 13,
+    });
+    expect(result.stellar).toMatchObject({
+      walletsConnected: 5,
+      submittedTransactions: 6,
+      confirmedTransactions: 14,
+      failedTransactions: 1,
+      successfulTips: 14,
+      tipVolumeByAsset: { XLM: '2.5' },
+      sorobanEventsIndexed: 8,
+    });
+
+    expect(userQuery.where).toHaveBeenCalledWith(
+      'user.id NOT IN (:...excludedRegisteredUserIds)',
+      { excludedRegisteredUserIds: [41, 42] },
+    );
+    expect(confessionQuery.andWhere).toHaveBeenCalledWith(
+      'confession.anonymousUserId NOT IN (:...excludedAnonymousUserIds)',
+      { excludedAnonymousUserIds: ['anon-test', 'anon-internal'] },
+    );
+    expect(commentQuery.andWhere).toHaveBeenCalledWith(
+      'anonymousUser.id NOT IN (:...excludedAnonymousUserIds)',
+      { excludedAnonymousUserIds: ['anon-test', 'anon-internal'] },
+    );
+    expect(messageQuery.where).toHaveBeenCalledWith(
+      'sender.id NOT IN (:...excludedAnonymousUserIds)',
+      { excludedAnonymousUserIds: ['anon-test', 'anon-internal'] },
+    );
+    expect(eventRepo.count).not.toHaveBeenCalled();
+    expect(JSON.stringify(result)).not.toContain('actor-smoke');
+    expect(JSON.stringify(result)).not.toContain('anon-test');
   });
 });

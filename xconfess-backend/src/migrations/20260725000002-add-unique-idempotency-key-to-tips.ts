@@ -24,6 +24,10 @@ export class AddUniqueIdempotencyKeyToTips20260725000002
   name = 'AddUniqueIdempotencyKeyToTips20260725000002';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
+    if (!(await queryRunner.hasTable('tips'))) {
+      return;
+    }
+
     // 1. Drop the old non-unique index added in 20260527000001 (if it exists).
     await queryRunner.query(`
       DROP INDEX IF EXISTS "IDX_tips_idempotency_key";
@@ -39,6 +43,10 @@ export class AddUniqueIdempotencyKeyToTips20260725000002
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
+    if (!(await queryRunner.hasTable('tips'))) {
+      return;
+    }
+
     await queryRunner.query(`
       DROP INDEX IF EXISTS "UQ_tips_idempotency_key";
     `);

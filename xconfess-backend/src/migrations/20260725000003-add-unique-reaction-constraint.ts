@@ -6,6 +6,10 @@ export class AddUniqueReactionConstraint20260725000003
   name = 'AddUniqueReactionConstraint20260725000003';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
+    if (!(await queryRunner.hasTable('reaction'))) {
+      return;
+    }
+
     await queryRunner.query(`
       CREATE UNIQUE INDEX IF NOT EXISTS "uq_reaction_confession_user"
         ON "reaction" ("confession_id", "anonymous_user_id");

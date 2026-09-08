@@ -6,6 +6,8 @@ export class HashExportDownloadTokens20260723000002
   name = 'HashExportDownloadTokens20260723000002';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
+    const hasExportRequests = await queryRunner.hasTable('export_requests');
+
     await queryRunner.query(`
       DO $$
       BEGIN
@@ -18,6 +20,10 @@ export class HashExportDownloadTokens20260723000002
         END IF;
       END $$;
     `);
+
+    if (!hasExportRequests) {
+      return;
+    }
 
     await queryRunner.query(`
       ALTER TABLE "export_requests"
@@ -48,6 +54,10 @@ export class HashExportDownloadTokens20260723000002
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
+    if (!(await queryRunner.hasTable('export_requests'))) {
+      return;
+    }
+
     await queryRunner.query(`
       ALTER TABLE "export_requests"
         ADD COLUMN IF NOT EXISTS "downloadToken" VARCHAR(255) NULL,

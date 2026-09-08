@@ -4,6 +4,10 @@ export class AddSoftDeleteColumns2026022300000 implements MigrationInterface {
     name = 'AddSoftDeleteColumns2026022300000';
 
     public async up(queryRunner: QueryRunner): Promise<void> {
+        if (!(await queryRunner.hasTable('anonymous_confessions'))) {
+            return;
+        }
+
         // Add deleted_at column
         const hasDeletedAt = await queryRunner.hasColumn(
             'anonymous_confessions',
@@ -40,6 +44,10 @@ export class AddSoftDeleteColumns2026022300000 implements MigrationInterface {
     }
 
     public async down(queryRunner: QueryRunner): Promise<void> {
+        if (!(await queryRunner.hasTable('anonymous_confessions'))) {
+            return;
+        }
+
         const hasDeletedAt = await queryRunner.hasColumn(
             'anonymous_confessions',
             'deleted_at',

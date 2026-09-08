@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { createHash } from 'crypto';
 import { CacheService } from '../cache/cache.service';
 import { Comment } from '../comment/entities/comment.entity';
 import { AnonymousConfession } from '../confession/entities/confession.entity';
@@ -81,11 +82,15 @@ export class TractionMetricsService {
   ) {}
 
   async getPublicMetrics(): Promise<TractionMetrics> {
-    const cacheKey = 'analytics:traction:public:v1';
+    const cacheKey = `analytics:traction:public:v1:${this.exclusionFingerprint()}`;
     const cached = await this.cacheService.get<TractionMetrics>(cacheKey);
     if (cached) {
       return cached;
     }
+
+    const excludedRegisteredUserIds = this.getExcludedRegisteredUserIds();
+    const excludedAnonymousUserIds = this.getExcludedAnonymousUserIds();
+    const excludedActorIds = this.getExcludedActorIds();
 
     const [
       totalRegistered,
@@ -104,22 +109,20 @@ export class TractionMetricsService {
       tipVolumeXlm,
       sorobanEventsIndexed,
     ] = await Promise.all([
-      this.userRepository.count(),
-      this.countActiveUsers(1),
-      this.countActiveUsers(7),
-      this.countActiveUsers(30),
-      this.confessionRepository.count({ where: { isDeleted: false } }),
-      this.commentRepository.count({ where: { isDeleted: false } }),
-      this.reactionRepository.count(),
-      this.messageRepository.count(),
-      this.countEvents('wallet_connected'),
-      this.countDistinctTransactionEvents('stellar_tx_submitted'),
-      this.countDistinctTransactionEvents('stellar_tx_confirmed'),
-      this.countDistinctTransactionEvents('stellar_tx_failed'),
-      this.tipRepository.count({
-        where: { verificationStatus: TipVerificationStatus.VERIFIED },
-      }),
-      this.sumVerifiedTips(),
+      this.countRegisteredUsers(excludedRegisteredUserIds),
+      this.countActiveUsers(1, excludedActorIds),
+      this.countActiveUsers(7, excludedActorIds),
+      this.countActiveUsers(30, excludedActorIds),
+      this.countConfessionsCreated(excludedAnonymousUserIds),
+      this.countCommentsCreated(excludedAnonymousUserIds),
+      this.countReactionsCreated(excludedAnonymousUserIds),
+      this.countMessagesSent(excludedAnonymousUserIds),
+      this.countEvents('wallet_connected', excludedActorIds),
+      this.countDistinctTransactionEvents('stellar_tx_submitted', excludedActorIds),
+      this.countDistinctTransactionEvents('stellar_tx_confirmed', excludedActorIds),
+      this.countDistinctTransactionEvents('stellar_tx_failed', excludedActorIds),
+      this.countVerifiedTips(excludedAnonymousUserIds),
+      this.sumVerifiedTips(excludedAnonymousUserIds),
       this.countSorobanEvidence(),
     ]);
 
@@ -172,46 +175,173 @@ export class TractionMetricsService {
     return result;
   }
 
-  private async countActiveUsers(days: number): Promise<number> {
+  private async countRegisteredUsers(excludedRegisteredUserIds: number[]): Promise<number> {
+    if (excludedRegisteredUserIds.length === 0) {
+      return this.userRepository.count();
+    }
+
+    return this.userRepository
+      .createQueryBuilder('user')
+      .where('user.id NOT IN (:...excludedRegisteredUserIds)', {
+        excludedRegisteredUserIds,
+      })
+      .getCount();
+  }
+
+  private async countActiveUsers(
+    days: number,
+    excludedActorIds: string[],
+  ): Promise<number> {
     const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
-    const row = await this.analyticsEventRepository
+    const query = this.analyticsEventRepository
       .createQueryBuilder('event')
       .select('COUNT(DISTINCT event.actorId)', 'count')
       .where('event.occurredAt >= :since', { since })
       .andWhere('event.actorId IS NOT NULL')
       .andWhere('event.eventName IN (:...eventNames)', {
         eventNames: MEANINGFUL_ACTIVE_EVENTS,
-      })
-      .getRawOne<{ count?: string }>();
+      });
+
+    this.applyActorExclusion(query, excludedActorIds, false);
+
+    const row = await query.getRawOne<{ count?: string }>();
 
     return Number(row?.count ?? 0);
   }
 
-  private async countEvents(eventName: AnalyticsEventName): Promise<number> {
-    return this.analyticsEventRepository.count({ where: { eventName } });
+  private async countConfessionsCreated(
+    excludedAnonymousUserIds: string[],
+  ): Promise<number> {
+    if (excludedAnonymousUserIds.length === 0) {
+      return this.confessionRepository.count({ where: { isDeleted: false } });
+    }
+
+    return this.confessionRepository
+      .createQueryBuilder('confession')
+      .where('confession.isDeleted = :isDeleted', { isDeleted: false })
+      .andWhere('confession.anonymousUserId NOT IN (:...excludedAnonymousUserIds)', {
+        excludedAnonymousUserIds,
+      })
+      .getCount();
+  }
+
+  private async countCommentsCreated(
+    excludedAnonymousUserIds: string[],
+  ): Promise<number> {
+    if (excludedAnonymousUserIds.length === 0) {
+      return this.commentRepository.count({ where: { isDeleted: false } });
+    }
+
+    return this.commentRepository
+      .createQueryBuilder('comment')
+      .innerJoin('comment.anonymousUser', 'anonymousUser')
+      .where('comment.isDeleted = :isDeleted', { isDeleted: false })
+      .andWhere('anonymousUser.id NOT IN (:...excludedAnonymousUserIds)', {
+        excludedAnonymousUserIds,
+      })
+      .getCount();
+  }
+
+  private async countReactionsCreated(
+    excludedAnonymousUserIds: string[],
+  ): Promise<number> {
+    if (excludedAnonymousUserIds.length === 0) {
+      return this.reactionRepository.count();
+    }
+
+    return this.reactionRepository
+      .createQueryBuilder('reaction')
+      .innerJoin('reaction.anonymousUser', 'anonymousUser')
+      .where('anonymousUser.id NOT IN (:...excludedAnonymousUserIds)', {
+        excludedAnonymousUserIds,
+      })
+      .getCount();
+  }
+
+  private async countMessagesSent(excludedAnonymousUserIds: string[]): Promise<number> {
+    if (excludedAnonymousUserIds.length === 0) {
+      return this.messageRepository.count();
+    }
+
+    return this.messageRepository
+      .createQueryBuilder('message')
+      .innerJoin('message.sender', 'sender')
+      .where('sender.id NOT IN (:...excludedAnonymousUserIds)', {
+        excludedAnonymousUserIds,
+      })
+      .getCount();
+  }
+
+  private async countEvents(
+    eventName: AnalyticsEventName,
+    excludedActorIds: string[] = this.getExcludedActorIds(),
+  ): Promise<number> {
+    if (excludedActorIds.length === 0) {
+      return this.analyticsEventRepository.count({ where: { eventName } });
+    }
+
+    const query = this.analyticsEventRepository
+      .createQueryBuilder('event')
+      .where('event.eventName = :eventName', { eventName });
+
+    this.applyActorExclusion(query, excludedActorIds, true);
+
+    return query.getCount();
   }
 
   private async countDistinctTransactionEvents(
     eventName: AnalyticsEventName,
+    excludedActorIds: string[],
   ): Promise<number> {
-    const row = await this.analyticsEventRepository
+    const query = this.analyticsEventRepository
       .createQueryBuilder('event')
       .select('COUNT(DISTINCT event.txHash)', 'count')
       .where('event.eventName = :eventName', { eventName })
-      .andWhere('event.txHash IS NOT NULL')
-      .getRawOne<{ count?: string }>();
+      .andWhere('event.txHash IS NOT NULL');
+
+    this.applyActorExclusion(query, excludedActorIds, true);
+
+    const row = await query.getRawOne<{ count?: string }>();
 
     return Number(row?.count ?? 0);
   }
 
-  private async sumVerifiedTips(): Promise<number> {
-    const row = await this.tipRepository
+  private async countVerifiedTips(excludedAnonymousUserIds: string[]): Promise<number> {
+    if (excludedAnonymousUserIds.length === 0) {
+      return this.tipRepository.count({
+        where: { verificationStatus: TipVerificationStatus.VERIFIED },
+      });
+    }
+
+    return this.tipRepository
+      .createQueryBuilder('tip')
+      .innerJoin('tip.confession', 'confession')
+      .where('tip.verificationStatus = :status', {
+        status: TipVerificationStatus.VERIFIED,
+      })
+      .andWhere('confession.anonymousUserId NOT IN (:...excludedAnonymousUserIds)', {
+        excludedAnonymousUserIds,
+      })
+      .getCount();
+  }
+
+  private async sumVerifiedTips(excludedAnonymousUserIds: string[]): Promise<number> {
+    const query = this.tipRepository
       .createQueryBuilder('tip')
       .select('COALESCE(SUM(tip.amount), 0)', 'total')
       .where('tip.verificationStatus = :status', {
         status: TipVerificationStatus.VERIFIED,
-      })
-      .getRawOne<{ total?: string }>();
+      });
+
+    if (excludedAnonymousUserIds.length > 0) {
+      query
+        .innerJoin('tip.confession', 'confession')
+        .andWhere('confession.anonymousUserId NOT IN (:...excludedAnonymousUserIds)', {
+          excludedAnonymousUserIds,
+        });
+    }
+
+    const row = await query.getRawOne<{ total?: string }>();
 
     return Number(row?.total ?? 0);
   }
@@ -232,5 +362,68 @@ export class TractionMetricsService {
   private getCacheTtlSeconds(): number {
     const ttl = Number(this.configService.get<string>('TRACTION_CACHE_TTL_SECONDS', '60'));
     return Number.isFinite(ttl) && ttl > 0 ? ttl : 60;
+  }
+
+  private applyActorExclusion(
+    query: {
+      andWhere: (condition: string, parameters?: Record<string, unknown>) => unknown;
+    },
+    excludedActorIds: string[],
+    keepAnonymousEvents: boolean,
+  ): void {
+    if (excludedActorIds.length === 0) {
+      return;
+    }
+
+    query.andWhere(
+      keepAnonymousEvents
+        ? '(event.actorId IS NULL OR event.actorId NOT IN (:...excludedActorIds))'
+        : 'event.actorId NOT IN (:...excludedActorIds)',
+      { excludedActorIds },
+    );
+  }
+
+  private getExcludedRegisteredUserIds(): number[] {
+    return this.parseCsv('TRACTION_EXCLUDED_USER_IDS')
+      .map((value) => Number(value))
+      .filter((value) => Number.isInteger(value) && value > 0);
+  }
+
+  private getExcludedAnonymousUserIds(): string[] {
+    return this.parseCsv('TRACTION_EXCLUDED_ANONYMOUS_USER_IDS');
+  }
+
+  private getExcludedActorIds(): string[] {
+    return [
+      ...this.parseCsv('TRACTION_EXCLUDED_ACTOR_IDS'),
+      ...this.getExcludedAnonymousUserIds(),
+      ...this.getExcludedRegisteredUserIds().map(String),
+    ].filter((value, index, values) => values.indexOf(value) === index);
+  }
+
+  private exclusionFingerprint(): string {
+    const values = [
+      ...this.getExcludedActorIds(),
+      ...this.getExcludedAnonymousUserIds(),
+      ...this.getExcludedRegisteredUserIds().map(String),
+    ].sort();
+
+    if (values.length === 0) {
+      return 'none';
+    }
+
+    return createHash('sha256').update(values.join('\n')).digest('hex').slice(0, 12);
+  }
+
+  private parseCsv(key: string): string[] {
+    const raw = this.configService.get<string>(key, '');
+    if (!raw) {
+      return [];
+    }
+
+    return raw
+      .split(',')
+      .map((value) => value.trim())
+      .filter((value, index, values) => value.length > 0 && values.indexOf(value) === index);
   }
 }

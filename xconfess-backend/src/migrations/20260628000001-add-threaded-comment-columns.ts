@@ -14,6 +14,7 @@ export class AddThreadedCommentColumns20260628000001
   name = "AddThreadedCommentColumns20260628000001";
 
   public async up(queryRunner: QueryRunner): Promise<void> {
+    if (await queryRunner.hasTable('comments')) {
     // Add editedAt column
     await queryRunner.query(`
       ALTER TABLE "comments"
@@ -25,19 +26,25 @@ export class AddThreadedCommentColumns20260628000001
       ALTER TABLE "comments"
       ADD COLUMN IF NOT EXISTS "mentionedUsernames" TEXT DEFAULT NULL
     `);
+    }
 
     // Extend notification type enum with new values
     await queryRunner.query(`
-      ALTER TYPE "notifications_type_enum"
-      ADD VALUE IF NOT EXISTS 'mention'
-    `);
-    await queryRunner.query(`
-      ALTER TYPE "notifications_type_enum"
-      ADD VALUE IF NOT EXISTS 'comment_reply'
+      DO $$
+      BEGIN
+        IF EXISTS (SELECT 1 FROM pg_type WHERE typname = 'notifications_type_enum') THEN
+          ALTER TYPE "notifications_type_enum" ADD VALUE IF NOT EXISTS 'mention';
+          ALTER TYPE "notifications_type_enum" ADD VALUE IF NOT EXISTS 'comment_reply';
+        END IF;
+      END $$;
     `);
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
+    if (!(await queryRunner.hasTable('comments'))) {
+      return;
+    }
+
     await queryRunner.query(`
       ALTER TABLE "comments" DROP COLUMN IF EXISTS "editedAt"
     `);

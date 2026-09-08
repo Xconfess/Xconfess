@@ -4,6 +4,10 @@ export class AddRequestIdToAuditLogs20260423000002 implements MigrationInterface
   name = 'AddRequestIdToAuditLogs20260423000002';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
+    if (!(await queryRunner.hasTable('audit_logs'))) {
+      return;
+    }
+
     await queryRunner.query(`
       ALTER TABLE "audit_logs"
         ADD COLUMN IF NOT EXISTS "request_id" VARCHAR(64) NULL;

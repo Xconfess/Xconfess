@@ -14,9 +14,9 @@ This checklist tracks implementation against the attached GrantFox readiness bri
 - [x] Add `GET /api/public/traction`.
 - [x] Add tests for privacy rejection, idempotency, and public aggregate shape.
 - [x] Update safe analytics environment variable examples.
-- [x] Run backend lint, focused tests, build, and attempted migration validation.
+- [x] Run backend lint, focused tests, build, and migration validation.
 - [x] Resolve pre-existing unrelated backend suite failures.
-- [ ] Run migration validation with configured database environment.
+- [x] Run migration validation with configured database environment.
 
 ## Milestone 2 - Show Reality
 
@@ -42,9 +42,11 @@ This checklist tracks implementation against the attached GrantFox readiness bri
 - [x] Tighten observability and correlation IDs where needed.
 - [x] Add production smoke suite command.
 - [x] Add focused security regression suite.
+- [x] Review dependency vulnerabilities and document remaining accepted low-risk findings.
 - [x] Add production readiness command.
 - [x] Run local production readiness command.
-- [ ] Resolve live deployed smoke failure: backend liveness timed out after 15000ms.
+- [x] Resolve live deployed smoke failure: deployed smoke now retries Render
+  hibernate wake responses and passed without mutation mode on 2026-09-07.
 
 ## Milestone 5 - Prepare For Campaign
 
@@ -58,4 +60,4 @@ This checklist tracks implementation against the attached GrantFox readiness bri
 - [x] No private message body in analytics.
 - [x] No email, phone, JWT, auth token, password hash, seed phrase, private key, or raw IP in analytics.
 - [x] Public metrics are aggregate-only.
-- [ ] Test and internal account exclusions are explicit and documented before use.
+- [x] Test and internal account exclusions are explicit and documented before use.

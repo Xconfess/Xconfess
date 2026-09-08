@@ -1,28 +1,27 @@
-import { MigrationInterface, QueryRunner, TableColumn } from 'typeorm';
+import { MigrationInterface, QueryRunner } from 'typeorm';
 
 export class AddSchedulingToConfessions20260627000011 implements MigrationInterface {
   public async up(queryRunner: QueryRunner): Promise<void> {
-    await queryRunner.addColumn(
-      'anonymous_confessions',
-      new TableColumn({
-        name: 'status',
-        type: 'varchar',
-        default: "'published'",
-      }),
-    );
+    if (!(await queryRunner.hasTable('anonymous_confessions'))) {
+      return;
+    }
 
-    await queryRunner.addColumn(
-      'anonymous_confessions',
-      new TableColumn({
-        name: 'publish_at',
-        type: 'timestamp',
-        isNullable: true,
-      }),
-    );
+    await queryRunner.query(`
+      ALTER TABLE "anonymous_confessions"
+        ADD COLUMN IF NOT EXISTS "status" varchar DEFAULT 'published',
+        ADD COLUMN IF NOT EXISTS "publish_at" timestamp NULL;
+    `);
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
-    await queryRunner.dropColumn('anonymous_confessions', 'publish_at');
-    await queryRunner.dropColumn('anonymous_confessions', 'status');
+    if (!(await queryRunner.hasTable('anonymous_confessions'))) {
+      return;
+    }
+
+    await queryRunner.query(`
+      ALTER TABLE "anonymous_confessions"
+        DROP COLUMN IF EXISTS "publish_at",
+        DROP COLUMN IF EXISTS "status";
+    `);
   }
 }

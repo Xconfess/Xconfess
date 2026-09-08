@@ -4,6 +4,14 @@ export class AlignConfessionSchema20260225140000 implements MigrationInterface {
     name = 'AlignConfessionSchema20260225140000'
 
     public async up(queryRunner: QueryRunner): Promise<void> {
+        const hasConfessionsTable = await queryRunner.hasTable('anonymous_confessions');
+        const hasUserTable = await queryRunner.hasTable('user');
+
+        if (!hasConfessionsTable && !hasUserTable) {
+            return;
+        }
+
+        if (hasConfessionsTable) {
         // Add view_count to anonymous_confessions
         await queryRunner.query(`ALTER TABLE "anonymous_confessions" ADD COLUMN IF NOT EXISTS "view_count" INTEGER NOT NULL DEFAULT 0`);
 
@@ -60,9 +68,12 @@ export class AlignConfessionSchema20260225140000 implements MigrationInterface {
 
         // Create index for created_at
         await queryRunner.query(`CREATE INDEX IF NOT EXISTS "idx_confession_created_at" ON "anonymous_confessions"("created_at" DESC)`);
+        }
 
         // Port legacy user active status if not exists
+        if (hasUserTable) {
         await queryRunner.query(`ALTER TABLE "user" ADD COLUMN IF NOT EXISTS "is_active" boolean NOT NULL DEFAULT true`);
+        }
     }
 
     public async down(queryRunner: QueryRunner): Promise<void> {
