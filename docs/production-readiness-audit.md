@@ -2,7 +2,7 @@
 
 Date: 2026-09-05
 
-This audit treats the GrantFox implementation brief as product requirements and the repository as the source of truth. It does not include live traffic claims or fabricated usage data.
+This audit treats the readiness implementation brief as product requirements and the repository as the source of truth. It does not include live traffic claims or fabricated usage data.
 
 ## Summary
 
@@ -40,7 +40,7 @@ This audit treats the GrantFox implementation brief as product requirements and 
 - `TippingService` idempotency, retry metadata, and `tip.verified`/`tip.verification_failed` events.
 - Stellar configuration through `STELLAR_NETWORK`, Horizon/RPC URLs, and contract ID env vars.
 
-## Critical Blockers For GrantFox Readiness
+## Critical Blockers For Production Readiness
 
 - No public aggregate traction endpoint exists.
 - No persisted privacy-safe analytics event pipeline exists.

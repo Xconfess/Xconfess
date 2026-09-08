@@ -1,6 +1,6 @@
-# Xconfess GrantFox Implementation Checklist
+# Xconfess Readiness Implementation Checklist
 
-This checklist tracks implementation against the attached GrantFox readiness brief. Metrics must come from real persisted data only.
+This checklist tracks implementation against the attached readiness brief. Metrics must come from real persisted data only.
 
 ## Milestone 1 - Measure Reality
 
@@ -51,7 +51,7 @@ This checklist tracks implementation against the attached GrantFox readiness bri
 
 ## Milestone 5 - Prepare For Campaign
 
-- [x] Publish `docs/grantfox-readiness.md`.
+- [x] Publish `docs/product-readiness.md`.
 - [x] Restructure README top section for product evidence.
 - [x] Create only substantive future campaign issues where genuine work remains.
 

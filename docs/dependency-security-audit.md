@@ -2,7 +2,7 @@
 
 Date: 2026-09-07
 
-This record documents the dependency audit performed for GrantFox readiness.
+This record documents the dependency audit performed for production readiness.
 It does not include fabricated usage, traction, or security claims.
 
 ## Scope

@@ -1,8 +1,8 @@
-# Xconfess GrantFox Readiness
+# Xconfess Product Readiness
 
 Date: 2026-09-08
 
-This document summarizes the current GrantFox readiness evidence in the
+This document summarizes the current production readiness evidence in the
 repository. It does not fabricate users, traction, transaction counts, or live
 usage statistics.
 

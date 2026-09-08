@@ -92,7 +92,7 @@ Both xconfess-postgres and xconfess-redis should show healthy.
 
 If you are contributing through an OSS campaign or grant program:
 
-- Start with issues labeled `good first issue`, `help wanted`, `Stellar Wave`, `GrantFox OSS`, or `Maybe Rewarded`.
+- Start with issues labeled `good first issue`, `help wanted`, `Stellar Wave`, `Maybe Rewarded`, or `Official Campaign`.
 - Comment on the issue before starting so maintainers can confirm it is still available.
 - Keep the PR focused on one issue. Do not bundle unrelated cleanup.
 - Follow the acceptance criteria and validation commands listed in the issue.
@@ -245,7 +245,7 @@ Use Conventional Commits format: feat(backend): add GDPR data export endpoint
 
 ## Wave / Drips Contribution Guidelines
 
-Xconfess participates in multiple OSS programs, including Stellar Wave and GrantFox OSS. If your contribution is tied to a program issue:
+Xconfess participates in multiple OSS programs, including Stellar Wave. If your contribution is tied to a program issue:
 
 - Reference the issue number in your PR description
 - Keep each program contribution as a single focused PR - one issue, one PR

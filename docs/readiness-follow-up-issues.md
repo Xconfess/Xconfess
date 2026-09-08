@@ -1,4 +1,4 @@
-# GrantFox Follow-Up Issues
+# Readiness Follow-Up Issues
 
 Date: 2026-09-05
 
@@ -44,8 +44,8 @@ validation. They are not placeholders for invented traction or campaign copy.
 - Status: Completed on 2026-09-07.
 - Evidence: `npm run frontend:lint` exited successfully with no warnings after
   cleanup merged into `main`.
-- Impact: Frontend lint no longer carries known warning debt into GrantFox
-  readiness checks.
+- Impact: Frontend lint no longer carries known warning debt into readiness
+  checks.
 - Acceptance: Keep `npm run frontend:lint` warning-free.
 
 ## 4. Review Dependency Vulnerabilities
