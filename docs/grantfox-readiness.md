@@ -1,6 +1,6 @@
 # Xconfess GrantFox Readiness
 
-Date: 2026-09-07
+Date: 2026-09-08
 
 This document summarizes the current GrantFox readiness evidence in the
 repository. It does not fabricate users, traction, transaction counts, or live
@@ -47,20 +47,27 @@ are valid and must not be replaced with projected or manually edited metrics.
 Local readiness command:
 
 ```bash
-npm run production:readiness
+npm run readiness
 ```
 
-Latest local result observed on 2026-09-07:
+The readiness command also writes a schema-versioned JSON scorecard and a
+human-readable Markdown scorecard under ignored local `readiness-results/`.
+See `docs/production-readiness-scorecard.md`.
+
+Latest local result observed on 2026-09-08:
 
 - Backend build: passed.
 - Backend lint: passed.
-- Focused backend readiness tests: passed, 83 tests across analytics, config,
-  Stellar, and tipping suites.
+- Focused backend readiness tests: passed, 63 tests across analytics,
+  public traction, chain reconciliation, Soroban checkpointing, Stellar
+  diagnostics/configuration, and health suites.
 - Frontend lint: passed with no warnings.
 - Frontend typecheck: passed.
+- Focused frontend readiness tests: passed, 3 tests covering traction and the
+  public traction proxy.
 - Frontend production build: passed.
 - Contract environment verification: passed for testnet metadata.
-- Deploy preflight: passed.
+- Secret scanner self-test: passed.
 - Dependency audit: 0 critical, 0 high, and 0 moderate findings. Two accepted
   low findings remain from `csurf`'s bundled `cookie` dependency and are
   documented in `docs/dependency-security-audit.md`.
