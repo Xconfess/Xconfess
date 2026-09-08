@@ -309,7 +309,7 @@ export class AdminController {
   @UseGuards(StepUpGuard)
   @HttpCode(HttpStatus.OK)
   @UseGuards(StepUpGuard)
-  @ApiOperation({ summary: 'Admin-delete a confession' })
+  @ApiOperation({ summary: 'Delete a confession (admin action)' })
   @ApiParam({ name: 'id', description: 'Confession UUID' })
   @ApiBody({ schema: { example: { reason: 'Violates community standards.' } } })
   @ApiResponse({
@@ -494,7 +494,7 @@ export class AdminController {
     return this.adminService.unbanUser(parseInt(id, 10), adminId, req);
   }
 
-  // Moderation Note Templates
+  // Moderation note templates
   @Get('templates')
   async getTemplates(@Query('includeInactive') includeInactive?: string) {
     return this.moderationTemplateService.findAll(includeInactive === 'true');
@@ -529,7 +529,7 @@ export class AdminController {
     await this.moderationTemplateService.delete(parseInt(id, 10));
   }
 
-  // Stellar diagnostics (Issue #1119)
+  // Stellar diagnostics (issue #1119)
   @Get('stellar/diagnostics')
   @ApiOperation({
     summary: 'Stellar network and contract diagnostics with Horizon liveness ping',
@@ -568,7 +568,7 @@ export class AdminController {
     return this.stellarDiagnosticsService.getDiagnostics();
   }
 
-  // Operator anchor & tip lookup (Issue #778)
+  // Operator anchor & tip lookup (issue #778)
   @Get('lookup/anchor-tip')
   async lookupAnchorAndTip(
     @Query('txHash') txHash?: string,
@@ -612,7 +612,7 @@ export class AdminController {
     return this.adminService.getAnalytics(start, end);
   }
 
-  // Audit Logs
+  // Audit logs
   @Get('audit-logs')
   @ApiOperation({ summary: 'Query the admin audit log' })
   @ApiQuery({
