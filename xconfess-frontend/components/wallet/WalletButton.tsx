@@ -101,7 +101,7 @@ export const WalletButton: React.FC<WalletButtonProps> = ({
     return (
       <button
         disabled
-        className={`px-4 py-2 rounded-lg bg-gray-200 text-gray-600 cursor-not-allowed opacity-60 ${className}`}
+        className={`min-h-11 max-w-[42vw] truncate rounded-xl bg-[var(--surface-muted)] px-3 py-2 text-sm text-[var(--secondary)] opacity-70 sm:px-4 ${className}`}
       >
         <span className="inline-block animate-spin mr-2">⏳</span>
         Connecting...
@@ -115,7 +115,7 @@ export const WalletButton: React.FC<WalletButtonProps> = ({
       <div className={`relative group ${className}`}>
         <button
           onClick={handleWalletAction}
-          className="px-4 py-2 rounded-lg bg-red-100 text-red-700 hover:bg-red-200 transition font-medium text-sm border border-red-300"
+          className="min-h-11 max-w-[42vw] truncate rounded-xl border border-rose-300 bg-rose-50 px-3 py-2 text-sm font-medium text-rose-700 transition hover:bg-rose-100 sm:px-4"
           title={error}
         >
           ⚠️{" "}
@@ -134,7 +134,7 @@ export const WalletButton: React.FC<WalletButtonProps> = ({
       <div className={`relative group ${className}`}>
         <button
           onClick={handleDisconnect}
-          className="px-4 py-2 rounded-lg bg-orange-100 text-orange-800 hover:bg-orange-200 transition font-medium text-sm border border-orange-300 flex items-center gap-2"
+          className="flex min-h-11 max-w-[42vw] items-center gap-2 truncate rounded-xl border border-orange-300 bg-orange-50 px-3 py-2 text-sm font-medium text-orange-800 transition hover:bg-orange-100 sm:px-4"
           title={readinessError || "Action Required"}
         >
           ⚠️{" "}
@@ -158,10 +158,10 @@ export const WalletButton: React.FC<WalletButtonProps> = ({
           aria-haspopup="menu"
           aria-expanded={isDropdownOpen}
           aria-label="Wallet menu"
-          className="px-4 py-2 rounded-lg bg-gradient-to-r from-blue-500 to-purple-600 text-white hover:shadow-lg transition font-medium text-sm flex items-center gap-2 whitespace-nowrap"
+          className="flex min-h-11 max-w-[42vw] items-center gap-2 truncate rounded-xl bg-[var(--primary)] px-3 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90 sm:px-4"
         >
           <span className="inline-block w-2 h-2 rounded-full bg-green-400 animate-pulse"></span>
-          {truncateAddress(publicKey)}
+          <span className="truncate">{truncateAddress(publicKey, 4)}</span>
           <svg
             className={`w-4 h-4 transition-transform ${isDropdownOpen ? "rotate-180" : ""}`}
             fill="none"
@@ -250,7 +250,7 @@ export const WalletButton: React.FC<WalletButtonProps> = ({
   return (
     <button
       onClick={handleWalletAction}
-      className={`px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition font-medium text-sm ${className}`}
+      className={`min-h-11 max-w-[42vw] truncate rounded-xl bg-[var(--primary)] px-3 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90 sm:px-4 ${className}`}
     >
       Connect Wallet
     </button>

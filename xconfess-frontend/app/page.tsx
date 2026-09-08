@@ -66,13 +66,13 @@ export default function Home() {
       <Header />
 
       <main className="editorial-shell relative overflow-hidden pb-24">
-        <section className="mx-auto flex w-full max-w-6xl flex-col gap-12 px-4 pb-16 pt-8 sm:px-6 lg:px-8 lg:pt-14">
-          <div className="grid gap-10 lg:grid-cols-[minmax(0,1.25fr)_380px] lg:items-start">
-            <div className="space-y-8">
+        <section className="mx-auto flex w-full max-w-6xl flex-col gap-10 px-3 pb-16 pt-6 sm:gap-12 sm:px-6 sm:pt-8 lg:px-8 lg:pt-14">
+          <div className="grid gap-8 lg:grid-cols-[minmax(0,1.25fr)_380px] lg:items-start">
+            <div className="space-y-6 sm:space-y-8">
               <div className="eyebrow">Anonymous confessions</div>
 
               <div className="max-w-4xl space-y-6">
-                <h1 className="font-editorial text-5xl leading-[0.95] text-[var(--foreground)] sm:text-6xl lg:text-7xl">
+                <h1 className="font-editorial text-4xl leading-[0.98] text-[var(--foreground)] sm:text-6xl lg:text-7xl">
                   Say it. Anonymously.
                 </h1>
                 <p className="max-w-2xl text-base leading-8 text-[var(--secondary)] sm:text-lg">
@@ -81,7 +81,7 @@ export default function Home() {
                 </p>
               </div>
 
-              <div className="flex flex-col gap-3 sm:flex-row">
+              <div className="flex flex-col gap-2.5 sm:flex-row sm:gap-3">
                 <Button size="lg" onClick={scrollToComposer}>
                   Write confession
                 </Button>
@@ -91,7 +91,7 @@ export default function Home() {
               </div>
             </div>
 
-            <aside className="luxury-panel rounded-2xl p-6">
+            <aside className="luxury-panel rounded-2xl p-4 sm:p-6">
               <div className="space-y-3">
                 {trustSignals.map(({ icon: Icon, title, description }) => (
                   <div
@@ -118,7 +118,7 @@ export default function Home() {
           <ErrorBoundary>
             <section
               id="composer"
-              className="grid gap-10 lg:grid-cols-[minmax(0,1.08fr)_320px] lg:items-start"
+              className="grid gap-8 lg:grid-cols-[minmax(0,1.08fr)_320px] lg:items-start"
             >
               <div className="space-y-6">
                 <div className="space-y-3">
