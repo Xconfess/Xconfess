@@ -8,8 +8,6 @@ import { ReactionButton } from "./ReactionButtons";
 import { AnchorButton } from "./AnchorButton";
 import { TipButton } from "./TipButton";
 import { ShareButton } from "./ShareButton";
-import { Checkbox } from "@/app/components/ui/checkbox";
-import { useComparisonStore } from "@/app/lib/store/comparisonStore";
 import type { NormalizedConfession } from "../../lib/utils/normalizeConfession";
 import { getTipStats, type TipStats } from "@/lib/services/tipping.service";
 
@@ -26,7 +24,6 @@ export const ConfessionCard = memo(({ confession }: Props) => {
     confession.tipStats || null
   );
   const [showWarnedContent, setShowWarnedContent] = useState(false);
-  const { addItem, removeItem, isSelected } = useComparisonStore();
 
   useEffect(() => {
     if (!tipStats) {
@@ -41,14 +38,6 @@ export const ConfessionCard = memo(({ confession }: Props) => {
   const handleAnchorSuccess = (newTxHash: string) => {
     setIsAnchored(true);
     setTxHash(newTxHash);
-  };
-
-  const handleCompareToggle = (checked: boolean) => {
-    if (checked) {
-      addItem(confession.id);
-    } else {
-      removeItem(confession.id);
-    }
   };
 
   const timeAgo = (date: string) => {
@@ -72,10 +61,10 @@ export const ConfessionCard = memo(({ confession }: Props) => {
   return (
     <article
       data-shortcut-confession={confession.id}
-      className="luxury-panel rounded-2xl p-6 transition-all duration-300 hover:-translate-y-0.5 hover:bg-[var(--surface-strong)] focus-within:ring-2 focus-within:ring-[var(--primary)]"
+      className="luxury-panel rounded-2xl p-5 transition-all duration-300 hover:-translate-y-0.5 hover:bg-[var(--surface-strong)] focus-within:ring-2 focus-within:ring-[var(--primary)] sm:p-6"
       aria-label={`Confession by ${authorName}`}
     >
-      <div className="mb-5 flex items-center justify-between border-b border-[var(--border)] pb-4">
+      <div className="mb-4 flex items-center justify-between border-b border-[var(--border)] pb-3">
         <div className="flex items-center gap-3">
           {confession.author?.avatar ? (
             <Image
@@ -100,29 +89,15 @@ export const ConfessionCard = memo(({ confession }: Props) => {
               {authorName}
             </p>
             <p className="text-[11px] uppercase tracking-[0.18em] text-[var(--secondary)]">
-              Confession
+              Anonymous confession
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
           <p className="text-xs uppercase tracking-[0.16em] text-[var(--secondary)] sm:text-sm">
             <time dateTime={confession.createdAt}>{timeAgo(confession.createdAt)}</time>
           </p>
-          <div className="flex items-center gap-1.5">
-            <Checkbox
-              id={`compare-${confession.id}`}
-              checked={isSelected(confession.id)}
-              onCheckedChange={handleCompareToggle}
-              aria-label={`Select ${authorName}'s confession for comparison`}
-            />
-            <label
-              htmlFor={`compare-${confession.id}`}
-              className="text-xs leading-none text-[var(--secondary)] cursor-pointer select-none"
-            >
-              Compare
-            </label>
-          </div>
         </div>
       </div>
 
@@ -151,20 +126,17 @@ export const ConfessionCard = memo(({ confession }: Props) => {
           className="group block rounded-lg p-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]"
           aria-label={`Read full confession: ${confession.content.slice(0, 80)}...`}
         >
-          <p className="mb-3 text-[0.72rem] font-semibold uppercase tracking-[0.24em] text-[var(--primary-deep)]">
-            Anonymous
-          </p>
-          <p className="mb-5 font-editorial text-[1.65rem] leading-[1.5] text-[var(--foreground)] transition-colors group-hover:text-[var(--primary-deep)]">
+          <p className="mb-4 font-editorial text-[1.55rem] leading-[1.42] text-[var(--foreground)] transition-colors group-hover:text-[var(--primary-deep)] sm:text-[1.65rem]">
             {confession.content}
           </p>
         </ScrollRestorationLink>
       )}
 
-      <div className="mt-6 flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
-        <div className="flex items-center gap-3 text-sm text-[var(--secondary)]">
+      <div className="mt-4 flex flex-col gap-3 border-t border-[var(--border)] pt-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-2 text-xs text-[var(--secondary)]">
           {confession.viewCount !== undefined && (
             <div
-              className="flex min-h-[44px] min-w-[44px] items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface-muted)] px-3"
+              className="flex min-h-10 min-w-10 items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--surface-muted)] px-2.5"
               aria-label={`${confession.viewCount} views`}
             >
               <Eye className="h-4 w-4" aria-hidden="true" />
@@ -175,7 +147,7 @@ export const ConfessionCard = memo(({ confession }: Props) => {
           {confession.commentCount !== undefined && (
             <ScrollRestorationLink
               href={`/confessions/${confession.id}#comments`}
-              className="flex min-h-[44px] min-w-[44px] items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface-muted)] px-3 transition-colors hover:text-[var(--foreground)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]"
+              className="flex min-h-10 min-w-10 items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--surface-muted)] px-2.5 transition-colors hover:text-[var(--foreground)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]"
               aria-label={`View ${confession.commentCount} comments`}
             >
               <MessageSquare className="h-4 w-4" aria-hidden="true" />
@@ -184,7 +156,7 @@ export const ConfessionCard = memo(({ confession }: Props) => {
           )}
         </div>
 
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2">
           <TipButton
             confessionId={confession.id}
             recipientAddress={confession.author?.stellarAddress}

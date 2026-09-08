@@ -12,22 +12,6 @@ jest.mock("../../../lib/hooks/useConfessionsQuery", () => ({
   useInfiniteConfessions: jest.fn(),
 }));
 
-const mockPush = jest.fn();
-
-jest.mock("next/navigation", () => ({
-  useRouter: () => ({ push: mockPush }),
-}));
-
-const mockClearItems = jest.fn();
-let selectedIds: string[] = [];
-
-jest.mock("../../../lib/store/comparisonStore", () => ({
-  useComparisonStore: () => ({
-    selectedIds,
-    clearItems: mockClearItems,
-  }),
-}));
-
 jest.mock("@tanstack/react-virtual", () => ({
   useWindowVirtualizer: ({ count }: { count: number }) => ({
     getVirtualItems: () =>
@@ -100,7 +84,6 @@ function mockFeedState(overrides: Record<string, unknown> = {}) {
 describe("ConfessionFeed", () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    selectedIds = [];
     mockFeedState();
 
     class MockIntersectionObserver implements IntersectionObserver {
@@ -165,19 +148,10 @@ describe("ConfessionFeed", () => {
     expect(refetch).toHaveBeenCalledTimes(1);
   });
 
-  it("shows the comparison inspector when confessions are selected", () => {
-    selectedIds = ["1", "2"];
-
+  it("does not expose comparison controls in the public feed", () => {
     render(<ConfessionFeed />);
 
-    fireEvent.click(
-      screen.getByRole("button", { name: /compare 2 selected confessions/i }),
-    );
-
-    expect(mockPush).toHaveBeenCalledWith("/compare?ids=1,2");
-
-    fireEvent.click(screen.getByRole("button", { name: /clear selection queue/i }));
-
-    expect(mockClearItems).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText("Compare")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /compare/i })).not.toBeInTheDocument();
   });
 });
