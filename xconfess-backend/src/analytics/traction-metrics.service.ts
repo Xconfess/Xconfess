@@ -12,6 +12,7 @@ import { StellarAnchor } from '../stellar/entities/stellar-anchor.entity';
 import { Tip, TipVerificationStatus } from '../tipping/entities/tip.entity';
 import { User } from '../user/entities/user.entity';
 import { AnalyticsEvent, AnalyticsEventName } from './entities/analytics-event.entity';
+import { ANALYTICS_PRIVACY } from './analytics.constants';
 
 export interface TractionMetrics {
   schemaVersion: 1;
@@ -45,6 +46,13 @@ export interface TractionMetrics {
   };
   reliability: {
     transactionSuccessRate: number | null;
+  };
+  retention: {
+    d1Percent: number | null;
+    d7Percent: number | null;
+    d1CohortSize: number | null;
+    d7CohortSize: number | null;
+    minimumCohortSize: number;
   };
 }
 
@@ -82,7 +90,7 @@ export class TractionMetricsService {
   ) {}
 
   async getPublicMetrics(): Promise<TractionMetrics> {
-    const cacheKey = `analytics:traction:public:v1:${this.exclusionFingerprint()}`;
+    const cacheKey = `analytics:traction:public:v2:${this.exclusionFingerprint()}`;
     const cached = await this.cacheService.get<TractionMetrics>(cacheKey);
     if (cached) {
       return cached;
@@ -108,6 +116,7 @@ export class TractionMetricsService {
       successfulTips,
       tipVolumeXlm,
       sorobanEventsIndexed,
+      retention,
     ] = await Promise.all([
       this.countRegisteredUsers(excludedRegisteredUserIds),
       this.countActiveUsers(1, excludedActorIds),
@@ -124,6 +133,7 @@ export class TractionMetricsService {
       this.countVerifiedTips(excludedAnonymousUserIds),
       this.sumVerifiedTips(excludedAnonymousUserIds),
       this.countSorobanEvidence(),
+      this.calculateRetention(excludedActorIds),
     ]);
 
     const confirmedTransactions = Math.max(confirmedEventTransactions, successfulTips);
@@ -169,10 +179,96 @@ export class TractionMetricsService {
             ? null
             : Number(((confirmedTransactions / terminalTransactions) * 100).toFixed(2)),
       },
+      retention,
     };
 
     await this.cacheService.set(cacheKey, result, this.getCacheTtlSeconds());
     return result;
+  }
+
+  private async calculateRetention(excludedActorIds: string[]): Promise<TractionMetrics['retention']> {
+    // Keep aggregate metrics available for lightweight repository mocks and degraded
+    // environments where retention data has not been provisioned yet.
+    if (typeof this.analyticsEventRepository.createQueryBuilder !== 'function') {
+      return this.emptyRetentionMetrics();
+    }
+    const query = this.analyticsEventRepository.createQueryBuilder('event');
+    if (!query || typeof query.select !== 'function') {
+      return this.emptyRetentionMetrics();
+    }
+    const rows = await query
+      .select('event.actorId', 'actorId')
+      .addSelect('event.occurredAt', 'occurredAt')
+      .where('event.actorId IS NOT NULL')
+      .andWhere('event.eventName IN (:...eventNames)', {
+        eventNames: MEANINGFUL_ACTIVE_EVENTS,
+      })
+      .getRawMany<{ actorId: string; occurredAt: Date | string }>();
+
+    const excluded = new Set(excludedActorIds);
+    const activityByActor = new Map<string, Set<string>>();
+    for (const row of rows) {
+      if (!row.actorId || excluded.has(row.actorId)) continue;
+      const date = new Date(row.occurredAt);
+      if (Number.isNaN(date.getTime())) continue;
+      const day = date.toISOString().slice(0, 10);
+      const activity = activityByActor.get(row.actorId) ?? new Set<string>();
+      activity.add(day);
+      activityByActor.set(row.actorId, activity);
+    }
+
+    const firstSeen = [...activityByActor.entries()].map(([actorId, days]) => ({
+      actorId,
+      days,
+      firstDay: [...days].sort()[0],
+    }));
+    const today = new Date();
+    const dayOffset = (offset: number) => {
+      const date = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()));
+      date.setUTCDate(date.getUTCDate() - offset);
+      return date.toISOString().slice(0, 10);
+    };
+    const dayAfter = (day: string, offset: number) => {
+      const date = new Date(`${day}T00:00:00.000Z`);
+      date.setUTCDate(date.getUTCDate() + offset);
+      return date.toISOString().slice(0, 10);
+    };
+
+    const summarize = (maturityDays: number) => {
+      const latestEligible = dayOffset(maturityDays + 1);
+      const earliestEligible = dayOffset(30 + maturityDays + 1);
+      const cohort = firstSeen.filter(
+        (entry) => entry.firstDay >= earliestEligible && entry.firstDay <= latestEligible,
+      );
+      if (cohort.length < ANALYTICS_PRIVACY.MIN_COHORT_SIZE) {
+        return { percent: null, cohortSize: null };
+      }
+      const retained = cohort.filter((entry) => entry.days.has(dayAfter(entry.firstDay, maturityDays))).length;
+      return {
+        percent: Number(((retained / cohort.length) * 100).toFixed(1)),
+        cohortSize: cohort.length,
+      };
+    };
+
+    const d1 = summarize(1);
+    const d7 = summarize(7);
+    return {
+      d1Percent: d1.percent,
+      d7Percent: d7.percent,
+      d1CohortSize: d1.cohortSize,
+      d7CohortSize: d7.cohortSize,
+      minimumCohortSize: ANALYTICS_PRIVACY.MIN_COHORT_SIZE,
+    };
+  }
+
+  private emptyRetentionMetrics(): TractionMetrics['retention'] {
+    return {
+      d1Percent: null,
+      d7Percent: null,
+      d1CohortSize: null,
+      d7CohortSize: null,
+      minimumCohortSize: ANALYTICS_PRIVACY.MIN_COHORT_SIZE,
+    };
   }
 
   private async countRegisteredUsers(excludedRegisteredUserIds: number[]): Promise<number> {

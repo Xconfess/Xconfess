@@ -87,15 +87,6 @@ export const useWallet = (): UseWalletReturn => {
       const isInstalled = WalletService.isFreighterInstalled();
       setState((prev) => ({ ...prev, isFreighterInstalled: isInstalled }));
 
-      if (!isInstalled) {
-        setState((prev) => ({
-          ...prev,
-          isLoading: false,
-          error: "Freighter wallet is not installed",
-        }));
-        return;
-      }
-
       const storedNetwork = localStorage.getItem(NETWORK_STORAGE_KEY);
       if (storedNetwork) {
         setState((prev) => ({ ...prev, network: storedNetwork }));

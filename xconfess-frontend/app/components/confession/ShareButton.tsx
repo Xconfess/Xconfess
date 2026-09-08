@@ -26,9 +26,9 @@ export function ShareButton({
       ? window.location.origin
       : process.env.NEXT_PUBLIC_APP_URL || "";
   const shareUrl = `${baseUrl}/confessions/${confessionId}`;
-  const shareText = encodeURIComponent(
-    title ? `${title} — xConfess` : "Check out this confession on xConfess"
-  );
+  const shareText = title
+    ? `${title} — xConfess`
+    : "Check out this confession on xConfess";
 
   const copyLink = async () => {
     try {
@@ -50,13 +50,13 @@ export function ShareButton({
   };
 
   const shareViaEmail = () => {
-    const mailto = `mailto:?subject=${shareText}&body=${encodeURIComponent(shareUrl)}`;
+    const mailto = `mailto:?subject=${encodeURIComponent(shareText)}&body=${encodeURIComponent(shareUrl)}`;
     window.open(mailto);
     setOpen(false);
   };
 
   const shareToTwitter = () => {
-    const url = `https://twitter.com/intent/tweet?text=${shareText}&url=${encodeURIComponent(shareUrl)}`;
+    const url = `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}&url=${encodeURIComponent(shareUrl)}`;
     window.open(url, "_blank", "noopener,noreferrer,width=550,height=420");
     setOpen(false);
   };

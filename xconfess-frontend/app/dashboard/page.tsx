@@ -1,12 +1,7 @@
-"use client";
-
-import { AuthGuard } from "@/app/components/AuthGuard";
-import DashboardPage from "@/app/(dashboard)/DashboardPage";
+import { redirect } from "next/navigation";
 
 export default function DashboardRoute() {
-  return (
-    <AuthGuard>
-      <DashboardPage />
-    </AuthGuard>
-  );
+  // XConfess is intentionally public and wallet-first. The old dashboard
+  // depended on authenticated user statistics and caused needless 401s.
+  redirect("/");
 }

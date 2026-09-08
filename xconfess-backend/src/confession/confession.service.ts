@@ -89,7 +89,11 @@ export class ConfessionService {
     }).trim();
   }
 
-  async create(dto: CreateConfessionDto, manager?: EntityManager) {
+  async create(
+    dto: CreateConfessionDto,
+    manager?: EntityManager,
+    walletAddress?: string,
+  ) {
     // Only use 'message' as canonical field
     const msg = this.sanitizeMessage(dto.message);
     if (!msg) throw new BadRequestException('Invalid confession content');
@@ -120,7 +124,7 @@ export class ConfessionService {
       // First occurrence: run creation, then commit idempotency record.
       let savedConfession: AnonymousConfession;
       try {
-        savedConfession = await this.executeCreate(dto, msg, manager);
+        savedConfession = await this.executeCreate(dto, msg, manager, walletAddress);
       } catch (err) {
         await this.idempotencyService.commitFailure(idempotencyResult.record);
         throw err;
@@ -137,7 +141,7 @@ export class ConfessionService {
     }
 
     // No idempotency key – run creation directly (legacy / optional path).
-    return this.executeCreate(dto, msg, manager);
+    return this.executeCreate(dto, msg, manager, walletAddress);
   }
 
   /**
@@ -148,6 +152,7 @@ export class ConfessionService {
     dto: CreateConfessionDto,
     msg: string,
     manager?: EntityManager,
+    walletAddress?: string,
   ): Promise<AnonymousConfession> {
     try {
       // Step 0: Validate tags if provided
@@ -165,7 +170,7 @@ export class ConfessionService {
         ? await manager
             .getRepository(AnonymousUser)
             .save(manager.getRepository(AnonymousUser).create())
-        : await this.anonymousUserService.create();
+        : await this.anonymousUserService.create(walletAddress);
 
       // Step 2: Encrypt and save the confession
       const encryptedMsg = encryptConfession(msg, this.aesKey);
@@ -289,6 +294,38 @@ export class ConfessionService {
     } catch (error) {
       if (error instanceof BadRequestException) throw error;
       if (error instanceof ConflictException) throw error;
+
+      this.logger.error(
+        `Confession creation failed: ${error instanceof Error ? error.message : String(error)}`,
+        error instanceof Error ? error.stack : undefined,
+      );
+
+      // Track publish reliability without recording confession content or
+      // raw exception messages. Analytics must never make the failure worse.
+      this.analyticsEventService
+        ?.record({
+          eventName: 'confession_publish_failed',
+          idempotencyKey: dto.idempotencyKey
+            ? `confession_publish_failed:${dto.idempotencyKey}`
+            : undefined,
+          metadata: {
+            source: 'confession_service',
+            reason: error instanceof Error ? error.name : 'unknown_error',
+          },
+        })
+        .catch((analyticsError) =>
+          this.logger.warn(
+            {
+              action: 'analytics_record_failed',
+              eventName: 'confession_publish_failed',
+              error:
+                analyticsError instanceof Error
+                  ? analyticsError.message
+                  : String(analyticsError),
+            },
+            'ConfessionsService',
+          ),
+        );
 
       if (dto.idempotencyKey && (error as any)?.code === '23505') {
         // The idempotency_key UNIQUE constraint on anonymous_confessions fired
@@ -417,6 +454,18 @@ export class ConfessionService {
         'reaction_count',
       )
         .orderBy('reaction_count', 'DESC')
+        .addOrderBy('confession.created_at', 'DESC');
+    } else if (sort === SortOrder.MOST_DISCUSSED) {
+      qb.addSelect(
+        (sub) =>
+          sub
+            .select('COUNT(*)')
+            .from('comments', 'comment_count')
+            .where('comment_count."confessionId" = confession.id')
+            .andWhere('comment_count."isDeleted" = false'),
+        'comment_count',
+      )
+        .orderBy('comment_count', 'DESC')
         .addOrderBy('confession.created_at', 'DESC');
     } else {
       qb.orderBy('confession.created_at', 'DESC').addOrderBy(
@@ -981,6 +1030,19 @@ export class ConfessionService {
           'reaction_count',
         )
         .orderBy('reaction_count', 'DESC')
+        .addOrderBy('confession.created_at', 'DESC');
+    } else if (sort === SortOrder.MOST_DISCUSSED) {
+      queryBuilder
+        .addSelect(
+          (sub) =>
+            sub
+              .select('COUNT(*)')
+              .from('comments', 'comment_count')
+              .where('comment_count."confessionId" = confession.id')
+              .andWhere('comment_count."isDeleted" = false'),
+          'comment_count',
+        )
+        .orderBy('comment_count', 'DESC')
         .addOrderBy('confession.created_at', 'DESC');
     } else {
       queryBuilder

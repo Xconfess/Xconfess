@@ -13,11 +13,19 @@ import ErrorState from "../common/ErrorState";
 const ESTIMATED_CARD_HEIGHT = 300;
 const SCROLL_THRESHOLD = 400;
 const OVERSCAN = 3;
+type FeedSort = "newest" | "trending" | "most_discussed";
+
+const SORT_OPTIONS: Array<{ value: FeedSort; label: string }> = [
+  { value: "newest", label: "Recent" },
+  { value: "trending", label: "Popular" },
+  { value: "most_discussed", label: "Most discussed" },
+];
 
 export const ConfessionFeed = () => {
   const router = useRouter();
   const { selectedIds, clearItems } = useComparisonStore();
   const [showScrollTop, setShowScrollTop] = useState(false);
+  const [sort, setSort] = useState<FeedSort>("newest");
   const loadMoreRef = useRef<HTMLDivElement>(null);
 
   const {
@@ -29,7 +37,7 @@ export const ConfessionFeed = () => {
     fetchNextPage,
     error,
     refetch,
-  } = useInfiniteConfessions();
+  } = useInfiniteConfessions({ sort });
 
   const allConfessions = data?.pages.flatMap((page) => page.confessions) ?? [];
   const isEmpty = !isLoading && !error && allConfessions.length === 0;
@@ -61,6 +69,31 @@ export const ConfessionFeed = () => {
       router.push(`/compare?ids=${selectedIds.join(",")}`);
     }
   };
+
+  const sortControls = (
+    <div
+      className="flex w-full flex-wrap items-center gap-2 rounded-2xl border border-[var(--border)] bg-[var(--surface-muted)] p-1.5"
+      role="tablist"
+      aria-label="Feed sort"
+    >
+      {SORT_OPTIONS.map((option) => (
+        <button
+          key={option.value}
+          type="button"
+          role="tab"
+          aria-selected={sort === option.value}
+          onClick={() => setSort(option.value)}
+          className={`rounded-xl px-3.5 py-2 text-xs font-semibold transition-colors sm:text-sm ${
+            sort === option.value
+              ? "bg-[var(--foreground)] text-[var(--background)] shadow-sm"
+              : "text-[var(--secondary)] hover:bg-[var(--surface-strong)] hover:text-[var(--foreground)]"
+          }`}
+        >
+          {option.label}
+        </button>
+      ))}
+    </div>
+  );
 
   useEffect(() => {
     const el = loadMoreRef.current;
@@ -107,32 +140,35 @@ export const ConfessionFeed = () => {
 
   if (isEmpty) {
     return (
-      <div
-        className="luxury-panel rounded-2xl p-8 text-center"
-        role="region"
-        aria-label="Empty feed state"
-      >
-        <p className="mb-3 font-editorial text-3xl text-[var(--foreground)] sm:text-4xl">
-          No confessions yet.
-        </p>
-        <p className="mx-auto mb-4 max-w-xl text-sm leading-7 text-[var(--secondary)]">
-          Be the first to share.
-        </p>
-        <div className="flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
-          <button
-            type="button"
-            onClick={scrollToComposer}
-            className="rounded-xl bg-[var(--brand-gradient)] px-5 py-2.5 text-sm font-medium text-white shadow-[0_18px_42px_-22px_rgba(0,0,0,0.85)] transition-colors hover:brightness-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]"
-          >
-            Begin writing
-          </button>
-          <button
-            type="button"
-            onClick={handleRetry}
-            className="rounded-xl border border-[var(--border)] bg-[var(--surface-muted)] px-5 py-2.5 text-sm font-medium text-[var(--secondary)] transition-colors hover:bg-[var(--surface-strong)] hover:text-[var(--foreground)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]"
-          >
-            Refresh
-          </button>
+      <div className="space-y-4">
+        {sortControls}
+        <div
+          className="luxury-panel rounded-2xl p-8 text-center"
+          role="region"
+          aria-label="Empty feed state"
+        >
+          <p className="mb-3 font-editorial text-3xl text-[var(--foreground)] sm:text-4xl">
+            No confessions yet.
+          </p>
+          <p className="mx-auto mb-4 max-w-xl text-sm leading-7 text-[var(--secondary)]">
+            Be the first to share.
+          </p>
+          <div className="flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
+            <button
+              type="button"
+              onClick={scrollToComposer}
+              className="rounded-xl bg-[var(--brand-gradient)] px-5 py-2.5 text-sm font-medium text-white shadow-[0_18px_42px_-22px_rgba(0,0,0,0.85)] transition-colors hover:brightness-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]"
+            >
+              Begin writing
+            </button>
+            <button
+              type="button"
+              onClick={handleRetry}
+              className="rounded-xl border border-[var(--border)] bg-[var(--surface-muted)] px-5 py-2.5 text-sm font-medium text-[var(--secondary)] transition-colors hover:bg-[var(--surface-strong)] hover:text-[var(--foreground)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]"
+            >
+              Refresh
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -142,6 +178,7 @@ export const ConfessionFeed = () => {
 
   return (
     <div className="relative mx-auto w-full max-w-3xl py-2">
+      <div className="mb-4">{sortControls}</div>
       <div className="sr-only" aria-live="polite" aria-atomic="true">
         {isFetching && !isFetchingNextPage ? "Updating feed contents..." : ""}
       </div>

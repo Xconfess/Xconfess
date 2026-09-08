@@ -91,8 +91,9 @@ apiClient.interceptors.response.use(
 		}
 
 		// Determine if this error is retryable
+		// Never retry a rate-limit response. Replaying a 429 increases pressure
+		// on the endpoint and can turn one user action into several requests.
 		const isRetryable =
-			error.response?.status === 429 ||
 			(error.response?.status !== undefined &&
 				error.response.status >= 500) ||
 			!error.response; // network error
@@ -177,4 +178,3 @@ export const dataExportApi = {
 		return response.data;
 	},
 };
-

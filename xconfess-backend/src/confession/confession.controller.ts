@@ -126,6 +126,7 @@ export class ConfessionController {
   async create(
     @Body() dto: CreateConfessionDto,
     @Headers('idempotency-key') idempotencyKey: string | undefined,
+    @Headers('x-stellar-wallet') walletAddress: string | undefined,
     @Res({ passthrough: true }) res: Response,
   ) {
     if (idempotencyKey && this.idempotencyService) {
@@ -145,7 +146,7 @@ export class ConfessionController {
 
       if (!check.isReplay) {
         try {
-          const confession = await this.service.create(dto);
+          const confession = await this.service.create(dto, undefined, walletAddress);
           await this.idempotencyService.commitSuccess(
             check.record,
             confession as any,
@@ -160,7 +161,7 @@ export class ConfessionController {
       }
     }
 
-    return this.service.create(dto);
+    return this.service.create(dto, undefined, walletAddress);
   }
 
   @Get()

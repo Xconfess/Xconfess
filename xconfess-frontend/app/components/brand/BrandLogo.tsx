@@ -14,15 +14,15 @@ type BrandLogoProps = {
 };
 
 const logoSrc = {
-  horizontal: "/branding/logo-horizontal.svg",
-  full: "/branding/logo-full.svg",
-  icon: "/branding/xconfess-icon.svg",
+  horizontal: "/branding/new.png",
+  full: "/branding/new.png",
+  icon: "/branding/new.png",
 } as const;
 
 const logoSize = {
-  horizontal: { width: 180, height: 45 },
-  full: { width: 190, height: 75 },
-  icon: { width: 44, height: 44 },
+  horizontal: { width: 512, height: 512 },
+  full: { width: 512, height: 512 },
+  icon: { width: 512, height: 512 },
 } as const;
 
 export function BrandLogo({
@@ -33,10 +33,7 @@ export function BrandLogo({
   imageClassName,
   priority,
 }: BrandLogoProps) {
-  const src =
-    tone === "light" && variant === "horizontal"
-      ? "/branding/logo-white.svg"
-      : logoSrc[variant];
+  const src = logoSrc[variant];
   const size = logoSize[variant];
 
   const image = (
@@ -48,7 +45,8 @@ export function BrandLogo({
       priority={priority}
       className={cn(
         "block h-auto max-w-full select-none",
-        variant === "icon" ? "w-11" : "w-[150px] sm:w-[172px]",
+        tone === "light" ? "brightness-100" : "",
+        variant === "icon" ? "h-11 w-11 object-contain" : "h-12 w-[138px] object-contain sm:w-[156px]",
         imageClassName,
       )}
     />

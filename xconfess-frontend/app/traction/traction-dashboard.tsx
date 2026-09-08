@@ -175,6 +175,28 @@ function TractionContent({
           </Panel>
         </section>
 
+        <Panel title="Early retention" icon={Activity}>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <RetentionRow
+              label="Day 1 retention"
+              percent={metrics.retention.d1Percent}
+              cohortSize={metrics.retention.d1CohortSize}
+              minimum={metrics.retention.minimumCohortSize}
+            />
+            <RetentionRow
+              label="Day 7 retention"
+              percent={metrics.retention.d7Percent}
+              cohortSize={metrics.retention.d7CohortSize}
+              minimum={metrics.retention.minimumCohortSize}
+            />
+          </div>
+          <p className="mt-4 text-sm leading-6 text-[var(--secondary)]">
+            Retention measures pseudonymous actors who return for another meaningful action
+            on the target day after their first observed action. Small cohorts stay hidden
+            until at least {metrics.retention.minimumCohortSize} actors qualify.
+          </p>
+        </Panel>
+
         <section className="grid gap-5 lg:grid-cols-[0.9fr_1.1fr]">
           <Panel title="Reliability" icon={CheckCircle2}>
             <div className="grid gap-3 sm:grid-cols-2">
@@ -226,6 +248,30 @@ function TractionContent({
         </Panel>
       </section>
     </main>
+  );
+}
+
+function RetentionRow({
+  label,
+  percent,
+  cohortSize,
+  minimum,
+}: {
+  label: string;
+  percent: number | null;
+  cohortSize: number | null;
+  minimum: number;
+}) {
+  return (
+    <div className="rounded-lg border border-[var(--border)] bg-[var(--surface-muted)] p-4">
+      <div className="text-sm text-[var(--secondary)]">{label}</div>
+      <div className="mt-2 text-xl font-semibold text-[var(--foreground)]">
+        {percent === null ? "Not enough data" : `${percent.toFixed(1)}%`}
+      </div>
+      <div className="mt-1 text-xs text-[var(--secondary)]">
+        {cohortSize === null ? `Requires ${minimum}+ qualifying actors` : `${cohortSize} actor cohort`}
+      </div>
+    </div>
   );
 }
 

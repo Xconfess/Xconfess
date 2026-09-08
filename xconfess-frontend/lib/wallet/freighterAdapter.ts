@@ -1,3 +1,11 @@
+import {
+  getAddress as getFreighterAddress,
+  getNetwork as getFreighterNetwork,
+  isConnected as checkFreighterConnection,
+  requestAccess,
+  signTransaction as signFreighterTransaction,
+} from "@stellar/freighter-api";
+
 /**
  * Canonical Freighter / browser extension integration.
  * Resolves both `window.freighterApi` and `window.freighter` to a single surface.
@@ -48,6 +56,13 @@ export function normalizeFreighterError(error: unknown): FreighterError {
 }
 
 export async function freighterGetNetworkLabel(): Promise<string> {
+  try {
+    const result = await getFreighterNetwork();
+    if (!result.error && result.network) return result.network;
+  } catch {
+    /* Fall back to the legacy injected API below. */
+  }
+
   const client = getFreighterClient();
   if (!client) return "UNKNOWN";
   try {
@@ -60,6 +75,13 @@ export async function freighterGetNetworkLabel(): Promise<string> {
 }
 
 export async function freighterGetPublicKey(): Promise<string> {
+  try {
+    const result = await getFreighterAddress();
+    if (!result.error && result.address) return result.address;
+  } catch {
+    /* Fall back to the legacy injected API below. */
+  }
+
   const client = getFreighterClient();
   if (!client) {
     throw new FreighterError(
@@ -84,6 +106,15 @@ export async function freighterSignTransaction(
   xdr: string,
   networkPassphrase: string,
 ): Promise<string> {
+  try {
+    const result = await signFreighterTransaction(xdr, {
+      networkPassphrase,
+    });
+    if (!result.error && result.signedTxXdr) return result.signedTxXdr;
+  } catch {
+    /* Fall back to the legacy injected API below. */
+  }
+
   const client = getFreighterClient();
   if (!client?.signTransaction) {
     throw new FreighterError("Freighter wallet is not installed");
@@ -122,6 +153,18 @@ export async function freighterConnect(): Promise<{
   publicKey: string;
   network: string;
 }> {
+  try {
+    const result = await requestAccess();
+    if (!result.error && result.address) {
+      return {
+        publicKey: result.address,
+        network: await freighterGetNetworkLabel(),
+      };
+    }
+  } catch {
+    /* Fall back to the legacy injected API below. */
+  }
+
   const publicKey = await freighterGetPublicKey();
   const network = await freighterGetNetworkLabel();
   return { publicKey, network };
@@ -142,8 +185,9 @@ export async function freighterGetWalletInfo(): Promise<{
   publicKey: string;
   network: string;
 } | null> {
-  if (!isFreighterInstalled()) return null;
   try {
+    const connection = await checkFreighterConnection();
+    if (!connection.isConnected && !isFreighterInstalled()) return null;
     return await freighterConnect();
   } catch {
     return null;

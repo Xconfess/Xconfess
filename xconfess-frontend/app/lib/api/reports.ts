@@ -42,10 +42,25 @@ export async function createConfessionReport(
       ? localStorage.getItem(ANONYMOUS_USER_ID_KEY)
       : null;
 
-  if (!anonymousUserId) {
+  let walletAddress: string | null = null;
+  if (typeof window !== "undefined") {
+    try {
+      const walletSession = JSON.parse(
+        localStorage.getItem("xconfess_wallet_session") || "null",
+      );
+      walletAddress =
+        typeof walletSession?.publicKey === "string"
+          ? walletSession.publicKey
+          : null;
+    } catch {
+      walletAddress = null;
+    }
+  }
+
+  if (!anonymousUserId && !walletAddress) {
     return {
       ok: false,
-      error: { message: "Please log in again (anonymous user missing).", code: "AUTH_ERROR" },
+      error: { message: "Connect your wallet to report anonymously.", code: "WALLET_REQUIRED" },
     };
   }
 
@@ -54,7 +69,10 @@ export async function createConfessionReport(
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "x-anonymous-user-id": anonymousUserId,
+        ...(anonymousUserId
+          ? { "x-anonymous-user-id": anonymousUserId }
+          : {}),
+        ...(walletAddress ? { "x-stellar-wallet": walletAddress } : {}),
       },
       body: JSON.stringify({
         type: dto.type,
@@ -81,4 +99,3 @@ export async function createConfessionReport(
     return { ok: false, error };
   }
 }
-
