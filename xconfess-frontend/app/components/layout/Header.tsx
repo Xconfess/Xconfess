@@ -2,8 +2,7 @@
 
 import Link from "next/link";
 import { useState, useCallback, useRef } from "react";
-import { Menu, LogOut } from "lucide-react";
-import { useAuth } from "../../lib/hooks/useAuth";
+import { Menu } from "lucide-react";
 import { ThemeToggle } from "../common/ThemeToggle";
 import { WalletButton } from "@/components/wallet/WalletButton";
 import { BrandLogo } from "@/app/components/brand/BrandLogo";
@@ -13,7 +12,6 @@ const navLinkClass =
   "rounded-xl px-4 py-2.5 text-sm font-medium text-[var(--secondary)] transition-all duration-200 hover:bg-[var(--surface-muted)] hover:text-[var(--foreground)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--primary)]";
 
 export default function Header() {
-  const { user, logout } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
 
@@ -47,30 +45,6 @@ export default function Header() {
               <Link href="/" className={navLinkClass}>
                 Feed
               </Link>
-              <Link href="/search" className={navLinkClass}>
-                Search
-              </Link>
-              <Link href="/compare" className={navLinkClass}>
-                Compare
-              </Link>
-              <Link href="/profile" className={navLinkClass}>
-                Profile
-              </Link>
-              <Link href="/anchors" className={navLinkClass}>
-                Anchors
-              </Link>
-              <Link href="/traction" className={navLinkClass}>
-                Traction
-              </Link>
-              {user?.role === "admin" && (
-                <Link href="/admin" className={navLinkClass + " font-bold"}>
-                  Admin
-                </Link>
-              )}
-              <Link href="/messages" className={navLinkClass}>
-                Messages
-              </Link>
-
               <div
                 aria-hidden="true"
                 className="mx-2 h-8 w-px bg-[var(--border)]"
@@ -79,23 +53,6 @@ export default function Header() {
               <WalletButton className="hidden md:inline-flex" />
               <ThemeToggle />
 
-              {user && (
-                <div className="flex items-center space-x-4">
-                  <span
-                    aria-label={`Logged in as ${user.username}`}
-                    className="rounded-xl border border-[var(--border)] bg-[var(--surface-muted)] px-4 py-2 text-sm text-[var(--secondary)]"
-                  >
-                    @{user.username}
-                  </span>
-                  <button
-                    onClick={logout}
-                    className="flex items-center space-x-1 rounded-xl px-3 py-2 text-red-300 transition-colors hover:bg-red-950/40 hover:text-red-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-500"
-                  >
-                    <LogOut aria-hidden="true" size={18} />
-                    <span>Logout</span>
-                  </button>
-                </div>
-              )}
             </div>
 
             <div className="flex items-center gap-4 md:hidden">

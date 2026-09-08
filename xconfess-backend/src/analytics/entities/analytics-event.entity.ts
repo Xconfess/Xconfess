@@ -12,6 +12,7 @@ export const ANALYTICS_EVENT_NAMES = [
   'user_registered',
   'user_login',
   'confession_created',
+  'confession_publish_failed',
   'comment_created',
   'reaction_created',
   'message_sent',

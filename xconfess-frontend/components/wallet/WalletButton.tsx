@@ -7,8 +7,6 @@ interface WalletButtonProps {
   className?: string;
 }
 
-const FREIGHTER_INSTALL_URL = "https://www.freighter.app/";
-
 /**
  * Truncate public key for display
  */
@@ -73,25 +71,21 @@ export const WalletButton: React.FC<WalletButtonProps> = ({
     disconnect,
   } = wallet;
   const networkInfo = getNetworkInfo(network);
-  const shouldInstallWallet =
-    !wallet.isFreighterInstalled ||
-    error?.toLowerCase().includes("not installed");
-
   const handleConnect = async () => {
     try {
       await connect();
-    } catch (err) {
-      console.error("Failed to connect wallet:", err);
+    } catch {
+      // The wallet hook exposes the user-facing error state.
     }
+  };
+
+  const handleWalletAction = () => {
+    void handleConnect();
   };
 
   const handleDisconnect = () => {
     disconnect();
     setIsDropdownOpen(false);
-  };
-
-  const handleInstallWallet = () => {
-    window.open(FREIGHTER_INSTALL_URL, "_blank", "noopener,noreferrer");
   };
 
   const copyToClipboard = () => {
@@ -120,14 +114,12 @@ export const WalletButton: React.FC<WalletButtonProps> = ({
     return (
       <div className={`relative group ${className}`}>
         <button
-          onClick={shouldInstallWallet ? handleInstallWallet : handleConnect}
+          onClick={handleWalletAction}
           className="px-4 py-2 rounded-lg bg-red-100 text-red-700 hover:bg-red-200 transition font-medium text-sm border border-red-300"
           title={error}
         >
           ⚠️{" "}
-          {shouldInstallWallet
-            ? "Install Wallet"
-            : "Connect Wallet"}
+          Connect Wallet
         </button>
         <div className="absolute hidden group-hover:block bg-red-900 text-white text-xs rounded py-1 px-2 whitespace-nowrap z-50 bottom-full mb-2">
           {error}
@@ -257,7 +249,7 @@ export const WalletButton: React.FC<WalletButtonProps> = ({
   // Not connected state
   return (
     <button
-      onClick={handleConnect}
+      onClick={handleWalletAction}
       className={`px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition font-medium text-sm ${className}`}
     >
       Connect Wallet

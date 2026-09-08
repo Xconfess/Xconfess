@@ -28,6 +28,13 @@ const mockMetrics = {
     },
   },
   reliability: { transactionSuccessRate: 75 },
+  retention: {
+    d1Percent: 40,
+    d7Percent: 20,
+    d1CohortSize: 10,
+    d7CohortSize: 5,
+    minimumCohortSize: 5,
+  },
 };
 
 describe("TractionDashboard", () => {

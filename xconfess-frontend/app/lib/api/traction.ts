@@ -31,6 +31,13 @@ export interface TractionMetrics {
   reliability: {
     transactionSuccessRate: number | null;
   };
+  retention: {
+    d1Percent: number | null;
+    d7Percent: number | null;
+    d1CohortSize: number | null;
+    d7CohortSize: number | null;
+    minimumCohortSize: number;
+  };
 }
 
 export async function fetchPublicTractionMetrics(): Promise<TractionMetrics> {

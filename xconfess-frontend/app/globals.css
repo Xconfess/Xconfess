@@ -2,23 +2,19 @@
 
 :root {
   --brand-ink: #080706;
-  --brand-violet: #8d6cff;
-  --brand-purple: #6c4fd8;
-  --brand-magenta: #8b2435;
-  --brand-rose: #b68b45;
-  --brand-gradient: linear-gradient(135deg, #12110f 0%, #34243a 45%, #7c2432 100%);
-  --background: #080706;
-  --surface: rgba(18, 17, 16, 0.9);
-  --surface-strong: #151413;
-  --surface-muted: rgba(25, 24, 23, 0.88);
-  --foreground: #f4efe5;
-  --secondary: #a9a095;
-  --primary: #c7a35b;
-  --primary-deep: #dfc17a;
-  --accent-soft: rgba(199, 163, 91, 0.1);
-  --accent-border: rgba(199, 163, 91, 0.28);
-  --border: rgba(244, 239, 229, 0.12);
-  --skeleton: #2b2926;
+  --brand-gradient: linear-gradient(135deg, #050505 0%, #202020 100%);
+  --background: #050505;
+  --surface: rgba(15, 15, 15, 0.94);
+  --surface-strong: #111111;
+  --surface-muted: rgba(25, 25, 25, 0.92);
+  --foreground: #f7f7f7;
+  --secondary: #a0a0a0;
+  --primary: #ffffff;
+  --primary-deep: #d8d8d8;
+  --accent-soft: rgba(255, 255, 255, 0.08);
+  --accent-border: rgba(255, 255, 255, 0.26);
+  --border: rgba(255, 255, 255, 0.14);
+  --skeleton: #2a2a2a;
   --shadow: 0 28px 90px -48px rgba(0, 0, 0, 0.74);
   --font-sans:
     "Aptos", "Avenir Next", "Segoe UI Variable Text", "Inter", sans-serif;
@@ -27,37 +23,37 @@
 }
 
 .dark {
-  --background: #080706;
-  --surface: rgba(18, 17, 16, 0.9);
-  --surface-strong: #151413;
-  --surface-muted: rgba(25, 24, 23, 0.88);
-  --foreground: #f4efe5;
-  --secondary: #a9a095;
-  --primary: #c7a35b;
-  --primary-deep: #dfc17a;
-  --accent-soft: rgba(199, 163, 91, 0.1);
-  --accent-border: rgba(199, 163, 91, 0.28);
-  --border: rgba(244, 239, 229, 0.12);
-  --skeleton: #2b2926;
+  --background: #050505;
+  --surface: rgba(15, 15, 15, 0.94);
+  --surface-strong: #111111;
+  --surface-muted: rgba(25, 25, 25, 0.92);
+  --foreground: #f7f7f7;
+  --secondary: #a0a0a0;
+  --primary: #ffffff;
+  --primary-deep: #d8d8d8;
+  --accent-soft: rgba(255, 255, 255, 0.08);
+  --accent-border: rgba(255, 255, 255, 0.26);
+  --border: rgba(255, 255, 255, 0.14);
+  --skeleton: #2a2a2a;
   --shadow: 0 28px 90px -48px rgba(0, 0, 0, 0.74);
 }
 
 .light {
-  --brand-ink: #11100e;
-  --brand-gradient: linear-gradient(135deg, #16130f 0%, #4a2a36 52%, #8a4f24 100%);
-  --background: #f1eee7;
-  --surface: rgba(250, 248, 243, 0.9);
-  --surface-strong: #fffdf8;
-  --surface-muted: rgba(239, 235, 225, 0.9);
-  --foreground: #181512;
-  --secondary: #686158;
-  --primary: #7c2432;
-  --primary-deep: #4f1a24;
-  --accent-soft: rgba(124, 36, 50, 0.09);
-  --accent-border: rgba(124, 36, 50, 0.2);
-  --border: rgba(24, 21, 18, 0.13);
-  --skeleton: #ded7ca;
-  --shadow: 0 28px 90px -52px rgba(24, 21, 18, 0.34);
+  --brand-ink: #050505;
+  --brand-gradient: linear-gradient(135deg, #050505 0%, #303030 100%);
+  --background: #f2f2f2;
+  --surface: rgba(255, 255, 255, 0.94);
+  --surface-strong: #ffffff;
+  --surface-muted: rgba(235, 235, 235, 0.92);
+  --foreground: #111111;
+  --secondary: #666666;
+  --primary: #111111;
+  --primary-deep: #333333;
+  --accent-soft: rgba(17, 17, 17, 0.07);
+  --accent-border: rgba(17, 17, 17, 0.2);
+  --border: rgba(17, 17, 17, 0.14);
+  --skeleton: #d8d8d8;
+  --shadow: 0 28px 90px -52px rgba(0, 0, 0, 0.32);
 }
 
 * {
@@ -87,10 +83,10 @@ body {
   color: var(--foreground);
   background-image:
     linear-gradient(180deg, rgba(255, 255, 255, 0.035), transparent 22%),
-    linear-gradient(135deg, rgba(199, 163, 91, 0.05), transparent 32%),
-    linear-gradient(225deg, rgba(124, 36, 50, 0.08), transparent 34%),
-    linear-gradient(135deg, rgba(244, 239, 229, 0.025) 25%, transparent 25%),
-    linear-gradient(225deg, rgba(244, 239, 229, 0.018) 25%, transparent 25%);
+    linear-gradient(135deg, rgba(255, 255, 255, 0.045), transparent 32%),
+    linear-gradient(225deg, rgba(255, 255, 255, 0.035), transparent 34%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.025) 25%, transparent 25%),
+    linear-gradient(225deg, rgba(255, 255, 255, 0.018) 25%, transparent 25%);
   background-size: auto, auto, auto, 34px 34px, 34px 34px;
   background-position: center top, left top, right top, 0 0, 14px 14px;
   font-family: var(--font-sans);
@@ -216,4 +212,59 @@ textarea {
 
 button {
   -webkit-tap-highlight-color: transparent;
+}
+
+/* Xconfess brand system: purple is reserved for action, focus, and status. */
+:root,
+.dark {
+  --brand-ink: #0b0812;
+  --brand-violet: #922cff;
+  --brand-gradient: linear-gradient(135deg, #a33cff 0%, #6d1ed1 100%);
+  --background: #0b0812;
+  --surface: rgba(20, 16, 29, 0.96);
+  --surface-strong: #181323;
+  --surface-muted: rgba(29, 22, 42, 0.94);
+  --foreground: #f7f4fb;
+  --secondary: #aaa1b8;
+  --primary: #a33cff;
+  --primary-deep: #d1aaff;
+  --accent-soft: rgba(146, 44, 255, 0.14);
+  --accent-border: rgba(174, 105, 255, 0.42);
+  --border: rgba(224, 204, 255, 0.14);
+  --skeleton: #282034;
+  --shadow: 0 24px 70px -46px rgba(0, 0, 0, 0.9);
+}
+
+.light {
+  --brand-ink: #12081d;
+  --brand-violet: #7821d5;
+  --brand-gradient: linear-gradient(135deg, #8f27ef 0%, #6516b9 100%);
+  --background: #f8f6fb;
+  --surface: rgba(255, 255, 255, 0.96);
+  --surface-strong: #ffffff;
+  --surface-muted: #f1edf7;
+  --foreground: #17111f;
+  --secondary: #6d6477;
+  --primary: #7821d5;
+  --primary-deep: #5d159f;
+  --accent-soft: rgba(132, 37, 218, 0.09);
+  --accent-border: rgba(120, 33, 213, 0.26);
+  --border: rgba(46, 24, 66, 0.12);
+  --skeleton: #e6dfee;
+  --shadow: 0 24px 70px -52px rgba(54, 25, 78, 0.32);
+}
+
+body {
+  background-image:
+    radial-gradient(circle at 10% 0%, rgba(146, 44, 255, 0.10), transparent 28%),
+    radial-gradient(circle at 90% 12%, rgba(146, 44, 255, 0.07), transparent 26%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.025), transparent 24%);
+}
+
+::selection {
+  background: rgba(146, 44, 255, 0.28);
+}
+
+.brand-accent {
+  color: var(--brand-violet);
 }

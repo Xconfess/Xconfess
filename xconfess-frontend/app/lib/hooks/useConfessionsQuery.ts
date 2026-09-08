@@ -29,6 +29,7 @@ export function useConfessionsQuery(params: GetConfessionsParams = {}) {
       return result.data;
     },
     placeholderData: (previousData) => previousData,
+    retry: 0,
   });
 }
 
@@ -61,5 +62,6 @@ export function useInfiniteConfessions(
       }
       return undefined;
     },
+    retry: 0,
   });
 }

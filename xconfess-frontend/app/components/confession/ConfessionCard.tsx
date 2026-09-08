@@ -3,10 +3,11 @@
 import { memo, useEffect, useState } from "react";
 import { ScrollRestorationLink } from "@/app/components/common/ScrollRestorationLink";
 import Image from "next/image";
-import { MessageSquare, Eye } from "lucide-react";
+import { MessageSquare, Eye, ShieldAlert } from "lucide-react";
 import { ReactionButton } from "./ReactionButtons";
 import { AnchorButton } from "./AnchorButton";
 import { TipButton } from "./TipButton";
+import { ShareButton } from "./ShareButton";
 import { Checkbox } from "@/app/components/ui/checkbox";
 import { useComparisonStore } from "@/app/lib/store/comparisonStore";
 import type { NormalizedConfession } from "../../lib/utils/normalizeConfession";
@@ -24,6 +25,7 @@ export const ConfessionCard = memo(({ confession }: Props) => {
   const [tipStats, setTipStats] = useState<TipStats | null>(
     confession.tipStats || null
   );
+  const [showWarnedContent, setShowWarnedContent] = useState(false);
   const { addItem, removeItem, isSelected } = useComparisonStore();
 
   useEffect(() => {
@@ -124,18 +126,39 @@ export const ConfessionCard = memo(({ confession }: Props) => {
         </div>
       </div>
 
-      <ScrollRestorationLink
-        href={`/confessions/${confession.id}`}
-        className="group block rounded-lg p-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]"
-        aria-label={`Read full confession: ${confession.content.slice(0, 80)}...`}
-      >
-        <p className="mb-3 text-[0.72rem] font-semibold uppercase tracking-[0.24em] text-[var(--primary-deep)]">
-          Anonymous
-        </p>
-        <p className="mb-5 font-editorial text-[1.65rem] leading-[1.5] text-[var(--foreground)] transition-colors group-hover:text-[var(--primary-deep)]">
-          {confession.content}
-        </p>
-      </ScrollRestorationLink>
+      {confession.contentWarning && !showWarnedContent ? (
+        <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-5">
+          <div className="flex items-start gap-3">
+            <ShieldAlert className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" aria-hidden="true" />
+            <div>
+              <p className="font-semibold text-[var(--foreground)]">Content warning</p>
+              <p className="mt-1 text-sm leading-6 text-[var(--secondary)]">
+                This confession may contain sensitive material. You choose whether to view it.
+              </p>
+              <button
+                type="button"
+                onClick={() => setShowWarnedContent(true)}
+                className="mt-4 rounded-lg border border-amber-500/40 px-3 py-2 text-sm font-semibold text-[var(--foreground)] transition-colors hover:bg-amber-500/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]"
+              >
+                Show confession
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <ScrollRestorationLink
+          href={`/confessions/${confession.id}`}
+          className="group block rounded-lg p-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]"
+          aria-label={`Read full confession: ${confession.content.slice(0, 80)}...`}
+        >
+          <p className="mb-3 text-[0.72rem] font-semibold uppercase tracking-[0.24em] text-[var(--primary-deep)]">
+            Anonymous
+          </p>
+          <p className="mb-5 font-editorial text-[1.65rem] leading-[1.5] text-[var(--foreground)] transition-colors group-hover:text-[var(--primary-deep)]">
+            {confession.content}
+          </p>
+        </ScrollRestorationLink>
+      )}
 
       <div className="mt-6 flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
         <div className="flex items-center gap-3 text-sm text-[var(--secondary)]">
@@ -173,6 +196,11 @@ export const ConfessionCard = memo(({ confession }: Props) => {
             isAnchored={isAnchored}
             stellarTxHash={txHash}
             onAnchorSuccess={handleAnchorSuccess}
+          />
+          <ShareButton
+            confessionId={confession.id}
+            title="A confession from xConfess"
+            variant="dropdown"
           />
           <div className="flex gap-2">
             <ReactionButton

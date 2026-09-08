@@ -30,11 +30,12 @@ export async function POST(
     }
 
     const anonymousUserId = request.headers.get("x-anonymous-user-id");
+    const walletAddress = request.headers.get("x-stellar-wallet");
     const authorization = request.headers.get("authorization");
 
     // The backend allows anonymous reports only if we supply x-anonymous-user-id.
-    if (!authorization && !anonymousUserId) {
-      return createApiErrorResponse("Missing anonymous user ID", { status: 401 });
+    if (!authorization && !anonymousUserId && !walletAddress) {
+      return createApiErrorResponse("Connect your wallet to report anonymously", { status: 401 });
     }
 
     const idempotencyKey = request.headers.get("idempotency-key");
@@ -45,6 +46,7 @@ export async function POST(
 
     if (authorization) forwardedHeaders["Authorization"] = authorization;
     if (anonymousUserId) forwardedHeaders["x-anonymous-user-id"] = anonymousUserId;
+    if (walletAddress) forwardedHeaders["x-stellar-wallet"] = walletAddress;
     if (idempotencyKey) forwardedHeaders["idempotency-key"] = idempotencyKey;
 
     const backend = resolveBackendRoute(request, `/confessions/${id}/report`);

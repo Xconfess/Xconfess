@@ -1,6 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useRef, ReactNode, useCallback } from 'react';
+import { usePathname } from 'next/navigation';
 import { authApi } from '../api/authService';
 import {
   AuthContextValue,
@@ -33,6 +34,7 @@ interface AuthProviderProps {
  * Manages global authentication state and provides auth methods
  */
 export function AuthProvider({ children }: AuthProviderProps) {
+  const pathname = usePathname();
   const setStoreUser = useAuthStore((s) => s.setUser);
   const storeLogout = useAuthStore((s) => s.logout);
   const isDevBypassEnabled =
@@ -136,11 +138,18 @@ export function AuthProvider({ children }: AuthProviderProps) {
   //   Check authentication status on mount
 
   useEffect(() => {
+    // Public wallet-first pages do not need a session request. Authentication
+    // is resolved only when entering the admin surface.
+    if (!pathname.startsWith('/admin')) {
+      setState((prev) => ({ ...prev, isLoading: false }));
+      return;
+    }
+
     // Wrap async call in IIFE to avoid synchronous setState in effect
     (async () => {
       await checkAuth();
     })();
-  }, [checkAuth]);
+  }, [checkAuth, pathname]);
 
   //  Login user with credentials
 

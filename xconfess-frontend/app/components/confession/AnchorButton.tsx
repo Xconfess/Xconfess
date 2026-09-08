@@ -10,7 +10,7 @@ import { useStellarWallet } from "@/lib/hooks/useStellarWallet";
 import { getWalletCTAState } from "@/lib/hooks/useWalletCTAState";
 import { getStellarExplorerUrl, mapAnchorApiError } from "@/app/lib/utils/stellar";
 
-type AnchorStatus = "idle" | "pending" | "confirmed" | "failed";
+type AnchorStatus = "idle" | "pending" | "submitted" | "confirmed" | "failed";
 
 interface AnchorButtonProps {
   confessionId: string;
@@ -41,6 +41,7 @@ export const AnchorButton: FC<AnchorButtonProps> = ({
     connect,
     anchor,
     isLoading,
+    network,
   } = useStellarWallet();
   const walletCTA = getWalletCTAState({
     isFreighterInstalled: isAvailable,
@@ -127,7 +128,7 @@ export const AnchorButton: FC<AnchorButtonProps> = ({
           txHash: data.stellarTxHash,
         });
         setTxHash(data.stellarTxHash);
-        setStatus("confirmed");
+        setStatus("submitted");
         setLiveMessage("Confession anchor is pending on-chain.");
         onAnchorSuccess?.(data.stellarTxHash);
         return;
@@ -165,6 +166,9 @@ export const AnchorButton: FC<AnchorButtonProps> = ({
       >
         <CheckCircle2 className="h-4 w-4 text-green-400" aria-hidden="true" />
         <span className="text-xs text-green-400">Anchored</span>
+        <span className="rounded-full border border-[var(--border)] px-2 py-0.5 text-[10px] uppercase tracking-wide text-[var(--secondary)]">
+          {network === "PUBLIC_NETWORK" ? "Mainnet" : "Testnet"}
+        </span>
         <span className="font-mono text-xs text-zinc-500">{shortHash(txHash)}</span>
         {explorerUrl && (
           <a
@@ -179,6 +183,35 @@ export const AnchorButton: FC<AnchorButtonProps> = ({
           </a>
         )}
         <span className="sr-only">{liveMessage || "Confession anchored successfully."}</span>
+      </div>
+    );
+  }
+
+  if (status === "submitted" && txHash) {
+    const explorerUrl = getStellarExplorerUrl(txHash);
+    return (
+      <div
+        className={cn("stellar-anchor-action flex flex-wrap items-center gap-2", className)}
+        role="status"
+        aria-live="polite"
+      >
+        <Loader2 className="h-4 w-4 animate-spin text-amber-400" aria-hidden="true" />
+        <span className="text-xs text-amber-400">Anchor pending</span>
+        <span className="rounded-full border border-[var(--border)] px-2 py-0.5 text-[10px] uppercase tracking-wide text-[var(--secondary)]">
+          {network === "PUBLIC_NETWORK" ? "Mainnet" : "Testnet"}
+        </span>
+        {explorerUrl && (
+          <a
+            href={explorerUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300"
+          >
+            Check transaction
+            <ExternalLink className="h-3 w-3" aria-hidden="true" />
+          </a>
+        )}
+        <span className="sr-only">{liveMessage || "Anchor transaction is pending."}</span>
       </div>
     );
   }
@@ -255,6 +288,10 @@ export const AnchorButton: FC<AnchorButtonProps> = ({
             </>
           )}
       </Button>
+
+      <span className="text-[10px] uppercase tracking-wide text-zinc-500">
+        Stellar: {network === "PUBLIC_NETWORK" ? "Mainnet" : "Testnet"}
+      </span>
 
       {walletCTA.status === "not-connected" && walletCTA.guidance && (
         <p className="text-xs text-zinc-500">{walletCTA.guidance}</p>

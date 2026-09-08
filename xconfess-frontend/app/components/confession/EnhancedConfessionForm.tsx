@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import { useRouter } from "next/navigation";
 import axios from "axios";
 import {
   Card,
@@ -24,18 +23,12 @@ import {
   ValidationErrors,
 } from "@/app/lib/utils/validation";
 import { useStellarWallet } from "@/lib/hooks/useStellarWallet";
-import { useDrafts, Draft } from "@/app/lib/hooks/useDrafts";
-import { Eye, EyeOff, Send, Loader2, CloudDownload } from "lucide-react";
+import { Draft } from "@/app/lib/hooks/useDrafts";
+import { Eye, EyeOff, Send, Loader2 } from "lucide-react";
 import { cn } from "@/app/lib/utils/cn";
 import apiClient from "@/app/lib/api/client";
 import { useGlobalToast } from "@/app/components/common/Toast";
-import { useAuth } from "@/app/lib/hooks/useAuth";
-import {
-  buildAuthRedirectUrl,
-  clearPendingConfession,
-  loadPendingConfession,
-  savePendingConfession,
-} from "@/app/lib/utils/pendingConfession";
+import { clearPendingConfession } from "@/app/lib/utils/pendingConfession";
 
 interface EnhancedConfessionFormProps {
   onSubmit?: (data: ConfessionFormData & { stellarTxHash?: string }) => void;
@@ -56,6 +49,11 @@ function getSafeSubmissionErrorMessage(error: unknown) {
     }
 
     if (status === 429) {
+      const retryAfter = Number(error.response?.data?.retryAfter);
+      if (Number.isFinite(retryAfter) && retryAfter > 0) {
+        const seconds = Math.ceil(retryAfter);
+        return `You are submitting too quickly. Please wait ${seconds} second${seconds === 1 ? "" : "s"} and try again.`;
+      }
       return "You are submitting too quickly. Please wait a moment and try again.";
     }
 
@@ -99,7 +97,6 @@ export const EnhancedConfessionForm: React.FC<EnhancedConfessionFormProps> = ({
   onSubmit,
   className,
 }) => {
-  const router = useRouter();
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
   const [gender, setGender] = useState<Gender | undefined>();
@@ -110,27 +107,14 @@ export const EnhancedConfessionForm: React.FC<EnhancedConfessionFormProps> = ({
   const [stellarTxHash, setStellarTxHash] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitSuccess, setSubmitSuccess] = useState(false);
-  const [newerCloudDraft, setNewerCloudDraft] = useState<{
-    id?: string;
-    title?: string;
-    body?: string;
-    content?: string;
-    gender?: Gender;
-    scheduledFor?: string;
-    updatedAt?: string;
-    version?: number;
-  } | null>(null);
 
   const submitSuccessTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
     null
   );
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const restoredPendingRef = useRef(false);
-  const { anchor } = useStellarWallet();
+  const { anchor, connect, isConnected, publicKey } = useStellarWallet();
   const toast = useGlobalToast();
-  const { drafts } = useDrafts();
-  const { isAuthenticated, isLoading: isAuthLoading } = useAuth();
 
   const currentValidationErrors = validateConfessionForm({
     title,
@@ -161,74 +145,6 @@ export const EnhancedConfessionForm: React.FC<EnhancedConfessionFormProps> = ({
   }, []);
 
   useEffect(() => {
-    if (restoredPendingRef.current || isAuthLoading || !isAuthenticated) return;
-
-    const pending = loadPendingConfession();
-    if (!pending) return;
-
-    restoredPendingRef.current = true;
-    setTitle(pending.title || "");
-    setBody(pending.body);
-    setGender(pending.gender);
-    setEnableStellarAnchor(Boolean(pending.enableStellarAnchor));
-    setErrors({});
-    setSubmitError(null);
-    setSubmitSuccess(false);
-    setIsPreviewMode(false);
-    toast.info("Your confession draft is restored. Review it, then publish when ready.");
-
-    requestAnimationFrame(() => {
-      textareaRef.current?.focus();
-    });
-  }, [isAuthLoading, isAuthenticated, toast]);
-
-  const checkForNewerDrafts = useCallback(async () => {
-    try {
-      const response = await apiClient.get("/confessions/drafts");
-      const cloudDrafts = response.data;
-
-      if (cloudDrafts && cloudDrafts.length > 0) {
-        const latestCloudDraft = cloudDrafts[0];
-        const latestLocalDraft = drafts[0];
-
-        if (
-          !latestLocalDraft ||
-          new Date(latestCloudDraft.updatedAt).getTime() > latestLocalDraft.savedAt
-        ) {
-          setNewerCloudDraft(latestCloudDraft);
-        }
-      }
-    } catch (error) {
-      console.debug("Could not sync drafts from backend:", error);
-    }
-  }, [drafts]);
-
-  useEffect(() => {
-    checkForNewerDrafts();
-
-    const handleFocus = () => {
-      checkForNewerDrafts();
-    };
-
-    window.addEventListener("focus", handleFocus);
-    return () => window.removeEventListener("focus", handleFocus);
-  }, [checkForNewerDrafts]);
-
-  const recoverCloudDraft = () => {
-    if (newerCloudDraft) {
-      setTitle(newerCloudDraft.title || "");
-      setBody(newerCloudDraft.body || newerCloudDraft.content || "");
-      if (newerCloudDraft.gender) setGender(newerCloudDraft.gender as Gender);
-
-      if (newerCloudDraft.scheduledFor) {
-        toast.info("Restored draft with scheduled publish metadata.");
-      }
-
-      setNewerCloudDraft(null);
-    }
-  };
-
-  useEffect(() => {
     if (Object.keys(errors).length > 0) {
       if (
         Object.keys(currentValidationErrors).length <
@@ -243,7 +159,6 @@ export const EnhancedConfessionForm: React.FC<EnhancedConfessionFormProps> = ({
     setTitle(draft.title || "");
     setBody(draft.body);
     setGender(draft.gender);
-    setNewerCloudDraft(null);
     setTimeout(() => {
       textareaRef.current?.focus();
     }, 0);
@@ -274,20 +189,9 @@ export const EnhancedConfessionForm: React.FC<EnhancedConfessionFormProps> = ({
       return;
     }
 
-    if (isAuthLoading) {
-      setSubmitError("Checking your session. Please try again in a moment.");
-      return;
-    }
-
-    if (!isAuthenticated) {
-      savePendingConfession({
-        title,
-        body,
-        gender,
-        enableStellarAnchor,
-      });
-      toast.info("Sign in or create an account to publish. Your confession is saved here.");
-      router.push(buildAuthRedirectUrl("/login"));
+    if (!isConnected) {
+      setSubmitError("Connect your wallet before publishing your confession.");
+      toast.info("Connect your wallet to publish anonymously.");
       return;
     }
 
@@ -302,18 +206,24 @@ export const EnhancedConfessionForm: React.FC<EnhancedConfessionFormProps> = ({
           txHash = anchorResult.txHash;
           setStellarTxHash(txHash);
         } else {
-          setSubmitError(getAnchorFailureMessage(anchorResult.error));
-          return;
+          const anchorMessage = getAnchorFailureMessage(anchorResult.error);
+          toast.info(`${anchorMessage} Publishing without an anchor.`);
         }
       }
 
-      await apiClient.post("/confessions", {
-        title: title || undefined,
-        body,
-        message: body,
-        gender,
-        stellarTxHash: txHash,
-      });
+      await apiClient.post(
+        "/api/confessions",
+        {
+          title: title || undefined,
+          body,
+          message: body,
+          gender,
+          stellarTxHash: txHash,
+        },
+        {
+          headers: publicKey ? { "x-stellar-wallet": publicKey } : undefined,
+        },
+      );
 
       setSubmitSuccess(true);
       toast.success("Confession submitted successfully!");
@@ -387,48 +297,20 @@ export const EnhancedConfessionForm: React.FC<EnhancedConfessionFormProps> = ({
           Share your confession
         </CardTitle>
         <CardDescription className="max-w-2xl text-sm leading-7 sm:text-base">
-          Your identity stays private.
+          Anonymous by design. Connect a wallet to publish.
+          {!isConnected && (
+            <button
+              type="button"
+              onClick={() => void connect()}
+              className="ml-2 font-semibold text-[var(--foreground)] underline decoration-[var(--primary)] underline-offset-4 hover:text-[var(--primary)]"
+            >
+              Connect wallet
+            </button>
+          )}
         </CardDescription>
       </CardHeader>
 
       <CardContent className="px-6 py-7 sm:px-8">
-        {newerCloudDraft && (
-          <div
-            className="mb-6 flex flex-col justify-between gap-4 rounded-xl border border-[var(--accent-border)] bg-[var(--accent-soft)] p-4 sm:flex-row sm:items-center"
-            role="region"
-            aria-label="Newer draft recovered notification"
-          >
-            <div>
-              <p className="font-semibold text-[var(--foreground)]">
-                A newer draft was found from another device or tab.
-              </p>
-              <p className="mt-1 text-sm leading-6 text-[var(--secondary)]">
-                Load it here to avoid losing progress.
-              </p>
-            </div>
-            <div className="flex gap-2">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setNewerCloudDraft(null)}
-                aria-label="Dismiss recovered draft alert"
-                className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]"
-              >
-                Dismiss
-              </Button>
-              <Button
-                size="sm"
-                onClick={recoverCloudDraft}
-                aria-label="Load newer cloud draft"
-                className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]"
-              >
-                <CloudDownload className="h-4 w-4" aria-hidden="true" />
-                Load draft
-              </Button>
-            </div>
-          </div>
-        )}
-
         <form onSubmit={handleSubmit} className="space-y-7" aria-label="Confession composition form">
           <div>
             <label
