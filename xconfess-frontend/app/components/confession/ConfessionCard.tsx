@@ -61,11 +61,11 @@ export const ConfessionCard = memo(({ confession }: Props) => {
   return (
     <article
       data-shortcut-confession={confession.id}
-      className="luxury-panel rounded-2xl p-5 transition-all duration-300 hover:-translate-y-0.5 hover:bg-[var(--surface-strong)] focus-within:ring-2 focus-within:ring-[var(--primary)] sm:p-6"
+      className="luxury-panel rounded-2xl p-4 transition-all duration-300 hover:-translate-y-0.5 hover:bg-[var(--surface-strong)] focus-within:ring-2 focus-within:ring-[var(--primary)] sm:p-6"
       aria-label={`Confession by ${authorName}`}
     >
-      <div className="mb-4 flex items-center justify-between border-b border-[var(--border)] pb-3">
-        <div className="flex items-center gap-3">
+      <div className="mb-3 flex items-center justify-between gap-3 border-b border-[var(--border)] pb-3 sm:mb-4">
+        <div className="flex min-w-0 items-center gap-3">
           {confession.author?.avatar ? (
             <Image
               src={confession.author.avatar}
@@ -85,10 +85,10 @@ export const ConfessionCard = memo(({ confession }: Props) => {
           )}
 
           <div>
-            <p className="font-editorial text-2xl text-[var(--foreground)]">
+            <p className="truncate font-editorial text-xl text-[var(--foreground)] sm:text-2xl">
               {authorName}
             </p>
-            <p className="text-[11px] uppercase tracking-[0.18em] text-[var(--secondary)]">
+            <p className="text-[10px] uppercase tracking-[0.14em] text-[var(--secondary)] sm:text-[11px] sm:tracking-[0.18em]">
               Anonymous confession
             </p>
           </div>
@@ -126,13 +126,13 @@ export const ConfessionCard = memo(({ confession }: Props) => {
           className="group block rounded-lg p-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]"
           aria-label={`Read full confession: ${confession.content.slice(0, 80)}...`}
         >
-          <p className="mb-4 font-editorial text-[1.55rem] leading-[1.42] text-[var(--foreground)] transition-colors group-hover:text-[var(--primary-deep)] sm:text-[1.65rem]">
+          <p className="mb-3 font-editorial text-[1.35rem] leading-[1.42] text-[var(--foreground)] transition-colors group-hover:text-[var(--primary-deep)] sm:mb-4 sm:text-[1.65rem]">
             {confession.content}
           </p>
         </ScrollRestorationLink>
       )}
 
-      <div className="mt-4 flex flex-col gap-3 border-t border-[var(--border)] pt-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="mt-3 flex flex-col gap-3 border-t border-[var(--border)] pt-3 sm:mt-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-2 text-xs text-[var(--secondary)]">
           {confession.viewCount !== undefined && (
             <div
@@ -156,7 +156,7 @@ export const ConfessionCard = memo(({ confession }: Props) => {
           )}
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex w-full flex-wrap items-center justify-between gap-2 sm:w-auto sm:justify-end">
           <TipButton
             confessionId={confession.id}
             recipientAddress={confession.author?.stellarAddress}

@@ -62,7 +62,7 @@ export const ConfessionFeed = () => {
 
   const sortControls = (
     <div
-      className="flex w-full flex-wrap items-center gap-2 rounded-2xl border border-[var(--border)] bg-[var(--surface-muted)] p-1.5"
+      className="flex w-full items-stretch gap-1 overflow-x-auto rounded-2xl border border-[var(--border)] bg-[var(--surface-muted)] p-1.5 sm:flex-wrap sm:items-center sm:gap-2"
       role="tablist"
       aria-label="Feed sort"
     >
@@ -73,7 +73,7 @@ export const ConfessionFeed = () => {
           role="tab"
           aria-selected={sort === option.value}
           onClick={() => setSort(option.value)}
-          className={`rounded-xl px-3.5 py-2 text-xs font-semibold transition-colors sm:text-sm ${
+          className={`min-h-10 shrink-0 rounded-xl px-3 py-2 text-xs font-semibold transition-colors sm:px-3.5 sm:text-sm ${
             sort === option.value
               ? "bg-[var(--primary)] text-white shadow-[0_8px_18px_-10px_rgba(120,33,213,0.9)]"
               : "text-[var(--secondary)] hover:bg-[var(--surface-strong)] hover:text-[var(--foreground)]"

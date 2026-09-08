@@ -10,25 +10,52 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const isDev = process.env.NODE_ENV === "development";
 
+function originFrom(value, fallback) {
+  try {
+    return new URL(value).origin;
+  } catch {
+    return fallback;
+  }
+}
+
+const apiOrigin = originFrom(
+  process.env.NEXT_PUBLIC_API_URL,
+  isDev ? "http://localhost:5000" : "https://xconfess-backend.onrender.com",
+);
+const wsOrigin = originFrom(
+  process.env.NEXT_PUBLIC_WS_URL,
+  isDev ? "ws://localhost:5000" : "wss://xconfess-backend.onrender.com",
+);
+
 const securityHeaders = [
   // Prevents XSS and data injection attacks.
   // - unsafe-inline required for Next.js hydration and Tailwind CSS
   // - unsafe-eval required for Next.js development mode hot reloading
-  // - connect-src allows Stellar Horizon and Soroban RPC endpoints
+  // - connect-src allows the configured API/WebSocket origins and Stellar endpoints
   {
     key: "Content-Security-Policy",
     value: [
       "default-src 'self'",
       "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
       "style-src 'self' 'unsafe-inline'",
-      "img-src 'self' data: blob:",
-      "font-src 'self' data:",
+      "img-src 'self' data: blob: https://stellar.creit.tech",
+        "font-src 'self' data:",
       [
         "connect-src 'self'",
+        apiOrigin,
+        wsOrigin,
         "https://horizon.stellar.org",
         "https://horizon-testnet.stellar.org",
         "https://soroban-rpc.stellar.org",
         "https://soroban-testnet.stellar.org",
+        // WalletConnect is used by Freighter Mobile when the app is opened
+        // in a phone browser. Keep these explicit so the CSP stays narrow.
+        "https://echo.walletconnect.org",
+        "https://pulse.walletconnect.org",
+        "https://rpc.walletconnect.org",
+        "https://relay.walletconnect.org",
+        "https://verify.walletconnect.org",
+        "wss://relay.walletconnect.org",
         isDev ? "ws://localhost:*" : "",
       ]
         .filter(Boolean)
