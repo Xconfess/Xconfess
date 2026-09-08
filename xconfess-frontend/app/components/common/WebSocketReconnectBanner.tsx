@@ -26,9 +26,9 @@ export function WebSocketReconnectBanner({
       aria-live="polite"
       className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[100] w-[calc(100%-2rem)] max-w-sm"
     >
-      <div className="relative overflow-hidden rounded-xl border border-amber-500/20 bg-amber-500/10 p-3 shadow-2xl backdrop-blur-md text-amber-200">
+      <div className="relative overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface)] p-3 text-[var(--foreground)] shadow-[0_12px_30px_-24px_rgba(20,16,30,0.55)]">
         <div className="flex items-start gap-3">
-          <div className="flex-shrink-0 rounded-lg bg-amber-500/20 p-1.5">
+          <div className="flex-shrink-0 rounded-lg border border-[var(--border)] bg-[var(--surface-muted)] p-1.5 text-[var(--secondary)]">
             {state === 'reconnecting' ? (
               <RefreshCcw className="w-4 h-4 animate-spin" aria-hidden />
             ) : (
