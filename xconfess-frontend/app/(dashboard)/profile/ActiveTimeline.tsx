@@ -192,7 +192,7 @@ export function ActivityTimeline({ userId }: ActivityTimelineProps) {
             {confessions.length === 0 && !loading ? (
               <div className="p-8 text-center text-gray-500">
                 <MessageSquare className="w-12 h-12 mx-auto mb-3 text-gray-400" />
-                <p>No confessions yet</p>
+                <p className="text-lg">No confessions yet</p>
               </div>
             ) : (
               confessions.map((confession) => (
@@ -246,7 +246,7 @@ export function ActivityTimeline({ userId }: ActivityTimelineProps) {
             {activities.length === 0 && !loading ? (
               <div className="p-8 text-center text-gray-500">
                 <Clock className="w-12 h-12 mx-auto mb-3 text-gray-400" />
-                <p>No activity yet</p>
+                <p className="text-lg">No activity yet</p>
               </div>
             ) : (
               activities.map((activity) => {
