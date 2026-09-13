@@ -1,30 +1,25 @@
 import { Injectable, NestMiddleware, Logger } from '@nestjs/common';
 import { Request, Response, NextFunction } from 'express';
-import sanitizeHtml from 'sanitize-html';
+import {
+  sanitizeConfession,
+  sanitizePlainText,
+  sanitizeSearchQuery,
+} from '../utils/sanitize.utils';
 
-const CONFESSION_ALLOWED_TAGS = [
-  'b', 'i', 'em', 'strong', 'p', 'br', 'ul', 'ol', 'li', 'blockquote', 'code', 'pre',
-];
+export type RouteContext =
+  | 'confession'
+  | 'comment'
+  | 'messages'
+  | 'reports'
+  | 'search'
+  | 'username'
+  | 'generic';
 
-const CONFESSION_ALLOWED_ATTRS: sanitizeHtml.IOptions['allowedAttributes'] = {};
-
-const CONFESSION_OPTIONS: sanitizeHtml.IOptions = {
-  allowedTags: CONFESSION_ALLOWED_TAGS,
-  allowedAttributes: CONFESSION_ALLOWED_ATTRS,
-  disallowedTagsMode: 'discard',
-};
-
-const PLAIN_TEXT_OPTIONS: sanitizeHtml.IOptions = {
-  allowedTags: [],
-  allowedAttributes: {},
-  disallowedTagsMode: 'discard',
-};
-
-type RouteContext = 'confession' | 'comment' | 'search' | 'username' | 'generic';
-
-function detectContext(path: string): RouteContext {
+export function detectContext(path: string): RouteContext {
   if (path.includes('/confessions')) return 'confession';
+  if (path.includes('/messages')) return 'messages';
   if (path.includes('/comments')) return 'comment';
+  if (path.includes('/reports') || path.includes('/report')) return 'reports';
   if (path.includes('/search')) return 'search';
   if (path.includes('/auth/register') || path.includes('/users')) return 'username';
   return 'generic';
@@ -56,20 +51,20 @@ function sanitizeGeneric(value: string): string {
 function sanitizeValue(value: string, context: RouteContext): string {
   switch (context) {
     case 'confession':
-      return sanitizeForConfession(value);
+    case 'messages':
+      return sanitizeConfession(value);
     case 'comment':
-      return sanitizeForPlainText(value);
-    case 'search':
-      return sanitizeForSearch(value);
+    case 'reports':
     case 'username':
-      // Username format is enforced by DTO regex; just strip any HTML/scripts
-      return sanitizeForPlainText(value);
+      return sanitizePlainText(value);
+    case 'search':
+      return sanitizeSearchQuery(value);
     default:
-      return sanitizeGeneric(value);
+      return sanitizePlainText(value);
   }
 }
 
-function sanitizeObject(
+export function sanitizeObject(
   obj: Record<string, unknown>,
   context: RouteContext,
   logger: Logger,

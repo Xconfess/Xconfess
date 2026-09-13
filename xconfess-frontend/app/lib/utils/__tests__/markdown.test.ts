@@ -5,6 +5,7 @@ import {
   insertEmoji,
   sanitizeMarkdown,
 } from "../markdown";
+import { MALICIOUS_PAYLOAD_FIXTURES } from "../../../../../shared/fixtures/malicious-payloads";
 
 // Mock textarea element
 function createMockTextarea(value: string, selectionStart: number, selectionEnd: number) {
