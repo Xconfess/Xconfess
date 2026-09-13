@@ -3,6 +3,10 @@ import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { StepUpService } from './step-up.service';
 import { BadRequestException } from '@nestjs/common';
+import {
+  SESSION_COOKIE_NAME,
+  SESSION_COOKIE_CLEAR_OPTIONS,
+} from './cookie-config';
 
 describe('AuthController', () => {
   let controller: AuthController;
@@ -227,6 +231,73 @@ describe('AuthController', () => {
       await expect(controller.resetPassword(resetPasswordDto)).rejects.toThrow(
         'Failed to reset password: Database connection error',
       );
+    });
+  });
+
+  describe('logout — cookie clearing', () => {
+    it('returns { message: "Logged out successfully" }', () => {
+      const mockRes = { clearCookie: jest.fn() } as any;
+      const result = controller.logout(mockRes);
+      expect(result).toEqual({ message: 'Logged out successfully' });
+    });
+
+    it('calls res.clearCookie with the correct cookie name', () => {
+      const mockRes = { clearCookie: jest.fn() } as any;
+      controller.logout(mockRes);
+      expect(mockRes.clearCookie).toHaveBeenCalledWith(
+        SESSION_COOKIE_NAME,
+        expect.any(Object),
+      );
+      expect(mockRes.clearCookie.mock.calls[0][0]).toBe('xconfess_session');
+    });
+
+    it('passes SESSION_COOKIE_CLEAR_OPTIONS to clearCookie', () => {
+      const mockRes = { clearCookie: jest.fn() } as any;
+      controller.logout(mockRes);
+      const [, options] = mockRes.clearCookie.mock.calls[0];
+      expect(options).toEqual(SESSION_COOKIE_CLEAR_OPTIONS);
+    });
+
+    it('clears with httpOnly: true', () => {
+      const mockRes = { clearCookie: jest.fn() } as any;
+      controller.logout(mockRes);
+      const [, options] = mockRes.clearCookie.mock.calls[0];
+      expect(options.httpOnly).toBe(true);
+    });
+
+    it('clears with sameSite: strict', () => {
+      const mockRes = { clearCookie: jest.fn() } as any;
+      controller.logout(mockRes);
+      const [, options] = mockRes.clearCookie.mock.calls[0];
+      expect(options.sameSite).toBe('strict');
+    });
+
+    it('clears with path: /', () => {
+      const mockRes = { clearCookie: jest.fn() } as any;
+      controller.logout(mockRes);
+      const [, options] = mockRes.clearCookie.mock.calls[0];
+      expect(options.path).toBe('/');
+    });
+
+    it('clears with maxAge: 0', () => {
+      const mockRes = { clearCookie: jest.fn() } as any;
+      controller.logout(mockRes);
+      const [, options] = mockRes.clearCookie.mock.calls[0];
+      expect(options.maxAge).toBe(0);
+    });
+
+    it('clears with expires set to Unix epoch', () => {
+      const mockRes = { clearCookie: jest.fn() } as any;
+      controller.logout(mockRes);
+      const [, options] = mockRes.clearCookie.mock.calls[0];
+      expect((options.expires as Date).valueOf()).toBe(new Date(0).valueOf());
+    });
+
+    it('SESSION_COOKIE_CLEAR_OPTIONS.secure is false outside production', () => {
+      // Tests run with NODE_ENV=test; Secure must be false so tests work on plain HTTP.
+      // Production enforcement is validated by the isProduction conditional in cookie-config.ts.
+      expect(process.env.NODE_ENV).not.toBe('production');
+      expect(SESSION_COOKIE_CLEAR_OPTIONS.secure).toBe(false);
     });
   });
 });
