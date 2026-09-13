@@ -35,6 +35,10 @@ describe('DataExportService', () => {
 
   const mockChunkRepository = {
     findOne: jest.fn(),
+    find: jest.fn(),
+    save: jest.fn(),
+    update: jest.fn(),
+    createQueryBuilder: jest.fn(),
   };
 
   const mockExportQueue = {
@@ -1009,5 +1013,242 @@ describe('DataExportService', () => {
     );
 
     jest.useRealTimers();
+  });
+
+  // ── Issue #1453 — resumable export helpers ─────────────────────────────────
+
+  describe('Issue #1453 — resumable export helpers', () => {
+    it('getResumeIndex returns -1 when no completed chunks exist', async () => {
+      const chunkQb: any = {
+        select: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        getRawOne: jest.fn().mockResolvedValue({ max: '-1' }),
+      };
+      mockChunkRepository.createQueryBuilder.mockReturnValue(chunkQb);
+
+      const result = await service.getResumeIndex('req-empty');
+
+      expect(result).toBe(-1);
+      expect(chunkQb.where).toHaveBeenCalledWith(
+        'chunk.export_request_id = :requestId',
+        { requestId: 'req-empty' },
+      );
+      expect(chunkQb.andWhere).toHaveBeenCalledWith(
+        "chunk.status = 'COMPLETED'",
+      );
+    });
+
+    it('getResumeIndex returns the highest completed chunk index', async () => {
+      const chunkQb: any = {
+        select: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        getRawOne: jest.fn().mockResolvedValue({ max: '7' }),
+      };
+      mockChunkRepository.createQueryBuilder.mockReturnValue(chunkQb);
+
+      const result = await service.getResumeIndex('req-halfway');
+
+      expect(result).toBe(7);
+    });
+
+    it('getResumeIndex falls back to -1 when raw value is null', async () => {
+      const chunkQb: any = {
+        select: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        getRawOne: jest.fn().mockResolvedValue({ max: null }),
+      };
+      mockChunkRepository.createQueryBuilder.mockReturnValue(chunkQb);
+
+      const result = await service.getResumeIndex('req-missing');
+
+      expect(result).toBe(-1);
+    });
+
+    it('saveCompletedChunk inserts a new chunk and returns true', async () => {
+      mockChunkRepository.findOne.mockResolvedValueOnce(null);
+
+      const inserted = await service.saveCompletedChunk(
+        'req-1',
+        0,
+        Buffer.from('hello'),
+        'abc',
+      );
+
+      expect(inserted).toBe(true);
+      expect(mockChunkRepository.save).toHaveBeenCalledWith(
+        expect.objectContaining({
+          exportRequestId: 'req-1',
+          chunkIndex: 0,
+          fileData: Buffer.from('hello'),
+          chunkSize: 5,
+          checksum: 'abc',
+          status: 'COMPLETED',
+          errorMetadata: null,
+        }),
+      );
+    });
+
+    it('saveCompletedChunk skips insert when the chunk already exists (dedupe)', async () => {
+      mockChunkRepository.findOne.mockResolvedValueOnce({ id: 'existing' });
+
+      const inserted = await service.saveCompletedChunk(
+        'req-1',
+        0,
+        Buffer.from('hello'),
+        'abc',
+      );
+
+      expect(inserted).toBe(false);
+      expect(mockChunkRepository.save).not.toHaveBeenCalled();
+    });
+
+    it('markChunkFailed upserts a FAILED tombstone with sanitized metadata', async () => {
+      mockChunkRepository.findOne.mockResolvedValueOnce(null);
+
+      const meta = await service.markChunkFailed('req-1', 3, new Error('boom'));
+
+      expect(meta.code).toBe('CHUNK_WRITE_FAILED');
+      expect(meta.message).toBe('boom');
+      expect(meta.isRetryable).toBe(true);
+      expect(typeof meta.at).toBe('string');
+
+      expect(mockChunkRepository.save).toHaveBeenCalledWith(
+        expect.objectContaining({
+          exportRequestId: 'req-1',
+          chunkIndex: 3,
+          status: 'FAILED',
+          errorMetadata: meta,
+          fileData: Buffer.alloc(0),
+          chunkSize: 0,
+          checksum: '',
+        }),
+      );
+    });
+
+    it('markChunkFailed updates an existing row instead of duplicating', async () => {
+      mockChunkRepository.findOne.mockResolvedValueOnce({ id: 'row-3' });
+
+      const meta = await service.markChunkFailed('req-1', 3, new Error('boom'));
+
+      expect(mockChunkRepository.update).toHaveBeenCalledWith(
+        'row-3',
+        expect.objectContaining({ status: 'FAILED', errorMetadata: meta }),
+      );
+      expect(mockChunkRepository.save).not.toHaveBeenCalled();
+    });
+
+    it('verifyArchiveIntegrity passes when chunks recompute to the expected combined hash', async () => {
+      const bufferA = Buffer.from('AAAAAAAA');
+      const bufferB = Buffer.from('BBBBBBBB');
+      const combined = require('crypto')
+        .createHash('sha256')
+        .update(bufferA)
+        .update(bufferB)
+        .digest('hex');
+
+      mockChunkRepository.find.mockResolvedValue([
+        {
+          chunkIndex: 0,
+          fileData: bufferA,
+          chunkSize: bufferA.length,
+          checksum: require('crypto')
+            .createHash('sha256')
+            .update(bufferA)
+            .digest('hex'),
+          status: 'COMPLETED',
+        },
+        {
+          chunkIndex: 1,
+          fileData: bufferB,
+          chunkSize: bufferB.length,
+          checksum: require('crypto')
+            .createHash('sha256')
+            .update(bufferB)
+            .digest('hex'),
+          status: 'COMPLETED',
+        },
+      ]);
+
+      await expect(
+        service.verifyArchiveIntegrity('req-1', combined),
+      ).resolves.toBeUndefined();
+    });
+
+    it('verifyArchiveIntegrity throws when chunks are missing', async () => {
+      mockChunkRepository.find.mockResolvedValue([
+        {
+          chunkIndex: 0,
+          fileData: Buffer.from('AAAA'),
+          chunkSize: 4,
+          checksum: require('crypto')
+            .createHash('sha256')
+            .update('AAAA')
+            .digest('hex'),
+          status: 'COMPLETED',
+        },
+        // chunkIndex 1 missing
+        {
+          chunkIndex: 2,
+          fileData: Buffer.from('CC'),
+          chunkSize: 2,
+          checksum: require('crypto')
+            .createHash('sha256')
+            .update('CC')
+            .digest('hex'),
+          status: 'COMPLETED',
+        },
+      ]);
+
+      await expect(
+        service.verifyArchiveIntegrity('req-1', 'irrelevant'),
+      ).rejects.toThrow(/missing chunk 1/);
+    });
+
+    it('verifyArchiveIntegrity throws when no chunks exist', async () => {
+      mockChunkRepository.find.mockResolvedValue([]);
+
+      await expect(
+        service.verifyArchiveIntegrity('req-1', 'irrelevant'),
+      ).rejects.toThrow(/no completed chunks were found/);
+    });
+
+    it('verifyArchiveIntegrity throws when an individual chunk checksum is corrupt', async () => {
+      mockChunkRepository.find.mockResolvedValue([
+        {
+          chunkIndex: 0,
+          fileData: Buffer.from('AAAA'),
+          chunkSize: 4,
+          checksum: 'deadbeef', // intentionally wrong
+          status: 'COMPLETED',
+        },
+      ]);
+
+      await expect(
+        service.verifyArchiveIntegrity('req-1', 'irrelevant'),
+      ).rejects.toThrow(/chunk 0 checksum mismatch/);
+    });
+
+    it('verifyArchiveIntegrity throws when the combined hash does not match', async () => {
+      const buffer = Buffer.from('AAAA');
+      mockChunkRepository.find.mockResolvedValue([
+        {
+          chunkIndex: 0,
+          fileData: buffer,
+          chunkSize: buffer.length,
+          checksum: require('crypto')
+            .createHash('sha256')
+            .update(buffer)
+            .digest('hex'),
+          status: 'COMPLETED',
+        },
+      ]);
+
+      await expect(
+        service.verifyArchiveIntegrity('req-1', 'wrong-combined-hash'),
+      ).rejects.toThrow(/combined checksum mismatch/);
+    });
   });
 });

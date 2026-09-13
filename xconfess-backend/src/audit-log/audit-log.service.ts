@@ -58,7 +58,8 @@ export type ExportLifecycleAction =
   | 'downloaded'
   | 'download_failed'
   | 'token_expired'
-  | 'export_expired';
+  | 'export_expired'
+  | 'integrity_verification_failed';
 
 export type ExportActorType = AuditActorType;
 
@@ -549,6 +550,8 @@ async logModerationStateTransition(
         return AuditActionType.EXPORT_TOKEN_EXPIRED;
       case 'export_expired':
         return AuditActionType.EXPORT_EXPIRED;
+      case 'integrity_verification_failed':
+        return AuditActionType.EXPORT_INTEGRITY_VERIFICATION_FAILED;
       default:
         return AuditActionType.EXPORT_REQUEST_CREATED;
     }
