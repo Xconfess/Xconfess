@@ -8,6 +8,9 @@ import { DataExportService } from './data-export.service';
 import { EmailService } from '../email/email.service';
 import { ConfigService } from '@nestjs/config';
 import { Job } from 'bullmq';
+import {
+  BadRequestException,
+} from '@nestjs/common';
 
 describe('ExportProcessor', () => {
   let processor: ExportProcessor;
@@ -22,6 +25,8 @@ describe('ExportProcessor', () => {
     };
     chunkRepo = {
       save: jest.fn(),
+      findOne: jest.fn(),
+      find: jest.fn(),
     };
     userRepo = {
       findOneBy: jest.fn(),
@@ -31,6 +36,18 @@ describe('ExportProcessor', () => {
       convertToCsv: jest.fn(() => 'test,csv'),
       markExportFailed: jest.fn(),
       markExportProcessing: jest.fn(),
+      // Issue #1453 helpers
+      getResumeIndex: jest
+        .fn()
+        .mockResolvedValue(-1), // By default: nothing persisted yet.
+      saveCompletedChunk: jest.fn().mockResolvedValue(true),
+      markChunkFailed: jest.fn().mockResolvedValue({
+        at: new Date().toISOString(),
+        code: 'CHUNK_WRITE_FAILED',
+        message: 'simulated failure',
+        isRetryable: true,
+      }),
+      verifyArchiveIntegrity: jest.fn().mockResolvedValue(undefined),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -70,7 +87,7 @@ describe('ExportProcessor', () => {
     expect(processor).toBeDefined();
   });
 
-  describe('handleExport', () => {
+  describe('handleExport (legacy / happy path)', () => {
     it('should process a chunked export successfully', async () => {
       const mockJob = {
         name: 'process-export',
@@ -100,7 +117,10 @@ describe('ExportProcessor', () => {
           isChunked: true,
         }),
       );
-      expect(chunkRepo.save).toHaveBeenCalled();
+      // Integrity verification must run before declaring READY.
+      expect(
+        dataExportService.verifyArchiveIntegrity,
+      ).toHaveBeenCalled();
     });
 
     it('should mark export as FAILED if error occurs', async () => {
@@ -113,8 +133,7 @@ describe('ExportProcessor', () => {
         new Error('Test error'),
       );
 
-      await processor.process(mockJob);
-
+      await expect(processor.process(mockJob)).rejects.toThrow();
       expect(dataExportService.markExportProcessing).toHaveBeenCalledWith(
         'req-1',
       );
