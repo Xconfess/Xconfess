@@ -13,6 +13,7 @@ export interface WalletState {
   isLoading: boolean;
   error: string | null;
   isFreighterInstalled: boolean;
+  isEmbeddedWallet: boolean;
 }
 
 export interface UseWalletReturn extends WalletState {
@@ -41,6 +42,7 @@ export const useWallet = (): UseWalletReturn => {
     isLoading: false,
     error: null,
     isFreighterInstalled: false,
+    isEmbeddedWallet: false,
   });
 
   const hasInitialized = useRef(false);
@@ -96,7 +98,7 @@ export const useWallet = (): UseWalletReturn => {
       const embeddedWallet = getEmbeddedWallet();
 
       if (embeddedWallet) {
-        setState((prev) => ({ ...prev, publicKey: embeddedWallet.publicKey, network: embeddedWallet.network, isConnected: true, isLoading: false, error: null }));
+        setState((prev) => ({ ...prev, publicKey: embeddedWallet.publicKey, network: embeddedWallet.network, isConnected: true, isEmbeddedWallet: true, isLoading: false, error: null }));
         storeSession(embeddedWallet.publicKey, embeddedWallet.network);
         return;
       }
@@ -164,7 +166,7 @@ export const useWallet = (): UseWalletReturn => {
         const embeddedWallet = getEmbeddedWallet();
 
       if (embeddedWallet) {
-        setState((prev) => ({ ...prev, publicKey: embeddedWallet.publicKey, network: embeddedWallet.network, isConnected: true, isLoading: false, error: null }));
+        setState((prev) => ({ ...prev, publicKey: embeddedWallet.publicKey, network: embeddedWallet.network, isConnected: true, isEmbeddedWallet: true, isLoading: false, error: null }));
         storeSession(embeddedWallet.publicKey, embeddedWallet.network);
         return;
       }
@@ -202,7 +204,7 @@ export const useWallet = (): UseWalletReturn => {
 
       const embeddedWallet = getEmbeddedWallet();
       if (embeddedWallet) {
-        setState((prev) => ({ ...prev, publicKey: embeddedWallet.publicKey, network: embeddedWallet.network, isConnected: true, isLoading: false, error: null }));
+        setState((prev) => ({ ...prev, publicKey: embeddedWallet.publicKey, network: embeddedWallet.network, isConnected: true, isEmbeddedWallet: true, isLoading: false, error: null }));
         storeSession(embeddedWallet.publicKey, embeddedWallet.network);
         return;
       }
@@ -289,7 +291,7 @@ export const useWallet = (): UseWalletReturn => {
       const embeddedWallet = getEmbeddedWallet();
 
       if (embeddedWallet) {
-        setState((prev) => ({ ...prev, publicKey: embeddedWallet.publicKey, network: embeddedWallet.network, isConnected: true, isLoading: false, error: null }));
+        setState((prev) => ({ ...prev, publicKey: embeddedWallet.publicKey, network: embeddedWallet.network, isConnected: true, isEmbeddedWallet: true, isLoading: false, error: null }));
         storeSession(embeddedWallet.publicKey, embeddedWallet.network);
         return;
       }

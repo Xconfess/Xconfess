@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { getTipStats, type TipStats } from "@/lib/services/tipping.service";
 import { useTipStateMachine } from "@/lib/hooks/useTipStateMachine";
 import { useWallet } from "@/lib/hooks/useWallet";
@@ -63,6 +65,7 @@ export const TipButton = ({ confessionId, recipientAddress, initialStats }: TipB
   const [tipAmount, setTipAmount] = useState(String(MIN_TIP_AMOUNT));
   const [stats, setStats] = useState<TipStats | null>(initialStats || null);
   const [walletPin, setWalletPin] = useState("");
+  const pathname = usePathname();
 
   const wallet = useWallet();
   const { isConnected, connect } = wallet;
@@ -87,6 +90,12 @@ export const TipButton = ({ confessionId, recipientAddress, initialStats }: TipB
 
   const isBusy = info.isBusy;
   const walletCTA = getWalletCTAState(wallet, { extraDisabled: isBusy });
+
+  useEffect(() => {
+    if (typeof window !== "undefined" && new URLSearchParams(window.location.search).get("tip") === "1") {
+      setIsOpen(true);
+    }
+  }, []);
 
   useEffect(() => {
     Promise.resolve(getTipStats(confessionId))
@@ -161,7 +170,15 @@ export const TipButton = ({ confessionId, recipientAddress, initialStats }: TipB
             <div className="mb-3 p-3 rounded-lg bg-yellow-500/10 border border-yellow-500/30">
               <div className="flex items-start gap-2">
                 <AlertCircle className="h-4 w-4 flex-shrink-0 mt-0.5 text-yellow-500" />
-                <p className="text-xs text-yellow-400">{walletCTA.guidance}</p>
+                <div>
+                  <p className="text-xs text-yellow-400">{walletCTA.guidance}</p>
+                  <Link
+                    href={`/wallet?returnTo=${encodeURIComponent(`${pathname || `/confessions/${confessionId}`}?tip=1`)}`}
+                    className="mt-2 inline-flex min-h-[36px] items-center rounded-lg bg-purple-600 px-3 py-2 text-xs font-semibold text-white hover:bg-purple-500"
+                  >
+                    Create XConfess Wallet
+                  </Link>
+                </div>
               </div>
             </div>
           )}
@@ -171,7 +188,7 @@ export const TipButton = ({ confessionId, recipientAddress, initialStats }: TipB
                 <Wallet className="h-4 w-4 flex-shrink-0 mt-0.5 text-blue-400" />
                 <div>
                   <p className="text-xs text-blue-400 font-medium">Wallet not connected</p>
-                  <p className="text-xs text-blue-300/70 mt-0.5">Connect your Freighter wallet to send tips on Stellar.</p>
+                  <p className="text-xs text-blue-300/70 mt-0.5">Your XConfess Wallet signs this tip locally.</p>
                 </div>
               </div>
             </div>
@@ -353,7 +370,7 @@ export const TipButton = ({ confessionId, recipientAddress, initialStats }: TipB
                 aria-label={
                   isBusy ? stateLabel ?? "Processing…"
                   : walletCTA.status === "not-connected" ? "Connect Wallet to Tip"
-                  : walletCTA.status === "not-installed" ? "Wallet required — install Freighter or create an XConfess Wallet"
+                  : walletCTA.status === "not-installed" ? "Create an XConfess Wallet to tip"
                   : `Send ${tipAmount} XLM tip`
                 }
               >

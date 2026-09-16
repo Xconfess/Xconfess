@@ -35,6 +35,7 @@ export const AnchorButton: FC<AnchorButtonProps> = ({
 }) => {
   const {
     isAvailable,
+    isEmbeddedWallet,
     isConnected,
     isReady,
     readinessError,
@@ -45,6 +46,7 @@ export const AnchorButton: FC<AnchorButtonProps> = ({
   } = useStellarWallet();
   const walletCTA = getWalletCTAState({
     isFreighterInstalled: isAvailable,
+    isEmbeddedWallet,
     isConnected,
     isReady,
     readinessError,

@@ -7,6 +7,7 @@ import { handleStellarError } from "@/lib/stellarErrorHandler";
 
 export interface StellarWalletState {
   isAvailable: boolean;
+  isEmbeddedWallet: boolean;
   isConnected: boolean;
   publicKey: string | null;
   network: string;
@@ -75,6 +76,7 @@ export function useStellarWallet() {
 
   return {
     isAvailable: wallet.isFreighterInstalled || wallet.isConnected,
+    isEmbeddedWallet: wallet.isEmbeddedWallet,
     isConnected: wallet.isConnected,
     publicKey: wallet.publicKey,
     network: wallet.network,

@@ -56,6 +56,8 @@ export default function WalletPage() {
       if (mode === "create" && pin !== pinConfirm) throw new Error("Wallet PINs do not match");
       const next = mode === "create" ? await createEmbeddedWallet(pin, walletNetwork) : await importEmbeddedWallet(secret, pin, walletNetwork);
       setWallet(next); await registerPublicKey(next.publicKey, next.network); setPin(""); setPinConfirm(""); setSecret(""); setNotice("Wallet protected on this device.");
+      const returnTo = new URLSearchParams(window.location.search).get("returnTo");
+      if (returnTo && returnTo.startsWith("/")) window.setTimeout(() => window.location.assign(returnTo), 700);
     } catch (error) { setNotice(error instanceof Error ? error.message : "Unable to create wallet"); }
   };
 
