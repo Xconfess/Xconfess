@@ -6,6 +6,7 @@ The embedded wallet is a client-side, non-custodial wallet. Keypairs are generat
 
 - `Keypair.random()` or an imported Stellar secret creates the account locally.
 - A 6–12 digit wallet PIN derives a 256-bit key with PBKDF2-SHA-256 and 310,000 iterations.
+- Predictable PINs are rejected, and five failed unlock attempts trigger a five-minute local lockout.
 - The secret is encrypted with AES-256-GCM using a random salt and IV.
 - Only the public key may be registered with the backend. The PIN, plaintext secret, and unlocked keypair must never be sent to an API, logged, or placed in URLs.
 - Unlocking is ephemeral. Callers should discard the returned keypair immediately after signing and lock the wallet after inactivity.
@@ -14,9 +15,11 @@ The embedded wallet is a client-side, non-custodial wallet. Keypairs are generat
 
 The downloadable backup is ciphertext plus its versioned encryption metadata. It is not a recovery phrase and XConfess cannot recover a forgotten PIN. Users should store the encrypted backup separately from the PIN.
 
+The Wallet & Security surface reports when a backup is still needed, supports local PIN rotation by decrypting and re-encrypting in memory, and requires the PIN before revealing an exportable private key. Removing local wallet data is explicit and warns that recovery is impossible without a backup or the original secret.
+
 ## Network and transaction flow
 
-The wallet currently defaults to Stellar Testnet and always displays that network in the UI. A production send/tip flow should prepare an unsigned transaction from Horizon, show destination/amount/fee/network for review, unlock locally, sign in the browser, submit the signed XDR, and verify the returned hash server-side. Freighter remains an optional external provider, not a prerequisite for the embedded flow.
+The wallet currently defaults to Stellar Testnet and displays the configured Testnet/Mainnet network in the UI. The send flow validates inputs, shows destination/amount/fee/network for review, unlocks locally, signs in the browser, submits the signed transaction, and presents a transaction hash and explorer link. Activity is read from Horizon. Freighter remains an optional external provider, not a prerequisite for the embedded flow.
 
 ## Security boundaries
 
@@ -40,5 +43,5 @@ XSS can expose browser storage or an unlocked keypair, so wallet code does not l
 
 ## Stellar integration boundaries
 
-Native XLM payments use Horizon account loading, a native payment operation, a bounded text memo, a 60-second timeout, local signing, and Horizon submission. Existing Soroban/anchoring code remains a separate optional capability. It is not required to browse or publish ordinary anonymous confessions.
+Native XLM payments use Horizon account loading, a native payment operation, a bounded text memo, a 60-second timeout, local signing, and Horizon submission. Technical failures are mapped to safe user-facing states; raw SDK/Horizon details are not shown. Existing Soroban/anchoring code remains a separate optional capability. It is not required to browse or publish ordinary anonymous confessions.
 
