@@ -33,6 +33,7 @@ export function useStellarWallet() {
   const anchor = useCallback(
     async (
       content: string,
+      walletPin?: string,
     ): Promise<{ success: boolean; txHash?: string; error?: string }> => {
       if (!wallet.isConnected || !wallet.publicKey) {
         const err = "Wallet not connected";
@@ -51,7 +52,7 @@ export function useStellarWallet() {
       try {
         const timestamp = Date.now();
         const hash = hashConfession(content, timestamp);
-        const result = await anchorConfession(hash, timestamp);
+        const result = await anchorConfession(hash, timestamp, walletPin);
 
         if (result.error) {
           const stellarError = handleStellarError(result.error);

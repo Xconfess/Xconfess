@@ -43,5 +43,5 @@ XSS can expose browser storage or an unlocked keypair, so wallet code does not l
 
 ## Stellar integration boundaries
 
-Native XLM payments use Horizon account loading, a native payment operation, a bounded text memo, a 60-second timeout, local signing, and Horizon submission. Technical failures are mapped to safe user-facing states; raw SDK/Horizon details are not shown. Existing Soroban/anchoring code remains a separate optional capability. It is not required to browse or publish ordinary anonymous confessions.
+Native XLM payments use Horizon account loading, a native payment operation, a bounded text memo, a 60-second timeout, local signing, and Horizon submission. Technical failures are mapped to safe user-facing states; raw SDK/Horizon details are not shown. Existing Soroban/anchoring remains optional, but the prepared contract transaction can now be signed locally by the embedded wallet with the wallet PIN; Freighter remains an advanced external fallback. It is not required to browse or publish ordinary anonymous confessions.
 

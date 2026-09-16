@@ -77,18 +77,18 @@ export const StellarAnchorToggle: React.FC<StellarAnchorToggleProps> = ({
         <div className="flex items-start gap-2 text-xs text-yellow-400 bg-yellow-400/10 border border-yellow-400/20 rounded-lg p-2">
           <AlertCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
           <div>
-            <p className="font-medium">Freighter wallet not found</p>
+            <p className="font-medium">No Stellar wallet connected</p>
             <p className="text-yellow-300/80 mt-1">
-              Install{" "}
+              Open{" "}
               <a
-                href="https://freighter.app"
+                href="/wallet"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="underline hover:text-yellow-300"
               >
-                Freighter extension
+                XConfess Wallet
               </a>{" "}
-              to anchor confessions on Stellar.
+              to add optional proof on Stellar.
             </p>
           </div>
         </div>

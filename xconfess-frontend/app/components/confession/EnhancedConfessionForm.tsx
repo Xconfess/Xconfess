@@ -107,6 +107,7 @@ export const EnhancedConfessionForm: React.FC<EnhancedConfessionFormProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<ValidationErrors>({});
   const [stellarTxHash, setStellarTxHash] = useState<string | null>(null);
+  const [stellarWalletPin, setStellarWalletPin] = useState("");
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitSuccess, setSubmitSuccess] = useState(false);
   const router = useRouter();
@@ -117,7 +118,7 @@ export const EnhancedConfessionForm: React.FC<EnhancedConfessionFormProps> = ({
   );
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const { anchor, publicKey } = useStellarWallet();
+  const { anchor, publicKey, isEmbeddedWallet } = useStellarWallet();
   const toast = useGlobalToast();
 
   useEffect(() => {
@@ -145,6 +146,7 @@ export const EnhancedConfessionForm: React.FC<EnhancedConfessionFormProps> = ({
     setBody("");
     setGender(undefined);
     setEnableStellarAnchor(false);
+    setStellarWalletPin("");
     setErrors({});
     setSubmitError(null);
     setSubmitSuccess(false);
@@ -216,7 +218,7 @@ export const EnhancedConfessionForm: React.FC<EnhancedConfessionFormProps> = ({
       let txHash: string | undefined;
 
       if (enableStellarAnchor && publicKey) {
-        const anchorResult = await anchor(body);
+        const anchorResult = await anchor(body, stellarWalletPin);
         if (anchorResult.success && anchorResult.txHash) {
           txHash = anchorResult.txHash;
           setStellarTxHash(txHash);
@@ -257,6 +259,7 @@ export const EnhancedConfessionForm: React.FC<EnhancedConfessionFormProps> = ({
       setBody("");
       setGender(undefined);
       setEnableStellarAnchor(false);
+    setStellarWalletPin("");
       setErrors({});
       setSubmitError(null);
       setStellarTxHash(null);
@@ -495,6 +498,13 @@ export const EnhancedConfessionForm: React.FC<EnhancedConfessionFormProps> = ({
           </fieldset>
 
           <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-muted)] p-4">
+                        {enableStellarAnchor && isEmbeddedWallet && (
+              <label className="mt-4 block text-sm text-[var(--secondary)]">
+                Wallet PIN for local Stellar proof signing
+                <input type="password" inputMode="numeric" value={stellarWalletPin} onChange={(event) => setStellarWalletPin(event.target.value)} placeholder="Required to sign locally" aria-label="Wallet PIN for Stellar proof" className="mt-2 h-11 w-full rounded-xl border border-[var(--border)] bg-[var(--surface-muted)] px-3 text-sm text-[var(--foreground)]" />
+              </label>
+            )}
+
             <StellarAnchorToggle
               enabled={enableStellarAnchor}
               onToggle={setEnableStellarAnchor}
