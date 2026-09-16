@@ -179,10 +179,11 @@ describe("EnhancedConfessionForm Accessibility Regression Suite (#1795)", () => 
 
       await waitFor(() => {
         expect(apiClient.post).toHaveBeenCalledWith(
-          "/confessions",
+          "/api/confessions",
           expect.objectContaining({
             message: "A valid confession message meeting the length requirement.",
           }),
+          expect.objectContaining({ headers: undefined }),
         );
       });
     });

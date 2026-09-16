@@ -268,3 +268,10 @@ body {
 .brand-accent {
   color: var(--brand-violet);
 }
+
+
+:root { --brand-primary: #922cff; --brand-primary-hover: #a546ff; --brand-primary-active: #7620d8; --brand-primary-soft: rgba(146,44,255,.12); --success: #40c98a; --warning: #eab866; --danger: #f27686; --focus-ring: #c48cff; --radius-control: 12px; --radius-panel: 22px; }
+.light { --focus-ring: #7821d5; }
+body { min-width: 320px; background-color: var(--background); }
+button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 3px; }
+.wallet-balance-surface { background: radial-gradient(circle at 92% 8%, rgba(146,44,255,.24), transparent 32%), var(--surface-strong); border: 1px solid var(--accent-border); box-shadow: 0 24px 70px -42px rgba(146,44,255,.68); }

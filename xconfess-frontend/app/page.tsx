@@ -4,6 +4,7 @@ import dynamic from "next/dynamic";
 import { useCallback } from "react";
 import { ArrowDown, Anchor, Lock, MessageSquareText } from "lucide-react";
 import Header from "./components/layout/Header";
+import { MobileNav } from "./components/layout/MobileNav";
 import { ConfessionFeed } from "./components/confession/ConfessionFeed";
 import { ErrorBoundary } from "./components/common/ErrorBoundary";
 import { Button } from "./components/ui/button";
@@ -186,6 +187,7 @@ export default function Home() {
           </ErrorBoundary>
         </section>
       </main>
+      <MobileNav />
     </>
   );
 }

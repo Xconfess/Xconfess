@@ -146,7 +146,9 @@ export class ConfessionController {
 
       if (!check.isReplay) {
         try {
-          const confession = await this.service.create(dto, undefined, walletAddress);
+          const confession = walletAddress
+            ? await this.service.create(dto, undefined, walletAddress)
+            : await this.service.create(dto);
           await this.idempotencyService.commitSuccess(
             check.record,
             confession as any,
@@ -161,7 +163,9 @@ export class ConfessionController {
       }
     }
 
-    return this.service.create(dto, undefined, walletAddress);
+    return walletAddress
+      ? this.service.create(dto, undefined, walletAddress)
+      : this.service.create(dto);
   }
 
   @Get()

@@ -62,6 +62,7 @@ export const TipButton = ({ confessionId, recipientAddress, initialStats }: TipB
   const [isOpen, setIsOpen] = useState(false);
   const [tipAmount, setTipAmount] = useState(String(MIN_TIP_AMOUNT));
   const [stats, setStats] = useState<TipStats | null>(initialStats || null);
+  const [walletPin, setWalletPin] = useState("");
 
   const wallet = useWallet();
   const { isConnected, connect } = wallet;
@@ -69,6 +70,7 @@ export const TipButton = ({ confessionId, recipientAddress, initialStats }: TipB
   const { info, submit, retryVerify, cancel, reset } = useTipStateMachine({
     confessionId,
     recipientAddress,
+    walletPin,
     onConfirmed: (hash) => {
       if (activityIdRef.current) {
         updateActivity(activityIdRef.current, { txHash: hash, status: "confirmed", updatedAt: Date.now() });
@@ -116,6 +118,7 @@ export const TipButton = ({ confessionId, recipientAddress, initialStats }: TipB
     addActivity({ id, type: "tip", status: "submitted", createdAt: Date.now(), confessionId, amount });
 
     await submit(amount);
+    setWalletPin("");
   };
 
   const totalAmount = stats?.totalAmount || 0;
@@ -334,6 +337,11 @@ export const TipButton = ({ confessionId, recipientAddress, initialStats }: TipB
               <p className={cn("mt-2 text-xs", getTipAmountValidationError(tipAmount) ? "text-red-400" : "text-zinc-400")}>
                 {getTipAmountValidationError(tipAmount) ?? `Enter amount in ${TIP_UNIT} with ${TIP_STEP} precision. Minimum ${MIN_TIP_AMOUNT} ${TIP_UNIT}.`}
               </p>
+              {wallet.publicKey && (
+                <label className="mt-3 block text-left text-xs text-zinc-400">Wallet PIN
+                  <input type="password" inputMode="numeric" value={walletPin} onChange={(e) => setWalletPin(e.target.value)} placeholder="Required to sign locally" className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-900 p-2 text-white" aria-label="Wallet PIN for tip" />
+                </label>
+              )}
               <button
                 onClick={handleTip}
                 disabled={walletCTA.disabled || isBusy || walletCTA.status === "not-installed"}
@@ -345,7 +353,7 @@ export const TipButton = ({ confessionId, recipientAddress, initialStats }: TipB
                 aria-label={
                   isBusy ? stateLabel ?? "Processing…"
                   : walletCTA.status === "not-connected" ? "Connect Wallet to Tip"
-                  : walletCTA.status === "not-installed" ? "Wallet required — install Freighter"
+                  : walletCTA.status === "not-installed" ? "Wallet required — install Freighter or create an XConfess Wallet"
                   : `Send ${tipAmount} XLM tip`
                 }
               >

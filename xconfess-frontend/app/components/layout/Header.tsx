@@ -2,9 +2,11 @@
 
 import Link from "next/link";
 import { useState, useCallback, useRef } from "react";
-import { Menu } from "lucide-react";
+import { LogOut, Menu } from "lucide-react";
 import { ThemeToggle } from "../common/ThemeToggle";
 import { WalletButton } from "@/components/wallet/WalletButton";
+import { useAuth } from "@/app/lib/hooks/useAuth";
+
 import { BrandLogo } from "@/app/components/brand/BrandLogo";
 import Sidebar from "./Sidebar";
 
@@ -13,6 +15,7 @@ const navLinkClass =
 
 export default function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const { isAuthenticated, logout } = useAuth();
   const menuButtonRef = useRef<HTMLButtonElement>(null);
 
   const closeMobileMenu = useCallback(() => {
@@ -50,13 +53,16 @@ export default function Header() {
                 className="mx-2 h-8 w-px bg-[var(--border)]"
               />
 
-              <WalletButton className="hidden md:inline-flex" />
+              <Link href="/wallet" className={navLinkClass}>Wallet</Link>
+              {isAuthenticated && <button type="button" onClick={logout} aria-label="Logout" className={navLinkClass}><LogOut aria-hidden="true" className="mr-2 inline h-4 w-4" />Logout</button>}
+              <WalletButton className="hidden" />
               <ThemeToggle />
 
             </div>
 
             <div className="flex min-w-0 items-center gap-1.5 md:hidden">
-              <WalletButton className="md:hidden" />
+              <Link href="/wallet" className="flex min-h-[44px] items-center rounded-xl border border-[var(--border)] bg-[var(--surface-muted)] px-3 text-sm font-semibold text-[var(--foreground)]">Wallet</Link>
+              <WalletButton className="hidden" />
               <ThemeToggle />
               <button
                 ref={menuButtonRef}

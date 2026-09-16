@@ -45,6 +45,7 @@ describe('confession-mapper', () => {
 
       const result = mapToSlimConfession(entity);
       expect(result).toEqual({
+        contentWarning: false,
         id: '123',
         message: 'decrypted content',
         gender: 'male',

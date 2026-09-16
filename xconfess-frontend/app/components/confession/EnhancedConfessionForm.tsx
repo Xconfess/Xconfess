@@ -28,7 +28,9 @@ import { Eye, EyeOff, Send, Loader2 } from "lucide-react";
 import { cn } from "@/app/lib/utils/cn";
 import apiClient from "@/app/lib/api/client";
 import { useGlobalToast } from "@/app/components/common/Toast";
-import { clearPendingConfession } from "@/app/lib/utils/pendingConfession";
+import { buildAuthRedirectUrl, clearPendingConfession, loadPendingConfession, savePendingConfession } from "@/app/lib/utils/pendingConfession";
+import { useAuth } from "@/app/lib/hooks/useAuth";
+import { useRouter } from "next/navigation";
 
 interface EnhancedConfessionFormProps {
   onSubmit?: (data: ConfessionFormData & { stellarTxHash?: string }) => void;
@@ -107,14 +109,28 @@ export const EnhancedConfessionForm: React.FC<EnhancedConfessionFormProps> = ({
   const [stellarTxHash, setStellarTxHash] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitSuccess, setSubmitSuccess] = useState(false);
+  const router = useRouter();
+  const { isAuthenticated, isLoading: isAuthLoading } = useAuth();
 
   const submitSuccessTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
     null
   );
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const { anchor, connect, isConnected, publicKey } = useStellarWallet();
+  const { anchor, publicKey } = useStellarWallet();
   const toast = useGlobalToast();
+
+  useEffect(() => {
+    if (isAuthLoading || !isAuthenticated) return;
+    const pending = loadPendingConfession();
+    if (!pending) return;
+    setTitle(pending.title || "");
+    setBody(pending.body);
+    setGender(pending.gender);
+    setEnableStellarAnchor(Boolean(pending.enableStellarAnchor));
+    toast.info("Your confession draft is restored. Review it, then publish when ready.");
+    clearPendingConfession();
+  }, [isAuthenticated, isAuthLoading, toast]);
 
   const currentValidationErrors = validateConfessionForm({
     title,
@@ -187,11 +203,10 @@ export const EnhancedConfessionForm: React.FC<EnhancedConfessionFormProps> = ({
       setErrors(currentValidationErrors);
       setSubmitError("Please review the highlighted fields and try again.");
       return;
-    }
-
-    if (!isConnected) {
-      setSubmitError("Connect your wallet before publishing your confession.");
-      toast.info("Connect your wallet to publish anonymously.");
+    }    if (!isAuthenticated) {
+      savePendingConfession({ title, body, gender, enableStellarAnchor });
+      router.push(buildAuthRedirectUrl("/login"));
+      toast.info("Your confession is saved. Log in to publish it.");
       return;
     }
 
@@ -200,7 +215,7 @@ export const EnhancedConfessionForm: React.FC<EnhancedConfessionFormProps> = ({
     try {
       let txHash: string | undefined;
 
-      if (enableStellarAnchor) {
+      if (enableStellarAnchor && publicKey) {
         const anchorResult = await anchor(body);
         if (anchorResult.success && anchorResult.txHash) {
           txHash = anchorResult.txHash;
@@ -297,16 +312,7 @@ export const EnhancedConfessionForm: React.FC<EnhancedConfessionFormProps> = ({
           Share your confession
         </CardTitle>
         <CardDescription className="max-w-2xl text-sm leading-7 sm:text-base">
-          Anonymous by design. Connect a wallet to publish.
-          {!isConnected && (
-            <button
-              type="button"
-              onClick={() => void connect()}
-              className="ml-2 font-semibold text-[var(--foreground)] underline decoration-[var(--primary)] underline-offset-4 hover:text-[var(--primary)]"
-            >
-              Connect wallet
-            </button>
-          )}
+          Anonymous by design. A wallet is optional; Stellar proof is available when connected.
         </CardDescription>
       </CardHeader>
 

@@ -11,6 +11,7 @@ import { AnonymousUser } from '../user/entities/anonymous-user.entity';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { AuditLogModule } from '../audit-log/audit-log.module';
 import { AuthModule } from '../auth/auth.module';
+import { AnonymousUserService } from '../user/anonymous-user.service';
 
 const mockRepository = () => ({
   create: jest.fn(),
@@ -25,6 +26,7 @@ async function compileReportTestingModule() {
     controllers: [ReportsController],
     providers: [
       ReportsService,
+      { provide: AnonymousUserService, useValue: { findByWalletAddress: jest.fn() } },
       { provide: getRepositoryToken(Report), useValue: mockRepository() },
       {
         provide: getRepositoryToken(AnonymousConfession),
@@ -77,6 +79,7 @@ describe('ReportModule', () => {
     const faultyModule = Test.createTestingModule({
       providers: [
         ReportsService,
+      { provide: AnonymousUserService, useValue: { findByWalletAddress: jest.fn() } },
         { provide: getRepositoryToken(Report), useValue: mockRepository() },
         { provide: getRepositoryToken(AnonymousUser), useValue: mockRepository() },
         { provide: getRepositoryToken(OutboxEvent), useValue: mockRepository() },

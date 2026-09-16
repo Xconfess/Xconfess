@@ -111,15 +111,17 @@ export const WalletButton: React.FC<WalletButtonProps> = ({
 
   // Error state
   if (error && !isConnected) {
+    const walletNotInstalled = error.toLowerCase().includes("not installed");
+    const openInstallPage = () => window.open("https://www.freighter.app/", "_blank", "noopener,noreferrer");
     return (
       <div className={`relative group ${className}`}>
         <button
-          onClick={handleWalletAction}
+          onClick={walletNotInstalled ? openInstallPage : handleWalletAction}
           className="min-h-11 max-w-[42vw] truncate rounded-xl border border-rose-300 bg-rose-50 px-3 py-2 text-sm font-medium text-rose-700 transition hover:bg-rose-100 sm:px-4"
           title={error}
         >
           ⚠️{" "}
-          Connect Wallet
+          {walletNotInstalled ? "Install Wallet" : "Connect Wallet"}
         </button>
         <div className="absolute hidden group-hover:block bg-red-900 text-white text-xs rounded py-1 px-2 whitespace-nowrap z-50 bottom-full mb-2">
           {error}

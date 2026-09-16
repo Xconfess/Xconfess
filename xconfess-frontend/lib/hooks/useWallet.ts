@@ -4,6 +4,7 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
 import * as WalletService from "../services/wallet.service";
 import { computeWalletReadiness } from "../wallet/walletReadiness";
+import { getEmbeddedWallet } from "@/app/lib/crypto/embeddedWallet";
 
 export interface WalletState {
   publicKey: string | null;
@@ -92,6 +93,14 @@ export const useWallet = (): UseWalletReturn => {
         setState((prev) => ({ ...prev, network: storedNetwork }));
       }
 
+      const embeddedWallet = getEmbeddedWallet();
+
+      if (embeddedWallet) {
+        setState((prev) => ({ ...prev, publicKey: embeddedWallet.publicKey, network: embeddedWallet.network, isConnected: true, isLoading: false, error: null }));
+        storeSession(embeddedWallet.publicKey, embeddedWallet.network);
+        return;
+      }
+
       const walletInfo = await WalletService.getWalletInfo();
 
       if (walletInfo) {
@@ -152,7 +161,15 @@ export const useWallet = (): UseWalletReturn => {
   useEffect(() => {
     if (hasInitialized.current && state.publicKey) {
       const revalidateConnection = async () => {
-        const walletInfo = await WalletService.getWalletInfo();
+        const embeddedWallet = getEmbeddedWallet();
+
+      if (embeddedWallet) {
+        setState((prev) => ({ ...prev, publicKey: embeddedWallet.publicKey, network: embeddedWallet.network, isConnected: true, isLoading: false, error: null }));
+        storeSession(embeddedWallet.publicKey, embeddedWallet.network);
+        return;
+      }
+
+      const walletInfo = await WalletService.getWalletInfo();
         if (!walletInfo) {
           setState((prev) => ({
             ...prev,
@@ -182,6 +199,13 @@ export const useWallet = (): UseWalletReturn => {
   const connect = useCallback(async () => {
     try {
       setState((prev) => ({ ...prev, isLoading: true, error: null }));
+
+      const embeddedWallet = getEmbeddedWallet();
+      if (embeddedWallet) {
+        setState((prev) => ({ ...prev, publicKey: embeddedWallet.publicKey, network: embeddedWallet.network, isConnected: true, isLoading: false, error: null }));
+        storeSession(embeddedWallet.publicKey, embeddedWallet.network);
+        return;
+      }
 
       const walletInfo = await WalletService.connectWallet();
 
@@ -262,6 +286,14 @@ export const useWallet = (): UseWalletReturn => {
    */
   const checkConnection = useCallback(async () => {
     try {
+      const embeddedWallet = getEmbeddedWallet();
+
+      if (embeddedWallet) {
+        setState((prev) => ({ ...prev, publicKey: embeddedWallet.publicKey, network: embeddedWallet.network, isConnected: true, isLoading: false, error: null }));
+        storeSession(embeddedWallet.publicKey, embeddedWallet.network);
+        return;
+      }
+
       const walletInfo = await WalletService.getWalletInfo();
 
       if (walletInfo) {
@@ -289,7 +321,7 @@ export const useWallet = (): UseWalletReturn => {
         error: errorMessage,
       }));
     }
-  }, []);
+  }, [storeSession]);
 
   /**
    * Switch network (local state only, actual network switch handled by wallet)
