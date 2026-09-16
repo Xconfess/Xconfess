@@ -76,6 +76,7 @@ export async function changeEmbeddedWalletPin(currentPin: string, nextPin: strin
   const secret = await decryptSecret(wallet, currentPin);
   const encrypted = await encryptSecret(secret, nextPin);
   const updated = { ...wallet, ...encrypted };
+  localStorage.removeItem(FAILED_ATTEMPTS_KEY);
   localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
   return updated;
 }
