@@ -1,4 +1,4 @@
-import { decryptSecret, encryptSecret, unlockEmbeddedWallet } from '../embeddedWallet';
+import { decryptSecret, encryptSecret, importEncryptedBackup, unlockEmbeddedWallet } from '../embeddedWallet';
 import { webcrypto } from 'node:crypto';
 
 Object.defineProperty(globalThis, 'crypto', { value: webcrypto });
@@ -30,9 +30,14 @@ describe('embedded wallet encryption', () => {
     jest.mocked(localStorage.getItem).mockImplementation((key) => storage.get(key) ?? null);
     jest.mocked(localStorage.removeItem).mockImplementation((key) => { storage.delete(key); });
     const encrypted = await encryptSecret('not-a-real-secret-for-lockout-test', '246810');
-    localStorage.setItem('xconfess.embedded-wallet.v1', JSON.stringify({ version: 1, cipher: 'AES-GCM', kdf: 'PBKDF2-SHA-256', ...encrypted, publicKey: 'GTEST', network: 'testnet', createdAt: new Date().toISOString() }));
+    const publicKey = 'GACRG7PJ62DGGUXXVA3XVTAAZGMFMHEIYNN7MUT56LBXC4WW6KKDOPM2';
+    localStorage.setItem('xconfess.embedded-wallet.v1', JSON.stringify({ version: 1, cipher: 'AES-GCM', kdf: 'PBKDF2-SHA-256', ...encrypted, publicKey, network: 'testnet', createdAt: new Date().toISOString() }));
     for (let index = 0; index < 5; index += 1) await expect(unlockEmbeddedWallet('135790')).rejects.toThrow();
     await expect(unlockEmbeddedWallet('246810')).rejects.toThrow('temporarily locked');
+  });
+
+  it('rejects malformed encrypted backups before storing them', () => {
+    expect(() => importEncryptedBackup(JSON.stringify({ format: 'xconfess-embedded-wallet', version: 1, cipher: 'AES-GCM' }))).toThrow('Unsupported wallet backup');
   });
 });
 

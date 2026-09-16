@@ -21,6 +21,23 @@ export type EncryptedWallet = {
 const bytesToBase64 = (bytes: Uint8Array) => { let binary = ""; bytes.forEach((byte) => (binary += String.fromCharCode(byte))); return btoa(binary); };
 const base64ToBytes = (value: string) => Uint8Array.from(atob(value), (character) => character.charCodeAt(0));
 
+function isEncryptedWallet(value: unknown): value is EncryptedWallet {
+  if (!value || typeof value !== "object") return false;
+  const candidate = value as Partial<EncryptedWallet>;
+  if (candidate.version !== 1 || candidate.cipher !== "AES-GCM" || candidate.kdf !== "PBKDF2-SHA-256") return false;
+  if (candidate.network !== "testnet" && candidate.network !== "mainnet") return false;
+  if (![candidate.salt, candidate.iv, candidate.ciphertext, candidate.publicKey, candidate.createdAt].every((field) => typeof field === "string" && field.length > 0)) return false;
+  try {
+    const salt = base64ToBytes(candidate.salt!);
+    const iv = base64ToBytes(candidate.iv!);
+    const ciphertext = base64ToBytes(candidate.ciphertext!);
+    if (salt.length !== 16 || iv.length !== 12 || ciphertext.length < 16) return false;
+    Keypair.fromPublicKey(candidate.publicKey!);
+    return Number.isFinite(Date.parse(candidate.createdAt!));
+  } catch {
+    return false;
+  }
+}
 async function deriveKey(pin: string, salt: Uint8Array) {
   const material = await crypto.subtle.importKey("raw", new TextEncoder().encode(pin), "PBKDF2", false, ["deriveKey"]);
   return crypto.subtle.deriveKey({ name: "PBKDF2", salt: salt as BufferSource, iterations: PBKDF2_ITERATIONS, hash: "SHA-256" }, material, { name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt"]);
@@ -52,7 +69,7 @@ export async function importEmbeddedWallet(secret: string, pin: string, network:
   localStorage.setItem(STORAGE_KEY, JSON.stringify(wallet)); return wallet;
 }
 
-export function getEmbeddedWallet(): EncryptedWallet | null { const value = localStorage.getItem(STORAGE_KEY); if (!value) return null; try { return JSON.parse(value) as EncryptedWallet; } catch { return null; } }
+export function getEmbeddedWallet(): EncryptedWallet | null { try { const value = localStorage.getItem(STORAGE_KEY); if (!value) return null; const parsed = JSON.parse(value); return isEncryptedWallet(parsed) ? parsed : null; } catch { return null; } }
 export function removeEmbeddedWallet() { localStorage.removeItem(STORAGE_KEY); }
 export async function unlockEmbeddedWallet(pin: string) {
   const wallet = getEmbeddedWallet();
@@ -61,6 +78,7 @@ export async function unlockEmbeddedWallet(pin: string) {
   if (attempts?.lockedUntil && attempts.lockedUntil > Date.now()) throw new Error("Wallet temporarily locked after too many incorrect PIN attempts");
   try {
     const keypair = Keypair.fromSecret(await decryptSecret(wallet, pin));
+    if (keypair.publicKey() !== wallet.publicKey) throw new Error("Wallet backup is invalid");
     localStorage.removeItem(FAILED_ATTEMPTS_KEY);
     return keypair;
   } catch (error) {
@@ -81,4 +99,4 @@ export async function changeEmbeddedWalletPin(currentPin: string, nextPin: strin
   return updated;
 }
 export function exportEncryptedBackup() { const wallet = getEmbeddedWallet(); if (!wallet) throw new Error("No embedded wallet found"); return JSON.stringify({ format: "xconfess-embedded-wallet", ...wallet }, null, 2); }
-export function importEncryptedBackup(payload: string) { const parsed = JSON.parse(payload) as EncryptedWallet & { format?: string }; if (parsed.format !== "xconfess-embedded-wallet" || parsed.version !== 1 || parsed.cipher !== "AES-GCM") throw new Error("Unsupported wallet backup"); localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed)); return parsed; }
+export function importEncryptedBackup(payload: string) { let parsed: unknown; try { parsed = JSON.parse(payload); } catch { throw new Error("Unsupported wallet backup"); } const candidate = parsed as EncryptedWallet & { format?: string }; if (candidate.format !== "xconfess-embedded-wallet" || !isEncryptedWallet(candidate)) throw new Error("Unsupported wallet backup"); localStorage.setItem(STORAGE_KEY, JSON.stringify(candidate)); return candidate; }
