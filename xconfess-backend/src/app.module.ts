@@ -144,6 +144,7 @@ import { StructuredLoggingInterceptor } from './common/logging/structured-loggin
     NotificationsModule,
     StellarModule,
     TippingModule,
+    WalletModule,
     LoggerModule,
     EncryptionModule,
     CacheModule,
