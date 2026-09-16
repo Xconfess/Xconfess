@@ -2,6 +2,9 @@ import { Keypair } from "@stellar/stellar-sdk";
 
 const STORAGE_KEY = "xconfess.embedded-wallet.v1";
 const PBKDF2_ITERATIONS = 310_000;
+const FAILED_ATTEMPTS_KEY = "xconfess.embedded-wallet.failed-attempts";
+const MAX_PIN_ATTEMPTS = 5;
+const LOCKOUT_MS = 5 * 60 * 1000;
 
 export type EncryptedWallet = {
   version: 1;
@@ -51,7 +54,22 @@ export async function importEmbeddedWallet(secret: string, pin: string, network:
 
 export function getEmbeddedWallet(): EncryptedWallet | null { const value = localStorage.getItem(STORAGE_KEY); if (!value) return null; try { return JSON.parse(value) as EncryptedWallet; } catch { return null; } }
 export function removeEmbeddedWallet() { localStorage.removeItem(STORAGE_KEY); }
-export async function unlockEmbeddedWallet(pin: string) { const wallet = getEmbeddedWallet(); if (!wallet) throw new Error("No embedded wallet found"); return Keypair.fromSecret(await decryptSecret(wallet, pin)); }
+export async function unlockEmbeddedWallet(pin: string) {
+  const wallet = getEmbeddedWallet();
+  if (!wallet) throw new Error("No embedded wallet found");
+  const attempts = JSON.parse(localStorage.getItem(FAILED_ATTEMPTS_KEY) || "null") as { count: number; lockedUntil: number } | null;
+  if (attempts?.lockedUntil && attempts.lockedUntil > Date.now()) throw new Error("Wallet temporarily locked after too many incorrect PIN attempts");
+  try {
+    const keypair = Keypair.fromSecret(await decryptSecret(wallet, pin));
+    localStorage.removeItem(FAILED_ATTEMPTS_KEY);
+    return keypair;
+  } catch (error) {
+    const count = (attempts?.count ?? 0) + 1;
+    localStorage.setItem(FAILED_ATTEMPTS_KEY, JSON.stringify({ count, lockedUntil: count >= MAX_PIN_ATTEMPTS ? Date.now() + LOCKOUT_MS : 0 }));
+    if (count >= MAX_PIN_ATTEMPTS) throw new Error("Wallet temporarily locked after too many incorrect PIN attempts");
+    throw error;
+  }
+}
 export async function changeEmbeddedWalletPin(currentPin: string, nextPin: string) {
   const wallet = getEmbeddedWallet();
   if (!wallet) throw new Error("No embedded wallet found");
