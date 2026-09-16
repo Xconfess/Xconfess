@@ -6,6 +6,19 @@ const network = process.env.NEXT_PUBLIC_STELLAR_NETWORK === 'mainnet' ? Stellar.
 
 export function getWalletServer() { return new Stellar.Horizon.Server(horizonUrl); }
 
+export function getWalletErrorMessage(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error ?? "");
+  const normalized = message.toLowerCase();
+  if (normalized.includes("incorrect wallet pin") || normalized.includes("temporarily locked")) return message;
+  if (normalized.includes("invalid") && (normalized.includes("address") || normalized.includes("destination") || normalized.includes("public key"))) return "Enter a valid Stellar recipient address.";
+  if (normalized.includes("underfunded") || normalized.includes("insufficient") || normalized.includes("balance")) return "Insufficient XLM balance for this payment and the network reserve.";
+  if (normalized.includes("memo") || normalized.includes("malformed")) return "The memo or transaction details are invalid.";
+  if (normalized.includes("timeout") || normalized.includes("timed out")) return "The network took too long to respond. No funds were moved; check activity before retrying.";
+  if (normalized.includes("fetch") || normalized.includes("network") || normalized.includes("connect")) return "Stellar is temporarily unavailable. Check your connection and try again.";
+  if (normalized.includes("bad_seq") || normalized.includes("sequence")) return "The account changed while signing. Refresh the balance and try again.";
+  return "Transaction could not be completed. No funds were moved.";
+}
+
 export async function getNativeBalance(publicKey: string) {
   const account = await getWalletServer().loadAccount(publicKey);
   const native = account.balances.find((balance) => balance.asset_type === 'native');

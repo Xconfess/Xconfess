@@ -6,7 +6,7 @@ import { Copy, Download, LockKeyhole, ShieldCheck, WalletCards } from "lucide-re
 import { Button } from "@/app/components/ui/button";
 import { QRCodeCanvas } from "qrcode.react";
 import { changeEmbeddedWalletPin, createEmbeddedWallet, exportEncryptedBackup, getEmbeddedWallet, importEmbeddedWallet, importEncryptedBackup, removeEmbeddedWallet, unlockEmbeddedWallet, type EncryptedWallet } from "@/app/lib/crypto/embeddedWallet";
-import { getNativeBalance, getRecentActivity, sendXlm, type WalletActivity } from "@/app/lib/crypto/walletTransactions";
+import { getNativeBalance, getRecentActivity, getWalletErrorMessage, sendXlm, type WalletActivity } from "@/app/lib/crypto/walletTransactions";
 
 const shortAddress = (value: string) => `${value.slice(0, 6)}…${value.slice(-6)}`;
 const isMainnet = process.env.NEXT_PUBLIC_STELLAR_NETWORK === "mainnet";
@@ -67,7 +67,7 @@ export default function WalletPage() {
     setNotice("");
     setView("review");
   };
-  const send = async () => { if (!wallet) return; try { const hash = await sendXlm({ destination, amount, memo, pin }); setPin(""); setDestination(""); setAmount(""); setMemo(""); setLastTransactionHash(hash); setView("success"); setNotice(""); getNativeBalance(wallet.publicKey).then(setBalance).catch(() => undefined); } catch (error) { setNotice(error instanceof Error ? error.message : "Payment failed"); } };
+  const send = async () => { if (!wallet) return; try { const hash = await sendXlm({ destination, amount, memo, pin }); setPin(""); setDestination(""); setAmount(""); setMemo(""); setLastTransactionHash(hash); setView("success"); setNotice(""); getNativeBalance(wallet.publicKey).then(setBalance).catch(() => undefined); } catch (error) { setNotice(getWalletErrorMessage(error)); } };
   const changePin = async () => { try { if (nextPin !== nextPinConfirm) throw new Error("New wallet PINs do not match"); await changeEmbeddedWalletPin(currentPin, nextPin); setCurrentPin(""); setNextPin(""); setNextPinConfirm(""); setNotice("Wallet PIN changed locally."); } catch (error) { setNotice(error instanceof Error ? error.message : "Unable to change wallet PIN"); } };
   const revealPrivateKey = async () => { try { const keypair = await unlockEmbeddedWallet(exportPin); setExportedSecret(keypair.secret()); setExportPin(""); } catch (error) { setNotice(error instanceof Error ? error.message : "Unable to unlock wallet"); } };
   const removeLocalWallet = () => { if (!window.confirm("Remove this wallet from this browser? Ensure you have a backup first.")) return; removeEmbeddedWallet(); setWallet(null); setWalletId(null); setExportedSecret(""); setNotice("Local wallet data removed. XConfess cannot recover an unbacked-up secret."); };
