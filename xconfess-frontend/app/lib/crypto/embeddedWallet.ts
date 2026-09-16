@@ -52,5 +52,14 @@ export async function importEmbeddedWallet(secret: string, pin: string, network:
 export function getEmbeddedWallet(): EncryptedWallet | null { const value = localStorage.getItem(STORAGE_KEY); if (!value) return null; try { return JSON.parse(value) as EncryptedWallet; } catch { return null; } }
 export function removeEmbeddedWallet() { localStorage.removeItem(STORAGE_KEY); }
 export async function unlockEmbeddedWallet(pin: string) { const wallet = getEmbeddedWallet(); if (!wallet) throw new Error("No embedded wallet found"); return Keypair.fromSecret(await decryptSecret(wallet, pin)); }
+export async function changeEmbeddedWalletPin(currentPin: string, nextPin: string) {
+  const wallet = getEmbeddedWallet();
+  if (!wallet) throw new Error("No embedded wallet found");
+  const secret = await decryptSecret(wallet, currentPin);
+  const encrypted = await encryptSecret(secret, nextPin);
+  const updated = { ...wallet, ...encrypted };
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+  return updated;
+}
 export function exportEncryptedBackup() { const wallet = getEmbeddedWallet(); if (!wallet) throw new Error("No embedded wallet found"); return JSON.stringify({ format: "xconfess-embedded-wallet", ...wallet }, null, 2); }
 export function importEncryptedBackup(payload: string) { const parsed = JSON.parse(payload) as EncryptedWallet & { format?: string }; if (parsed.format !== "xconfess-embedded-wallet" || parsed.version !== 1 || parsed.cipher !== "AES-GCM") throw new Error("Unsupported wallet backup"); localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed)); return parsed; }
