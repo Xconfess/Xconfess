@@ -68,7 +68,7 @@ export function AnchorButton({
     return (
       <button
         type="button"
-        onClick={wallet.connect}
+        onClick={() => window.location.assign("/wallet")}
         disabled={wallet.isLoading}
         className="anchor-btn anchor-btn--connect px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium text-sm"
       >

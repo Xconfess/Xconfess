@@ -35,6 +35,7 @@ export const AnchorButton: FC<AnchorButtonProps> = ({
 }) => {
   const {
     isAvailable,
+    isEmbeddedWallet,
     isConnected,
     isReady,
     readinessError,
@@ -45,6 +46,7 @@ export const AnchorButton: FC<AnchorButtonProps> = ({
   } = useStellarWallet();
   const walletCTA = getWalletCTAState({
     isFreighterInstalled: isAvailable,
+    isEmbeddedWallet,
     isConnected,
     isReady,
     readinessError,
@@ -60,6 +62,7 @@ export const AnchorButton: FC<AnchorButtonProps> = ({
   const [txHash, setTxHash] = useState<string | null>(stellarTxHash);
   const [error, setError] = useState<string | null>(null);
   const [liveMessage, setLiveMessage] = useState("");
+  const [walletPin, setWalletPin] = useState("");
 
   const isPending = status === "pending";
 
@@ -91,7 +94,7 @@ export const AnchorButton: FC<AnchorButtonProps> = ({
     });
 
     try {
-      const result = await anchor(confessionContent);
+      const result = await anchor(confessionContent, walletPin);
 
       if (!result.success || !result.txHash) {
         updateActivity(activityId, { status: "failed", updatedAt: Date.now() });
@@ -259,7 +262,12 @@ export const AnchorButton: FC<AnchorButtonProps> = ({
       <span className="sr-only" aria-live="polite" aria-atomic="true">
         {liveMessage}
       </span>
-
+      {isEmbeddedWallet && (
+        <label className="block text-xs text-[var(--secondary)]">
+          Wallet PIN
+          <input type="password" inputMode="numeric" value={walletPin} onChange={(event) => setWalletPin(event.target.value)} placeholder="Required to sign locally" aria-label="Wallet PIN for Stellar proof" className="mt-1 h-9 w-full rounded-lg border border-[var(--border)] bg-[var(--surface-muted)] px-3 text-sm text-[var(--foreground)]" />
+        </label>
+      )}
       <Button
           variant="outline"
           size="sm"

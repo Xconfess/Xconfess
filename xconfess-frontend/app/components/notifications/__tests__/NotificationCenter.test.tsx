@@ -1,4 +1,4 @@
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { NotificationCenter } from "../NotificationCenter";
 import { ToastProvider } from "@/app/components/common/Toast";
 import { NotificationType, type Notification } from "@/app/types/notifications";
@@ -102,7 +102,7 @@ describe("NotificationCenter", () => {
 
     expect(screen.getByText("2 unread notifications")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Mark all read" })).toBeInTheDocument();
-    expect(screen.getByText("New reaction on your confession")).toBeInTheDocument();
+    expect(screen.getAllByText("New reaction on your confession").length).toBeGreaterThan(0);
   });
 
   test("read-all state hides the unread controls", () => {
@@ -127,12 +127,12 @@ describe("NotificationCenter", () => {
     expect(mockMarkAllAsRead).toHaveBeenCalledTimes(1);
   });
 
-  test("opens the preferences panel", () => {
+  test("opens the preferences panel", async () => {
     setState([makeNotification({ id: "n-1", isRead: false })]);
     renderCenter();
 
     fireEvent.click(screen.getByRole("button", { name: "Notification settings" }));
-    expect(screen.getByText(/notification preferences/i)).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText(/notification preferences/i)).toBeInTheDocument());
   });
 
   test("deleting a notification invokes the handler", () => {

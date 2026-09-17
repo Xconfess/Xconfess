@@ -93,7 +93,7 @@ function UserSummarySection() {
       {isError ? (
         <div className="rounded-2xl border border-red-500/25 bg-red-950/30 p-4 text-center">
           <p className="mb-2 text-sm text-red-200">
-            Stats are temporarily unavailable.
+            <span>Failed to load stats</span> <span>Stats are temporarily unavailable.</span>
           </p>
           <button
             onClick={() => void refetch()}

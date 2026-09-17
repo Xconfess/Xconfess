@@ -3,7 +3,7 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 
 type Theme = "light" | "dark" | "system";
-const THEME_VERSION = "premium-dark-v1";
+const THEME_VERSION = "premium-theme-v2";
 
 interface ThemeContextType {
   theme: Theme;
@@ -17,13 +17,13 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [theme, setThemeState] = useState<Theme>(() => {
     if (typeof window !== "undefined") {
       if (localStorage.getItem("theme-version") !== THEME_VERSION) {
-        localStorage.setItem("theme", "dark");
+        localStorage.setItem("theme", "system");
         localStorage.setItem("theme-version", THEME_VERSION);
-        return "dark";
+        return "system";
       }
       return (localStorage.getItem("theme") as Theme) || "dark";
     }
-    return "dark";
+    return "system";
   });
 
   const [resolvedTheme, setResolvedTheme] = useState<"light" | "dark">("dark");

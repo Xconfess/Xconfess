@@ -197,6 +197,18 @@ export async function freighterSignTransaction(
     throw new FreighterError("Freighter Mobile did not return a signed transaction");
   }
 
+  const legacyClient = getFreighterClient();
+  if (legacyClient?.signTransaction) {
+    const legacySign = legacyClient.signTransaction.bind(legacyClient) as (x: string, o?: unknown) => Promise<string>;
+    try {
+      const signed = await legacySign(xdr, { network: networkPassphrase });
+      if (typeof signed === "string" && signed.length > 0) return signed;
+    } catch {
+      const signed = await legacySign(xdr, networkPassphrase).catch(() => "");
+      if (signed) return signed;
+    }
+  }
+
   try {
     const result = await signFreighterTransaction(xdr, {
       networkPassphrase,

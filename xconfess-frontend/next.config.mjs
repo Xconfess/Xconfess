@@ -1,4 +1,4 @@
-﻿import path from "path";
+import path from "path";
 import { fileURLToPath } from "url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -30,13 +30,13 @@ const wsOrigin = originFrom(
 const securityHeaders = [
   // Prevents XSS and data injection attacks.
   // - unsafe-inline required for Next.js hydration and Tailwind CSS
-  // - unsafe-eval required for Next.js development mode hot reloading
+  // - unsafe-eval is limited to Next.js development mode hot reloading
   // - connect-src allows the configured API/WebSocket origins and Stellar endpoints
   {
     key: "Content-Security-Policy",
     value: [
       "default-src 'self'",
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+      `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}`,
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data: blob: https://stellar.creit.tech",
         "font-src 'self' data:",

@@ -3,15 +3,15 @@
 import { useEffect, useState, useMemo } from "react";
 import { ONBOARDING_STEPS } from "@/app/lib/types/onboarding.types";
 import { useOnboardingStore } from "@/app/lib/store/onboardingStore";
+import { getEmbeddedWallet } from "@/app/lib/crypto/embeddedWallet";
 
-const FREIGHTER_INSTALL_URL =
-  "https://www.freighter.app/";
+const WALLET_ROUTE = "/wallet";
 
 const STELLAR_STEP_IDS = new Set(["stellar-wallet", "anchor-action"]);
 
-function isFreighterInstalled(): boolean {
+function isWalletAvailable(): boolean {
   if (typeof window === "undefined") return false;
-  return !!(window as unknown as Record<string, unknown>).freighter;
+  return !!getEmbeddedWallet() || !!(window as unknown as Record<string, unknown>).freighter;
 }
 
 interface Props {
@@ -26,7 +26,7 @@ export const FeatureTour = ({ run, onComplete, onSkip }: Props) => {
   const [walletAvailable, setWalletAvailable] = useState(false);
 
   useEffect(() => {
-    setWalletAvailable(isFreighterInstalled());
+    setWalletAvailable(isWalletAvailable());
   }, []);
 
   const visibleSteps = useMemo(
@@ -96,16 +96,16 @@ export const FeatureTour = ({ run, onComplete, onSkip }: Props) => {
         {isStellarStep && !walletAvailable && (
           <div className="mt-3 rounded-md border border-yellow-500/30 bg-yellow-500/10 px-3 py-2">
             <p className="text-xs text-yellow-400">
-              Freighter wallet extension not detected.{" "}
+              No Stellar wallet is set up yet.{" "}
               <a
-                href={FREIGHTER_INSTALL_URL}
+                href={WALLET_ROUTE}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="underline hover:text-yellow-300"
               >
-                Install Freighter
+                Create an XConfess Wallet
               </a>{" "}
-              to use Stellar features.
+              to use optional Stellar features.
             </p>
           </div>
         )}

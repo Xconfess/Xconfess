@@ -1,4 +1,4 @@
-﻿# xConfess
+# xConfess
 
 ![CI](https://github.com/Xconfess/Xconfess/actions/workflows/ci.yml/badge.svg)
 ![License](https://img.shields.io/github/license/Xconfess/Xconfess)
@@ -367,3 +367,8 @@ When adding a new API endpoint, follow the [API endpoint contributor checklist](
 - `xconfess-frontend/README.md`
 - `xconfess-contracts/README.md`
 - `docs/message-e2e-encryption.md` — E2E private messaging protocol
+## Native XConfess Wallet
+
+The app includes an optional embedded Stellar wallet at `/wallet`. Keypairs are generated or imported in the browser; the secret key is encrypted locally with a PIN-derived AES-GCM key. The backend stores only the public key and, when requested, ciphertext-only backups. Freighter remains an optional advanced provider and is not required for normal wallet, send, receive, or tipping flows.
+
+The default network is Stellar Testnet. Set `ENABLE_TESTNET_FUNDING=true` only in a controlled environment to enable the authenticated, rate-limited Friendbot endpoint. Mainnet is intentionally not enabled by default. See [docs/WALLET_ARCHITECTURE.md](docs/WALLET_ARCHITECTURE.md) for key lifecycle, recovery limitations, threat model, and deployment review requirements.

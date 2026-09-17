@@ -112,10 +112,9 @@ export default function PrivacySettingsPage() {
       const data: PrivacySettings = await response.json();
       setSettings(data);
       setDirty(false);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to load privacy settings.';
-      setLoadError(message);
-      toast.error(message);
+    } catch {
+      setLoadError("Failed to load privacy settings");
+      toast.error("Failed to load privacy settings");
     } finally {
       setLoading(false);
     }
@@ -150,8 +149,8 @@ export default function PrivacySettingsPage() {
       setSettings(updated);
       setDirty(false);
       toast.success('Privacy settings saved successfully');
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to save privacy settings');
+    } catch {
+      toast.error('Failed to save privacy settings');
     } finally {
       setSaving(false);
     }

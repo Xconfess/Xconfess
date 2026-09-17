@@ -7,6 +7,7 @@ import { handleStellarError } from "@/lib/stellarErrorHandler";
 
 export interface StellarWalletState {
   isAvailable: boolean;
+  isEmbeddedWallet: boolean;
   isConnected: boolean;
   publicKey: string | null;
   network: string;
@@ -32,6 +33,7 @@ export function useStellarWallet() {
   const anchor = useCallback(
     async (
       content: string,
+      walletPin?: string,
     ): Promise<{ success: boolean; txHash?: string; error?: string }> => {
       if (!wallet.isConnected || !wallet.publicKey) {
         const err = "Wallet not connected";
@@ -50,7 +52,7 @@ export function useStellarWallet() {
       try {
         const timestamp = Date.now();
         const hash = hashConfession(content, timestamp);
-        const result = await anchorConfession(hash, timestamp);
+        const result = await anchorConfession(hash, timestamp, walletPin);
 
         if (result.error) {
           const stellarError = handleStellarError(result.error);
@@ -74,7 +76,8 @@ export function useStellarWallet() {
   const combinedError = wallet.error || anchorError;
 
   return {
-    isAvailable: wallet.isFreighterInstalled || wallet.isConnected,
+    isAvailable: wallet.isConnected,
+    isEmbeddedWallet: wallet.isEmbeddedWallet,
     isConnected: wallet.isConnected,
     publicKey: wallet.publicKey,
     network: wallet.network,

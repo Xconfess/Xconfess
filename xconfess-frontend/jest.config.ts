@@ -34,6 +34,8 @@ const config = {
         diagnostics: false,
         tsconfig: {
           jsx: "react-jsx",
+          module: "commonjs",
+          moduleResolution: "node",
           allowJs: true,
           esModuleInterop: true,
         },

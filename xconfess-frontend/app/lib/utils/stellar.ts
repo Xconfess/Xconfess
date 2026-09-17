@@ -1,9 +1,7 @@
+import { freighterGetPublicKey, freighterSignTransaction } from "@/lib/wallet/freighterAdapter";
 import * as StellarSDK from "@stellar/stellar-sdk";
 import CryptoJS from "crypto-js";
-import {
-  freighterGetPublicKey,
-  freighterSignTransaction,
-} from "@/lib/wallet/freighterAdapter";
+import { getEmbeddedWallet, unlockEmbeddedWallet } from "@/app/lib/crypto/embeddedWallet";
 
 const STEEXP_BASE = "https://testnet.steexp.com";
 const STELLAR_EXPERT_BASE = "https://stellar.expert/explorer";
@@ -74,16 +72,16 @@ export async function getPublicKey(): Promise<string | null> {
 export async function anchorConfession(
   confessionHash: string,
   timestamp: number,
+  walletPin?: string,
 ): Promise<{ success: boolean; txHash?: string; error?: string }> {
   try {
     const contractId = process.env.NEXT_PUBLIC_STELLAR_CONTRACT_ID;
     if (!contractId) return { success: false, error: "Stellar contract ID not configured" };
+    const embeddedWallet = getEmbeddedWallet();
     let publicKey: string;
-    try {
-      publicKey = await freighterGetPublicKey();
-    } catch {
-      return { success: false, error: "Failed to get public key from wallet" };
-    }
+    if (embeddedWallet) {
+      publicKey = embeddedWallet.publicKey;
+    } else { return { success: false, error: "Create or unlock your XConfess Wallet first" }; }
 
     const network = getStellarNetwork();
     const horizonServer = getStellarServer();
@@ -120,7 +118,13 @@ export async function anchorConfession(
       .build();
 
     const preparedTx = await sorobanServer.prepareTransaction(transaction);
-    const signedTx = await freighterSignTransaction(preparedTx.toXDR(), network);
+    let signedTx: string;
+    if (embeddedWallet) {
+      if (!walletPin) return { success: false, error: "Unlock your XConfess Wallet to add Stellar proof" };
+      const keypair = await unlockEmbeddedWallet(walletPin);
+      preparedTx.sign(keypair);
+      signedTx = preparedTx.toXDR();
+    } else { return { success: false, error: "Unlock your XConfess Wallet to add Stellar proof" }; }
     const submitResponse = await sorobanServer.sendTransaction(
       StellarSDK.TransactionBuilder.fromXDR(signedTx, network),
     );

@@ -108,6 +108,7 @@ export const envValidationSchema = Joi.object({
     .valid('true', 'false')
     .default('false'),
   STELLAR_NETWORK: Joi.string().valid('testnet', 'mainnet').default('testnet'),
+  ENABLE_TESTNET_FUNDING: Joi.boolean().truthy('true').falsy('false').default(false),
   STELLAR_HORIZON_URL: Joi.string()
     .uri()
     .default('https://horizon-testnet.stellar.org'),

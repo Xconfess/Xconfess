@@ -2,8 +2,8 @@
 
 import { useState, useCallback, useEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
-import * as WalletService from "../services/wallet.service";
 import { computeWalletReadiness } from "../wallet/walletReadiness";
+import { getActiveEmbeddedWallet, lockEmbeddedWallet } from "@/app/lib/crypto/embeddedWallet";
 
 export interface WalletState {
   publicKey: string | null;
@@ -12,6 +12,7 @@ export interface WalletState {
   isLoading: boolean;
   error: string | null;
   isFreighterInstalled: boolean;
+  isEmbeddedWallet: boolean;
 }
 
 export interface UseWalletReturn extends WalletState {
@@ -40,6 +41,7 @@ export const useWallet = (): UseWalletReturn => {
     isLoading: false,
     error: null,
     isFreighterInstalled: false,
+    isEmbeddedWallet: false,
   });
 
   const hasInitialized = useRef(false);
@@ -84,45 +86,23 @@ export const useWallet = (): UseWalletReturn => {
     try {
       setState((prev) => ({ ...prev, isLoading: true }));
 
-      const isInstalled = WalletService.isFreighterInstalled();
-      setState((prev) => ({ ...prev, isFreighterInstalled: isInstalled }));
-
       const storedNetwork = localStorage.getItem(NETWORK_STORAGE_KEY);
       if (storedNetwork) {
         setState((prev) => ({ ...prev, network: storedNetwork }));
       }
 
-      const walletInfo = await WalletService.getWalletInfo();
+      const embeddedWallet = getActiveEmbeddedWallet();
 
-      if (walletInfo) {
-        setState((prev) => ({
-          ...prev,
-          publicKey: walletInfo.publicKey,
-          network: walletInfo.network || prev.network,
-          isConnected: true,
-          isLoading: false,
-          error: null,
-        }));
-        storeSession(walletInfo.publicKey, walletInfo.network);
-      } else {
-        const stored = getStoredSession();
-        if (stored) {
-          setState((prev) => ({
-            ...prev,
-            publicKey: stored.publicKey,
-            network: stored.network,
-            isConnected: false,
-            isLoading: false,
-            error: "Wallet disconnected. Please reconnect.",
-          }));
-        } else {
-          setState((prev) => ({
-            ...prev,
-            isLoading: false,
-            error: null,
-          }));
-        }
+      if (embeddedWallet) {
+        setState((prev) => ({ ...prev, publicKey: embeddedWallet.publicKey, network: embeddedWallet.network, isConnected: true, isEmbeddedWallet: true, isLoading: false, error: null }));
+        storeSession(embeddedWallet.publicKey, embeddedWallet.network);
+        return;
       }
+
+      // Embedded XConfess Wallet is the only automatic identity. Never query Freighter on page load.
+      setState((prev) => ({ ...prev, isLoading: false, error: null }));
+      return;
+
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : "Failed to initialize wallet";
@@ -152,25 +132,17 @@ export const useWallet = (): UseWalletReturn => {
   useEffect(() => {
     if (hasInitialized.current && state.publicKey) {
       const revalidateConnection = async () => {
-        const walletInfo = await WalletService.getWalletInfo();
-        if (!walletInfo) {
-          setState((prev) => ({
-            ...prev,
-            publicKey: null,
-            isConnected: false,
-            error: "Wallet disconnected. Please reconnect.",
-          }));
-          clearSession();
-        } else if (walletInfo.publicKey !== state.publicKey) {
-          setState((prev) => ({
-            ...prev,
-            publicKey: walletInfo.publicKey,
-            network: walletInfo.network,
-            isConnected: true,
-            error: null,
-          }));
-          storeSession(walletInfo.publicKey, walletInfo.network);
-        }
+        const embeddedWallet = getActiveEmbeddedWallet();
+
+      if (embeddedWallet) {
+        setState((prev) => ({ ...prev, publicKey: embeddedWallet.publicKey, network: embeddedWallet.network, isConnected: true, isEmbeddedWallet: true, isLoading: false, error: null }));
+        storeSession(embeddedWallet.publicKey, embeddedWallet.network);
+        return;
+      }
+
+      // External wallets are opt-in and must never trigger a popup during navigation.
+      return;
+
       };
       revalidateConnection();
     }
@@ -180,116 +152,47 @@ export const useWallet = (): UseWalletReturn => {
    * Connect to wallet
    */
   const connect = useCallback(async () => {
-    try {
-      setState((prev) => ({ ...prev, isLoading: true, error: null }));
+    const embeddedWallet = getActiveEmbeddedWallet();
 
-      const walletInfo = await WalletService.connectWallet();
-
-      setState((prev) => ({
-        ...prev,
-        publicKey: walletInfo.publicKey,
-        network: walletInfo.network,
-        isConnected: true,
-        isLoading: false,
-        error: null,
-      }));
-
-      storeSession(walletInfo.publicKey, walletInfo.network);
-    } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : "Failed to connect wallet";
-      setState((prev) => ({
-        ...prev,
-        isLoading: false,
-        error: errorMessage,
-        isConnected: false,
-      }));
-      throw error;
+    if (!embeddedWallet) {
+      const message = "Create or import your XConfess Wallet to continue.";
+      setState((prev) => ({ ...prev, isLoading: false, isConnected: false, error: message }));
+      throw new Error("Use the XConfess Wallet signing flow.");
     }
+
+    setState((prev) => ({ ...prev, publicKey: embeddedWallet.publicKey, network: embeddedWallet.network, isConnected: true, isEmbeddedWallet: true, isLoading: false, error: null }));
+    storeSession(embeddedWallet.publicKey, embeddedWallet.network);
   }, [storeSession]);
 
   /**
    * Disconnect from wallet
    */
   const disconnect = useCallback(() => {
-    try {
-      WalletService.disconnectWallet();
-
-      setState((prev) => ({
-        ...prev,
-        publicKey: null,
-        isConnected: false,
-        error: null,
-      }));
-
-      clearSession();
-    } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : "Failed to disconnect wallet";
-      setState((prev) => ({
-        ...prev,
-        error: errorMessage,
-      }));
-    }
+    setState((prev) => ({ ...prev, publicKey: null, isConnected: false, isEmbeddedWallet: false, error: null }));
+    clearSession();
   }, [clearSession]);
 
   /**
    * Sign a transaction
    */
-  const signTransaction = useCallback(async (xdr: string): Promise<string> => {
-    try {
-      setState((prev) => ({ ...prev, isLoading: true, error: null }));
-
-      const signedXDR = await WalletService.signTransaction(xdr);
-
-      setState((prev) => ({ ...prev, isLoading: false }));
-
-      return signedXDR;
-    } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : "Failed to sign transaction";
-      setState((prev) => ({
-        ...prev,
-        isLoading: false,
-        error: errorMessage,
-      }));
-      throw error;
-    }
+  const signTransaction = useCallback(async (_xdr: string): Promise<string> => {
+    throw new Error("Use the XConfess Wallet signing flow.");
   }, []);
 
   /**
    * Check current wallet connection status
    */
   const checkConnection = useCallback(async () => {
-    try {
-      const walletInfo = await WalletService.getWalletInfo();
+    const embeddedWallet = getActiveEmbeddedWallet();
 
-      if (walletInfo) {
-        setState((prev) => ({
-          ...prev,
-          publicKey: walletInfo.publicKey,
-          network: walletInfo.network,
-          isConnected: true,
-          error: null,
-        }));
-      } else {
-        setState((prev) => ({
-          ...prev,
-          publicKey: null,
-          isConnected: false,
-        }));
-      }
-    } catch (error) {
-      const errorMessage =
-        error instanceof Error
-          ? error.message
-          : "Failed to check wallet connection";
-      setState((prev) => ({
-        ...prev,
-        error: errorMessage,
-      }));
+    if (embeddedWallet) {
+      setState((prev) => ({ ...prev, publicKey: embeddedWallet.publicKey, network: embeddedWallet.network, isConnected: true, isEmbeddedWallet: true, isLoading: false, error: null }));
+      storeSession(embeddedWallet.publicKey, embeddedWallet.network);
+      return;
     }
-  }, []);
+
+    setState((prev) => ({ ...prev, publicKey: null, isConnected: false, isEmbeddedWallet: false, isLoading: false, error: null }));
+  }, [storeSession]);
 
   /**
    * Switch network (local state only, actual network switch handled by wallet)

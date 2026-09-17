@@ -1,6 +1,7 @@
 "use client";
 
 import { useContext, useState } from "react";
+import { useRouter } from "next/navigation";
 import { WalletContext } from "@/lib/providers/WalletProvider";
 
 interface WalletButtonProps {
@@ -47,12 +48,13 @@ const getNetworkInfo = (
 
 /**
  * Wallet Button Component
- * Displays wallet connection status and allows connect/disconnect
+ * Displays wallet connection status and wallet-first identity actions
  */
 export const WalletButton: React.FC<WalletButtonProps> = ({
   className = "",
 }) => {
   const wallet = useContext(WalletContext);
+  const router = useRouter();
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
 
   if (!wallet) {
@@ -67,23 +69,14 @@ export const WalletButton: React.FC<WalletButtonProps> = ({
     error,
     isReady,
     readinessError,
-    connect,
     disconnect,
   } = wallet;
   const networkInfo = getNetworkInfo(network);
-  const handleConnect = async () => {
-    try {
-      await connect();
-    } catch {
-      // The wallet hook exposes the user-facing error state.
-    }
-  };
-
   const handleWalletAction = () => {
-    void handleConnect();
+    router.push("/wallet");
   };
 
-  const handleDisconnect = () => {
+  const handleLockWallet = () => {
     disconnect();
     setIsDropdownOpen(false);
   };
@@ -133,9 +126,9 @@ export const WalletButton: React.FC<WalletButtonProps> = ({
     return (
       <div className={`relative group ${className}`}>
         <button
-          onClick={handleDisconnect}
+          onClick={handleLockWallet}
           className="flex min-h-11 max-w-[42vw] items-center gap-2 truncate rounded-xl border border-orange-300 bg-orange-50 px-3 py-2 text-sm font-medium text-orange-800 transition hover:bg-orange-100 sm:px-4"
-          title={readinessError || "Action Required"}
+          title={readinessError || "Open wallet"}
         >
           ⚠️{" "}
           {readinessError?.includes("network")
@@ -143,7 +136,7 @@ export const WalletButton: React.FC<WalletButtonProps> = ({
             : "Action Required"}
         </button>
         <div className="absolute hidden group-hover:block bg-orange-900 text-white text-xs rounded py-1 px-2 whitespace-nowrap z-50 bottom-full mb-2">
-          {readinessError} (Click to disconnect)
+          {readinessError} (Open wallet to review)
         </div>
       </div>
     );
@@ -223,13 +216,13 @@ export const WalletButton: React.FC<WalletButtonProps> = ({
               </div>
             </div>
 
-            {/* Disconnect Button */}
+            {/* Lock wallet Button */}
             <div className="p-3">
               <button
-                onClick={handleDisconnect}
+                onClick={handleLockWallet}
                 className="w-full px-4 py-2 bg-red-50 text-red-600 hover:bg-red-100 rounded-lg transition font-medium text-sm border border-red-200"
               >
-                Disconnect
+                Lock wallet
               </button>
             </div>
           </div>

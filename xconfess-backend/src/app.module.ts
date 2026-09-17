@@ -1,4 +1,4 @@
-﻿import { Logger, MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
+import { Logger, MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { SanitizationMiddleware } from './middleware/sanitization.middleware';
 import { RequestIdMiddleware } from './middleware/request-id.middleware'; // ADAPT: fix path if it lives elsewhere
 import { AppController } from './app.controller';
@@ -28,6 +28,7 @@ import { DataExportModule } from './data-export/data-export.module';
 import { StellarModule } from './stellar/stellar.module';
 import { CacheModule } from './cache/cache.module';
 import { TippingModule } from './tipping/tipping.module';
+import { WalletModule } from './wallet/wallet.module';
 import { LoggerModule } from './logger/logger.module';
 import { ScheduleModule } from '@nestjs/schedule';
 import { EncryptionModule } from './encryption/encryption.module';
@@ -143,6 +144,7 @@ import { StructuredLoggingInterceptor } from './common/logging/structured-loggin
     NotificationsModule,
     StellarModule,
     TippingModule,
+    WalletModule,
     LoggerModule,
     EncryptionModule,
     CacheModule,
