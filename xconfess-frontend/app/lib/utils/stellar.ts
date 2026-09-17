@@ -1,9 +1,6 @@
+import { freighterGetPublicKey, freighterSignTransaction } from "@/lib/wallet/freighterAdapter";
 import * as StellarSDK from "@stellar/stellar-sdk";
 import CryptoJS from "crypto-js";
-import {
-  freighterGetPublicKey,
-  freighterSignTransaction,
-} from "@/lib/wallet/freighterAdapter";
 import { getEmbeddedWallet, unlockEmbeddedWallet } from "@/app/lib/crypto/embeddedWallet";
 
 const STEEXP_BASE = "https://testnet.steexp.com";
@@ -84,13 +81,7 @@ export async function anchorConfession(
     let publicKey: string;
     if (embeddedWallet) {
       publicKey = embeddedWallet.publicKey;
-    } else {
-      try {
-        publicKey = await freighterGetPublicKey();
-      } catch {
-        return { success: false, error: "Failed to get public key from wallet" };
-      }
-    }
+    } else { return { success: false, error: "Create or unlock your XConfess Wallet first" }; }
 
     const network = getStellarNetwork();
     const horizonServer = getStellarServer();
@@ -133,9 +124,7 @@ export async function anchorConfession(
       const keypair = await unlockEmbeddedWallet(walletPin);
       preparedTx.sign(keypair);
       signedTx = preparedTx.toXDR();
-    } else {
-      signedTx = await freighterSignTransaction(preparedTx.toXDR(), network);
-    }
+    } else { return { success: false, error: "Unlock your XConfess Wallet to add Stellar proof" }; }
     const submitResponse = await sorobanServer.sendTransaction(
       StellarSDK.TransactionBuilder.fromXDR(signedTx, network),
     );

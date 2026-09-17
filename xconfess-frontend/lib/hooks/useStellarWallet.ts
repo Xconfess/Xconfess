@@ -76,7 +76,7 @@ export function useStellarWallet() {
   const combinedError = wallet.error || anchorError;
 
   return {
-    isAvailable: wallet.isFreighterInstalled || wallet.isConnected,
+    isAvailable: wallet.isConnected,
     isEmbeddedWallet: wallet.isEmbeddedWallet,
     isConnected: wallet.isConnected,
     publicKey: wallet.publicKey,

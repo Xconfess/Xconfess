@@ -1,6 +1,7 @@
 import { Keypair } from "@stellar/stellar-sdk";
 
 const STORAGE_KEY = "xconfess.embedded-wallet.v1";
+const SESSION_LOCK_KEY = "xconfess.embedded-wallet.locked";
 const PBKDF2_ITERATIONS = 310_000;
 const FAILED_ATTEMPTS_KEY = "xconfess.embedded-wallet.failed-attempts";
 const MAX_PIN_ATTEMPTS = 5;
@@ -60,16 +61,20 @@ export async function decryptSecret(wallet: EncryptedWallet, pin: string) {
 export async function createEmbeddedWallet(pin: string, network: EncryptedWallet["network"] = "testnet") {
   const keypair = Keypair.random(); const encrypted = await encryptSecret(keypair.secret(), pin);
   const wallet: EncryptedWallet = { version: 1, cipher: "AES-GCM", kdf: "PBKDF2-SHA-256", ...encrypted, publicKey: keypair.publicKey(), network, createdAt: new Date().toISOString() };
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(wallet)); return wallet;
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(wallet)); unlockEmbeddedWalletSession(); return wallet;
 }
 
 export async function importEmbeddedWallet(secret: string, pin: string, network: EncryptedWallet["network"] = "testnet") {
   const keypair = Keypair.fromSecret(secret.trim()); const encrypted = await encryptSecret(keypair.secret(), pin);
   const wallet: EncryptedWallet = { version: 1, cipher: "AES-GCM", kdf: "PBKDF2-SHA-256", ...encrypted, publicKey: keypair.publicKey(), network, createdAt: new Date().toISOString() };
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(wallet)); return wallet;
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(wallet)); unlockEmbeddedWalletSession(); return wallet;
 }
 
 export function getEmbeddedWallet(): EncryptedWallet | null { try { const value = localStorage.getItem(STORAGE_KEY); if (!value) return null; const parsed = JSON.parse(value); return isEncryptedWallet(parsed) ? parsed : null; } catch { return null; } }
+export function isEmbeddedWalletLocked() { return localStorage.getItem(SESSION_LOCK_KEY) === "true"; }
+export function lockEmbeddedWallet() { localStorage.setItem(SESSION_LOCK_KEY, "true"); }
+export function unlockEmbeddedWalletSession() { localStorage.removeItem(SESSION_LOCK_KEY); }
+export function getActiveEmbeddedWallet() { return isEmbeddedWalletLocked() ? null : getEmbeddedWallet(); }
 export function removeEmbeddedWallet() { localStorage.removeItem(STORAGE_KEY); }
 export async function unlockEmbeddedWallet(pin: string) {
   const wallet = getEmbeddedWallet();
@@ -99,4 +104,4 @@ export async function changeEmbeddedWalletPin(currentPin: string, nextPin: strin
   return updated;
 }
 export function exportEncryptedBackup() { const wallet = getEmbeddedWallet(); if (!wallet) throw new Error("No embedded wallet found"); return JSON.stringify({ format: "xconfess-embedded-wallet", ...wallet }, null, 2); }
-export function importEncryptedBackup(payload: string) { let parsed: unknown; try { parsed = JSON.parse(payload); } catch { throw new Error("Unsupported wallet backup"); } const candidate = parsed as EncryptedWallet & { format?: string }; if (candidate.format !== "xconfess-embedded-wallet" || !isEncryptedWallet(candidate)) throw new Error("Unsupported wallet backup"); localStorage.setItem(STORAGE_KEY, JSON.stringify(candidate)); return candidate; }
+export function importEncryptedBackup(payload: string) { let parsed: unknown; try { parsed = JSON.parse(payload); } catch { throw new Error("Unsupported wallet backup"); } const candidate = parsed as EncryptedWallet & { format?: string }; if (candidate.format !== "xconfess-embedded-wallet" || !isEncryptedWallet(candidate)) throw new Error("Unsupported wallet backup"); localStorage.setItem(STORAGE_KEY, JSON.stringify(candidate)); unlockEmbeddedWalletSession(); return candidate; }

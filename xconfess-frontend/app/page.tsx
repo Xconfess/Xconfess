@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { useCallback } from "react";
-import { ArrowDown, Anchor, Lock, MessageSquareText } from "lucide-react";
+import { ArrowDown, Anchor, Ban, HeartHandshake, Link2, Lock, MessageSquareText, ShieldCheck, Sparkles, UserRound } from "lucide-react";
 import Header from "./components/layout/Header";
 import { MobileNav } from "./components/layout/MobileNav";
 import { ConfessionFeed } from "./components/confession/ConfessionFeed";
@@ -67,14 +67,19 @@ export default function Home() {
       <Header />
 
       <main className="editorial-shell relative overflow-hidden pb-24">
-        <section className="mx-auto flex w-full max-w-6xl flex-col gap-10 px-3 pb-16 pt-6 sm:gap-12 sm:px-6 sm:pt-8 lg:px-8 lg:pt-14">
-          <div className="grid gap-8 lg:grid-cols-[minmax(0,1.25fr)_380px] lg:items-start">
-            <div className="space-y-6 sm:space-y-8">
-              <div className="eyebrow">Anonymous confessions</div>
+        <svg className="atmospheric-landscape" viewBox="0 0 820 240" role="img" aria-hidden="true">
+          <path className="landscape-back" d="M0 190 112 126l74 36 106-82 92 59 86-41 86 52 86-64 78 47v107H0Z" />
+          <path className="landscape-front" d="m0 218 94-64 88 28 84-46 78 32 92-73 88 66 83-35 82 49 131-38v103H0Z" />
+          <path className="landscape-ridge" d="M0 190 112 126l74 36 106-82 92 59 86-41 86 52 86-64 78 47" />
+        </svg>
+        <span className="hero-orb -right-32 top-0" aria-hidden="true" /><span className="hero-orb -left-48 top-[28rem] opacity-60" aria-hidden="true" /><section className="relative z-10 mx-auto flex w-full max-w-[1360px] flex-col gap-14 px-4 pb-16 pt-8 sm:gap-20 sm:px-6 sm:pt-12 lg:px-10 lg:pt-20">
+          <div className="grid gap-10 lg:grid-cols-12 lg:items-center lg:gap-8">
+            <div className="space-y-7 lg:col-span-7 sm:space-y-9">
+              <div className="eyebrow text-[var(--brand-violet)]">Anonymous confessions</div>
 
               <div className="max-w-4xl space-y-6">
-                <h1 className="font-editorial text-4xl leading-[0.98] text-[var(--foreground)] sm:text-6xl lg:text-7xl">
-                  Say it. Anonymously.
+                <h1 className="max-w-3xl font-editorial text-5xl leading-[0.92] text-[var(--foreground)] sm:text-7xl lg:text-[6.5rem]">
+                  Say it.<br />Anonymously.
                 </h1>
                 <p className="max-w-2xl text-base leading-8 text-[var(--secondary)] sm:text-lg">
                   Share what is on your mind, join the conversation, and keep
@@ -90,14 +95,14 @@ export default function Home() {
                   Browse feed
                 </Button>
               </div>
-            </div>
+            <div className="grid max-w-xl grid-cols-3 gap-4 border-t border-[var(--border)] pt-5 text-sm"><div><p className="font-editorial text-2xl text-[var(--foreground)]">12.4K</p><p className="mt-1 text-xs text-[var(--secondary)]">confessions</p></div><div className="border-l border-[var(--border)] pl-4"><p className="font-editorial text-2xl text-[var(--foreground)]">284K</p><p className="mt-1 text-xs text-[var(--secondary)]">community members</p></div><div className="border-l border-[var(--border)] pl-4"><p className="font-editorial text-2xl text-[var(--foreground)]">100%</p><p className="mt-1 text-xs text-[var(--secondary)]">anonymous by design</p></div></div></div>
 
-            <aside className="luxury-panel rounded-2xl p-4 sm:p-6">
-              <div className="space-y-3">
+            <aside className="luxury-panel rounded-[var(--radius-panel)] p-3 sm:p-5 lg:col-span-5">
+              <div className="mb-4 flex items-center justify-between px-3 pt-2"><div><p className="eyebrow text-[var(--brand-violet)]">A kinder internet</p><p className="mt-2 font-editorial text-2xl">Your privacy, first.</p></div><ShieldCheck className="h-6 w-6 text-[var(--brand-violet)]" aria-hidden="true" /></div><div className="space-y-2">
                 {trustSignals.map(({ icon: Icon, title, description }) => (
                   <div
                     key={title}
-                    className="flex gap-4 rounded-xl border border-[var(--border)] bg-[var(--surface-muted)] p-4"
+                    className="group flex gap-4 rounded-2xl border border-[var(--border)] bg-[var(--surface-muted)] p-4 transition-transform duration-200 hover:-translate-y-0.5 hover:border-[var(--accent-border)]"
                   >
                     <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[var(--accent-soft)] text-[var(--primary-deep)]">
                       <Icon className="h-5 w-5" />
@@ -119,37 +124,60 @@ export default function Home() {
           <ErrorBoundary>
             <section
               id="composer"
-              className="grid gap-8 lg:grid-cols-[minmax(0,1.08fr)_320px] lg:items-start"
+              className="grid gap-8 lg:grid-cols-12 lg:items-start"
             >
-              <div className="space-y-6">
+              <div className="space-y-6 lg:col-span-8">
                 <div className="space-y-3">
-                  <p className="eyebrow">New confession</p>
+                  <p className="eyebrow text-[var(--brand-violet)]">Writing desk</p>
                   <h2 className="font-editorial text-4xl text-[var(--foreground)] sm:text-5xl">
-                    Write freely
+                    Share your confession
                   </h2>
                 </div>
 
                 <EnhancedConfessionForm className="rounded-2xl p-1" />
               </div>
 
-              <aside className="space-y-5 lg:sticky lg:top-28">
-                <div className="luxury-panel rounded-2xl p-6">
-                  <p className="eyebrow">Guidelines</p>
-                  <div className="mt-5 space-y-4">
+              <aside className="space-y-5 lg:sticky lg:top-28 lg:col-span-4">
+                <div className="guidelines-card luxury-panel rounded-[22px] p-5 sm:p-6">
+                  <div className="flex items-center gap-3">
+                    <ShieldCheck className="h-5 w-5 text-[var(--brand-violet)]" aria-hidden="true" />
+                    <h3 className="text-sm font-semibold tracking-tight text-[var(--foreground)]">Community guidelines</h3>
+                  </div>
+                  <div className="mt-4 divide-y divide-[var(--border)]">
                     {[
-                      "No names or personal details.",
-                      "Respect the community.",
-                      "Anchor only when needed.",
-                    ].map((tip) => (
-                      <div
-                        key={tip}
-                        className="rounded-xl border border-[var(--border)] bg-[var(--surface-muted)] p-4 text-sm leading-7 text-[var(--secondary)]"
-                      >
-                        {tip}
+                      { icon: UserRound, title: "No personal details", copy: "Keep yourself and others safe." },
+                      { icon: HeartHandshake, title: "Be respectful", copy: "Kindness builds a better space." },
+                      { icon: Ban, title: "No harassment or hate", copy: "Zero tolerance." },
+                      { icon: Link2, title: "Optional proof only", copy: "Use Stellar to anchor important posts." },
+                    ].map(({ icon: Icon, title, copy }) => (
+                      <div key={title} className="flex items-center gap-3 py-3 first:pt-0 last:pb-0">
+                        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[var(--accent-soft)] text-[var(--brand-violet)]">
+                          <Icon className="h-4 w-4" aria-hidden="true" />
+                        </span>
+                        <div className="min-w-0">
+                          <p className="text-xs font-semibold text-[var(--foreground)]">{title}</p>
+                          <p className="mt-0.5 text-[11px] leading-5 text-[var(--secondary)]">{copy}</p>
+                        </div>
                       </div>
                     ))}
                   </div>
                 </div>
+
+                <button
+                  type="button"
+                  onClick={scrollToFeed}
+                  className="guidelines-callout luxury-panel flex w-full items-center justify-between rounded-[22px] px-5 py-4 text-left transition-transform hover:-translate-y-0.5"
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[var(--accent-soft)] text-[var(--brand-violet)]">
+                      <Sparkles className="h-4 w-4" aria-hidden="true" />
+                    </span>
+                    <div>
+                      <p className="text-xs font-semibold leading-5 text-[var(--primary-deep)]">A more honest internet<br />starts with you.</p>
+                    </div>
+                  </div>
+                  <ArrowDown className="h-4 w-4 rotate-[-90deg] text-[var(--primary-deep)]" />
+                </button>
 
                 <button
                   type="button"

@@ -1,61 +1,31 @@
 "use client";
 
 import { useTheme } from "../../lib/hooks/useTheme";
-import { Sun, Moon, Laptop } from "lucide-react";
+import { Laptop, Moon, Sun } from "lucide-react";
 import { useEffect, useState } from "react";
 
 export function ThemeToggle() {
-  const { theme, setTheme } = useTheme();
+  const { theme, setTheme, resolvedTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  useEffect(() => setMounted(true), []);
 
   if (!mounted) {
-    return (
-      <div className="h-9 w-24 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-1" />
-    );
+    return <div className="h-10 w-10 rounded-full border border-[var(--border)] bg-[var(--surface-muted)]" aria-hidden="true" />;
   }
 
+  const Icon = theme === "system" ? Laptop : resolvedTheme === "dark" ? Moon : Sun;
+  const nextTheme = theme === "light" ? "dark" : theme === "dark" ? "system" : "light";
+
   return (
-    <div className="flex items-center gap-1 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-1 shadow-sm">
-      <button
-        onClick={() => setTheme("light")}
-        className={`flex h-7 w-7 items-center justify-center rounded-lg transition-all duration-300 ${
-          theme === "light"
-            ? "bg-[var(--accent-soft)] text-[var(--primary-deep)] shadow-sm"
-            : "text-[var(--secondary)] hover:text-[var(--foreground)]"
-        }`}
-        aria-label="Light mode"
-        title="Light Mode"
-      >
-        <Sun size={14} />
-      </button>
-      <button
-        onClick={() => setTheme("dark")}
-        className={`flex h-7 w-7 items-center justify-center rounded-lg transition-all duration-300 ${
-          theme === "dark"
-            ? "bg-[var(--accent-soft)] text-[var(--primary-deep)] shadow-sm"
-            : "text-[var(--secondary)] hover:text-[var(--foreground)]"
-        }`}
-        aria-label="Dark mode"
-        title="Dark Mode"
-      >
-        <Moon size={14} />
-      </button>
-      <button
-        onClick={() => setTheme("system")}
-        className={`flex h-7 w-7 items-center justify-center rounded-lg transition-all duration-300 ${
-          theme === "system"
-            ? "bg-[var(--accent-soft)] text-[var(--primary-deep)] shadow-sm"
-            : "text-[var(--secondary)] hover:text-[var(--foreground)]"
-        }`}
-        aria-label="System preference"
-        title="System Preference"
-      >
-        <Laptop size={14} />
-      </button>
-    </div>
+    <button
+      type="button"
+      onClick={() => setTheme(nextTheme)}
+      className="flex h-10 w-10 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--accent-soft)] text-[var(--primary-deep)] transition-colors hover:bg-[var(--surface-muted)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--focus-ring)]"
+      aria-label={theme === "system" ? "Theme: system preference" : "Theme: " + theme}
+      title={"Switch to " + nextTheme + " theme"}
+    >
+      <Icon className="h-4 w-4" aria-hidden="true" />
+    </button>
   );
 }

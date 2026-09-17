@@ -270,8 +270,186 @@ body {
 }
 
 
-:root { --brand-primary: #922cff; --brand-primary-hover: #a546ff; --brand-primary-active: #7620d8; --brand-primary-soft: rgba(146,44,255,.12); --success: #40c98a; --warning: #eab866; --danger: #f27686; --focus-ring: #c48cff; --radius-control: 12px; --radius-panel: 22px; }
-.light { --focus-ring: #7821d5; }
+:root { --brand-primary: #922cff; --brand-primary-hover: #a546ff; --brand-primary-active: #7620d8; --brand-primary-soft: rgba(146,44,255,.12); --success: #40c98a; --warning: #eab866; --danger: #f27686; --focus-ring: #c48cff; --radius-control: 14px; --radius-panel: 24px; --surface-overlay: rgba(20,16,29,.88); --surface-elevated: #21192d; --text-primary: var(--foreground); --text-secondary: var(--secondary); --text-muted: color-mix(in srgb,var(--secondary) 72%,transparent); }
+.light { --focus-ring: #7821d5; --surface-overlay: rgba(255,255,255,.88); --surface-elevated: #fff; }
 body { min-width: 320px; background-color: var(--background); }
 button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 3px; }
 .wallet-balance-surface { background: radial-gradient(circle at 92% 8%, rgba(146,44,255,.24), transparent 32%), var(--surface-strong); border: 1px solid var(--accent-border); box-shadow: 0 24px 70px -42px rgba(146,44,255,.68); }
+
+.hero-orb { position:absolute; width:28rem; height:28rem; border-radius:999px; background:radial-gradient(circle,rgba(146,44,255,.16),transparent 68%); filter:blur(14px); pointer-events:none; }
+.writing-canvas { background:linear-gradient(180deg,color-mix(in srgb,var(--surface-strong) 90%,transparent),var(--surface-muted)),radial-gradient(circle at 100% 0%,var(--accent-soft),transparent 34%); }
+@media (max-width:767px) { .hero-orb { width:20rem; height:20rem; } }
+.hero-mountain { position:absolute; inset:auto 0 0; height:5rem; opacity:.8; background:linear-gradient(165deg,transparent 30%,var(--accent-soft) 31%,transparent 62%),linear-gradient(195deg,transparent 38%,var(--accent-soft) 39%,transparent 70%); clip-path:polygon(0 72%,12% 52%,22% 68%,34% 32%,47% 66%,62% 42%,75% 70%,88% 45%,100% 66%,100% 100%,0 100%); }
+.light .hero-mountain { opacity:.65; }
+.dark .hero-mountain { opacity:.38; filter:saturate(.8); }
+/* XConfess atmospheric background recipe */
+html,
+body {
+  min-height: 100%;
+}
+
+body {
+  position: relative;
+  isolation: isolate;
+  background-color: #fbf8ff;
+  background-image:
+    radial-gradient(1200px 800px at 20% 10%, rgba(168, 85, 247, .15), transparent 60%),
+    radial-gradient(800px 600px at 80% 0%, rgba(196, 181, 253, .12), transparent 70%),
+    linear-gradient(135deg, rgba(253, 247, 255, .6), rgba(255, 255, 255, .94) 58%, rgba(248, 244, 255, .84));
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: -12%;
+  z-index: -1;
+  pointer-events: none;
+  opacity: .72;
+  filter: blur(90px);
+  background:
+    radial-gradient(420px 300px at 8% 28%, rgba(196, 181, 253, .2), transparent 72%),
+    radial-gradient(520px 360px at 88% 18%, rgba(233, 213, 255, .22), transparent 72%),
+    linear-gradient(135deg, transparent 20%, rgba(255, 255, 255, .56) 52%, transparent 76%);
+}
+
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  pointer-events: none;
+  opacity: .018;
+  mix-blend-mode: multiply;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.82' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.55'/%3E%3C/svg%3E");
+}
+
+.light body {
+  background-color: #fbf8ff;
+  color: #17111f;
+}
+
+.dark body {
+  background-color: #100d18;
+  background-image:
+    radial-gradient(1200px 800px at 80% -10%, rgba(168, 85, 247, .25), transparent 60%),
+    radial-gradient(900px 600px at 6% 62%, rgba(124, 58, 237, .15), transparent 70%),
+    linear-gradient(135deg, #100d18 0%, #171125 48%, #0d0b14 100%);
+}
+
+.dark body::before {
+  opacity: .88;
+  background:
+    radial-gradient(430px 320px at 82% 10%, rgba(192, 132, 252, .2), transparent 72%),
+    radial-gradient(360px 280px at 18% 62%, rgba(124, 58, 237, .13), transparent 72%),
+    linear-gradient(135deg, transparent 18%, rgba(168, 85, 247, .08) 52%, transparent 78%);
+}
+
+.dark body::after {
+  opacity: .026;
+  mix-blend-mode: screen;
+}
+
+.light .luxury-panel {
+  box-shadow: 0 24px 70px -48px rgba(54, 25, 78, .28);
+}
+
+.dark .luxury-panel {
+  background: rgba(27, 21, 39, .82);
+  border-color: rgba(224, 204, 255, .14);
+  box-shadow: 0 24px 70px -46px rgba(0, 0, 0, .78);
+}
+.atmospheric-landscape {
+  position: absolute;
+  z-index: 0;
+  right: -7rem;
+  bottom: -1.5rem;
+  width: min(58vw, 760px);
+  height: auto;
+  opacity: .16;
+  color: #a78bfa;
+  pointer-events: none;
+  user-select: none;
+  filter: blur(.2px);
+}
+
+.atmospheric-landscape .landscape-back {
+  fill: currentColor;
+  opacity: .22;
+}
+
+.atmospheric-landscape .landscape-front {
+  fill: currentColor;
+  opacity: .34;
+}
+
+.atmospheric-landscape .landscape-ridge {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: .3;
+}
+
+.dark .atmospheric-landscape {
+  color: #7c3aed;
+  opacity: .2;
+  filter: blur(.15px);
+}
+
+.dark .atmospheric-landscape .landscape-back {
+  opacity: .22;
+}
+
+.dark .atmospheric-landscape .landscape-front {
+  opacity: .38;
+}
+
+.dark .atmospheric-landscape .landscape-ridge {
+  opacity: .5;
+  stroke: #c084fc;
+}
+
+@media (max-width: 767px) {
+  .atmospheric-landscape {
+    right: -11rem;
+    bottom: -.5rem;
+    width: 28rem;
+    opacity: .1;
+  }
+}
+
+@media (max-width: 359px) {
+  .atmospheric-landscape {
+    display: none;
+  }
+}
+.composer-card #confession-title {
+  height: 2.4rem;
+  border-radius: .7rem;
+  background: color-mix(in srgb, var(--surface-strong) 80%, var(--surface-muted));
+}
+
+.composer-card #confession-body {
+  min-height: 8rem;
+  margin-top: .5rem;
+  border-radius: .8rem;
+  background: color-mix(in srgb, var(--surface-strong) 82%, var(--surface-muted));
+}
+
+.composer-card #confession-title::placeholder,
+.composer-card #confession-body::placeholder {
+  color: color-mix(in srgb, var(--secondary) 78%, transparent);
+}
+
+.composer-card #confession-title-hint,
+.composer-card #title-counter,
+.composer-card #confession-body-hint {
+  color: var(--text-muted);
+}
+
+@media (min-width: 768px) {
+  .composer-card {
+    box-shadow: 0 24px 70px -52px rgba(54, 25, 78, .3);
+  }
+}

@@ -24,13 +24,13 @@ import {
 } from "@/app/lib/utils/validation";
 import { useStellarWallet } from "@/lib/hooks/useStellarWallet";
 import { Draft } from "@/app/lib/hooks/useDrafts";
-import { Eye, EyeOff, Send, Loader2 } from "lucide-react";
+import { Eye, EyeOff, Send, Loader2, LockKeyhole } from "lucide-react";
 import { cn } from "@/app/lib/utils/cn";
 import apiClient from "@/app/lib/api/client";
 import { useGlobalToast } from "@/app/components/common/Toast";
-import { buildAuthRedirectUrl, clearPendingConfession, loadPendingConfession, savePendingConfession } from "@/app/lib/utils/pendingConfession";
+import { clearPendingConfession, loadPendingConfession } from "@/app/lib/utils/pendingConfession";
 import { useAuth } from "@/app/lib/hooks/useAuth";
-import { useRouter } from "next/navigation";
+
 
 interface EnhancedConfessionFormProps {
   onSubmit?: (data: ConfessionFormData & { stellarTxHash?: string }) => void;
@@ -110,7 +110,6 @@ export const EnhancedConfessionForm: React.FC<EnhancedConfessionFormProps> = ({
   const [stellarWalletPin, setStellarWalletPin] = useState("");
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitSuccess, setSubmitSuccess] = useState(false);
-  const router = useRouter();
   const { isAuthenticated, isLoading: isAuthLoading } = useAuth();
 
   const submitSuccessTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
@@ -205,11 +204,6 @@ export const EnhancedConfessionForm: React.FC<EnhancedConfessionFormProps> = ({
       setErrors(currentValidationErrors);
       setSubmitError("Please review the highlighted fields and try again.");
       return;
-    }    if (!isAuthenticated) {
-      savePendingConfession({ title, body, gender, enableStellarAnchor });
-      router.push(buildAuthRedirectUrl("/login"));
-      toast.info("Your confession is saved. Log in to publish it.");
-      return;
     }
 
     setIsSubmitting(true);
@@ -241,6 +235,12 @@ export const EnhancedConfessionForm: React.FC<EnhancedConfessionFormProps> = ({
           headers: publicKey ? { "x-stellar-wallet": publicKey } : undefined,
         },
       );
+
+      if (typeof window !== "undefined" && publicKey) {
+        const key = "xconfess.wallet.confessions." + publicKey;
+        const existing = JSON.parse(localStorage.getItem(key) || "[]");
+        localStorage.setItem(key, JSON.stringify([{ id: String(Date.now()), title, body, createdAt: new Date().toISOString(), stellarTxHash: txHash }, ...existing].slice(0, 100)));
+      }
 
       setSubmitSuccess(true);
       toast.success("Confession submitted successfully!");
@@ -311,16 +311,16 @@ export const EnhancedConfessionForm: React.FC<EnhancedConfessionFormProps> = ({
     >
       <CardHeader className="border-b border-[var(--border)] px-6 pb-6 pt-7 sm:px-8">
         <p className="eyebrow">Writing desk</p>
-        <CardTitle className="mt-3 text-4xl sm:text-5xl">
+        <CardTitle className="mt-3 text-[2rem] leading-tight sm:text-4xl">
           Share your confession
         </CardTitle>
         <CardDescription className="max-w-2xl text-sm leading-7 sm:text-base">
-          Anonymous by design. A wallet is optional; Stellar proof is available when connected.
+          Your story matters. Be honest, be real, be you.
         </CardDescription>
       </CardHeader>
 
-      <CardContent className="px-6 py-7 sm:px-8">
-        <form onSubmit={handleSubmit} className="space-y-7" aria-label="Confession composition form">
+      <CardContent className="px-6 py-5 sm:px-7 sm:py-6">
+        <form onSubmit={handleSubmit} className="space-y-4" aria-label="Confession composition form">
           <div>
             <label
               htmlFor="confession-title"
@@ -436,7 +436,7 @@ export const EnhancedConfessionForm: React.FC<EnhancedConfessionFormProps> = ({
                   placeholder="Share your thoughts, feelings, or experiences..."
                   aria-invalid={!!errors.body}
                   className={cn(
-                    "mt-3 flex min-h-[260px] w-full resize-y rounded-2xl border px-5 py-5 text-[15px] leading-8 text-[var(--foreground)] shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]",
+                    "mt-3 flex min-h-[128px] w-full resize-y rounded-2xl border px-5 py-5 text-[15px] leading-8 text-[var(--foreground)] shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]",
                     "bg-[linear-gradient(180deg,var(--surface-strong),var(--surface-muted))]",
                     "placeholder:text-[color:rgba(169,160,149,0.7)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)]",
                     errors.body
