@@ -19,9 +19,15 @@ const SORT_OPTIONS: Array<{ value: FeedSort; label: string }> = [
   { value: "most_discussed", label: "Most discussed" },
 ];
 
-export const ConfessionFeed = () => {
+interface ConfessionFeedProps {
+  initialSort?: FeedSort;
+  limit?: number;
+  preview?: boolean;
+}
+
+export const ConfessionFeed = ({ initialSort = "newest", limit = 10, preview = false }: ConfessionFeedProps) => {
   const [showScrollTop, setShowScrollTop] = useState(false);
-  const [sort, setSort] = useState<FeedSort>("newest");
+  const [sort, setSort] = useState<FeedSort>(initialSort);
   const loadMoreRef = useRef<HTMLDivElement>(null);
 
   const {
@@ -33,13 +39,14 @@ export const ConfessionFeed = () => {
     fetchNextPage,
     error,
     refetch,
-  } = useInfiniteConfessions({ sort });
+  } = useInfiniteConfessions({ sort, limit });
 
   const allConfessions = data?.pages.flatMap((page) => page.confessions) ?? [];
+  const visibleConfessions = preview ? allConfessions.slice(0, 3) : allConfessions;
   const isEmpty = !isLoading && !error && allConfessions.length === 0;
 
   const virtualizer = useWindowVirtualizer({
-    count: allConfessions.length,
+    count: visibleConfessions.length,
     estimateSize: () => ESTIMATED_CARD_HEIGHT,
     overscan: OVERSCAN,
     scrollMargin: 0,
@@ -131,7 +138,7 @@ export const ConfessionFeed = () => {
   if (isEmpty) {
     return (
       <div className="space-y-4">
-        {sortControls}
+        {!preview && sortControls}
         <div
           className="luxury-panel rounded-2xl p-8 text-center"
           role="region"
@@ -168,7 +175,7 @@ export const ConfessionFeed = () => {
 
   return (
     <div className="relative mx-auto w-full max-w-3xl py-2">
-      <div className="mb-4">{sortControls}</div>
+      {!preview && <div className="mb-5">{sortControls}</div>}
       <div className="sr-only" aria-live="polite" aria-atomic="true">
         {isFetching && !isFetchingNextPage ? "Updating feed contents..." : ""}
       </div>
@@ -183,7 +190,7 @@ export const ConfessionFeed = () => {
         aria-label="Confessions feed"
       >
         {virtualItems.map((virtualItem) => {
-          const confession = allConfessions[virtualItem.index];
+          const confession = visibleConfessions[virtualItem.index];
           if (!confession) return null;
 
           return (
@@ -197,7 +204,7 @@ export const ConfessionFeed = () => {
               }}
               role="article"
               aria-posinset={virtualItem.index + 1}
-              aria-setsize={allConfessions.length}
+              aria-setsize={visibleConfessions.length}
             >
               <ConfessionCard confession={confession} />
             </div>
@@ -205,7 +212,7 @@ export const ConfessionFeed = () => {
         })}
       </div>
 
-      <div ref={loadMoreRef} className="flex justify-center py-6">
+      {!preview && <div ref={loadMoreRef} className="flex justify-center py-6">
         {isFetchingNextPage && (
           <div className="flex items-center gap-2 text-sm text-[var(--secondary)]">
             <svg
@@ -231,14 +238,14 @@ export const ConfessionFeed = () => {
             Loading more...
           </div>
         )}
-        {!hasNextPage && allConfessions.length > 0 && (
+        {!preview && !hasNextPage && visibleConfessions.length > 0 && (
           <p className="text-xs text-[var(--secondary)]">
             You&apos;ve reached the end of the feed
           </p>
         )}
-      </div>
+      </div>}
 
-      {showScrollTop && (
+      {!preview && showScrollTop && (
         <button
           type="button"
           onClick={scrollToTop}
