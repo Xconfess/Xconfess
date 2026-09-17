@@ -1,6 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import Link from "next/link";
 import { useCallback } from "react";
 import { ArrowDown, Anchor, Ban, HeartHandshake, Link2, Lock, MessageSquareText, ShieldCheck, Sparkles, UserRound } from "lucide-react";
 import Header from "./components/layout/Header";
@@ -195,22 +196,16 @@ export default function Home() {
               </aside>
             </section>
 
-            <section id="feed" className="space-y-6 pt-6">
-              <div className="space-y-3">
-                <p className="eyebrow">Recent confessions</p>
-                <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-                  <div className="space-y-2">
-                    <h2 className="font-editorial text-4xl text-[var(--foreground)] sm:text-5xl">
-                      Read the room
-                    </h2>
-                    <p className="max-w-2xl text-sm leading-8 text-[var(--secondary)] sm:text-base">
-                      Latest public confessions from the community.
-                    </p>
-                  </div>
+            <section id="popular" className="space-y-7 pt-4">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+                <div className="space-y-3">
+                  <p className="eyebrow">A pulse from the community</p>
+                  <h2 className="font-editorial text-4xl text-[var(--foreground)] sm:text-5xl">Popular confessions</h2>
+                  <p className="max-w-2xl text-sm leading-8 text-[var(--secondary)] sm:text-base">Three conversations worth sitting with today.</p>
                 </div>
+                <Link href="/confessions" className="inline-flex min-h-11 items-center justify-center rounded-xl border border-[var(--border)] bg-[var(--surface-muted)] px-4 text-sm font-semibold text-[var(--foreground)] transition-colors hover:bg-[var(--surface-strong)]">See all confessions <span className="ml-2" aria-hidden="true">→</span></Link>
               </div>
-
-              <ConfessionFeed />
+              <ConfessionFeed initialSort="trending" limit={3} preview />
             </section>
           </ErrorBoundary>
         </section>
