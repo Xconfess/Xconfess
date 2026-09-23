@@ -86,76 +86,76 @@ export class ReactionService {
         const outboxRepo = manager.getRepository(OutboxEvent);
 
         // 3. Prevent duplicate reactions
-        const existing = await reactionRepo.findOne({
+        let existing = await reactionRepo.findOne({
           where: {
             confession: { id: dto.confessionId },
             anonymousUser: { id: anonymousUserId },
           },
         });
 
-        if (existing) {
-          if (existing.emoji === dto.emoji) {
-            return { reaction: existing, isNew: false, isUpdate: false };
-          }
-
-          existing.emoji = dto.emoji;
-          const updated = await reactionRepo.save(existing);
-
-          await this.createOutboxEvent(
-            outboxRepo,
+        if (!existing) {
+          // 4. Persist new reaction. A concurrent request may insert the same
+          // (confession, anonymous user) row between our findOne and save;
+          // the unique index uq_reaction_confession_user rejects it. Postgres
+          // aborts the whole transaction on that error, so the insert runs
+          // under a savepoint we can roll back to and then re-read the winner.
+          const reaction = reactionRepo.create({
+            emoji: dto.emoji,
             confession,
-            updated,
-            'reaction_update',
-          );
+            anonymousUser,
+          });
 
-          return { reaction: updated, isNew: false, isUpdate: true };
-        }
+          await manager.query('SAVEPOINT reaction_insert');
+          try {
+            const savedReaction = await reactionRepo.save(reaction);
 
-        // 4. Persist new reaction
-        const reaction = reactionRepo.create({
-          emoji: dto.emoji,
-          confession,
-          anonymousUser,
-        });
+            await this.createOutboxEvent(
+              outboxRepo,
+              confession,
+              savedReaction,
+              'reaction_notification',
+            );
 
-        try {
-          const savedReaction = await reactionRepo.save(reaction);
-
-          await this.createOutboxEvent(
-            outboxRepo,
-            confession,
-            savedReaction,
-            'reaction_notification',
-          );
-
-          return { reaction: savedReaction, isNew: true, isUpdate: false };
-        } catch (err) {
-          // Handle race condition: a concurrent request may have inserted the
-          // same reaction between our findOne and save. The DB unique
-          // constraint on (confession_id, anonymous_user_id) will reject the
-          // duplicate insert. In that case, re-fetch the existing row so the
-          // caller receives a stable idempotent response.
-          if (
-            err instanceof QueryFailedError &&
-            this.isUniqueViolation(err)
-          ) {
+            return { reaction: savedReaction, isNew: true, isUpdate: false };
+          } catch (err) {
+            if (
+              !(err instanceof QueryFailedError) ||
+              !this.isUniqueViolation(err)
+            ) {
+              throw err;
+            }
+            await manager.query('ROLLBACK TO SAVEPOINT reaction_insert');
             this.logger.debug(
               `Race-condition duplicate detected for reaction ` +
                 `(confession=${dto.confessionId}, user=${anonymousUserId})`,
             );
-            const raceExisting = await reactionRepo.findOne({
+            existing = await reactionRepo.findOne({
               where: {
                 confession: { id: dto.confessionId },
                 anonymousUser: { id: anonymousUserId },
               },
             });
-
-            if (raceExisting) {
-              return { reaction: raceExisting, isNew: false, isUpdate: false };
-            }
+            if (!existing) throw err;
           }
-          throw err;
         }
+
+        if (existing.emoji === dto.emoji) {
+          return { reaction: existing, isNew: false, isUpdate: false };
+        }
+
+        // Emoji switch (including losing an insert race with a different
+        // emoji): last writer wins, so every request settles on one row.
+        existing.emoji = dto.emoji;
+        const updated = await reactionRepo.save(existing);
+
+        await this.createOutboxEvent(
+          outboxRepo,
+          confession,
+          updated,
+          'reaction_update',
+        );
+
+        return { reaction: updated, isNew: false, isUpdate: true };
       })
       .then(async (result) => {
         // Invalidate analytics segments that are affected by a reaction change.

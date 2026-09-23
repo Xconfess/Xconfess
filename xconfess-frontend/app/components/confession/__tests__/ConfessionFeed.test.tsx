@@ -8,6 +8,18 @@ import "@testing-library/jest-dom";
 import { ConfessionFeed } from "../ConfessionFeed";
 import { useInfiniteConfessions } from "../../../lib/hooks/useConfessionsQuery";
 
+const mockReplace = jest.fn();
+let mockSearch = "";
+jest.mock("next/navigation", () => ({
+  useRouter: () => ({ replace: mockReplace }),
+  usePathname: () => "/confessions",
+  useSearchParams: () => new URLSearchParams(mockSearch),
+}));
+
+jest.mock("../../../lib/hooks/useScrollRestoration", () => ({
+  useScrollRestoration: jest.fn(),
+}));
+
 jest.mock("../../../lib/hooks/useConfessionsQuery", () => ({
   useInfiniteConfessions: jest.fn(),
 }));
@@ -84,6 +96,7 @@ function mockFeedState(overrides: Record<string, unknown> = {}) {
 describe("ConfessionFeed", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockSearch = "";
     mockFeedState();
 
     class MockIntersectionObserver implements IntersectionObserver {
@@ -153,5 +166,26 @@ describe("ConfessionFeed", () => {
 
     expect(screen.queryByText("Compare")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /compare/i })).not.toBeInTheDocument();
+  });
+
+  it("reads the active sort from the URL so back navigation keeps it", () => {
+    mockSearch = "sort=trending&q=kept";
+    render(<ConfessionFeed />);
+
+    expect(mockUseInfiniteConfessions).toHaveBeenCalledWith(
+      expect.objectContaining({ sort: "trending" }),
+    );
+  });
+
+  it("writes sort changes to the URL without dropping other params", () => {
+    mockSearch = "q=kept";
+    render(<ConfessionFeed />);
+
+    fireEvent.click(screen.getByRole("tab", { name: "Most discussed" }));
+
+    expect(mockReplace).toHaveBeenCalledWith(
+      "/confessions?q=kept&sort=most_discussed",
+      { scroll: false },
+    );
   });
 });

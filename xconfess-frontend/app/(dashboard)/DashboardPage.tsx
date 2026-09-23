@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { ErrorBoundary } from "@/app/components/common/ErrorBoundary";
 import { ConfessionFeed } from "@/app/components/confession/ConfessionFeed";
-import { useScrollRestoration } from "@/app/lib/hooks/useScrollRestoration";
 import { useAuthContext } from "../lib/providers/AuthProvider";
 import { fetchUserStats } from "@/app/api/user.api";
 
@@ -148,8 +147,6 @@ function RecentConfessionsSection() {
 }
 
 export default function DashboardPage() {
-  useScrollRestoration("feed");
-
   return (
     <main className="mx-auto flex max-w-5xl flex-col gap-8 px-4 py-8 sm:px-6 md:px-8 lg:px-10">
       <UserSummarySection />
