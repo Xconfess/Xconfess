@@ -362,11 +362,6 @@ export class ConfessionService {
     const limit = dto.limit ?? 10;
     const sort = dto.sort || SortOrder.NEWEST;
 
-    // Use cursor if provided
-    const parsedCursor = decodeCursor<{ id: string; created_at: string }>(
-      dto.cursor,
-    );
-
     const cacheKey = this.cacheService.buildKey(
       'confessions',
       dto.cursor || 'no-cursor',
@@ -433,16 +428,7 @@ export class ConfessionService {
       qb.andWhere('confession.gender = :gender', { gender: dto.gender });
     }
 
-    // Apply cursor or page-based filter
-    if (parsedCursor && sort === SortOrder.NEWEST) {
-      qb.andWhere(
-        '(confession.created_at < :createdAt OR (confession.created_at = :createdAt AND confession.id < :id))',
-        { createdAt: parsedCursor.created_at, id: parsedCursor.id },
-      );
-    } else if (dto.page && dto.page > 1) {
-      const skip = (dto.page - 1) * limit;
-      qb.skip(skip);
-    }
+    const offset = this.applyFeedCursor(qb, sort, dto.cursor, dto.page, limit);
 
     if (sort === SortOrder.TRENDING) {
       qb.addSelect(
@@ -454,7 +440,8 @@ export class ConfessionService {
         'reaction_count',
       )
         .orderBy('reaction_count', 'DESC')
-        .addOrderBy('confession.created_at', 'DESC');
+        .addOrderBy('confession.created_at', 'DESC')
+        .addOrderBy('confession.id', 'DESC');
     } else if (sort === SortOrder.MOST_DISCUSSED) {
       qb.addSelect(
         (sub) =>
@@ -466,7 +453,8 @@ export class ConfessionService {
         'comment_count',
       )
         .orderBy('comment_count', 'DESC')
-        .addOrderBy('confession.created_at', 'DESC');
+        .addOrderBy('confession.created_at', 'DESC')
+        .addOrderBy('confession.id', 'DESC');
     } else {
       qb.orderBy('confession.created_at', 'DESC').addOrderBy(
         'confession.id',
@@ -487,18 +475,9 @@ export class ConfessionService {
       return mapToSlimConfession(decrypted);
     });
 
-    let nextCursor: string | null = null;
-    if (hasMore && decryptedItems.length > 0) {
-      const lastItem = items[limit - 1];
-      nextCursor = encodeCursor({
-        id: lastItem.id,
-        created_at: lastItem.created_at.toISOString(),
-      });
-    }
-
     const response = new CursorPaginatedResponseDto(
       decryptedItems,
-      nextCursor,
+      this.buildFeedNextCursor(items, limit, sort, offset),
       hasMore,
       limit,
     );
@@ -1003,21 +982,13 @@ export class ConfessionService {
       });
     }
 
-    // Apply cursor pagination
-    if (dto.cursor && sort === SortOrder.NEWEST) {
-      const parsedCursor = decodeCursor<{ id: string; created_at: string }>(
-        dto.cursor,
-      );
-      if (parsedCursor) {
-        queryBuilder.andWhere(
-          '(confession.created_at < :createdAt OR (confession.created_at = :createdAt AND confession.id < :id))',
-          { createdAt: parsedCursor.created_at, id: parsedCursor.id },
-        );
-      }
-    } else if (dto.page && dto.page > 1) {
-      const skip = (dto.page - 1) * limit;
-      queryBuilder.skip(skip);
-    }
+    const offset = this.applyFeedCursor(
+      queryBuilder,
+      sort,
+      dto.cursor,
+      dto.page,
+      limit,
+    );
 
     if (sort === SortOrder.TRENDING) {
       queryBuilder
@@ -1030,7 +1001,8 @@ export class ConfessionService {
           'reaction_count',
         )
         .orderBy('reaction_count', 'DESC')
-        .addOrderBy('confession.created_at', 'DESC');
+        .addOrderBy('confession.created_at', 'DESC')
+        .addOrderBy('confession.id', 'DESC');
     } else if (sort === SortOrder.MOST_DISCUSSED) {
       queryBuilder
         .addSelect(
@@ -1043,7 +1015,8 @@ export class ConfessionService {
           'comment_count',
         )
         .orderBy('comment_count', 'DESC')
-        .addOrderBy('confession.created_at', 'DESC');
+        .addOrderBy('confession.created_at', 'DESC')
+        .addOrderBy('confession.id', 'DESC');
     } else {
       queryBuilder
         .orderBy('confession.created_at', 'DESC')
@@ -1059,21 +1032,69 @@ export class ConfessionService {
       message: decryptConfession(item.message, this.aesKey),
     }));
 
-    let nextCursor: string | null = null;
-    if (hasMore && decryptedItems.length > 0) {
-      const lastItem = items[limit - 1];
-      nextCursor = encodeCursor({
-        id: lastItem.id,
-        created_at: lastItem.created_at.toISOString(),
-      });
-    }
-
     return new CursorPaginatedResponseDto(
       decryptedItems,
-      nextCursor,
+      this.buildFeedNextCursor(items, limit, sort, offset),
       hasMore,
       limit,
     );
+  }
+
+  /**
+   * Applies the feed cursor and returns the row offset of this page.
+   * NEWEST uses a keyset (created_at, id) cursor. Aggregate sorts (trending,
+   * most discussed) order by computed counts, so their cursor carries an
+   * offset instead. `page` is a fallback for clients without a cursor.
+   */
+  private applyFeedCursor(
+    qb: { andWhere: (...args: any[]) => unknown; skip: (n: number) => unknown },
+    sort: SortOrder,
+    cursor: string | undefined,
+    page: number | undefined,
+    limit: number,
+  ): number {
+    const parsed = decodeCursor<{
+      id: string;
+      created_at?: string;
+      offset?: number;
+    }>(cursor);
+
+    if (sort === SortOrder.NEWEST && parsed?.created_at) {
+      // Row comparison lets Postgres seek idx_confessions_feed_keyset directly.
+      qb.andWhere(
+        '(confession.created_at, confession.id) < (:createdAt, :id)',
+        { createdAt: parsed.created_at, id: parsed.id },
+      );
+      return 0;
+    }
+
+    const offset =
+      sort !== SortOrder.NEWEST &&
+      Number.isInteger(parsed?.offset) &&
+      parsed!.offset! >= 0
+        ? parsed!.offset!
+        : page && page > 1
+          ? (page - 1) * limit
+          : 0;
+    if (offset > 0) qb.skip(offset);
+    return offset;
+  }
+
+  /** Builds nextCursor from a limit+1 probe; null means the feed is exhausted. */
+  private buildFeedNextCursor(
+    items: { id: string; created_at: Date }[],
+    limit: number,
+    sort: SortOrder,
+    offset: number,
+  ): string | null {
+    if (items.length <= limit) return null;
+    const lastItem = items[limit - 1];
+    return sort === SortOrder.NEWEST
+      ? encodeCursor({
+          id: lastItem.id,
+          created_at: lastItem.created_at.toISOString(),
+        })
+      : encodeCursor({ id: lastItem.id, offset: offset + limit });
   }
 
   // Private methods (examples)

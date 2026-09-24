@@ -1,12 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useWindowVirtualizer } from "@tanstack/react-virtual";
 import { ArrowUp } from "lucide-react";
 import { ConfessionCard } from "./ConfessionCard";
 import { ConfessionFeedSkeleton } from "./LoadingSkeleton";
 import { useInfiniteConfessions } from "../../lib/hooks/useConfessionsQuery";
 import ErrorState from "../common/ErrorState";
+import { useScrollRestoration } from "../../lib/hooks/useScrollRestoration";
 
 const ESTIMATED_CARD_HEIGHT = 300;
 const SCROLL_THRESHOLD = 400;
@@ -25,9 +27,45 @@ interface ConfessionFeedProps {
   preview?: boolean;
 }
 
-export const ConfessionFeed = ({ initialSort = "newest", limit = 10, preview = false }: ConfessionFeedProps) => {
+const isFeedSort = (value: string | null): value is FeedSort =>
+  SORT_OPTIONS.some((option) => option.value === value);
+
+// useSearchParams needs a Suspense boundary on statically rendered pages.
+// The fallback is the real feed on initialSort (no URL params yet) rather
+// than a skeleton, so prerendered pages don't flash a loading state.
+export const ConfessionFeed = (props: ConfessionFeedProps) => (
+  <Suspense fallback={<ConfessionFeedBody {...props} searchParams={null} />}>
+    <ConfessionFeedWithParams {...props} />
+  </Suspense>
+);
+
+const ConfessionFeedWithParams = (props: ConfessionFeedProps) => {
+  const searchParams = useSearchParams();
+  return <ConfessionFeedBody {...props} searchParams={searchParams} />;
+};
+
+const ConfessionFeedBody = ({
+  initialSort = "newest",
+  limit = 10,
+  preview = false,
+  searchParams,
+}: ConfessionFeedProps & { searchParams: URLSearchParams | null }) => {
   const [showScrollTop, setShowScrollTop] = useState(false);
-  const [sort, setSort] = useState<FeedSort>(initialSort);
+  const router = useRouter();
+  const pathname = usePathname();
+  // Full feeds keep sort in the URL so back/forward from a detail page
+  // returns to the same tab; preview feeds stay fixed on initialSort.
+  const urlSort = searchParams?.get("sort") ?? null;
+  const sort: FeedSort = !preview && isFeedSort(urlSort) ? urlSort : initialSort;
+  const setSort = useCallback(
+    (next: FeedSort) => {
+      const params = new URLSearchParams(searchParams?.toString());
+      params.set("sort", next);
+      router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+    },
+    [pathname, router, searchParams],
+  );
+  useScrollRestoration(pathname);
   const loadMoreRef = useRef<HTMLDivElement>(null);
 
   const {

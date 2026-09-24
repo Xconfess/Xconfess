@@ -15,6 +15,13 @@ export class CursorPaginationMeta {
   hasMore: boolean;
 
   @ApiProperty({
+    description:
+      'Alias of hasMore. false means the feed is exhausted, not temporarily empty.',
+    example: true,
+  })
+  hasNextPage: boolean;
+
+  @ApiProperty({
     description: 'The number of items requested in this page.',
     example: 20,
   })
@@ -31,6 +38,12 @@ export class CursorPaginatedResponseDto<T> {
   @ApiProperty({ description: 'Whether there are more results' })
   hasMore: boolean;
 
+  @ApiProperty({
+    description:
+      'Alias of hasMore. false means the feed is exhausted, not temporarily empty.',
+  })
+  hasNextPage: boolean;
+
   @ApiProperty({ description: 'Number of items per page' })
   limit: number;
 
@@ -43,6 +56,7 @@ export class CursorPaginatedResponseDto<T> {
     this.data = data;
     this.nextCursor = nextCursor;
     this.hasMore = hasMore;
+    this.hasNextPage = hasMore;
     this.limit = limit;
   }
 }

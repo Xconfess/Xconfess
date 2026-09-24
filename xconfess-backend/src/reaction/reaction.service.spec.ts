@@ -91,6 +91,7 @@ describe('ReactionService', () => {
           useValue: {
             transaction: jest.fn().mockImplementation((cb: any) =>
               cb({
+                query: jest.fn(),
                 getRepository: jest.fn().mockImplementation((entity: any) => {
                   if (entity === Reaction) return managerReactionRepo;
                   return managerOutboxRepo;
@@ -393,6 +394,73 @@ describe('ReactionService', () => {
       await expect(service.createReaction(dto)).rejects.toThrow(dbError);
     });
 
+    // ── Concurrency regression (#1927) ─────────────────────────────────────
+
+    describe('concurrent requests', () => {
+      // In-memory table enforcing the (confession, anonymous user) unique
+      // index. findOne/save yield so parallel calls interleave like real I/O.
+      const useUniqueStore = () => {
+        const rows = new Map<string, Reaction>();
+        const key = (r: any) =>
+          `${r.confession?.id}:${r.anonymousUser?.id}`;
+        const tick = () => new Promise((r) => setImmediate(r));
+        let seq = 0;
+
+        managerReactionRepo.findOne.mockImplementation(async ({ where }) => {
+          await tick();
+          const row = rows.get(key(where));
+          return row ? { ...row } : null;
+        });
+        managerReactionRepo.create.mockImplementation((r: any) => ({ ...r }));
+        managerReactionRepo.save.mockImplementation(async (r: any) => {
+          await tick();
+          if (!r.id && rows.has(key(r))) {
+            throw new QueryFailedError(
+              'INSERT',
+              [],
+              Object.assign(new Error('duplicate key'), { code: '23505' }),
+            );
+          }
+          const saved = { ...r, id: r.id ?? `r${++seq}` } as Reaction;
+          rows.set(key(saved), saved);
+          return saved;
+        });
+        return rows;
+      };
+
+      beforeEach(() => {
+        confessionRepo.findOne.mockResolvedValue(makeConfession());
+        anonymousUserRepo.findOne.mockResolvedValue(makeAnonymousUser());
+      });
+
+      it('creates exactly one reaction for parallel identical requests', async () => {
+        const rows = useUniqueStore();
+
+        const results = await Promise.all(
+          Array.from({ length: 5 }, () => service.createReaction(dto)),
+        );
+
+        expect(rows.size).toBe(1);
+        expect(new Set(results.map((r) => r.id)).size).toBe(1);
+        expect(gatewayMock.broadcastReactionAdded).toHaveBeenCalledTimes(1);
+      });
+
+      it('settles parallel different-emoji requests on a single row', async () => {
+        const rows = useUniqueStore();
+
+        const results = await Promise.all(
+          ['❤️', '😂', '😮'].map((emoji) =>
+            service.createReaction({ ...dto, emoji }),
+          ),
+        );
+
+        expect(rows.size).toBe(1);
+        expect(new Set(results.map((r) => r.id)).size).toBe(1);
+        const [stored] = [...rows.values()];
+        expect(['❤️', '😂', '😮']).toContain(stored.emoji);
+      });
+    });
+
     // ── WebSocket broadcast ────────────────────────────────────────────────
 
     it('broadcasts reaction:added via gateway for a new reaction', async () => {
@@ -494,7 +562,10 @@ describe('ReactionService – analytics cache invalidation', () => {
       transaction: jest
         .fn()
         .mockImplementation((cb: any) =>
-          cb({ getRepository: jest.fn().mockReturnValue(managerRepo) }),
+          cb({
+            query: jest.fn(),
+            getRepository: jest.fn().mockReturnValue(managerRepo),
+          }),
         ),
     };
 
