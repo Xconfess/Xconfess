@@ -104,4 +104,13 @@ export class Report {
 
   @UpdateDateColumn()
   updatedAt: Date;
+
+  @Column({ type: 'smallint', default: 0 })
+  priority: number;
+
+  @Column({ name: 'priority_reason', type: 'varchar', length: 255, nullable: true })
+  priorityReason: string | null;
+
+  @Column({ name: 'priority_calculated_at', type: 'timestamp', nullable: true })
+  priorityCalculatedAt: Date | null;
 }
