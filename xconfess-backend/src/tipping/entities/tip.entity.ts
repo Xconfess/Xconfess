@@ -97,4 +97,33 @@ export class Tip {
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
+
+  @Column({
+    name: 'submission_status',
+    type: 'varchar',
+    length: 50,
+    default: 'submitted',
+  })
+  submissionStatus: string;
+
+  @Column({ name: 'submitted_at', type: 'timestamp', nullable: true })
+  submittedAt: Date | null;
+
+  @Column({ name: 'confirmed_at', type: 'timestamp', nullable: true })
+  confirmedAt: Date | null;
+
+  @Column({ name: 'failed_at', type: 'timestamp', nullable: true })
+  failedAt: Date | null;
+
+  @Column({ name: 'failure_reason', type: 'text', nullable: true })
+  failureReason: string | null;
+
+  @Column({ name: 'expiry_block_height', type: 'bigint', nullable: true })
+  expiryBlockHeight: number | null;
+
+  @Column({ name: 'ledger_sequence', type: 'bigint', nullable: true })
+  ledgerSequence: number | null;
+
+  @Column({ name: 'soroban_metadata', type: 'jsonb', nullable: true })
+  sorobanMetadata: Record<string, any> | null;
 }

@@ -149,6 +149,9 @@ export class AnonymousConfession {
   @Column({ name: 'migration_status', type: 'varchar', length: 32, nullable: true })
   migrationStatus: string | null;
 
+  @Column({ name: 'search_score_tiebreaker', type: 'bigint', nullable: true })
+  searchScoreTiebreaker: number | null;
+
   @Column({ name: 'legacy_ciphertext', type: 'text', nullable: true })
   legacyCiphertext: string | null;
 

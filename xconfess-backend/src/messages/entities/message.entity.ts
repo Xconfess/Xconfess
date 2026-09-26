@@ -51,4 +51,10 @@ export class Message {
   // Timestamp when sender read the reply state for this thread message entry.
   @Column({ type: 'timestamp', nullable: true })
   senderReadAt: Date | null;
+
+  @Column({ name: 'throttle_key', type: 'varchar', length: 255, nullable: true })
+  throttleKey: string | null;
+
+  @Column({ name: 'rate_limit_window', type: 'timestamp', nullable: true })
+  rateLimitWindow: Date | null;
 }
