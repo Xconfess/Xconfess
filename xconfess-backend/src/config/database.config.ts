@@ -5,6 +5,89 @@ import * as path from 'path';
 
 const TRUE_VALUES = new Set(['true', '1', 'yes', 'on']);
 
+/**
+ * Default pool settings by environment
+ * - local/dev: small pool, fast timeouts
+ * - staging: medium pool
+ * - production: large pool, tuned for replicas and traffic spikes
+ */
+interface PoolSettings {
+  max: number;
+  min: number;
+  idleTimeoutMillis: number;
+  connectionTimeoutMillis: number;
+  acquireTimeoutMillis?: number;
+  reapIntervalMillis?: number;
+  createRetryIntervalMillis?: number;
+  createTimeoutMillis?: number;
+}
+
+const POOL_DEFAULTS: Record<string, PoolSettings> = {
+  local: {
+    max: 10,
+    min: 2,
+    idleTimeoutMillis: 30000,
+    connectionTimeoutMillis: 5000,
+    acquireTimeoutMillis: 30000,
+    reapIntervalMillis: 1000,
+    createRetryIntervalMillis: 200,
+    createTimeoutMillis: 30000,
+  },
+  development: {
+    max: 15,
+    min: 3,
+    idleTimeoutMillis: 30000,
+    connectionTimeoutMillis: 3000,
+    acquireTimeoutMillis: 30000,
+    reapIntervalMillis: 1000,
+    createRetryIntervalMillis: 200,
+    createTimeoutMillis: 30000,
+  },
+  staging: {
+    max: 30,
+    min: 10,
+    idleTimeoutMillis: 30000,
+    connectionTimeoutMillis: 3000,
+    acquireTimeoutMillis: 30000,
+    reapIntervalMillis: 1000,
+    createRetryIntervalMillis: 200,
+    createTimeoutMillis: 30000,
+  },
+  production: {
+    max: 50,
+    min: 20,
+    idleTimeoutMillis: 60000,
+    connectionTimeoutMillis: 5000,
+    acquireTimeoutMillis: 60000,
+    reapIntervalMillis: 5000,
+    createRetryIntervalMillis: 500,
+    createTimeoutMillis: 60000,
+  },
+};
+
+/**
+ * Determine the environment key for pool settings
+ */
+function getEnvKey(nodeEnv: string, appEnv: string): keyof typeof POOL_DEFAULTS {
+  const env = (nodeEnv || appEnv || 'local').toLowerCase();
+  if (env === 'production' || env === 'prod') return 'production';
+  if (env === 'staging' || env === 'stage') return 'staging';
+  if (env === 'development' || env === 'dev') return 'development';
+  return 'local';
+}
+
+/**
+ * Calculate production pool size based on replica count
+ * Each replica needs its own pool connections.
+ * Formula: basePoolSize * (1 + replicaCount)
+ * Where replicaCount is derived from DB_READ_REPLICAS or defaults to 1
+ */
+function calculateProductionPoolSize(configService: ConfigService, baseSize: number): number {
+  const replicaCount = parseInt(configService.get<string>('DB_READ_REPLICAS') || '1', 10);
+  const maxReplicas = Math.max(1, replicaCount);
+  return baseSize * maxReplicas;
+}
+
 export const getTypeOrmConfig = (
   configService: ConfigService,
 ): TypeOrmModuleOptions => {
@@ -55,6 +138,44 @@ export const getTypeOrmConfig = (
   const readHost = configService.get<string>('DB_READ_HOST') || dbHost;
   const readPort = configService.get<number>('DB_READ_PORT') || dbPort;
 
+  // Determine environment and pool settings
+  const envKey = getEnvKey(nodeEnv, appEnv);
+  const defaults = POOL_DEFAULTS[envKey];
+
+  // Allow environment variable overrides for all pool settings
+  const poolMax = configService.get<string>('DB_POOL_MAX')
+    ? parseInt(configService.get<string>('DB_POOL_MAX')!, 10)
+    : (envKey === 'production' ? calculateProductionPoolSize(configService, defaults.max) : defaults.max);
+
+  const poolMin = configService.get<string>('DB_POOL_MIN')
+    ? parseInt(configService.get<string>('DB_POOL_MIN')!, 10)
+    : defaults.min;
+
+  const poolExtra: Record<string, any> = {
+    max: poolMax,
+    min: poolMin,
+    idleTimeoutMillis: configService.get<string>('DB_IDLE_TIMEOUT_MS')
+      ? parseInt(configService.get<string>('DB_IDLE_TIMEOUT_MS')!, 10)
+      : defaults.idleTimeoutMillis,
+    connectionTimeoutMillis: configService.get<string>('DB_CONN_TIMEOUT_MS')
+      ? parseInt(configService.get<string>('DB_CONN_TIMEOUT_MS')!, 10)
+      : defaults.connectionTimeoutMillis,
+  };
+
+  // Add production-specific pool tuning options
+  if (defaults.acquireTimeoutMillis) {
+    poolExtra.acquireTimeoutMillis = defaults.acquireTimeoutMillis;
+  }
+  if (defaults.reapIntervalMillis) {
+    poolExtra.reapIntervalMillis = defaults.reapIntervalMillis;
+  }
+  if (defaults.createRetryIntervalMillis) {
+    poolExtra.createRetryIntervalMillis = defaults.createRetryIntervalMillis;
+  }
+  if (defaults.createTimeoutMillis) {
+    poolExtra.createTimeoutMillis = defaults.createTimeoutMillis;
+  }
+
   return {
     type: 'postgres',
     /*
@@ -67,6 +188,15 @@ export const getTypeOrmConfig = (
      * In production, set DB_READ_HOST / DB_READ_PORT to point to one or
      * more read replicas.  TypeORM distributes read queries round-robin
      * across the slaves array.
+     *
+     * PRODUCTION GUIDANCE:
+     * - Set DB_READ_REPLICAS to the number of read replicas (default: 1)
+     * - Set DB_POOL_MAX to max connections per replica (default: 50 per replica)
+     *   Total connections = DB_POOL_MAX * (1 + DB_READ_REPLICAS)
+     * - Ensure PostgreSQL max_connections >= total connections + buffer
+     *   Recommended: max_connections >= DB_POOL_MAX * (1 + DB_READ_REPLICAS) + 50
+     * - For Kubernetes deployments with N replicas, each pod gets its own pool
+     *   Coordinate with DB admin to set appropriate max_connections
      */
     replication: {
       master: {
@@ -96,12 +226,7 @@ export const getTypeOrmConfig = (
 
     synchronize,
     autoLoadEntities: true,
-    extra: {
-      max: 20,
-      min: 5,
-      idleTimeoutMillis: 30000,
-      connectionTimeoutMillis: 2000,
-    },
+    extra: poolExtra,
     logging: TRUE_VALUES.has(loggingSetting),
   };
 };
