@@ -106,7 +106,7 @@
     "@types/express": "^5.0.2",
     "@types/helmet": "^0.0.48",
     "@types/jest": "^29.5.14",
-    "@types/node": "^22.19.11",
+    "@types/node": "^22.20.4",
     "@types/sanitize-html": "^2.16.0",
     "@types/socket.io": "^3.0.1",
     "@types/socket.io-client": "^3.0.0",
@@ -120,12 +120,13 @@
     "ioredis-mock": "^8.13.1",
     "jest": "^30.4.2",
     "socket.io-client": "^4.8.3",
+    "source-map-support": "^0.5.21",
     "sqlite3": "^6.0.1",
     "supertest": "^7.2.2",
     "ts-jest": "^29.4.6",
     "ts-node": "^10.9.2",
     "tsconfig-paths": "^4.2.0",
-    "typescript": "^5.7.3",
+    "typescript": "^5.9.3",
     "typescript-eslint": "^8.20.0"
   },
   "overrides": {
