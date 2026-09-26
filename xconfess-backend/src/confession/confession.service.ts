@@ -35,7 +35,7 @@ import {
 import { ModerationRepositoryService } from '../moderation/moderation-repository.service';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { AnonymousUserService } from '../user/anonymous-user.service';
-import { EntityManager, Repository } from 'typeorm';
+import { DataSource, EntityManager, Repository } from 'typeorm';
 import { AnonymousUser } from '../user/entities/anonymous-user.entity';
 import { AnonymousConfession } from './entities/confession.entity';
 import { AppLogger } from '../logger/logger.service';
@@ -73,6 +73,7 @@ export class ConfessionService {
     private readonly configService: ConfigService,
     private readonly anomalyDetection: AnomalyDetectionService,
     private readonly idempotencyService: ConfessionIdempotencyService,
+    private readonly dataSource: DataSource,
     @Optional()
     private readonly analyticsEventService?: AnalyticsEventService,
   ) {}
@@ -154,71 +155,141 @@ export class ConfessionService {
     manager?: EntityManager,
     walletAddress?: string,
   ): Promise<AnonymousConfession> {
+    // Step 0: Validate tags if provided (external call - keep outside transaction)
+    let validatedTags: any[] = [];
+    if (dto.tags && dto.tags.length > 0) {
+      validatedTags = await this.tagService.validateTags(dto.tags);
+    }
+
+    // Step 1: Moderate the content BEFORE encryption (external call - keep outside transaction)
+    const moderationResult =
+      await this.aiModerationService.moderateContent(msg);
+
+    // Step 1.5: Create an AnonymousUser to associate with this confession
+    // This is a quick DB write - include in transaction
+    // Step 2: Encrypt
+    const encryptedMsg = encryptConfession(msg, this.aesKey);
+    assertEncryptedBeforeSave(encryptedMsg);
+
+    // Prepare Stellar anchoring data if transaction hash provided
+    let stellarData: {
+      stellarTxHash?: string;
+      stellarHash?: string;
+      isAnchored?: boolean;
+      anchoredAt?: Date;
+    } = {};
+
+    if (dto.stellarTxHash) {
+      const anchorData = this.stellarService.processAnchorData(
+        msg,
+        dto.stellarTxHash,
+      );
+      if (anchorData) {
+        stellarData = {
+          stellarTxHash: anchorData.stellarTxHash,
+          stellarHash: anchorData.stellarHash,
+          isAnchored: true,
+          anchoredAt: anchorData.anchoredAt,
+        };
+      }
+    }
+
+    const confessionData = {
+      message: encryptedMsg,
+      keyVersion: 'v1',
+      gender: dto.gender,
+      moderationScore: moderationResult.score,
+      moderationFlags: moderationResult.flags as any,
+      moderationStatus: moderationResult.status as any,
+      requiresReview: moderationResult.requiresReview,
+      isHidden: moderationResult.status === ModerationStatus.REJECTED,
+      moderationDetails: moderationResult.details,
+      ...stellarData,
+      ...(dto.idempotencyKey ? { idempotencyKey: dto.idempotencyKey } : {}),
+    };
+
+    // If manager is provided, we're already in a transaction - use it directly
+    if (manager) {
+      return this.executeCreateInTransaction(
+        manager,
+        dto,
+        msg,
+        walletAddress,
+        validatedTags,
+        moderationResult,
+        confessionData,
+      );
+    }
+
+    // Otherwise, create a new transaction for atomicity
+    return this.dataSource.transaction(async (txManager) => {
+      return this.executeCreateInTransaction(
+        txManager,
+        dto,
+        msg,
+        walletAddress,
+        validatedTags,
+        moderationResult,
+        confessionData,
+      );
+    });
+  }
+
+  /**
+   * Execute confession creation within a transaction.
+   * All database writes are atomic - either all commit or all roll back.
+   * External calls (moderation, tag validation) are done BEFORE the transaction.
+   */
+  private async executeCreateInTransaction(
+    txManager: EntityManager,
+    dto: CreateConfessionDto,
+    msg: string,
+    walletAddress: string | undefined,
+    validatedTags: any[],
+    moderationResult: any,
+    confessionData: any,
+  ): Promise<AnonymousConfession> {
     try {
-      // Step 0: Validate tags if provided
-      let validatedTags: any[] = [];
-      if (dto.tags && dto.tags.length > 0) {
-        validatedTags = await this.tagService.validateTags(dto.tags);
-      }
+      // Create AnonymousUser within transaction
+      const anonymousUser = await txManager
+        .getRepository(AnonymousUser)
+        .save(txManager.getRepository(AnonymousUser).create());
 
-      // Step 1: Moderate the content BEFORE encryption
-      const moderationResult =
-        await this.aiModerationService.moderateContent(msg);
-
-      // Step 1.5: Create an AnonymousUser to associate with this confession
-      const anonymousUser = manager
-        ? await manager
-            .getRepository(AnonymousUser)
-            .save(manager.getRepository(AnonymousUser).create())
-        : await this.anonymousUserService.create(walletAddress);
-
-      // Step 2: Encrypt and save the confession
-      const encryptedMsg = encryptConfession(msg, this.aesKey);
-      assertEncryptedBeforeSave(encryptedMsg);
-      const confessionRepo: Repository<AnonymousConfession> = manager
-        ? manager.getRepository(AnonymousConfession)
-        : (this.confessionRepo as unknown as Repository<AnonymousConfession>);
-
-      // Prepare Stellar anchoring data if transaction hash provided
-      let stellarData: {
-        stellarTxHash?: string;
-        stellarHash?: string;
-        isAnchored?: boolean;
-        anchoredAt?: Date;
-      } = {};
-
-      if (dto.stellarTxHash) {
-        const anchorData = this.stellarService.processAnchorData(
-          msg,
-          dto.stellarTxHash,
-        );
-        if (anchorData) {
-          stellarData = {
-            stellarTxHash: anchorData.stellarTxHash,
-            stellarHash: anchorData.stellarHash,
-            isAnchored: true,
-            anchoredAt: anchorData.anchoredAt,
-          };
-        }
-      }
-
+      // Create confession within transaction
+      const confessionRepo = txManager.getRepository(AnonymousConfession);
       const conf = confessionRepo.create({
-        message: encryptedMsg,
-        keyVersion: 'v1',
-        gender: dto.gender,
+        ...confessionData,
         anonymousUser,
-        moderationScore: moderationResult.score,
-        moderationFlags: moderationResult.flags as any,
-        moderationStatus: moderationResult.status as any,
-        requiresReview: moderationResult.requiresReview,
-        isHidden: moderationResult.status === ModerationStatus.REJECTED,
-        moderationDetails: moderationResult.details,
-        ...stellarData,
-        ...(dto.idempotencyKey ? { idempotencyKey: dto.idempotencyKey } : {}),
       });
 
-      const savedConfession = await confessionRepo.save(conf);
+      const savedConfession = await confessionRepo.save(conf) as unknown as AnonymousConfession;
 
+      // Create ConfessionTag entries within transaction
+      if (validatedTags.length > 0) {
+        const confessionTagRepo = txManager.getRepository(ConfessionTag);
+        const confessionTags = validatedTags.map((tag) =>
+          confessionTagRepo.create({
+            confession: savedConfession,
+            tag: tag,
+          }),
+        );
+        await confessionTagRepo.save(confessionTags);
+      }
+
+      // Log moderation decision within transaction
+      await this.moderationRepoService.createLog(
+        msg,
+        moderationResult,
+        savedConfession.id,
+        undefined,
+        'openai',
+        txManager,
+      );
+
+      // Invalidate cache (non-transactional, but safe to do after commit)
+      await this.invalidateConfessionCache();
+
+      // Analytics (fire-and-forget, non-blocking)
       this.analyticsEventService
         ?.record({
           eventName: 'confession_created',
@@ -244,35 +315,7 @@ export class ConfessionService {
           ),
         );
 
-      // Step 2.5: Create ConfessionTag entries if tags were provided
-      if (validatedTags.length > 0) {
-        const confessionTagRepo: Repository<ConfessionTag> = manager
-          ? manager.getRepository(ConfessionTag)
-          : this.confessionRepo.manager.getRepository(ConfessionTag);
-
-        const confessionTags = validatedTags.map((tag) =>
-          confessionTagRepo.create({
-            confession: savedConfession,
-            tag: tag,
-          }),
-        );
-
-        await confessionTagRepo.save(confessionTags);
-      }
-
-      await this.invalidateConfessionCache();
-
-      // Step 3: Log moderation decision
-      await this.moderationRepoService.createLog(
-        msg,
-        moderationResult,
-        savedConfession.id,
-        undefined,
-        'openai',
-        manager,
-      );
-
-      // Step 4: Handle high-severity content – only emit once per creation
+      // Emit events for high/medium severity content (non-transactional, but safe after commit)
       if (moderationResult.status === ModerationStatus.REJECTED) {
         this.eventEmitter.emit('moderation.high-severity', {
           confessionId: savedConfession.id,
@@ -281,7 +324,6 @@ export class ConfessionService {
         });
       }
 
-      // Step 5: Handle medium-severity content – only emit once per creation
       if (moderationResult.status === ModerationStatus.FLAGGED) {
         this.eventEmitter.emit('moderation.requires-review', {
           confessionId: savedConfession.id,
@@ -292,69 +334,8 @@ export class ConfessionService {
 
       return savedConfession;
     } catch (error) {
-      if (error instanceof BadRequestException) throw error;
-      if (error instanceof ConflictException) throw error;
-
-      this.logger.error(
-        `Confession creation failed: ${error instanceof Error ? error.message : String(error)}`,
-        error instanceof Error ? error.stack : undefined,
-      );
-
-      // Track publish reliability without recording confession content or
-      // raw exception messages. Analytics must never make the failure worse.
-      this.analyticsEventService
-        ?.record({
-          eventName: 'confession_publish_failed',
-          idempotencyKey: dto.idempotencyKey
-            ? `confession_publish_failed:${dto.idempotencyKey}`
-            : undefined,
-          metadata: {
-            source: 'confession_service',
-            reason: error instanceof Error ? error.name : 'unknown_error',
-          },
-        })
-        .catch((analyticsError) =>
-          this.logger.warn(
-            {
-              action: 'analytics_record_failed',
-              eventName: 'confession_publish_failed',
-              error:
-                analyticsError instanceof Error
-                  ? analyticsError.message
-                  : String(analyticsError),
-            },
-            'ConfessionsService',
-          ),
-        );
-
-      if (dto.idempotencyKey && (error as any)?.code === '23505') {
-        // The idempotency_key UNIQUE constraint on anonymous_confessions fired
-        // while the records table approach was bypassed (legacy path).
-        const existing = await this.confessionRepo.findOne({
-          where: { idempotencyKey: dto.idempotencyKey },
-        });
-        if (existing) {
-          const decryptedMessage = decryptConfession(
-            existing.message,
-            this.aesKey,
-          );
-          const hasSamePayload =
-            msg === decryptedMessage &&
-            (dto.gender ?? null) === (existing.gender ?? null) &&
-            (dto.stellarTxHash ?? null) === (existing.stellarTxHash ?? null);
-
-          if (hasSamePayload) {
-            existing.message = decryptedMessage;
-            return existing;
-          }
-
-          throw new ConflictException(
-            'Idempotency key replay conflict: request body does not match original submission.',
-          );
-        }
-      }
-
-      throw new InternalServerErrorException('Failed to create confession');
+      // Re-throw to trigger transaction rollback
+      throw error;
     }
   }
 
