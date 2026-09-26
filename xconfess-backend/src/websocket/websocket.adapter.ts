@@ -1,5 +1,5 @@
 import { IoAdapter } from '@nestjs/platform-socket.io';
-import { ServerOptions } from 'socket.io';
+import { ServerOptions, Server as SocketIOServer, Socket } from 'socket.io';
 import { ConfigService } from '@nestjs/config';
 import { INestApplicationContext, Logger } from '@nestjs/common';
 
@@ -37,6 +37,8 @@ export function buildWebSocketServerOptions(
 }
 
 export class WebSocketAdapter extends IoAdapter {
+  private ioServer: SocketIOServer | null = null;
+
   constructor(
     private app: INestApplicationContext,
     private configService: ConfigService,
@@ -50,6 +52,7 @@ export class WebSocketAdapter extends IoAdapter {
     const serverOptions = buildWebSocketServerOptions(corsOrigin, options);
 
     const server = super.createIOServer(port, serverOptions);
+    this.ioServer = server;
 
     /**
      * Global connection middleware — runs before any namespace/gateway logic.
@@ -107,5 +110,30 @@ export class WebSocketAdapter extends IoAdapter {
     });
 
     return server;
+  }
+
+  async closeAllConnections(): Promise<void> {
+    if (!this.ioServer) {
+      logger.warn('No WebSocket server instance to close');
+      return;
+    }
+
+    const connectedSockets = this.ioServer.sockets.sockets.size;
+    logger.log(`Closing ${connectedSockets} WebSocket connections...`);
+
+    // Disconnect all sockets with a reason
+    this.ioServer.sockets.sockets.forEach((socket: Socket) => {
+      socket.disconnect(true);
+    });
+
+    // Close the server
+    await new Promise<void>((resolve) => {
+      this.ioServer!.close(() => {
+        logger.log('WebSocket server closed');
+        resolve();
+      });
+    });
+
+    this.ioServer = null;
   }
 }

@@ -6,6 +6,7 @@ import { RedisHealthIndicator } from './redis.health';
 import { SchemaReadinessHealthIndicator } from './schema-readiness.health';
 import { QueueHealthIndicator } from './queue.health';
 import { PostgresHealthIndicator } from './postgres.health';
+import { HealthQueueRegistrar } from './queue-registrar';
 
 // Inlined to keep the health module self-contained and avoid importing from
 // feature-module internals.
@@ -27,6 +28,7 @@ const MONITORED_QUEUES = [
     RedisHealthIndicator,
     SchemaReadinessHealthIndicator,
     QueueHealthIndicator,
+    HealthQueueRegistrar,
   ],
 })
 export class HealthModule {}

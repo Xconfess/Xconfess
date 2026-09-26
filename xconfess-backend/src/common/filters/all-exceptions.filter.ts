@@ -39,7 +39,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
       const requestId = (request as any).requestId ?? 'unknown';
 
       response.status(status).json({
-        status,
+        statusCode: status,
         code: ErrorCode.INTERNAL_SERVER_ERROR,
         message: exception.message,
         timestamp: new Date().toISOString(),
@@ -66,7 +66,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
     );
 
     response.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
-      status: HttpStatus.INTERNAL_SERVER_ERROR,
+      statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
       code: ErrorCode.INTERNAL_SERVER_ERROR,
       message: 'An unexpected error occurred',
       timestamp: new Date().toISOString(),

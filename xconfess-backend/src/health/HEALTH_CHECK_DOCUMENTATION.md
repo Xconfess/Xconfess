@@ -27,6 +27,8 @@ Use **liveness** for a quick local smoke test after starting the server. Use **r
 
 Nothing external. The controller returns a static response directly — no `HealthCheckService`, no database ping, no Redis call. If this endpoint responds, the Node process is alive.
 
+**Critical distinction**: This endpoint answers *"Is the API process running?"* — it does **not** verify that required dependencies (Redis, Postgres) are available. Use `/ready` to check dependency health.
+
 **Response — healthy**
 
 ```json
@@ -289,6 +291,23 @@ redis-cli ping
 | Stalled jobs blocking the queue | Inspect via Bull Board or drain manually |
 
 > **Note:** The key in the response body is `queues` (plural), matching the `key` argument passed in the controller. Use this when grepping logs or writing alerting rules.
+
+---
+
+### Distinguishing "Process Running" from "Redis Unavailable"
+
+This is a common operational scenario: the API process is alive (`/live` returns `200`), but a required dependency (Redis) is down. The health endpoints handle this distinctly:
+
+| Scenario | `/api/health/live` | `/api/health/ready` (with `ENABLE_BACKGROUND_JOBS=true`) |
+|---|---|---|
+| Process running, Redis up | `200 OK` + `{"status":"ok"}` | `200 OK` + all checks `status: "up"` |
+| Process running, **Redis down** | `200 OK` + `{"status":"ok"}` | `503 Service Unavailable` + `"redis": { "status": "down", "error": "...", "hint": "..." }` |
+| Process crashed | Connection refused / timeout | Connection refused / timeout |
+
+**Key takeaway**: A `200` from `/live` means "the HTTP server is responding." A `503` from `/ready` with `redis.status: "down"` means "the process is running but cannot reach Redis." This separation allows:
+- Kubernetes liveness probe (`/live`) to avoid restarting a pod just because Redis is temporarily slow
+- Kubernetes readiness probe (`/ready`) to drain traffic from pods that cannot reach required dependencies
+- Operators to distinguish "app crashed" from "dependency unavailable" in dashboards/alerts
 
 ---
 

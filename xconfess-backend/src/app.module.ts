@@ -42,6 +42,7 @@ import { AnalyticsModule } from './analytics/analytics.module';
 // The legacy @nestjs/bull import has been removed. All queues use BullMQ.
 import { BullModule } from '@nestjs/bullmq';
 import { StructuredLoggingInterceptor } from './common/logging/structured-logging.interceptor';
+import { GracefulShutdownModule } from './common/graceful-shutdown.module';
 
 @Module({
   imports: [
@@ -152,6 +153,7 @@ import { StructuredLoggingInterceptor } from './common/logging/structured-loggin
     FeatureFlagsModule,
     BookmarkModule,
     KeyRotationModule,
+    GracefulShutdownModule,
   ],
   controllers: [AppController],
   providers: [
