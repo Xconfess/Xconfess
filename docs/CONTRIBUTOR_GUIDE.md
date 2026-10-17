@@ -4,6 +4,12 @@ This guide is the starting point for external contributors working on xConfess.
 It ties together local setup, issue selection, branch names, pull request
 linking, validation commands, and review handoff.
 
+For shared product and API terminology, consult the [glossary](GLOSSARY.md),
+especially its [anonymous identity terminology](GLOSSARY.md#anonymous-identity-terminology).
+Changes to report handling or content review should follow the documented
+[report and moderation states](moderation-state-machine.md). API error examples
+and status-code meanings are in the [API Integration Guide](API_INTEGRATION.md#error-response-examples).
+
 ## Choosing Work
 
 Before starting work, choose an open issue, check that it is not already

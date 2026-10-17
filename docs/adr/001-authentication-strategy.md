@@ -6,7 +6,7 @@ Accepted
 
 ## Context
 
-xConfess is an anonymous confession platform. Users need to authenticate to post confessions, react, and tip — but anonymity is a core product guarantee. The auth system must issue short-lived tokens, support cookie-based sessions for the browser, and not leak identity. The backend is a standalone NestJS API, not a Next.js API route, so auth must work over a separate origin.
+xConfess presents activity under pseudonymous identifiers while users authenticate to post confessions, react, and tip. Privacy is a product goal, but these identifiers and the authentication design do not guarantee that activity cannot be linked to an account, device, network, or wallet. The auth system must issue short-lived tokens, support cookie-based sessions for the browser, and limit credential exposure. The backend is a standalone NestJS API, not a Next.js API route, so auth must work over a separate origin.
 
 ## Options Considered
 
@@ -18,7 +18,7 @@ xConfess is an anonymous confession platform. Users need to authenticate to post
 
 We chose **Option B** — custom JWT stored in HttpOnly cookies, validated by Passport-JWT on the NestJS backend.
 
-NextAuth (Option A) requires Next.js API routes as the auth server, which would split auth logic across two runtimes and complicate the standalone NestJS API. Bearer tokens (Option C) are accessible to JavaScript, creating XSS risk that is incompatible with the anonymity guarantee. HttpOnly cookies are invisible to JS and work naturally with credentialed cross-origin requests.
+NextAuth (Option A) requires Next.js API routes as the auth server, which would split auth logic across two runtimes and complicate the standalone NestJS API. Bearer tokens (Option C) are accessible to JavaScript, increasing exposure to XSS token theft. HttpOnly cookies are invisible to JavaScript and work naturally with credentialed cross-origin requests.
 
 ## Consequences
 

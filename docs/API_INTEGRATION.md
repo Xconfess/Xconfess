@@ -15,6 +15,8 @@ For local development, the backend runs at `http://localhost:5000/api` by defaul
 
 xConfess uses stateless JWT authentication for protected routes.
 Third-party integrations should authenticate by exchanging email/password credentials for an access token.
+For the meanings of `anonymousUserId`, session context, and wallet-derived
+identity references, see the [identity terminology in the glossary](GLOSSARY.md#anonymous-identity-terminology).
 
 ### Supported auth endpoints
 
@@ -45,7 +47,7 @@ Successful response:
 ```json
 {
   "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-  "anonymousUserId": "anon_7f3a2b1c",
+  "anonymousUserId": "7f3a2b1c-2c11-4f06-a5d8-faf2917fd5d9",
   "user": {
     "id": 1,
     "username": "alice_42",
@@ -294,7 +296,7 @@ xConfess enforces request throttling both globally and on sensitive endpoints.
 - `POST /api/auth/login` and `POST /api/users/login`: 5 requests / 60 seconds
 - `POST /api/users/register`: 3 requests / 60 seconds
 - `POST /api/auth/forgot-password`: 3 requests / 300 seconds
-- `POST /api/reports`: 5 requests / 300 seconds
+- `POST /api/confessions/:id/report`: 5 requests / 300 seconds
 - `POST /api/confessions/:id/tips/verify`: strict throttling enforced by the backend because it calls Stellar Horizon
 
 ### Rate-limit response
@@ -303,8 +305,8 @@ When a client is throttled, the API returns HTTP `429 Too Many Requests` with a 
 
 ```json
 {
-  "status": 429,
-  "code": "THROTTLED",
+  "statusCode": 429,
+  "code": "RATE_LIMIT_EXCEEDED",
   "message": "Too many requests. Please wait a moment and try again.",
   "retryAfter": 12,
   "timestamp": "2026-04-25T10:00:00.000Z",
@@ -322,36 +324,102 @@ The response also includes a `Retry-After` response header.
 xConfess uses consistent error codes in every non-2xx response.
 Common values include:
 
-- `AUTH_UNAUTHORIZED` — JWT missing or invalid
+- `AUTH_UNAUTHORIZED` — request was not authenticated
 - `AUTH_FORBIDDEN` — insufficient permissions
 - `AUTH_INVALID_CREDENTIALS` — login failed
-- `AUTH_SESSION_EXPIRED` — token expired or invalid
+- `AUTH_SESSION_EXPIRED` — JWT has expired
+- `AUTH_TOKEN_INVALID` — JWT is malformed or invalid
 - `BAD_REQUEST` — malformed request or missing parameters
 - `VALIDATION_FAILED` — schema validation failed
 - `MISSING_PARAMETER` / `INVALID_PARAMETER` — query or body input issues
 - `NOT_FOUND` — requested resource not found
 - `CONFLICT` — duplicate resource state
-- `THROTTLED` / `RATE_LIMIT_EXCEEDED` — rate limit exceeded
+- `RATE_LIMIT_EXCEEDED` — rate limit exceeded
 - `STELLAR_ERROR` — Stellar/Soroban integration failure
 - `INTERNAL_SERVER_ERROR` — unexpected server problem
 
-### Error response format
+### Error response examples
 
-All error responses share this shape:
+Ordinary Nest HTTP errors are formatted with `status`, `code`, `message`,
+`timestamp`, `path`, and `requestId`; `details` appears when supplied. Validation
+errors may put an array in `message`. The unexpected-error and throttling
+handlers use `statusCode` instead of `status`. The timestamps and request IDs
+below are representative values.
+
+Invalid request body (`400 Bad Request`):
 
 ```json
 {
   "status": 400,
   "code": "BAD_REQUEST",
-  "message": "Human readable message",
-  "details": null,
-  "timestamp": "2026-04-25T10:00:00.000Z",
-  "path": "/api/endpoint",
-  "requestId": "uuid"
+  "message": ["message must be a string"],
+  "timestamp": "2026-10-17T10:00:00.000Z",
+  "path": "/api/confessions",
+  "requestId": "req-6f57b4d2"
 }
 ```
 
-Use `code` for deterministic handling and `message` for logging or UI display.
+Missing or expired authentication (`401 Unauthorized`):
+
+```json
+{
+  "status": 401,
+  "code": "AUTH_SESSION_EXPIRED",
+  "message": "Authentication token has expired",
+  "timestamp": "2026-10-17T10:00:00.000Z",
+  "path": "/api/auth/me",
+  "requestId": "req-6f57b4d2"
+}
+```
+
+Insufficient role (`403 Forbidden`):
+
+```json
+{
+  "status": 403,
+  "code": "AUTH_FORBIDDEN",
+  "message": "Only admins can access this endpoint",
+  "timestamp": "2026-10-17T10:00:00.000Z",
+  "path": "/api/admin/reports",
+  "requestId": "req-6f57b4d2"
+}
+```
+
+Missing resource (`404 Not Found`):
+
+```json
+{
+  "status": 404,
+  "code": "NOT_FOUND",
+  "message": "Report not found",
+  "timestamp": "2026-10-17T10:00:00.000Z",
+  "path": "/api/admin/reports/00000000-0000-4000-8000-000000000000",
+  "requestId": "req-6f57b4d2"
+}
+```
+
+An unexpected server error is returned as a generic message with
+`statusCode: 500`; the response does not contain an exception stack or internal
+error message:
+
+```json
+{
+  "statusCode": 500,
+  "code": "INTERNAL_SERVER_ERROR",
+  "message": "An unexpected error occurred",
+  "timestamp": "2026-10-17T10:00:00.000Z",
+  "path": "/api/confessions",
+  "requestId": "req-6f57b4d2"
+}
+```
+
+Use `code` for deterministic handling and `message` for display.
+For common HTTP statuses, `400` means invalid input, `401` means authentication
+is missing or invalid, `403` means the caller lacks permission, `404` means the
+resource was not found, `409` means the request conflicts with current state,
+`429` means the caller exceeded a rate limit, and `500` means an unexpected
+server error. A `429` response also includes `retryAfter` and the `Retry-After`
+header.
 
 ## Webhooks
 
@@ -512,8 +580,8 @@ curl -X POST "http://localhost:5000/api/confessions" \
 
 ## Troubleshooting
 
-- `401 AUTH_UNAUTHORIZED` means the JWT is missing, invalid, or expired.
-- `429 THROTTLED` means you exceeded the configured rate limit; retry after the header value.
-- `400 VALIDATION_FAILED` means request payload shape or field values are invalid.
+- `401 AUTH_UNAUTHORIZED`, `AUTH_TOKEN_INVALID`, or `AUTH_SESSION_EXPIRED` means the JWT is missing, invalid, or expired, respectively.
+- `429 RATE_LIMIT_EXCEEDED` means you exceeded the configured rate limit; retry after the header value.
+- `400 BAD_REQUEST` or `VALIDATION_FAILED` means request payload shape or field values are invalid.
 - `404 NOT_FOUND` means the resource ID was not found or the route is incorrect.
 - `500 INTERNAL_SERVER_ERROR` means an unexpected backend failure.

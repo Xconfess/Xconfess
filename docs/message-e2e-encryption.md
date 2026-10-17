@@ -12,13 +12,13 @@ This document describes the E2E encryption protocol for Xconfess anonymous direc
 | Participant with valid private key | **Yes** |
 | Participant who lost private key (no backup) | **No** — by design |
 
-The server never receives private keys. Public keys are published per anonymous session identity.
+The server never receives private keys. Public keys are published per anonymous user record; see the [glossary](GLOSSARY.md#anonymous-identity-terminology) for how that identifier is created and reused.
 
 ## Cryptographic design
 
 ### Identity keys
 
-Each anonymous session identity (`anonymous_user`) has an **X25519 key pair**:
+Each anonymous user record (`anonymous_user`) has an **X25519 key pair**:
 
 - **Private key**: generated in the browser, stored in **IndexedDB** (`xconfess-message-keys`).
 - **Public key**: registered via `PUT /api/messages/keys`.
@@ -94,10 +94,10 @@ sequenceDiagram
 
 1. When a session first opens Messages, the client requests its key status from
    `GET /api/messages/keys/me`.
-2. If neither the server nor IndexedDB has a key for that anonymous identity,
+2. If neither the server nor IndexedDB has a key for that anonymous user record,
    the browser generates an X25519 pair, saves it locally, and registers only
    its public key with `PUT /api/messages/keys`.
-3. Subsequent visits use the private key stored under that anonymous identity
+3. Subsequent visits use the private key stored under that anonymous user record
    in IndexedDB. The server stores the current public key, its version, and an
    optional encrypted backup; it never receives the private key or recovery
    passphrase.
@@ -147,8 +147,8 @@ Restore on a new device:
 
 ### Key rotation
 
-- Registering a different `publicKey` for the same anonymous identity increments `messageKeyVersion`.
-- The current API keeps one public key per anonymous identity. It does not
+- Registering a different `publicKey` for the same anonymous user record increments `messageKeyVersion`.
+- The current API keeps one public key per anonymous user record. It does not
   retain previous public keys or attach a key version to individual message
   envelopes.
 - Messages encrypted to an older key remain decryptable only with the matching

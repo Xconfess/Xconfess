@@ -4,11 +4,46 @@
 
 ### Anchoring
 
-The process of recording a cryptographic hash (SHA-256) of a confession on the Stellar blockchain via Soroban smart contracts. Once anchored, the confession's existence and content can be independently verified at a specific point in time without revealing the author's identity. See the [Anchoring section](DEMO_SCRIPT.md#4-stellar-flow--confession-anchoring) of the demo script, the [contract ABI reference](contract-abi-reference.md#confession-anchor-contract), and the [Soroban setup guide](SOROBAN_SETUP.md) for contract deployment and interaction details.
+The process of recording a cryptographic hash (SHA-256) of a confession on the Stellar blockchain via Soroban smart contracts. The hash can be checked later without putting the confession text or an author identifier in the contract record; the hash does not prevent identification from the confession or other data. See the [Anchoring section](DEMO_SCRIPT.md#4-stellar-flow--confession-anchoring) of the demo script, the [contract ABI reference](contract-abi-reference.md#confession-anchor-contract), and the [Soroban setup guide](SOROBAN_SETUP.md) for contract deployment and interaction details.
 
 ### Anonymous Tipping
 
-A Stellar-based feature that allows users to send tips to confession authors without revealing their identity. Users sign and submit tip transactions through their wallet, then send the transaction hash to the backend for verification. The system validates the transaction on-chain and records tip amounts idempotently, ensuring no double-crediting even with replayed verification requests. Supports optional settlement proof metadata for off-chain reconciliation. See the [Anonymous Tipping contract reference](contract-abi-reference.md#anonymous-tipping-contract) and the [Stellar anchoring and tipping runbook](stellar-anchor-and-tipping-runbook.md) for operational details.
+A Stellar-based feature that lets wallet holders send tips to confession authors. The wallet signs the transaction, and the backend verifies it on-chain before recording the tip idempotently. A public wallet address can link on-chain activity. See the [Anonymous Tipping contract reference](contract-abi-reference.md#anonymous-tipping-contract) and the [Stellar anchoring and tipping runbook](stellar-anchor-and-tipping-runbook.md) for operational details.
+
+## Anonymous Identity Terminology
+
+Use these terms consistently in contributor documentation. The product's use of
+“anonymous” describes how an identity is presented in the app; it does not
+guarantee that activity cannot be linked to an account, device, network, or
+wallet.
+
+### Anonymous user
+
+The persisted `AnonymousUser` record that groups app activity under an ID. It
+can be unlinked or associated with a registered account through
+`user_anonymous_users`.
+
+### Generated identifier
+
+The database-generated UUID in `AnonymousUser.id`, returned by APIs as
+`anonymousUserId`. It references app activity; it is not a credential or proof
+of identity.
+
+### Session
+
+Protected API requests use a stateless JWT rather than a server-side login
+session record. For an authenticated account's anonymous context, the backend
+reuses its newest anonymous-user link created within the default 24-hour window,
+or creates a new link when none is found. This window is a reuse policy, not a
+unique browser or device session.
+
+### Wallet identity
+
+A Stellar wallet address can be used to find or create an anonymous user through
+a stored fingerprint. The backend computes the fingerprint with HMAC-SHA-256
+when an application secret is configured and otherwise with SHA-256. This
+supports continuity for the same address; it does not make the address or its
+on-chain activity unlinkable.
 
 ## H
 

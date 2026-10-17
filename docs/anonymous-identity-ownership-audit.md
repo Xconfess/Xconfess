@@ -6,6 +6,8 @@ Issue: #1694
 
 XConfess separates real account identity from anonymous identities. Any anonymous identity linked through `user_anonymous_users` is private account state. A caller must not be able to infer, use, mutate, export, message, report as, or moderate through another account's linked anonymous identity.
 
+This audit uses the shared terms in the [glossary](GLOSSARY.md#anonymous-identity-terminology); those terms describe application identifiers and do not promise that activity is unlinked from accounts, devices, networks, or wallets.
+
 The default rule is:
 
 - Linked anonymous identity: usable only by the linked authenticated account.

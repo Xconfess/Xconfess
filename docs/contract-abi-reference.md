@@ -712,7 +712,7 @@ Soft-delete a confession (set status to Deleted).
 
 ### Overview
 
-The Anonymous Tipping contract enables sending tips to recipients without revealing the sender's identity. Supports optional settlement proof metadata for off-chain reconciliation.
+The Anonymous Tipping contract enables wallet holders to send tips to recipients and supports optional settlement proof metadata for off-chain reconciliation. Transactions are submitted from a Stellar wallet address, which may be publicly linkable to other on-chain activity.
 
 ### Data Types
 
