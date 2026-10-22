@@ -4,7 +4,9 @@ import {
   NotFoundException,
   BadRequestException,
   Optional,
+  ConflictException,
 } from '@nestjs/common';
+import { createHash } from 'node:crypto';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In, DataSource } from 'typeorm';
 import { Message, MessageDeliveryStatus } from './entities/message.entity';
@@ -74,7 +76,21 @@ export class MessagesService {
   async create(
     createMessageDto: CreateMessageDto,
     user: User,
+    idempotencyKey?: string,
   ): Promise<Message> {
+    if (
+      idempotencyKey !== undefined &&
+      (!idempotencyKey.trim() || idempotencyKey.length > 128)
+    ) {
+      throw new BadRequestException(
+        'Idempotency-Key must contain 1 to 128 characters',
+      );
+    }
+    const scopedKey = idempotencyKey === undefined
+      ? null
+      : createHash('sha256')
+          .update(JSON.stringify([user.id, idempotencyKey]))
+          .digest('hex');
     if (!isEncryptedPayload(createMessageDto.content)) {
       throw new BadRequestException(
         'Message content must be an E2E ciphertext envelope',
@@ -105,12 +121,40 @@ export class MessagesService {
       const messageRepo = manager.getRepository(Message);
       const outboxRepo = manager.getRepository(OutboxEvent);
 
+      if (scopedKey) {
+        // Serialize only retries of the same user's request. The lock is
+        // released with the transaction, including on an outbox write failure.
+        await manager.query(
+          'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
+          [scopedKey],
+        );
+        const existing = await messageRepo.findOne({
+          where: { idempotencyKey: scopedKey },
+          relations: ['confession'],
+        });
+        if (existing) {
+          if (
+            existing.confession.id !== createMessageDto.confession_id ||
+            existing.content !== createMessageDto.content
+          ) {
+            throw new ConflictException(
+              'Idempotency-Key was already used for a different message',
+            );
+          }
+          return existing;
+        }
+      }
+
       const message = messageRepo.create({
         sender,
         confession,
         content: createMessageDto.content,
         isEncrypted: true,
         deliveryStatus: MessageDeliveryStatus.SENT,
+        idempotencyKey: scopedKey,
+        // Cursor timestamps have millisecond precision. Persist the same
+        // precision so a later page cannot include the last row again.
+        createdAt: new Date(),
       });
 
       const savedMessage = await messageRepo.save(message);
@@ -211,9 +255,9 @@ export class MessagesService {
       );
       if (parsedCursor) {
         qb.andWhere(
-          'message.createdAt > :cursorDate OR (message.createdAt = :cursorDate AND message.id > :cursorId)',
+          '(message.createdAt > :cursorDate OR (message.createdAt = :cursorDate AND message.id > :cursorId))',
           {
-            cursorDate: parsedCursor.createdAt,
+            cursorDate: new Date(parsedCursor.createdAt),
             cursorId: parsedCursor.id,
           },
         );
@@ -224,6 +268,7 @@ export class MessagesService {
 
     const messages = await qb
       .orderBy('message.createdAt', 'ASC')
+      .addOrderBy('message.id', 'ASC')
       .take(limit + 1)
       .getMany();
 

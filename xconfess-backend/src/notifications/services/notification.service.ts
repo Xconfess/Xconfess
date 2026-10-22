@@ -213,39 +213,41 @@ export class NotificationService {
     }
 
     const sourceKey = dto.sourceKey ?? this.buildSourceKey(dto);
-    if (sourceKey) {
-      const existing = await this.notificationRepository.findOne({
-        where: { sourceKey },
-      });
-      if (existing) {
-        this.appLogger.incrementCounter('notification_duplicate_suppressed_total', 1, {
-          notificationType: dto.type,
-        });
-        return existing;
-      }
-    }
-
-    const notification = this.notificationRepository.create({
-      ...dto,
-      sourceKey: sourceKey ?? undefined,
-    });
-    try {
-      await this.notificationRepository.save(notification);
-    } catch (error) {
-      if (sourceKey && this.isUniqueViolation(error)) {
-        const existing = await this.notificationRepository.findOne({
+    let notification = sourceKey
+      ? await this.notificationRepository.findOne({
           where: { sourceKey },
-        });
-        if (existing) {
-          this.appLogger.incrementCounter(
-            'notification_duplicate_suppressed_total',
-            1,
-            { notificationType: dto.type },
-          );
-          return existing;
+        })
+      : null;
+    if (notification) {
+      this.appLogger.incrementCounter('notification_duplicate_suppressed_total', 1, {
+        notificationType: dto.type,
+      });
+    } else {
+      notification = this.notificationRepository.create({
+        ...dto,
+        sourceKey: sourceKey ?? undefined,
+      });
+      try {
+        await this.notificationRepository.save(notification);
+      } catch (error) {
+        if (sourceKey && this.isUniqueViolation(error)) {
+          const existing = await this.notificationRepository.findOne({
+            where: { sourceKey },
+          });
+          if (existing) {
+            this.appLogger.incrementCounter(
+              'notification_duplicate_suppressed_total',
+              1,
+              { notificationType: dto.type },
+            );
+            notification = existing;
+          } else {
+            throw error;
+          }
+        } else {
+          throw error;
         }
       }
-      throw error;
     }
 
     // Queue for email notification if enabled and background jobs are active

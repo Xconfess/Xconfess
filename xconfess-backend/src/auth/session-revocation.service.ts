@@ -1,4 +1,4 @@
-import { Injectable, Logger, Inject } from '@nestjs/common';
+import { Injectable, Logger, Inject, ServiceUnavailableException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
@@ -26,7 +26,7 @@ export class SessionRevocationService {
    * is added to a blacklist in Redis for the token's remaining lifetime.
    */
   async revokeUserSessions(userId: number | string): Promise<void> {
-    const user = await this.userRepo.findOne({ where: { id: userId } });
+    const user = await this.userRepo.findOne({ where: { id: Number(userId) } });
     if (!user) {
       this.logger.warn(`User not found for session revocation: ${userId}`);
       return;
@@ -40,8 +40,8 @@ export class SessionRevocationService {
       await this.cacheManager.set(revocationKey, Date.now(), ttl);
       this.logger.log(`Revoked sessions for user: ${userId}`);
     } catch (error) {
-      this.logger.error(`Failed to revoke sessions for user ${userId}:`, error);
-      throw error;
+      this.logger.warn('Session revocation unavailable');
+      throw new ServiceUnavailableException('Session revocation unavailable');
     }
   }
 
@@ -62,9 +62,8 @@ export class SessionRevocationService {
       // Token issued after revocation = invalid
       return issuedAt * 1000 > revocationTime;
     } catch (error) {
-      this.logger.error(`Failed to check session validity for user ${userId}:`, error);
-      // On error, allow the session (fail open) to avoid locking out valid users
-      return true;
+      this.logger.warn('Session validation unavailable');
+      throw new ServiceUnavailableException('Session validation unavailable');
     }
   }
 
@@ -78,7 +77,8 @@ export class SessionRevocationService {
       await this.cacheManager.del(revocationKey);
       this.logger.log(`Cleared session revocation for user: ${userId}`);
     } catch (error) {
-      this.logger.error(`Failed to clear session revocation for user ${userId}:`, error);
+      this.logger.warn('Session revocation unavailable');
+      throw new ServiceUnavailableException('Session revocation unavailable');
     }
   }
 }

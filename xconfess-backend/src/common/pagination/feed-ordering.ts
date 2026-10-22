@@ -107,10 +107,12 @@ export function feedKeysetPredicate(
   alias = 'confession',
 ): {
   sql: string;
-  params: { createdAt: string; id: string };
+  params: { createdAt: Date; id: string };
 } {
   return {
     sql: `(${alias}.created_at, ${alias}.${FEED_TIEBREAKER_COLUMN}) < (:createdAt, :id)`,
-    params: { createdAt: position.created_at, id: position.id },
+    // Bind as a Date so pg uses the same timezone conversion as timestamp
+    // inserts. A raw ISO string loses its offset for timestamp-without-timezone.
+    params: { createdAt: new Date(position.created_at), id: position.id },
   };
 }
