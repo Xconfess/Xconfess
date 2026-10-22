@@ -110,6 +110,12 @@ Stellar-specific errors (wallet, network, contract) are handled by `handleStella
 - **Inbox Handling**: The messages inbox detects backend connectivity issues and displays an offline state with manual retry triggers.
 - **Skeleton Loaders**: Used across all data-fetching components to prevent layout shift during loading or failure states.
 
+## Responsive and private interaction behavior
+
+- The anchor history keeps full confession and contract identifiers available in a keyboard-focusable horizontal scroll region on narrow screens; IDs wrap inside their cells, and the table actions remain in the same region. Browser text scaling is supported without widening the page.
+- The profile activity timeline shows content-shaped, accessible skeletons while tip history loads, a clear empty state when there are no tips, and a generic retryable error when history cannot be loaded.
+- If an encrypted message send receives an expired-session (401) response, its unsent draft is kept in the current tab's `sessionStorage`, scoped to the current anonymous identity and conversation. After signing in again, select that conversation to restore it. The draft is never sent automatically; review and explicitly choose **Send**. A draft that belongs to a different identity is discarded, and no draft content is written to logs or URLs.
+
 ## Notes
 
 - The frontend expects the backend to be running for real data.

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { MessageSquare, Heart, DollarSign, Award, Clock, ExternalLink, Anchor } from "lucide-react";
+import { MessageSquare, Heart, DollarSign, Award, Clock, ExternalLink } from "lucide-react";
 
 type ActivityType =
   | "confession"
@@ -14,7 +14,22 @@ interface ActivityItem {
   id: string;
   type: ActivityType;
   timestamp: string;
-  data: any;
+  data: Record<string, unknown>;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function isActivityItem(value: unknown): value is ActivityItem {
+  if (!isRecord(value) || !isRecord(value.data)) return false;
+  return (
+    typeof value.id === "string" &&
+    typeof value.timestamp === "string" &&
+    ["confession", "reaction", "tip_sent", "tip_received", "badge_earned"].includes(
+      String(value.type),
+    )
+  );
 }
 
 import { Confession } from "@/app/lib/types/confession";
@@ -30,28 +45,40 @@ export function ActivityTimeline({ userId }: ActivityTimelineProps) {
   const [loading, setLoading] = useState(false);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<
     "all" | "confessions" | "reactions" | "tips"
   >("all");
   const observerTarget = useRef<HTMLDivElement>(null);
+  const requestId = useRef(0);
 
   const fetchActivities = useCallback(
     async (pageNum: number) => {
-      if (loading) return;
+      const currentRequestId = ++requestId.current;
 
       setLoading(true);
+      setLoadError(null);
       try {
         // Fetch different data based on active tab
         if (activeTab === "confessions") {
           const response = await fetch(
             `/api/users/${userId}/confessions?page=${pageNum}&limit=10`
           );
-          const data = await response.json();
+          if (!response.ok) throw new Error("Activity request failed");
+          const data: unknown = await response.json();
+          if (
+            !isRecord(data) ||
+            !Array.isArray(data.confessions) ||
+            typeof data.totalPages !== "number"
+          ) {
+            throw new Error("Invalid confession history response");
+          }
 
+          if (currentRequestId !== requestId.current) return;
           if (pageNum === 1) {
-            setConfessions(data.confessions);
+            setConfessions(data.confessions as Confession[]);
           } else {
-            setConfessions((prev) => [...prev, ...data.confessions]);
+            setConfessions((prev) => [...prev, ...(data.confessions as Confession[])]);
           }
 
           setHasMore(pageNum < data.totalPages);
@@ -60,23 +87,37 @@ export function ActivityTimeline({ userId }: ActivityTimelineProps) {
           const response = await fetch(
             `/api/users/${userId}/activities?page=${pageNum}&limit=10&type=${activeTab}`
           );
-          const data = await response.json();
+          if (!response.ok) throw new Error("Activity request failed");
+          const data: unknown = await response.json();
+          if (
+            !isRecord(data) ||
+            !Array.isArray(data.activities) ||
+            !data.activities.every(isActivityItem)
+          ) {
+            throw new Error("Invalid activity response");
+          }
+          const responseActivities = data.activities.filter(isActivityItem);
 
+          if (currentRequestId !== requestId.current) return;
           if (pageNum === 1) {
-            setActivities(data.activities);
+            setActivities(responseActivities);
           } else {
-            setActivities((prev) => [...prev, ...data.activities]);
+            setActivities((prev) => [...prev, ...responseActivities]);
           }
 
-          setHasMore(data.hasMore);
+          setHasMore(typeof data.hasMore === "boolean" ? data.hasMore : responseActivities.length === 10);
         }
       } catch (error) {
-        console.error("Error fetching activities:", error);
+        if (currentRequestId === requestId.current) {
+          console.error("Error fetching activities:", error);
+          setLoadError("Unable to load activity history. Please try again.");
+          setHasMore(false);
+        }
       } finally {
-        setLoading(false);
+        if (currentRequestId === requestId.current) setLoading(false);
       }
     },
-    [userId, activeTab, loading]
+    [userId, activeTab]
   );
 
   useEffect(() => {
@@ -84,6 +125,9 @@ export function ActivityTimeline({ userId }: ActivityTimelineProps) {
     setActivities([]);
     setConfessions([]);
     fetchActivities(1);
+    return () => {
+      requestId.current += 1;
+    };
   }, [activeTab, fetchActivities]);
 
   useEffect(() => {
@@ -174,6 +218,7 @@ export function ActivityTimeline({ userId }: ActivityTimelineProps) {
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
+              aria-pressed={activeTab === tab}
               className={`px-4 py-2 rounded-lg text-sm font-medium transition ${activeTab === tab
                   ? "bg-blue-600 text-white"
                   : "bg-white text-gray-700 hover:bg-gray-100 border border-gray-300"
@@ -188,8 +233,22 @@ export function ActivityTimeline({ userId }: ActivityTimelineProps) {
       <div className="bg-white rounded-lg shadow-md">
         {/* Confessions View */}
         {activeTab === "confessions" && (
-          <div className="divide-y divide-gray-200">
-            {confessions.length === 0 && !loading ? (
+          <div className="divide-y divide-gray-200" aria-busy={loading}>
+            {loadError ? (
+              <div role="alert" className="p-8 text-center text-red-700">
+                <p>{loadError}</p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPage(1);
+                    fetchActivities(1);
+                  }}
+                  className="mt-3 rounded-lg border border-red-300 px-4 py-2 text-sm font-medium hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600"
+                >
+                  Retry
+                </button>
+              </div>
+            ) : confessions.length === 0 && !loading ? (
               <div className="p-8 text-center text-gray-500">
                 <MessageSquare className="w-12 h-12 mx-auto mb-3 text-gray-400" />
                 <p>No confessions yet</p>
@@ -242,18 +301,45 @@ export function ActivityTimeline({ userId }: ActivityTimelineProps) {
 
         {/* Activities View */}
         {activeTab !== "confessions" && (
-          <div className="divide-y divide-gray-200">
-            {activities.length === 0 && !loading ? (
+          <div className="divide-y divide-gray-200" aria-busy={loading}>
+            {loadError ? (
+              <div role="alert" className="p-8 text-center text-red-700">
+                <p>{loadError}</p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPage(1);
+                    fetchActivities(1);
+                  }}
+                  className="mt-3 rounded-lg border border-red-300 px-4 py-2 text-sm font-medium hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600"
+                >
+                  Retry
+                </button>
+              </div>
+            ) : activities.length === 0 && !loading ? (
               <div className="p-8 text-center text-gray-500">
                 <Clock className="w-12 h-12 mx-auto mb-3 text-gray-400" />
                 <p>No activity yet</p>
               </div>
+            ) : loading && activities.length === 0 && activeTab === "tips" ? (
+              <div role="status" aria-label="Loading tip history" className="divide-y divide-gray-200">
+                {Array.from({ length: 3 }).map((_, index) => (
+                  <div key={index} aria-hidden="true" className="flex items-start gap-4 p-6">
+                    <div className="h-11 w-11 shrink-0 animate-pulse rounded-lg bg-gray-200" />
+                    <div className="flex-1 space-y-2">
+                      <div className="h-4 w-3/4 animate-pulse rounded bg-gray-200" />
+                      <div className="h-3 w-20 animate-pulse rounded bg-gray-200" />
+                    </div>
+                  </div>
+                ))}
+              </div>
             ) : (
               activities.map((activity) => {
-                const txHash =
-                  activity.data?.txHash ||
-                  activity.data?.stellarTxHash ||
-                  activity.data?.transactionHash;
+                const txHash = [
+                  activity.data.txHash,
+                  activity.data.stellarTxHash,
+                  activity.data.transactionHash,
+                ].find((value): value is string => typeof value === "string" && value.length > 0);
                 const explorerUrl = txHash
                   ? getStellarExplorerUrl(txHash)
                   : null;
@@ -272,7 +358,9 @@ export function ActivityTimeline({ userId }: ActivityTimelineProps) {
 
                     <div className="flex-1">
                       <p className="text-gray-800 mb-1">
-                        {activity.data.description || "Activity recorded"}
+                        {typeof activity.data.description === "string"
+                          ? activity.data.description
+                          : "Activity recorded"}
                       </p>
                       {explorerUrl && (
                         <a
@@ -298,7 +386,7 @@ export function ActivityTimeline({ userId }: ActivityTimelineProps) {
         )}
 
         {/* Loading State */}
-        {loading && (
+        {loading && !(activeTab === "tips" && activities.length === 0) && (
           <div role="status" aria-label="loading" className="p-6 text-center">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
           </div>

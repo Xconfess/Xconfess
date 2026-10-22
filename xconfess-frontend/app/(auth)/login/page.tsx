@@ -224,7 +224,8 @@ export default function LoginPage() {
 function getAuthRedirectTarget(fallback: string): string {
   if (typeof window === 'undefined') return fallback;
 
-  const next = new URLSearchParams(window.location.search).get('next');
+  const params = new URLSearchParams(window.location.search);
+  const next = params.get('next') ?? params.get('returnTo');
   return isSafeAuthRedirect(next) ? next : fallback;
 }
 

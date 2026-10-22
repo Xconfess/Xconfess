@@ -15,6 +15,7 @@ import { useGlobalToast } from '@/app/components/common/Toast';
 import { useMessageE2E } from '@/app/lib/hooks/useMessageE2E';
 import { ENCRYPTED_PREVIEW } from '@/app/lib/crypto/messageE2E';
 import { ConfirmDialog } from '@/app/components/admin/ConfirmDialog';
+import { savePendingMessageDraft, takePendingMessageDraft } from '@/app/lib/utils/pendingMessageDraft';
 
 function extractPageData<T>(payload: unknown): T[] {
   if (!payload || typeof payload !== 'object') return [];
@@ -185,6 +186,7 @@ export default function MessagesPage() {
   const [isLoadingThreads, setIsLoadingThreads] = useState(true);
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
   const [newMessage, setNewMessage] = useState('');
+  const [hasRestoredDraft, setHasRestoredDraft] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [threadsError, setThreadsError] = useState<string | null>(null);
   const [messagesError, setMessagesError] = useState<string | null>(null);
@@ -324,9 +326,33 @@ export default function MessagesPage() {
       }
 
       setNewMessage('');
+      setHasRestoredDraft(false);
       fetchMessages(selectedThread);
       fetchThreads();
     } catch (error) {
+      if (
+        typeof error === 'object' &&
+        error !== null &&
+        'response' in error &&
+        typeof error.response === 'object' &&
+        error.response !== null &&
+        'status' in error.response &&
+        error.response.status === 401 &&
+        e2eSession
+      ) {
+        try {
+          savePendingMessageDraft(sessionStorage, {
+            anonymousUserId: e2eSession.anonymousUserId,
+            confessionId: selectedThread.confessionId,
+            senderId: selectedThread.senderId,
+            content: text,
+          });
+        } catch (storageError) {
+          console.error('Unable to preserve the private message draft:', storageError);
+          toast.error("Your session expired and this tab couldn't preserve your draft. Copy it before logging in again.");
+        }
+        return;
+      }
       console.error('Failed to send message:', error);
       toast.error('Failed to send encrypted message. Ensure both participants have E2E keys.');
     } finally {
@@ -379,6 +405,24 @@ export default function MessagesPage() {
   const handleSelectThread = (thread: Thread) => {
     setSelectedThread(thread);
     setMessagesError(null);
+    if (e2eSession) {
+      try {
+        const restoredDraft = takePendingMessageDraft(
+          sessionStorage,
+          e2eSession.anonymousUserId,
+          thread,
+        );
+        if (restoredDraft !== null) {
+          setNewMessage(restoredDraft);
+          setHasRestoredDraft(true);
+        } else {
+          setHasRestoredDraft(false);
+        }
+      } catch (error) {
+        console.error('Unable to restore the private message draft:', error);
+        toast.error('Unable to restore the saved draft in this tab.');
+      }
+    }
   };
 
   const handleBackToList = () => {
@@ -568,6 +612,11 @@ export default function MessagesPage() {
                 )}
               </ScrollArea>
               <div className="p-3 bg-white dark:bg-gray-950 border-t border-gray-200 dark:border-gray-800">
+                {hasRestoredDraft && (
+                  <p role="status" className="mb-2 text-xs text-amber-700 dark:text-amber-300">
+                    Your unsent draft was restored. Review it and choose Send when you are ready.
+                  </p>
+                )}
                 <div className="flex gap-2">
                   <Input
                     ref={inputRef}
@@ -578,7 +627,7 @@ export default function MessagesPage() {
                     disabled={isSending || !e2eReady}
                     className="flex-1 text-sm"
                   />
-                  <Button onClick={handleSendMessage} disabled={isSending || !newMessage.trim() || !e2eReady} size="sm">
+                  <Button aria-label="Send encrypted message" onClick={handleSendMessage} disabled={isSending || !newMessage.trim() || !e2eReady} size="sm">
                     <Send className="w-4 h-4" />
                   </Button>
                 </div>
@@ -748,6 +797,11 @@ export default function MessagesPage() {
                 </ScrollArea>
 
                 <div className="p-4 bg-white dark:bg-gray-950 border-t border-gray-200 dark:border-gray-800">
+                  {hasRestoredDraft && (
+                    <p role="status" className="mb-2 text-xs text-amber-700 dark:text-amber-300">
+                      Your unsent draft was restored. Review it and choose Send when you are ready.
+                    </p>
+                  )}
                   <div className="flex gap-2">
                     <Input
                       placeholder={selectedThread.isAuthor ? 'Type an encrypted reply...' : 'Send encrypted message...'}
@@ -757,7 +811,7 @@ export default function MessagesPage() {
                       disabled={isSending || !e2eReady}
                       className="flex-1"
                     />
-                    <Button onClick={handleSendMessage} disabled={isSending || !newMessage.trim() || !e2eReady}>
+                    <Button aria-label="Send encrypted message" onClick={handleSendMessage} disabled={isSending || !newMessage.trim() || !e2eReady}>
                       <Send className="w-4 h-4" />
                     </Button>
                   </div>

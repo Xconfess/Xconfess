@@ -120,8 +120,17 @@ export default function AnchorsPage() {
       {!isLoading && !isError && data && data.data.length > 0 && (
         <>
           <div className="bg-white rounded-xl shadow-md overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full">
+            <div
+              role="region"
+              aria-label="Anchors table"
+              aria-describedby="anchors-table-scroll-help"
+              tabIndex={0}
+              className="overflow-x-auto focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600"
+            >
+              <p id="anchors-table-scroll-help" className="sr-only">
+                Scroll horizontally to view all anchor details and actions.
+              </p>
+              <table className="w-full min-w-[760px]">
                 <thead>
                   <tr className="border-b border-gray-200 bg-gray-50">
                     <th className="text-left px-6 py-3 text-sm font-semibold text-gray-700">
@@ -150,8 +159,12 @@ export default function AnchorsPage() {
                         className="hover:bg-gray-50 transition"
                       >
                         <td className="px-6 py-4">
-                          <code className="text-xs font-mono text-gray-900 bg-gray-100 px-2 py-1 rounded">
-                            {anchor.confessionId.substring(0, 8)}...
+                          <code
+                            aria-label={`Confession ID ${anchor.confessionId}`}
+                            title={anchor.confessionId}
+                            className="block max-w-full break-all whitespace-normal text-xs font-mono text-gray-900 bg-gray-100 px-2 py-1 rounded"
+                          >
+                            {anchor.confessionId}
                           </code>
                         </td>
                         <td className="px-6 py-4">
@@ -170,8 +183,12 @@ export default function AnchorsPage() {
                           )}
                         </td>
                         <td className="px-6 py-4">
-                          <code className="text-xs font-mono text-gray-600 bg-gray-100 px-2 py-1 rounded">
-                            {anchor.contractId.substring(0, 12)}...
+                          <code
+                            aria-label={`Contract ID ${anchor.contractId}`}
+                            title={anchor.contractId}
+                            className="block max-w-full break-all whitespace-normal text-xs font-mono text-gray-600 bg-gray-100 px-2 py-1 rounded"
+                          >
+                            {anchor.contractId}
                           </code>
                         </td>
                         <td className="px-6 py-4 text-right">
