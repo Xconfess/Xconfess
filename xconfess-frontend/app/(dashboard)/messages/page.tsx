@@ -9,13 +9,15 @@ import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Send, User as UserIcon, MessageSquare, WifiOff, RefreshCw, AlertCircle, Lock, Wifi, WifiOff as WifiOffIcon } from 'lucide-react';
+import { User as UserIcon, MessageSquare, WifiOff, RefreshCw, AlertCircle, Lock, Wifi, WifiOff as WifiOffIcon } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { useGlobalToast } from '@/app/components/common/Toast';
 import { useMessageE2E } from '@/app/lib/hooks/useMessageE2E';
 import { useMessagesWebSocket, useMessageReconciliation } from '@/app/lib/hooks/useMessagesWebSocket';
+import { useConversationDrafts } from '@/app/lib/hooks/useConversationDrafts';
 import { ENCRYPTED_PREVIEW } from '@/app/lib/crypto/messageE2E';
 import { ConfirmDialog } from '@/app/components/admin/ConfirmDialog';
+import { MessageComposer } from '@/app/components/messages/MessageComposer';
 import { ThreadListEmptyState, ThreadMessagesEmptyState } from '@/app/components/messages/MessagesEmptyState';
 
 function extractPageData<T>(payload: unknown): T[] {
@@ -66,6 +68,14 @@ interface Message {
 interface DecryptedMessage extends Message {
   decryptedContent: string;
   decryptedReply: string | null;
+}
+
+/**
+ * Stable identifier for a conversation. A thread is uniquely described by
+ * the confession it belongs to plus the anonymous sender of the message.
+ */
+function threadKey(thread: Pick<Thread, 'confessionId' | 'senderId'>): string {
+  return `${thread.confessionId}_${thread.senderId}`;
 }
 
 function MobileThreadList({
@@ -229,7 +239,6 @@ export default function MessagesPage() {
   const [messages, setMessages] = useState<DecryptedMessage[]>([]);
   const [isLoadingThreads, setIsLoadingThreads] = useState(true);
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
-  const [newMessage, setNewMessage] = useState('');
   const [isSending, setIsSending] = useState(false);
   const isSendingRef = useRef(false);
   const [threadsError, setThreadsError] = useState<string | null>(null);
@@ -243,19 +252,28 @@ export default function MessagesPage() {
   const inputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  // Unsent message text is kept per conversation for the lifetime of the
+  // browser tab session, so switching conversations (or coming back from the
+  // thread list on mobile) never throws away what the user typed.
+  const { drafts, setDraft, clearDraft, hasDraft } = useConversationDrafts();
+
+  // The composer is shared by every conversation, so the text it shows is
+  // derived from the draft that belongs to the currently selected thread.
+  const activeThreadKey = selectedThread ? threadKey(selectedThread) : null;
+  const newMessage = activeThreadKey ? drafts[activeThreadKey] ?? '' : '';
+
   // WebSocket for real-time message updates with reconnection and reconciliation
   const {
-    status,
     isConnected,
     isReconnecting,
     reconnectAttempts,
     forceReconnect,
   } = useMessagesWebSocket({
-    onNewMessage: (threadId, messageId, preview) => {
+    onNewMessage: (threadId) => {
       // Update thread list with new message
       setThreads(prev => prev.map(t => 
         `${t.confessionId}_${t.senderId}` === threadId
-          ? { ...t, lastMessage: preview, lastMessageAt: new Date().toISOString(), hasUnread: !t.isAuthor }
+          ? { ...t, lastMessageAt: new Date().toISOString(), hasUnread: !t.isAuthor }
           : t
       ));
       // If this thread is currently selected, fetch messages
@@ -263,10 +281,10 @@ export default function MessagesPage() {
         fetchMessages(selectedThread);
       }
     },
-    onNewReply: (threadId, messageId, replyPreview) => {
+    onNewReply: (threadId) => {
       setThreads(prev => prev.map(t => 
         `${t.confessionId}_${t.senderId}` === threadId
-          ? { ...t, lastMessage: replyPreview, lastMessageAt: new Date().toISOString(), hasUnread: t.isAuthor }
+          ? { ...t, lastMessageAt: new Date().toISOString(), hasUnread: t.isAuthor }
           : t
       ));
       if (selectedThread && `${selectedThread.confessionId}_${selectedThread.senderId}` === threadId) {
@@ -281,7 +299,7 @@ export default function MessagesPage() {
         ));
       }
     },
-    onThreadUpdated: (threadId) => {
+    onThreadUpdated: () => {
       // Refresh thread list
       fetchThreads();
     },
@@ -289,7 +307,7 @@ export default function MessagesPage() {
   });
 
   // Reconciliation hook for missed messages after reconnect
-  const { pendingReconciliation, onReconnect, reconcile } = useMessageReconciliation(
+  const { pendingReconciliation, onReconnect } = useMessageReconciliation(
     selectedThread ? `${selectedThread.confessionId}_${selectedThread.senderId}` : null,
     () => selectedThread ? fetchMessages(selectedThread) : Promise.resolve(),
     { enabled: e2eReady && isConnected }
@@ -379,7 +397,9 @@ export default function MessagesPage() {
       } finally {
         setIsLoadingMessages(false);
       }
-    }, [decryptMessages, e2eReady]);
+    },
+    [decryptMessages, e2eReady],
+  );
 
   useEffect(() => {
     fetchThreads();
@@ -432,7 +452,9 @@ export default function MessagesPage() {
         });
       }
 
-      setNewMessage('');
+      // The message went through, so the draft for this conversation is no
+      // longer needed. Any other conversation keeps its own draft.
+      if (activeThreadKey) clearDraft(activeThreadKey);
       fetchMessages(selectedThread);
       fetchThreads();
     } catch (error) {
@@ -487,14 +509,28 @@ export default function MessagesPage() {
   };
 
   const handleSelectThread = (thread: Thread) => {
+    // The composer text is derived from the draft of the selected thread, so
+    // switching conversations restores whatever was typed in that thread.
     setSelectedThread(thread);
     setMessagesError(null);
   };
 
   const handleBackToList = () => {
+    // The draft of the conversation we are leaving is kept, so coming back
+    // to it (or to another conversation) never loses unsent text.
     setSelectedThread(null);
     setShowMobileList(true);
     setMessagesError(null);
+  };
+
+  const handleDraftChange = (value: string) => {
+    if (!activeThreadKey) return;
+    setDraft(activeThreadKey, value);
+  };
+
+  const handleDiscardDraft = () => {
+    if (!activeThreadKey) return;
+    clearDraft(activeThreadKey);
   };
 
   return (
@@ -718,27 +754,18 @@ export default function MessagesPage() {
                 )}
               </ScrollArea>
               <div className="p-2 sm:p-3 bg-white dark:bg-gray-950 border-t border-gray-200 dark:border-gray-800">
-                {!isConnected && (
-                  <p className="text-[11px] text-amber-600 dark:text-amber-400 mb-1.5 flex items-center gap-1" role="status" aria-live="polite">
-                    <WifiOffIcon className="w-3 h-3 flex-shrink-0" aria-hidden />
-                    {isReconnecting ? 'Reconnecting…' : 'Offline — messages may not deliver.'}
-                  </p>
-                )}
-                <div className="flex min-w-0 items-center gap-2 sm:gap-3">
-                  <Input
-                    ref={inputRef}
-                    placeholder={selectedThread.isAuthor ? 'Type an encrypted reply...' : 'Send encrypted message...'}
-                    value={newMessage}
-                    onChange={(e) => setNewMessage(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === 'Enter' && !isSending) handleSendMessage(); }}
-                    disabled={isSending || !e2eReady}
-                    aria-label={selectedThread.isAuthor ? 'Type an encrypted reply' : 'Send encrypted message'}
-                    className="min-w-0 flex-1 text-sm"
-                  />
-                  <Button className="shrink-0" onClick={handleSendMessage} disabled={isSending || !newMessage.trim() || !e2eReady} size="sm">
-                    <Send className="w-4 h-4" />
-                  </Button>
-                </div>
+                <MessageComposer
+                  inputRef={inputRef}
+                  value={newMessage}
+                  onChange={handleDraftChange}
+                  onSend={handleSendMessage}
+                  onDiscard={handleDiscardDraft}
+                  hasDraft={hasDraft(activeThreadKey ?? '')}
+                  disabled={!e2eReady}
+                  isSending={isSending}
+                  placeholder={selectedThread.isAuthor ? 'Type an encrypted reply...' : 'Send encrypted message...'}
+                  label={selectedThread.isAuthor ? 'Type an encrypted reply' : 'Send encrypted message'}
+                />
                 {selectedThread.isAuthor && messages.every(m => m.hasReply) && (
                   <p className="text-[10px] text-gray-400 mt-2 text-center">You have replied to all messages. Wait for the sender to message you again.</p>
                 )}
@@ -935,26 +962,17 @@ export default function MessagesPage() {
                 </ScrollArea>
 
                 <div className="p-3 sm:p-4 bg-white dark:bg-gray-950 border-t border-gray-200 dark:border-gray-800">
-                  {!isConnected && (
-                    <p className="text-[11px] text-amber-600 dark:text-amber-400 mb-2 flex items-center gap-1" role="status" aria-live="polite">
-                      <WifiOffIcon className="w-3 h-3 flex-shrink-0" aria-hidden />
-                      {isReconnecting ? 'Reconnecting — messages will send when connection is restored.' : 'You are offline. Messages will not be delivered until reconnected.'}
-                    </p>
-                  )}
-                  <div className="flex min-w-0 items-center gap-2 sm:gap-3">
-                    <Input
-                      placeholder={selectedThread.isAuthor ? 'Type an encrypted reply...' : 'Send encrypted message...'}
-                      value={newMessage}
-                      onChange={(e) => setNewMessage(e.target.value)}
-                      onKeyDown={(e) => { if (e.key === 'Enter' && !isSending) handleSendMessage(); }}
-                      disabled={isSending || !e2eReady}
-                      aria-label={selectedThread.isAuthor ? 'Type an encrypted reply' : 'Send encrypted message'}
-                      className="min-w-0 flex-1"
-                    />
-                    <Button className="shrink-0" onClick={handleSendMessage} disabled={isSending || !newMessage.trim() || !e2eReady}>
-                      <Send className="w-4 h-4" />
-                    </Button>
-                  </div>
+                  <MessageComposer
+                    value={newMessage}
+                    onChange={handleDraftChange}
+                    onSend={handleSendMessage}
+                    onDiscard={handleDiscardDraft}
+                    hasDraft={hasDraft(activeThreadKey ?? '')}
+                    disabled={!e2eReady}
+                    isSending={isSending}
+                    placeholder={selectedThread.isAuthor ? 'Type an encrypted reply...' : 'Send encrypted message...'}
+                    label={selectedThread.isAuthor ? 'Type an encrypted reply' : 'Send encrypted message'}
+                  />
                   {selectedThread.isAuthor && messages.every(m => m.hasReply) && (
                     <p className="text-[10px] text-gray-400 mt-2 text-center">You have replied to all messages. Wait for the sender to message you again.</p>
                   )}

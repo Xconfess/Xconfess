@@ -91,6 +91,10 @@ export default function ReportList() {
     openConfirmation({
       title: 'Resolve selected reports?',
       description: `This will mark ${reportIds.length} selected reports as resolved.`,
+      consequences: [
+        `All ${reportIds.length} selected reports are closed and leave the pending queue.`,
+        'The reported confessions stay visible unless you also hide or delete them.',
+      ],
       confirmLabel: 'Resolve',
       action: () => bulkResolveMutation.mutateAsync({ ids: reportIds }),
       successMessage: 'Selected reports resolved.',

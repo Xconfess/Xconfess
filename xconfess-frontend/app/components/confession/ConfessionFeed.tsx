@@ -8,6 +8,7 @@ import { ConfessionCard } from "./ConfessionCard";
 import { ConfessionFeedSkeleton } from "./LoadingSkeleton";
 import { useInfiniteConfessions } from "../../lib/hooks/useConfessionsQuery";
 import ErrorState from "../common/ErrorState";
+import { FeedRefreshNotice } from "./FeedRefreshNotice";
 import { useScrollRestoration } from "../../lib/hooks/useScrollRestoration";
 import { useLiveAnnouncement } from "../../lib/hooks/useLiveAnnouncement";
 import { useFeedPageRestoration } from "../../lib/hooks/useFeedPageRestoration";
@@ -67,7 +68,6 @@ const ConfessionFeedBody = ({
     },
     [pathname, router, searchParams],
   );
-  useScrollRestoration(pathname);
   const loadMoreRef = useRef<HTMLDivElement>(null);
 
   const {
@@ -88,8 +88,15 @@ const ConfessionFeedBody = ({
   // filter change it means the feed briefly shows confessions for the sort
   // the user just left. Treat it as its own loading state, distinct from
   // both the initial load and "loading more" pagination.
-  const isSwitchingFilter = isPlaceholderData && isFetching && !isFetchingNextPage;
+  const isSwitchingFilter = isPlaceholderData && isFetching;
   const isPaginationLoading = isFetchingNextPage && !isSwitchingFilter;
+
+  // Restoring the scroll position only makes sense once the feed content is
+  // on screen: the saved offset may be below the fold until the cached pages
+  // have been rendered and the virtualized rows measured.
+  useScrollRestoration(pathname, {
+    contentReady: !isLoading && !isSwitchingFilter,
+  });
 
   const announcement = useLiveAnnouncement({
     isLoading,
@@ -110,6 +117,17 @@ const ConfessionFeedBody = ({
 
   const allConfessions = data?.pages.flatMap((page) => page.confessions) ?? [];
   const visibleConfessions = preview ? allConfessions.slice(0, 3) : allConfessions;
+
+  // A failed refresh keeps the previously loaded pages around, so the feed
+  // stays readable and the failure is reported inline instead of replacing
+  // the content the user is looking at.
+  const hasCachedPages = (data?.pages?.length ?? 0) > 0;
+  const isInitialError = Boolean(error) && !hasCachedPages;
+  const isRefreshError = Boolean(error) && hasCachedPages;
+  const errorMessage =
+    error instanceof Error && error.message
+      ? error.message
+      : "The backend service is not responding yet.";
   const isEmpty = !isLoading && !error && allConfessions.length === 0;
 
   const virtualizer = useWindowVirtualizer({
@@ -119,8 +137,22 @@ const ConfessionFeedBody = ({
     scrollMargin: 0,
   });
 
-  const handleRetry = useCallback(() => {
-    void refetch();
+  // A retry is a network round trip, so the button must not be able to start
+  // a second request while the first one is still in flight.
+  const isRetryingRef = useRef(false);
+  const [isRetrying, setIsRetrying] = useState(false);
+
+  const handleRetry = useCallback(async () => {
+    if (isRetryingRef.current) return;
+
+    isRetryingRef.current = true;
+    setIsRetrying(true);
+    try {
+      await refetch();
+    } finally {
+      isRetryingRef.current = false;
+      setIsRetrying(false);
+    }
   }, [refetch]);
 
   const scrollToComposer = useCallback(() => {
@@ -202,14 +234,14 @@ const ConfessionFeedBody = ({
     );
   }
 
-  if (error) {
+  if (isInitialError) {
     return (
       <>
         {liveRegion}
         <ErrorState
-          error="The backend service is not responding yet."
+          error={errorMessage}
           title="Unable to load feed"
-          description="This can happen while the Render instance is waking or a new backend deploy is finishing."
+          description="This can happen while the Render instance is waking or a new backend deploy is finishing. Retrying is safe \u2014 it will not duplicate any confessions."
           showRetry
           onRetry={handleRetry}
         />
@@ -261,6 +293,14 @@ const ConfessionFeedBody = ({
       {!preview && <div className="mb-5">{sortControls}</div>}
       {liveRegion}
 
+      {isRefreshError && (
+        <FeedRefreshNotice
+          message={errorMessage}
+          onRetry={handleRetry}
+          isRetrying={isRetrying}
+        />
+      )}
+
       <div
         className="relative w-full transition-opacity duration-200"
         style={{
@@ -279,6 +319,9 @@ const ConfessionFeedBody = ({
               key={confession.id}
               ref={virtualizer.measureElement}
               data-index={virtualItem.index}
+              // Marks the item as a scroll anchor so the feed can be restored
+              // to the same confession after the contents have been refreshed.
+              data-scroll-anchor={confession.id}
               className="absolute inset-x-0 top-0 pb-5"
               style={{
                 transform: `translateY(${virtualItem.start}px)`,

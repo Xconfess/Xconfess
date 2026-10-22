@@ -10,6 +10,8 @@ type ConfirmVariant = 'default' | 'danger';
 export interface AdminConfirmationOptions {
   title: string;
   description: string;
+  /** Bullet points describing what the action changes. */
+  consequences?: string[];
   action: () => Promise<unknown> | unknown;
   confirmLabel?: string;
   cancelLabel?: string;
@@ -87,11 +89,15 @@ export function useAdminConfirmation() {
         open={pendingConfirmation !== null}
         onOpenChange={(open) => {
           if (!open && !isConfirming) {
+            // Every dismissal path (Escape, outside click, the Cancel button)
+            // runs through `ConfirmDialog.requestClose`, which already
+            // notified `onCancel`.
             setPendingConfirmation(null);
           }
         }}
         title={pendingConfirmation?.title ?? 'Confirm action'}
         description={pendingConfirmation?.description ?? ''}
+        consequences={pendingConfirmation?.consequences}
         confirmLabel={pendingConfirmation?.confirmLabel ?? 'Confirm'}
         cancelLabel={pendingConfirmation?.cancelLabel ?? 'Cancel'}
         variant={pendingConfirmation?.variant ?? 'default'}

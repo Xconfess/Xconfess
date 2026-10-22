@@ -129,7 +129,13 @@ export default function ReportDetail({
   const confirmResolve = () => {
     openConfirmation({
       title: 'Resolve report?',
-      description: 'This will mark the report as resolved and keep your moderation notes.',
+      description:
+        'Resolve this report and record your moderation notes against it.',
+      consequences: [
+        'The report is closed and leaves the pending queue.',
+        'Your moderation notes are saved to the audit log.',
+        'The reported confession stays visible unless you also hide or delete it.',
+      ],
       confirmLabel: 'Resolve',
       action: () =>
         resolveMutation.mutateAsync({
@@ -147,7 +153,13 @@ export default function ReportDetail({
   const confirmDismiss = () => {
     openConfirmation({
       title: 'Dismiss report?',
-      description: 'This will dismiss the report and keep your dismissal notes.',
+      description:
+        'Dismiss this report and record your moderation notes against it.',
+      consequences: [
+        'The report is closed and leaves the pending queue.',
+        'Your dismissal notes are saved to the audit log.',
+        'The reported confession stays visible and unchanged.',
+      ],
       confirmLabel: 'Dismiss',
       action: () =>
         dismissMutation.mutateAsync({
@@ -165,7 +177,13 @@ export default function ReportDetail({
   const confirmDelete = () => {
     openConfirmation({
       title: 'Delete confession?',
-      description: 'This action cannot be undone. The confession will be permanently deleted.',
+      description:
+        'Permanently delete the reported confession. This removes the content for every user.',
+      consequences: [
+        'The confession and its comments are permanently removed for everyone.',
+        'This cannot be undone — the content cannot be restored.',
+        'The report stays open until you resolve or dismiss it.',
+      ],
       confirmLabel: 'Delete',
       variant: 'danger',
       action: () =>
@@ -185,7 +203,12 @@ export default function ReportDetail({
     openConfirmation({
       title: 'Hide confession?',
       description:
-        'This will hide the confession from regular users while preserving it for admins.',
+        'Hide the reported confession from the public feed. Moderators keep access to it.',
+      consequences: [
+        'The confession disappears from the feed and from search results.',
+        'It is kept for moderators and can be restored later.',
+        'The report stays open until you resolve or dismiss it.',
+      ],
       confirmLabel: 'Hide',
       variant: 'danger',
       action: () =>
