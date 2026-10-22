@@ -10,6 +10,7 @@ interface SessionExpiredBannerProps {
 export function SessionExpiredBanner({ variant = 'banner' }: SessionExpiredBannerProps) {
   const pathname = usePathname();
   const router = useRouter();
+  const isMessagesRoute = pathname?.startsWith('/messages') ?? false;
 
   const handleLogin = useCallback(() => {
     const returnTo = pathname && pathname !== '/login' ? pathname : '/';
@@ -39,7 +40,9 @@ export function SessionExpiredBanner({ variant = 'banner' }: SessionExpiredBanne
             Session Expired
           </h2>
           <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
-            Your session has expired. Please log in again to continue.
+            {isMessagesRoute
+              ? 'Your unsent draft is saved in this tab. Log in and reopen the conversation to continue; it will not be sent automatically.'
+              : 'Your session has expired. Please log in again to continue.'}
           </p>
           <button
             onClick={handleLogin}
@@ -72,7 +75,9 @@ export function SessionExpiredBanner({ variant = 'banner' }: SessionExpiredBanne
           />
         </svg>
         <p className="text-sm font-medium text-red-800 dark:text-red-200 truncate">
-          Your session has expired. Please log in again to continue.
+          {isMessagesRoute
+            ? 'Your unsent draft is saved in this tab. Log in and reopen the conversation to continue; it will not be sent automatically.'
+            : 'Your session has expired. Please log in again to continue.'}
         </p>
       </div>
       <button
