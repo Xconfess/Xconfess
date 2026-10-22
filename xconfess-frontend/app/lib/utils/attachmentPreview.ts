@@ -16,14 +16,28 @@ export const INLINE_PREVIEW_MIME_TYPES: readonly string[] = [
   'image/gif',
 ];
 
+const INLINE_PREVIEW_EXTENSIONS: Readonly<Record<string, readonly string[]>> = {
+  'image/jpeg': ['jpg', 'jpeg'],
+  'image/png': ['png'],
+  'image/webp': ['webp'],
+  'image/gif': ['gif'],
+};
+
 /** URL schemes a preview may link to. Relative and data: URLs are refused. */
 const SAFE_PREVIEW_PROTOCOLS: readonly string[] = ['https:', 'blob:'];
 
 export type AttachmentPreviewKind = 'image' | 'download';
 
-export function getAttachmentPreviewKind(type: string | null | undefined): AttachmentPreviewKind {
+export function getAttachmentPreviewKind(
+  type: string | null | undefined,
+  name?: string | null,
+): AttachmentPreviewKind {
   const mimeType = normalizeMimeType(type);
-  return INLINE_PREVIEW_MIME_TYPES.includes(mimeType) ? 'image' : 'download';
+  const extension = name?.trim().match(/\.([^.\\/]+)$/)?.[1]?.toLowerCase();
+
+  return INLINE_PREVIEW_EXTENSIONS[mimeType]?.includes(extension ?? '')
+    ? 'image'
+    : 'download';
 }
 
 /** True only for absolute https: or blob: URLs. Anything else is not rendered as a link. */

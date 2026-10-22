@@ -56,13 +56,14 @@ describe('ThrottlerExceptionFilter', () => {
     expect(res.status).toHaveBeenCalledWith(429);
   });
 
-  it('response body has statusCode 429 (not status)', () => {
+  it('response body follows schema v1 and retains statusCode compatibility', () => {
     const host = makeHost();
     const res = host.switchToHttp().getResponse() as any;
     filter.catch(makeException(30), host);
     const body: RateLimitErrorBody = res.json.mock.calls[0][0];
+    expect(body.schemaVersion).toBe(1);
+    expect(body.status).toBe(429);
     expect(body.statusCode).toBe(429);
-    expect((body as any).status).toBeUndefined();
   });
 
   it('response body code is RATE_LIMIT_EXCEEDED', () => {

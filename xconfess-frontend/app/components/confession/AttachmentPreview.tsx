@@ -22,7 +22,7 @@ export function AttachmentPreview({ name, type, size, url }: AttachmentPreviewPr
 
   const hasSafeUrl = isSafePreviewUrl(url);
   const showInlineImage =
-    hasSafeUrl && getAttachmentPreviewKind(type) === "image" && !imageFailed;
+    hasSafeUrl && getAttachmentPreviewKind(type, name) === "image" && !imageFailed;
 
   return (
     <figure className="flex flex-col gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface-muted)] p-3">

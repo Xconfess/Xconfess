@@ -375,6 +375,15 @@ curl "http://localhost:5000/api/confessions?cursor=<nextCursor>&limit=20"
 The headers are also exposed to browser JavaScript through
 `Access-Control-Expose-Headers`.
 
+## Correlation IDs
+
+The API returns an `X-Request-Id` response header for requests. A valid UUID v4
+provided in the `X-Request-Id` request header is preserved; missing, malformed,
+or non-UUID values are replaced with a server-generated UUID v4. The same ID is
+included as `requestId` in error responses and is suitable for support requests
+and log correlation. Arbitrary client-provided values are not accepted, which
+keeps unbounded user input out of log dimensions.
+
 ## Error codes
 
 xConfess uses consistent error codes in every non-2xx response.
@@ -394,19 +403,28 @@ Common values include:
 - `STELLAR_ERROR` — Stellar/Soroban integration failure
 - `INTERNAL_SERVER_ERROR` — unexpected server problem
 
-### Error response examples
+### Error schema v1
 
-Ordinary Nest HTTP errors are formatted with `status`, `code`, `message`,
-`timestamp`, `path`, and `requestId`; `details` appears when supplied. Validation
-errors may put an array in `message`. The unexpected-error and throttling
-handlers use `statusCode` instead of `status`. The timestamps and request IDs
-below are representative values.
+Every API error uses schema version `1`. The stable required fields are
+`schemaVersion`, `status`, `statusCode`, `code`, `message`, `timestamp`, `path`,
+and `requestId`. `statusCode` is a compatibility alias for `status`; clients
+should use `status` for new integrations. `message` may be a string or a list of
+validation messages. `details` and `retryAfter` are optional extensions and may
+be omitted. Unknown fields must be ignored. Additive optional fields do not
+change the schema version; incompatible changes require a new schema version
+and must be called out in release notes before rollout.
+
+For 5xx errors, `message` is always a generic public-safe string. Internal
+exception messages, stacks, secrets, and private content are not returned.
+Timestamps and request IDs below are representative values.
 
 Invalid request body (`400 Bad Request`):
 
 ```json
 {
+  "schemaVersion": 1,
   "status": 400,
+  "statusCode": 400,
   "code": "BAD_REQUEST",
   "message": ["message must be a string"],
   "timestamp": "2026-10-17T10:00:00.000Z",
@@ -419,7 +437,9 @@ Missing or expired authentication (`401 Unauthorized`):
 
 ```json
 {
+  "schemaVersion": 1,
   "status": 401,
+  "statusCode": 401,
   "code": "AUTH_SESSION_EXPIRED",
   "message": "Authentication token has expired",
   "timestamp": "2026-10-17T10:00:00.000Z",
@@ -432,7 +452,9 @@ Insufficient role (`403 Forbidden`):
 
 ```json
 {
+  "schemaVersion": 1,
   "status": 403,
+  "statusCode": 403,
   "code": "AUTH_FORBIDDEN",
   "message": "Only admins can access this endpoint",
   "timestamp": "2026-10-17T10:00:00.000Z",
@@ -445,7 +467,9 @@ Missing resource (`404 Not Found`):
 
 ```json
 {
+  "schemaVersion": 1,
   "status": 404,
+  "statusCode": 404,
   "code": "NOT_FOUND",
   "message": "Report not found",
   "timestamp": "2026-10-17T10:00:00.000Z",
@@ -460,6 +484,8 @@ error message:
 
 ```json
 {
+  "schemaVersion": 1,
+  "status": 500,
   "statusCode": 500,
   "code": "INTERNAL_SERVER_ERROR",
   "message": "An unexpected error occurred",
@@ -469,7 +495,9 @@ error message:
 }
 ```
 
-Use `code` for deterministic handling and `message` for display.
+Use `code` for deterministic handling and `message` for display. The ordinary
+error fields remain stable across compatible releases; optional fields may be
+added without changing `schemaVersion`.
 For common HTTP statuses, `400` means invalid input, `401` means authentication
 is missing or invalid, `403` means the caller lacks permission, `404` means the
 resource was not found, `409` means the request conflicts with current state,

@@ -23,6 +23,7 @@ describe('HttpExceptionFilter', () => {
 
     mockRequest = {
       url: '/test',
+      path: '/test',
       method: 'GET',
       requestId: 'test-request-id',
     };
@@ -47,6 +48,7 @@ describe('HttpExceptionFilter', () => {
     expect(mockResponse.status).toHaveBeenCalledWith(HttpStatus.BAD_REQUEST);
     expect(mockResponse.json).toHaveBeenCalledWith(
       expect.objectContaining({
+        schemaVersion: 1,
         status: HttpStatus.BAD_REQUEST,
         code: ErrorCode.BAD_REQUEST,
         message: 'Test error',
@@ -67,5 +69,23 @@ describe('HttpExceptionFilter', () => {
         requestId: 'unknown',
       }),
     );
+  });
+
+  it('keeps internal exception messages out of the versioned public response', () => {
+    const exception = new HttpException(
+      'database password=private-value',
+      HttpStatus.INTERNAL_SERVER_ERROR,
+    );
+
+    filter.catch(exception, mockArgumentsHost);
+
+    expect(mockResponse.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        schemaVersion: 1,
+        status: HttpStatus.INTERNAL_SERVER_ERROR,
+        message: 'An unexpected error occurred',
+      }),
+    );
+    expect(JSON.stringify(mockResponse.json.mock.calls[0][0])).not.toContain('private-value');
   });
 });

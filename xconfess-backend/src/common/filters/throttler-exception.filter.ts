@@ -4,6 +4,8 @@ import { ThrottlerException } from '@nestjs/throttler';
 import { ErrorCode } from '../errors/error-codes';
 
 export interface RateLimitErrorBody {
+  schemaVersion: 1;
+  status: 429;
   statusCode: 429;
   code: ErrorCode.RATE_LIMIT_EXCEEDED;
   message: string;
@@ -52,6 +54,8 @@ export class ThrottlerExceptionFilter implements ExceptionFilter {
     );
 
     const body: RateLimitErrorBody = {
+      schemaVersion: 1,
+      status: 429,
       statusCode: 429,
       code: ErrorCode.RATE_LIMIT_EXCEEDED,
       message: 'Too many requests. Please wait a moment and try again.',
