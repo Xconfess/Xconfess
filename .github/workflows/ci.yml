@@ -148,6 +148,8 @@ jobs:
         run: npm run services:wait
         env:
           SERVICE_WAIT_TIMEOUT_MS: 60000
+      - name: Verify Redis outages, feed properties, message races and notification failures
+        run: npm run test:reliability --workspace=xconfess-backend
       - run: npm run backend:test:critical-coverage
       - run: npm run frontend:env:test
       - name: Start backend for API contract drift check
