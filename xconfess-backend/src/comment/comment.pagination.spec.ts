@@ -128,6 +128,21 @@ describe('CommentService — cursor pagination', () => {
       // top-level filter: andWhere called with parent IS NULL
       expect(qb.andWhere).toHaveBeenCalledWith('comment.parent IS NULL');
     });
+
+    it('retains deleted comments as tombstones in the feed', async () => {
+      qb.getMany.mockResolvedValue([
+        { ...makeComment(1), isDeleted: true, content: '[deleted]' },
+      ]);
+
+      const result = await service.findByConfessionId('conf-1', baseQuery);
+
+      expect(result.data).toEqual([
+        expect.objectContaining({ isDeleted: true, content: '[deleted]' }),
+      ]);
+      expect(qb.andWhere).not.toHaveBeenCalledWith(
+        expect.stringContaining('comment.isDeleted'),
+      );
+    });
   });
 
   describe('empty page', () => {
@@ -166,6 +181,26 @@ describe('CommentService — cursor pagination', () => {
 
       expect(qb.andWhere).toHaveBeenCalledWith(
         expect.stringContaining('comment.createdAt'),
+        expect.objectContaining({ cursorId: 10, cursorDate }),
+      );
+    });
+
+    it.each([
+      [SortOrder.DESC, 'comment.id < :cursorId'],
+      [SortOrder.ASC, 'comment.id > :cursorId'],
+    ])('uses a strict ID tie-breaker for %s timestamp boundaries', async (sortOrder, boundary) => {
+      const cursorDate = '2026-01-01T00:00:00.000Z';
+      const cursor = encodeCursor({ id: 10, createdAt: cursorDate });
+      qb.getMany.mockResolvedValue([makeComment(11)]);
+
+      await service.findByConfessionId('conf-1', {
+        ...baseQuery,
+        cursor,
+        sortOrder,
+      });
+
+      expect(qb.andWhere).toHaveBeenCalledWith(
+        expect.stringContaining(boundary),
         expect.objectContaining({ cursorId: 10, cursorDate }),
       );
     });

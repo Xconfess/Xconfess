@@ -32,11 +32,15 @@ export class HttpExceptionFilter implements ExceptionFilter {
         `RATE_LIMIT_EXCEEDED method=${request.method} path=${request.path} requestId=${requestId} retryAfter=${retryAfter}`,
       );
       response.status(status).json({
+        schemaVersion: 1,
+        status,
         statusCode: status,
         code: exceptionResponse.code || ErrorCode.RATE_LIMIT_EXCEEDED,
         message:
-          exceptionResponse.message ||
-          'Too many requests. Please wait a moment and try again.',
+          status >= HttpStatus.INTERNAL_SERVER_ERROR
+            ? 'An unexpected error occurred'
+            : exceptionResponse.message ||
+              'Too many requests. Please wait a moment and try again.',
         retryAfter,
         requestId,
         timestamp: new Date().toISOString(),
@@ -46,9 +50,13 @@ export class HttpExceptionFilter implements ExceptionFilter {
     }
 
     const errorResponse = {
+      schemaVersion: 1,
       status,
       code: exceptionResponse.code || ErrorCode.INTERNAL_SERVER_ERROR,
-      message: exceptionResponse.message || 'An unexpected error occurred',
+      message:
+        status >= HttpStatus.INTERNAL_SERVER_ERROR
+          ? 'An unexpected error occurred'
+          : exceptionResponse.message || 'An unexpected error occurred',
       details: exceptionResponse.details,
       timestamp: new Date().toISOString(),
       path: request.path,

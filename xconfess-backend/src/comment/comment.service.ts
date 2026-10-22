@@ -511,11 +511,10 @@ export class CommentService {
       case CommentSortField.CREATED_AT:
         if (cursor) {
           const operator = sortOrder === SortOrder.ASC ? ">" : "<";
-          const tieBreakOperator = sortOrder === SortOrder.ASC ? ">=" : "<=";
           return {
             orderBy: "comment.createdAt, comment.id",
             orderDirection,
-            whereCondition: `(comment.createdAt ${operator} :cursorDate OR (comment.createdAt = :cursorDate AND comment.id ${tieBreakOperator} :cursorId))`,
+            whereCondition: `(comment.createdAt ${operator} :cursorDate OR (comment.createdAt = :cursorDate AND comment.id ${operator} :cursorId))`,
           };
         }
         return {

@@ -44,7 +44,19 @@ describe("AttachmentPreview", () => {
     expect(screen.queryByRole("img")).not.toBeInTheDocument();
     expect(container.querySelector("iframe, object, embed")).toBeNull();
     expect(screen.getByRole("link", { name: "Download report.pdf" })).toBeInTheDocument();
-    expect(screen.getByText("application/pdf · 4.9 KB")).toBeInTheDocument();
+    expect(screen.getByText("application/pdf · 4.88 KB")).toBeInTheDocument();
+  });
+
+  it("keeps malicious extensions and filenames inert", () => {
+    const maliciousName = '<img src=x onerror=alert(1)>.svg';
+    const { container } = render(
+      <AttachmentPreview name={maliciousName} type="image/png" url={SAFE_IMAGE_URL} />,
+    );
+
+    expect(screen.getByText(maliciousName)).toBeInTheDocument();
+    expect(container.querySelector("img")).toBeNull();
+    expect(container.querySelector("svg, script")).toBeNull();
+    expect(screen.getByRole("link")).toHaveAttribute("download", maliciousName);
   });
 
   it("shows a generic label for an unknown MIME type", () => {

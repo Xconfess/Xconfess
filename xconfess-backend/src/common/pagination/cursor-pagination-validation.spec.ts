@@ -18,6 +18,12 @@ describe('CursorPaginationDto — centralised pagination validation (#1995)', ()
       expect(errors).toHaveLength(0);
     });
 
+    it('accepts an aggregate-sort offset cursor', async () => {
+      const cursor = encodeCursor({ id: 'abc', offset: 20 });
+      const errors = await validateDto({ cursor });
+      expect(errors).toHaveLength(0);
+    });
+
     it('accepts an absent cursor (optional)', async () => {
       const errors = await validateDto({});
       expect(errors).toHaveLength(0);
@@ -36,6 +42,18 @@ describe('CursorPaginationDto — centralised pagination validation (#1995)', ()
 
     it('rejects valid base64 JSON without an id field', async () => {
       const bad = Buffer.from(JSON.stringify({ foo: 'bar' })).toString('base64');
+      const errors = await validateDto({ cursor: bad });
+      expect(errors.some((e) => e.includes('cursor'))).toBe(true);
+    });
+
+    it('rejects an ID-only cursor that would restart pagination', async () => {
+      const bad = encodeCursor({ id: 'abc' });
+      const errors = await validateDto({ cursor: bad });
+      expect(errors.some((e) => e.includes('cursor'))).toBe(true);
+    });
+
+    it('rejects malformed cursor positions', async () => {
+      const bad = encodeCursor({ id: 'abc', createdAt: 'not-a-date' });
       const errors = await validateDto({ cursor: bad });
       expect(errors.some((e) => e.includes('cursor'))).toBe(true);
     });
