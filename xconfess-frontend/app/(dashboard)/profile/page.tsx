@@ -22,6 +22,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/app/components/ui/ca
 import apiClient from "@/app/lib/api";
 import { useAuth } from "@/app/lib/hooks/useAuth";
 import { formatDate } from "@/app/lib/utils/formatDate";
+import { RecipientTipHistory } from "@/app/components/profile/RecipientTipHistory";
 
 type ProfileSummary = {
   profile: {
@@ -142,7 +143,7 @@ function LocalWalletProfile() {
 }
 export default function ProfilePage() {
   const router = useRouter();
-  const { isAuthenticated, isLoading } = useAuth();
+  const { user, isAuthenticated, isLoading } = useAuth();
   const [page, setPage] = useState(1);
   const [summary, setSummary] = useState<ProfileSummary | null>(null);
   const [loading, setLoading] = useState(true);
@@ -337,6 +338,8 @@ export default function ProfilePage() {
             </CardContent>
           </Card>
         </section>
+
+        {user?.id && <RecipientTipHistory userId={user.id} />}
       </div>
     </div>
   );
