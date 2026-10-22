@@ -84,10 +84,17 @@ export class UserService {
     email: string,
     password: string,
     username: string,
+    requestId?: string,
   ): Promise<User> {
+    // Correlation suffix for log lines so a failed registration can be traced
+    // from the frontend x-request-id to backend logs (#1730). Never log the
+    // email, password, or username values themselves.
+    const trace = requestId ? ` [requestId=${requestId}]` : '';
+
     const normalizedEmail = email.trim().toLowerCase();
     const existing = await this.findByEmail(normalizedEmail);
     if (existing) {
+      this.logger.warn(`Registration rejected: email already in use${trace}`);
       throw new AppException(
         'An account with this email already exists.',
         ErrorCode.ALREADY_EXISTS,
@@ -97,6 +104,7 @@ export class UserService {
     }
     const existingUsername = await this.findByUsername(username);
     if (existingUsername) {
+      this.logger.warn(`Registration rejected: username already taken${trace}`);
       throw new AppException(
         'This username is already taken.',
         ErrorCode.ALREADY_EXISTS,
@@ -128,9 +136,10 @@ export class UserService {
           savedUser.username,
         );
       } catch (err) {
-        // Ignore email sending failures as they shouldn't block user creation
+        // Ignore email sending failures as they shouldn't block user creation.
+        // Reference the new user by id — never log the email address.
         this.logger.warn(
-          `Failed to send welcome email to ${normalizedEmail}: ${
+          `Failed to send welcome email for user ${savedUser.id}${trace}: ${
             err instanceof Error ? err.message : err
           }`,
         );
@@ -141,6 +150,9 @@ export class UserService {
         throw error;
       }
       if ((error as { code?: string })?.code === '23505') {
+        this.logger.warn(
+          `Registration rejected: unique constraint violation${trace}`,
+        );
         throw new AppException(
           'Email or username already in use.',
           ErrorCode.ALREADY_EXISTS,
@@ -148,7 +160,7 @@ export class UserService {
         );
       }
       this.logger.error(
-        `Failed to create user: ${
+        `Failed to create user${trace}: ${
           error instanceof Error ? error.message : String(error)
         }`,
         error instanceof Error ? error.stack : undefined,

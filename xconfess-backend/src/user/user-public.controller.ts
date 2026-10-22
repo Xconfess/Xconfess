@@ -1,4 +1,5 @@
-import { Body, Controller, Post } from '@nestjs/common';
+import { Body, Controller, Post, Req } from '@nestjs/common';
+import type { Request } from 'express';
 import { ApiBody, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { RegisterDto } from '../auth/dto/register.dto';
 import { CryptoUtil } from '../common/crypto.util';
@@ -18,11 +19,18 @@ export class UserPublicController {
     status: 201,
     description: 'Account created.',
   })
-  async register(@Body() dto: RegisterDto): Promise<{ user: UserResponse }> {
+  async register(
+    @Body() dto: RegisterDto,
+    @Req() req: Request,
+  ): Promise<{ user: UserResponse }> {
+    // Set by RequestIdMiddleware; forwarded so registration failures are
+    // traceable from the frontend x-request-id to backend logs (#1730).
+    const requestId = (req as Request & { requestId?: string }).requestId;
     const user = await this.userService.create(
       dto.email,
       dto.password,
       dto.username,
+      requestId,
     );
 
     return { user: this.toUserResponse(user) };

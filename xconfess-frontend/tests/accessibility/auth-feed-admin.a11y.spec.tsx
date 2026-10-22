@@ -88,6 +88,10 @@ jest.mock("lucide-react", () => {
     Eye: icon("eye"),
     EyeOff: icon("eye-off"),
     ShieldCheck: icon("shield-check"),
+    UserPlus: icon("user-plus"),
+    LogIn: icon("log-in"),
+    Check: icon("check"),
+    Copy: icon("copy"),
   };
 });
 

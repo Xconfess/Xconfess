@@ -424,6 +424,85 @@ describe('UserService', () => {
     });
   });
 
+  describe('create — request id tracing (#1730)', () => {
+    const data = {
+      email: 'trace@example.com',
+      password: 'password123',
+      username: 'traceuser',
+    };
+    let errorSpy: jest.SpyInstance;
+    let warnSpy: jest.SpyInstance;
+
+    beforeEach(() => {
+      (bcrypt.hash as jest.Mock).mockResolvedValue('hashedpassword' as never);
+      errorSpy = jest
+        .spyOn((service as any).logger, 'error')
+        .mockImplementation(() => undefined);
+      warnSpy = jest
+        .spyOn((service as any).logger, 'warn')
+        .mockImplementation(() => undefined);
+    });
+
+    afterEach(() => {
+      errorSpy.mockRestore();
+      warnSpy.mockRestore();
+    });
+
+    it('includes the request id in the failure log and never logs credentials', async () => {
+      mockRepository.findOne.mockResolvedValue(null);
+      mockRepository.create.mockReturnValue(mockUser);
+      mockRepository.save.mockRejectedValue(new Error('Database exploded'));
+
+      await expect(
+        service.create(data.email, data.password, data.username, 'req-trace-1'),
+      ).rejects.toThrow(InternalServerErrorException);
+
+      expect(errorSpy).toHaveBeenCalled();
+      const logged = errorSpy.mock.calls.map((c) => String(c[0])).join('\n');
+      expect(logged).toContain('req-trace-1');
+      expect(logged).not.toContain(data.email);
+      expect(logged).not.toContain(data.password);
+    });
+
+    it('tags conflict rejections with the request id without leaking the email', async () => {
+      mockRepository.findOne.mockResolvedValueOnce(mockUser);
+
+      await expect(
+        service.create(data.email, data.password, data.username, 'req-trace-2'),
+      ).rejects.toMatchObject({ status: 409 });
+
+      const logged = warnSpy.mock.calls.map((c) => String(c[0])).join('\n');
+      expect(logged).toContain('req-trace-2');
+      expect(logged).not.toContain(data.email);
+    });
+
+    it('does not log the email address when the welcome email fails', async () => {
+      mockRepository.findOne.mockResolvedValue(null);
+      mockRepository.create.mockReturnValue(mockUser);
+      mockRepository.save.mockResolvedValue(mockUser);
+      mockEmailService.sendWelcomeEmail.mockRejectedValue(new Error('smtp down'));
+
+      await service.create(data.email, data.password, data.username, 'req-trace-3');
+
+      const logged = warnSpy.mock.calls.map((c) => String(c[0])).join('\n');
+      expect(logged).toContain('req-trace-3');
+      expect(logged).not.toContain(data.email);
+    });
+
+    it('omits the request id marker when none is provided', async () => {
+      mockRepository.findOne.mockResolvedValue(null);
+      mockRepository.create.mockReturnValue(mockUser);
+      mockRepository.save.mockRejectedValue(new Error('Database exploded'));
+
+      await expect(
+        service.create(data.email, data.password, data.username),
+      ).rejects.toThrow(InternalServerErrorException);
+
+      const logged = errorSpy.mock.calls.map((c) => String(c[0])).join('\n');
+      expect(logged).not.toContain('requestId=');
+    });
+  });
+
   describe('deactivateAccount', () => {
     it('should deactivate a user account', async () => {
       const userId = 1;

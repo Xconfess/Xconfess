@@ -1,6 +1,7 @@
 import { createApiErrorResponse } from "@/lib/apiErrorHandler";
 import { getApiBaseUrl } from "@/app/lib/config";
 import { getOrCreateRequestId } from "@/app/lib/utils/requestId";
+import { methodNotAllowedHandlers } from "@/app/lib/api/proxy";
 
 
 async function sha256Hex(input: string): Promise<string> {
@@ -170,3 +171,5 @@ export async function POST(
     });
   }
 }
+
+export const { GET, PUT, PATCH, DELETE } = methodNotAllowedHandlers(["POST"]);

@@ -111,20 +111,81 @@ async function ensureConfessionReadinessIndexes(client) {
   console.log('Render prestart ensured confession readiness indexes.');
 }
 
-async function main() {
-  if (!enabled('TYPEORM_BASELINE_EXISTING_SCHEMA')) {
-    console.log('Render prestart baseline skipped: TYPEORM_BASELINE_EXISTING_SCHEMA is not enabled.');
-    return;
-  }
+/**
+ * Pure decision logic for the Render prestart baseline step. Kept side-effect
+ * free so it can be unit tested against the four cases that matter:
+ *   - the feature flags are disabled                -> skip
+ *   - no compiled migrations are on disk            -> error (build did not run)
+ *   - the database is fresh (core tables missing)   -> skip, never baseline
+ *   - migration history already has rows            -> skip, never duplicate rows
+ *   - core tables exist and history is empty        -> baseline
+ *
+ * @param {{
+ *   baselineEnabled: boolean,
+ *   migrationsRunEnabled: boolean,
+ *   migrationsAvailable: boolean,
+ *   coreTablesPresent: boolean,
+ *   migrationHistoryCount: number,
+ * }} state
+ * @returns {{ action: 'skip' | 'baseline' | 'error', reason: string }}
+ */
+function evaluateBaselineDecision(state) {
+  const {
+    baselineEnabled,
+    migrationsRunEnabled,
+    migrationsAvailable,
+    coreTablesPresent,
+    migrationHistoryCount,
+  } = state;
 
-  if (!enabled('TYPEORM_MIGRATIONS_RUN')) {
-    console.log('Render prestart baseline skipped: TYPEORM_MIGRATIONS_RUN is not enabled.');
+  if (!baselineEnabled) {
+    return { action: 'skip', reason: 'TYPEORM_BASELINE_EXISTING_SCHEMA is not enabled.' };
+  }
+  if (!migrationsRunEnabled) {
+    return { action: 'skip', reason: 'TYPEORM_MIGRATIONS_RUN is not enabled.' };
+  }
+  if (!migrationsAvailable) {
+    return {
+      action: 'error',
+      reason: 'No compiled migrations found. Build must run before render:prestart.',
+    };
+  }
+  if (!coreTablesPresent) {
+    return { action: 'skip', reason: 'database does not look pre-synchronized.' };
+  }
+  if (Number(migrationHistoryCount) > 0) {
+    return { action: 'skip', reason: 'migrations table already has entries.' };
+  }
+  return { action: 'baseline', reason: 'core tables exist and migration history is empty.' };
+}
+
+async function main() {
+  const baselineEnabled = enabled('TYPEORM_BASELINE_EXISTING_SCHEMA');
+  const migrationsRunEnabled = enabled('TYPEORM_MIGRATIONS_RUN');
+
+  // Resolve everything we can decide before touching the database.
+  const flagDecision = evaluateBaselineDecision({
+    baselineEnabled,
+    migrationsRunEnabled,
+    migrationsAvailable: true,
+    coreTablesPresent: true,
+    migrationHistoryCount: 0,
+  });
+  if (flagDecision.action === 'skip') {
+    console.log(`Render prestart baseline skipped: ${flagDecision.reason}`);
     return;
   }
 
   const migrations = loadMigrations();
-  if (migrations.length === 0) {
-    throw new Error('No compiled migrations found. Build must run before render:prestart.');
+  const noMigrationsDecision = evaluateBaselineDecision({
+    baselineEnabled,
+    migrationsRunEnabled,
+    migrationsAvailable: migrations.length > 0,
+    coreTablesPresent: true,
+    migrationHistoryCount: 0,
+  });
+  if (noMigrationsDecision.action === 'error') {
+    throw new Error(noMigrationsDecision.reason);
   }
 
   const client = new Client({
@@ -139,9 +200,17 @@ async function main() {
   try {
     const hasUserTable = await tableExists(client, 'user');
     const hasConfessionsTable = await tableExists(client, 'anonymous_confessions');
+    const coreTablesPresent = hasUserTable && hasConfessionsTable;
 
-    if (!hasUserTable || !hasConfessionsTable) {
-      console.log('Render prestart baseline skipped: database does not look pre-synchronized.');
+    if (!coreTablesPresent) {
+      const decision = evaluateBaselineDecision({
+        baselineEnabled,
+        migrationsRunEnabled,
+        migrationsAvailable: true,
+        coreTablesPresent,
+        migrationHistoryCount: 0,
+      });
+      console.log(`Render prestart baseline skipped: ${decision.reason}`);
       return;
     }
 
@@ -157,8 +226,18 @@ async function main() {
     `);
 
     const existing = await client.query('SELECT COUNT(*)::int AS count FROM "migrations";');
-    if (existing.rows[0]?.count > 0) {
-      console.log('Render prestart baseline skipped: migrations table already has entries.');
+    const migrationHistoryCount = existing.rows[0]?.count ?? 0;
+
+    const decision = evaluateBaselineDecision({
+      baselineEnabled,
+      migrationsRunEnabled,
+      migrationsAvailable: migrations.length > 0,
+      coreTablesPresent,
+      migrationHistoryCount,
+    });
+
+    if (decision.action !== 'baseline') {
+      console.log(`Render prestart baseline skipped: ${decision.reason}`);
       return;
     }
 
@@ -179,7 +258,11 @@ async function main() {
   }
 }
 
-main().catch((error) => {
-  console.error(error.message || error);
-  process.exit(1);
-});
+module.exports = { evaluateBaselineDecision, loadMigrations };
+
+if (require.main === module) {
+  main().catch((error) => {
+    console.error(error.message || error);
+    process.exit(1);
+  });
+}

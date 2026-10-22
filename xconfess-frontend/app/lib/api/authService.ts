@@ -69,6 +69,35 @@ apiClient.interceptors.response.use(
 );
 
 /**
+ * Pull the correlation / request id out of a proxy error response so failed
+ * auth attempts can surface it to the user for log tracing (issue #1729).
+ * Prefers the `x-request-id` response header, then common body fields.
+ */
+export function extractResponseRequestId(
+  response: Pick<Response, 'headers'>,
+  body?: unknown,
+): string | undefined {
+  // Header names are case-insensitive per the Fetch spec.
+  const headerId =
+    response.headers.get('x-request-id') ||
+    response.headers.get('x-correlation-id');
+  if (headerId && headerId.trim().length > 0) {
+    return headerId.trim();
+  }
+
+  if (body && typeof body === 'object') {
+    const record = body as Record<string, unknown>;
+    const bodyId =
+      record.requestId ?? record.request_id ?? record.correlationId;
+    if (typeof bodyId === 'string' && bodyId.trim().length > 0) {
+      return bodyId.trim();
+    }
+  }
+
+  return undefined;
+}
+
+/**
  * Authentication API service
  */
 export const authApi = {
@@ -96,6 +125,7 @@ export const authApi = {
             responseBody: body,
             path: '/api/auth/session',
             normalized,
+            requestId: extractResponseRequestId(response, body),
           });
           logError(appError, 'authApi.login', { status: response.status });
           throw appError;
@@ -117,6 +147,7 @@ export const authApi = {
           path: '/api/auth/session',
           upstreamMessage:
             typeof rawApi === 'string' ? rawApi : undefined,
+          requestId: extractResponseRequestId(response, body),
         });
         logError(apiError, 'authApi.login', { status, url: '/api/auth/session' });
         throw apiError;
@@ -153,6 +184,7 @@ export const authApi = {
           responseBody: body,
           path: '/api/users/register',
           field,
+          requestId: extractResponseRequestId(response, body),
         });
       }
 

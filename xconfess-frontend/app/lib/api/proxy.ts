@@ -40,18 +40,43 @@ export function resolveBackendRoute(
 }
 
 export function methodNotAllowed(method: string, allowed: string[]): Response {
-  return Response.json(
-    {
+  const allowHeader = allowed.join(', ');
+  return new Response(
+    JSON.stringify({
       code: 'METHOD_NOT_ALLOWED',
-      message: `Method ${method} is not allowed. Use ${allowed.join(', ')}.`,
-    },
+      message: `Method ${method} is not allowed. Use ${allowHeader}.`,
+    }),
     {
       status: 405,
       headers: {
-        Allow: allowed.join(', '),
+        'Content-Type': 'application/json',
+        Allow: allowHeader,
       },
     },
   );
+}
+
+// Methods a proxy route may need an explicit 405 for. OPTIONS/HEAD are left to
+// Next.js so CORS preflight and HEAD-of-GET keep working.
+const STANDARD_HTTP_METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'] as const;
+
+/**
+ * Build route handlers that return a standardized 405 for every standard HTTP
+ * method not in `allowed`. Spread the result into a route module, e.g.:
+ *
+ *   export const { PUT, PATCH, DELETE } = methodNotAllowedHandlers(['GET', 'POST']);
+ */
+export function methodNotAllowedHandlers(
+  allowed: string[],
+): Record<string, () => Response> {
+  const allowedSet = new Set(allowed.map((method) => method.toUpperCase()));
+  const handlers: Record<string, () => Response> = {};
+  for (const method of STANDARD_HTTP_METHODS) {
+    if (!allowedSet.has(method)) {
+      handlers[method] = () => methodNotAllowed(method, allowed);
+    }
+  }
+  return handlers;
 }
 
 export async function proxyRequest<T = unknown>(

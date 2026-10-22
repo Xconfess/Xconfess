@@ -9,6 +9,8 @@ import { Input } from '@/app/components/ui/input';
 import { BrandLogo } from '@/app/components/brand/BrandLogo';
 import { useAuth } from '@/app/lib/hooks/useAuth';
 import { isSafeAuthRedirect } from '@/app/lib/utils/auth-redirect';
+import { extractRequestId } from '@/app/lib/utils/errorHandler';
+import { RequestIdNotice } from '@/app/components/auth/RequestIdNotice';
 import {
   validateLoginForm,
   parseLoginForm,
@@ -25,6 +27,7 @@ export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [errors, setErrors] = useState<ValidationErrors>({});
+  const [errorRequestId, setErrorRequestId] = useState<string | undefined>();
   const [loading, setLoading] = useState(false);
 
   const doMockAdminLogin = async () => {
@@ -63,6 +66,7 @@ export default function LoginPage() {
 
     setLoading(true);
     setErrors({});
+    setErrorRequestId(undefined);
     try {
       const user = await login({
         email: parsed.data.email,
@@ -76,6 +80,7 @@ export default function LoginPage() {
     } catch (e: unknown) {
       const message = e instanceof Error ? e.message : 'Login failed';
       setErrors({ password: message });
+      setErrorRequestId(extractRequestId(e));
     } finally {
       setLoading(false);
     }
@@ -118,6 +123,10 @@ export default function LoginPage() {
               <div className="mt-5 rounded-xl border border-red-500/25 bg-red-950/30 p-3 text-sm text-red-200">
                 {errors.password}
               </div>
+            )}
+
+            {errorRequestId && (errors.email || errors.password) && (
+              <RequestIdNotice requestId={errorRequestId} />
             )}
 
             <div className="mt-6 space-y-4">
