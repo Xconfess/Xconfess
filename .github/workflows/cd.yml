@@ -165,14 +165,14 @@ jobs:
 
       - name: Download backend artifact
         if: needs.prepare.outputs.run_build == 'true'
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: xconfess-backend-dist-${{ github.run_id }}
           path: xconfess-backend/dist
 
       - name: Download frontend artifact
         if: needs.prepare.outputs.run_build == 'true'
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: xconfess-frontend-build-${{ github.run_id }}
           path: xconfess-frontend/.next
