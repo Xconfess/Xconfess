@@ -123,14 +123,14 @@ jobs:
         run: npm run build --workspace=xconfess-frontend
 
       - name: Upload backend artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: xconfess-backend-dist-${{ github.run_id }}
           path: xconfess-backend/dist
           retention-days: 7
 
       - name: Upload frontend artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: xconfess-frontend-build-${{ github.run_id }}
           path: xconfess-frontend/.next
