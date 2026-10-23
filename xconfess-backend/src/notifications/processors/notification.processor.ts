@@ -1,6 +1,7 @@
 import { Processor, OnWorkerEvent, InjectQueue, WorkerHost } from '@nestjs/bullmq';
 import { Logger } from '@nestjs/common';
-import { Job, Queue, JobsOptions } from 'bullmq';
+import { Job, Queue } from 'bullmq';
+import type { Redis } from 'ioredis';
 import { createHash, randomUUID } from 'node:crypto';
 import type Redis from 'ioredis';
 import { EmailNotificationService } from '../services/email-notification.service';
@@ -186,9 +187,10 @@ export class NotificationProcessor extends WorkerHost {
     const digest = createHash('sha256').update(idempotencyKey).digest('hex');
     const deliveredKey = `notification:delivered:${digest}`;
     const lockKey = `notification:processing:${digest}`;
-    const redis = (await this.notificationQueue.client) as unknown as Pick<
-      Redis, 'get' | 'set' | 'eval'
-    >;
+    // This queue uses BullMQ's ioredis adapter, which forwards native commands.
+    const redis = (await this.notificationQueue.client) as Awaited<
+      Queue['client']
+    > & Pick<Redis, 'set' | 'eval'>;
 
     if (await redis.get(deliveredKey)) return false;
 

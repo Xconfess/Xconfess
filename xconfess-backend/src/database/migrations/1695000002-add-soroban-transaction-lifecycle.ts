@@ -8,7 +8,7 @@ export class AddSorobanTransactionLifecycle1695000002 implements MigrationInterf
       new TableColumn({
         name: 'submission_status',
         type: 'varchar',
-        length: 50,
+        length: '50',
         default: "'submitted'",
         isNullable: false,
       }),

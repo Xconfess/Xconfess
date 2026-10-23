@@ -48,7 +48,7 @@ const ANONYMOUS_CONFESSION_VARIANTS = [
 
 async function setupAnonymousConfessionMocks(page: Page) {
   let authenticated = false;
-  let anonymousUserId = "anon-user-" + Math.random().toString(36).slice(2, 9);
+  const anonymousUserId = "anon-user-" + Math.random().toString(36).slice(2, 9);
   const createdConfessions: any[] = [];
 
   // Auth: login

@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import axios from "axios";
+import { useRouter } from "next/navigation";
 import {
   Card,
   CardContent,
@@ -28,7 +29,7 @@ import { Eye, EyeOff, Send, Loader2, LockKeyhole } from "lucide-react";
 import { cn } from "@/app/lib/utils/cn";
 import apiClient from "@/app/lib/api/client";
 import { useGlobalToast } from "@/app/components/common/Toast";
-import { clearPendingConfession, loadPendingConfession } from "@/app/lib/utils/pendingConfession";
+import { buildAuthRedirectUrl, clearPendingConfession, loadPendingConfession, savePendingConfession } from "@/app/lib/utils/pendingConfession";
 import { clearSessionDraft, loadSessionDraft, saveSessionDraft } from "@/app/lib/utils/sessionDraft";
 import { useAuth } from "@/app/lib/hooks/useAuth";
 import { InlineError } from "@/app/components/common/InlineError";
@@ -113,6 +114,7 @@ export const EnhancedConfessionForm: React.FC<EnhancedConfessionFormProps> = ({
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitSuccess, setSubmitSuccess] = useState(false);
   const { isAuthenticated, isLoading: isAuthLoading } = useAuth();
+  const router = useRouter();
 
   const submitSuccessTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
     null
@@ -237,6 +239,13 @@ export const EnhancedConfessionForm: React.FC<EnhancedConfessionFormProps> = ({
     if (hasValidationErrors) {
       setErrors(currentValidationErrors);
       setSubmitError("Please review the highlighted fields and try again.");
+      return;
+    }
+
+    if (isAuthLoading) return;
+    if (!isAuthenticated) {
+      savePendingConfession({ title, body, gender, enableStellarAnchor });
+      router.push(buildAuthRedirectUrl("/login"));
       return;
     }
 

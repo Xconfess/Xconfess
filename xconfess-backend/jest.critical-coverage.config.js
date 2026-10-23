@@ -17,25 +17,25 @@ module.exports = {
   coverageDirectory: '<rootDir>/coverage/critical-modules',
   coverageReporters: ['text'],
   coverageThreshold: {
-    '<rootDir>/src/auth/auth.service.ts': {
+    './src/auth/auth.service.ts': {
       branches: 35,
       functions: 50,
       lines: 55,
       statements: 55,
     },
-    '<rootDir>/src/moderation/moderation-state-machine.ts': {
+    './src/moderation/moderation-state-machine.ts': {
       branches: 50,
       functions: 80,
       lines: 80,
       statements: 80,
     },
-    '<rootDir>/src/data-export/data-export.service.ts': {
+    './src/data-export/data-export.service.ts': {
       branches: 30,
       functions: 50,
       lines: 55,
       statements: 55,
     },
-    '<rootDir>/src/tipping/tipping.service.ts': {
+    './src/tipping/tipping.service.ts': {
       branches: 30,
       functions: 50,
       lines: 55,

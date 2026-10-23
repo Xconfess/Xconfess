@@ -37,13 +37,19 @@ export function useMessagesWebSocket(options: UseMessagesWebSocketOptions = {}) 
   ) => {
     switch (event) {
       case 'new_message':
-        onNewMessage?.(payload.threadId, payload.messageId, payload.preview);
+        if ('messageId' in payload && 'preview' in payload) {
+          onNewMessage?.(payload.threadId, payload.messageId, payload.preview);
+        }
         break;
       case 'new_reply':
-        onNewReply?.(payload.threadId, payload.messageId, payload.replyPreview);
+        if ('messageId' in payload && 'replyPreview' in payload) {
+          onNewReply?.(payload.threadId, payload.messageId, payload.replyPreview);
+        }
         break;
       case 'message_read':
-        onMessageRead?.(payload.threadId, payload.messageIds);
+        if ('messageIds' in payload) {
+          onMessageRead?.(payload.threadId, payload.messageIds);
+        }
         break;
       case 'thread_updated':
         onThreadUpdated?.(payload.threadId);
@@ -100,7 +106,7 @@ export function useMessageReconciliation(
 ) {
   const { enabled = true } = options;
   const [pendingReconciliation, setPendingReconciliation] = useState(false);
-  const lastFetchRef = useRef<number>(0);
+  const [lastFetch, setLastFetch] = useState(0);
   const reconcilingRef = useRef(false);
 
   // Trigger reconciliation after reconnect
@@ -112,7 +118,7 @@ export function useMessageReconciliation(
     
     try {
       await fetchMessages();
-      lastFetchRef.current = Date.now();
+      setLastFetch(Date.now());
     } catch (error) {
       console.error('Message reconciliation failed:', error);
     } finally {
@@ -138,6 +144,6 @@ export function useMessageReconciliation(
     pendingReconciliation,
     onReconnect,
     reconcile,
-    lastFetch: lastFetchRef.current,
+    lastFetch,
   };
 }

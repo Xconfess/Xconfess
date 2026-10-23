@@ -120,8 +120,11 @@ describe('StellarAddressValidator', () => {
 
     it('should extract account ID from muxed address', () => {
       const keypair = StellarSDK.Keypair.random();
-      const muxedAddress = new StellarSDK.MuxedAccount(keypair.publicKey(), '123');
-      const result = validator.validateMuxedAddress(muxedAddress.accountId);
+      const muxedAddress = new StellarSDK.MuxedAccount(
+        new StellarSDK.Account(keypair.publicKey(), '0'),
+        '123',
+      );
+      const result = validator.validateMuxedAddress(muxedAddress.accountId());
       expect(result).toBe(keypair.publicKey());
     });
 

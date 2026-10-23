@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { IsNull, Repository } from 'typeorm';
 import { AnonymousConfession } from '../confession/entities/confession.entity';
 
 @Injectable()
@@ -31,7 +31,7 @@ export class SearchDeterminismService {
   async initializeTiebreakers(): Promise<void> {
     const confessions = await this.confessionRepository.find({
       where: {
-        searchScoreTiebreaker: null,
+        searchScoreTiebreaker: IsNull(),
       },
     });
 

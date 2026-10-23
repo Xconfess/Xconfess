@@ -22,6 +22,7 @@ export interface StellarWalletState {
 export interface UseStellarWalletReturn extends StellarWalletState {
   connect: () => Promise<void>;
   disconnect: () => void;
+  validateConnection: () => Promise<boolean>;
   signAndSubmitAnchorTx: (xdr: string) => Promise<string>;
 }
 
