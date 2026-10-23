@@ -96,8 +96,34 @@ Unresolved verified blockers:
   not evidence that the contract tests passed or that GitHub's runner will
   encounter the same linker bug.
 
-The initial temporary Linux filesystem filled during a reinstall. A dedicated
-Docker volume is used for subsequent verification. That failure is recorded as
-an environment limitation, not a passing install. Final app/integration results
-will be recorded after the remaining reruns finish. No hosted CI run has been
-triggered, so this branch must not be described as fully green.
+Final recorded results:
+
+- `npm run ci:apps` passed: both builds, both linters and frontend typechecking.
+- Critical backend coverage passed: 4 suites, 81 tests, thresholds unchanged.
+- Targeted backend regressions passed: 6 suites, 82 tests. Frontend composer,
+  WebSocket and wallet regressions passed: 3 suites, 23 tests. Both linters
+  passed again after the final source repairs.
+- PostgreSQL/Redis readiness passed. Empty-database migration smoke failed:
+  `AddMessageHistoryPaginationIndexes20260927000001` accesses `messages` before
+  its creation. Calendar-style migration timestamps sort before foundational
+  epoch timestamps under TypeORM's last-13-digit ordering. Renaming historical
+  migrations requires deployment-history review and was not done here.
+- API startup exposed an all-zero confession key and a missing envelope key in
+  CI. The workflow now supplies quoted, nonzero synthetic test-only keys without
+  relaxing validation. Startup and API contract drift remain unverified after
+  that change: Docker Desktop was unavailable on the final retry.
+- Playwright Chromium installation failed with DNS `ENOTFOUND` for
+  `cdn.playwright.dev`; accessibility checks could not run.
+- Contract formatting passed. The locked WASM release build and subsequent
+  manifest comparison passed after regenerating the stale release manifest.
+- Dependency update experiments were reverted; package manifests and lockfile
+  were preserved. No new advisory suppressions were added.
+
+The initial temporary Linux filesystem filled during a reinstall; a subsequent
+clean install in a dedicated Docker volume passed with dependency lifecycle
+scripts disabled after inspection. Logs and result records remain in ignored
+`readiness-results/`. Docker Desktop was unavailable at final verification, so
+container cleanup and final workflow validation could not be repeated. Earlier
+actionlint validation passed; the final workflow edit only supplies test keys.
+No hosted CI was triggered during this verification. This branch is not fully green.
+Publishing this branch for review does not imply that the remaining checks pass.
