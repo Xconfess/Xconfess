@@ -9,6 +9,7 @@ import {
   Query,
   Req,
   UseGuards,
+  Headers,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { OwnershipGuard } from '../common/guards/ownership.guard';
@@ -33,8 +34,12 @@ export class MessagesController {
   @Post()
   @UseGuards(RateLimitGuard)
   @RateLimit(10, 60, 3, 60)
-  async createMessage(@Body() dto: CreateMessageDto, @Req() req: any) {
-    return this.messagesService.create(dto, req.user);
+  async createMessage(
+    @Body() dto: CreateMessageDto,
+    @Req() req: any,
+    @Headers('idempotency-key') idempotencyKey?: string,
+  ) {
+    return this.messagesService.create(dto, req.user, idempotencyKey);
   }
 
   /**

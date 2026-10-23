@@ -191,7 +191,7 @@ describe('EmailNotificationService', () => {
       mockPreferenceRepository.findOne.mockResolvedValue(basePreference);
       mockTransporter.sendMail.mockRejectedValue(new Error('SMTP Error'));
 
-      await expect(service.sendEmail(jobData)).rejects.toThrow('SMTP Error');
+      await expect(service.sendEmail(jobData)).rejects.toThrow('Email delivery failed');
     });
   });
 });

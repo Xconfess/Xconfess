@@ -52,6 +52,7 @@ function createStatefulQueryBuilder(dataset: Row[]) {
       return builder;
     }),
     orderBy: jest.fn(() => builder),
+    addOrderBy: jest.fn(() => builder),
     take: jest.fn((n: number) => {
       take = n;
       return builder;

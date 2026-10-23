@@ -18,6 +18,7 @@ import { encryptConfession } from '../utils/confession-encryption';
 import { encodeCursor } from '../common/pagination';
 import { AnomalyDetectionService } from '../anomaly/anomaly-detection.service';
 import { ConfessionIdempotencyService } from './confession-idempotency.service';
+import { DataSource } from 'typeorm';
 
 jest.mock('../utils/confession-encryption', () => ({
   decryptConfession: jest.fn((value: string) => value ?? ''),
@@ -87,6 +88,7 @@ function buildProviders(qb: any, cacheService: any) {
     { provide: TagService, useValue: { validateTags: jest.fn() } },
     anomalyDetectionProvider,
     idempotencyServiceProvider,
+    { provide: DataSource, useValue: {} },
   ];
 }
 
@@ -171,7 +173,7 @@ describe('ConfessionService — feed pagination', () => {
 
       expect(qb.andWhere).toHaveBeenCalledWith(
         expect.stringContaining('confession.created_at'),
-        expect.objectContaining({ createdAt: cursorDate, id: 'c1' }),
+        expect.objectContaining({ createdAt: new Date(cursorDate), id: 'c1' }),
       );
       expect(result.data).toHaveLength(2);
     });
@@ -208,7 +210,7 @@ describe('ConfessionService — feed pagination', () => {
     expect(qb.andWhere).toHaveBeenCalledWith(
       '(confession.created_at, confession.id) < (:createdAt, :id)',
       {
-        createdAt: timestamp.toISOString(),
+        createdAt: timestamp,
         id: '00000000-0000-0000-0000-000000000002',
       },
     );
@@ -399,6 +401,7 @@ function buildSearchProviders(repoValue: any) {
     { provide: TagService, useValue: { validateTags: jest.fn() } },
     anomalyDetectionProvider,
     idempotencyServiceProvider,
+    { provide: DataSource, useValue: {} },
   ];
 }
 

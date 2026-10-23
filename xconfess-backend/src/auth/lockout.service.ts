@@ -50,7 +50,7 @@ export class LockoutService {
   async recordFailedAttempt(email: string): Promise<LockoutStatus> {
     const raw = await this.cache.get<string>(ATTEMPTS_KEY(email));
     const attempts = parseInt(raw ?? '0', 10) + 1;
-    await this.cache.set(ATTEMPTS_KEY(email), String(attempts), 30 * 60);
+    await this.cache.set(ATTEMPTS_KEY(email), String(attempts), 30 * 60 * 1000);
 
     if (attempts >= MAX_ATTEMPTS) {
       const rawCount = await this.cache.get<string>(COUNT_KEY(email));
@@ -63,12 +63,12 @@ export class LockoutService {
       await this.cache.set(
         LOCKED_KEY(email),
         lockedUntil.toISOString(),
-        durationSeconds,
+        durationSeconds * 1000,
       );
       await this.cache.set(
         COUNT_KEY(email),
         String(lockCount),
-        7 * 24 * 60 * 60,
+        7 * 24 * 60 * 60 * 1000,
       );
       await this.cache.del(ATTEMPTS_KEY(email));
       this.logger.warn(

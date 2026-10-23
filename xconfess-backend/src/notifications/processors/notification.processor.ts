@@ -3,13 +3,19 @@ import { Logger } from '@nestjs/common';
 import { Job, Queue } from 'bullmq';
 import type { Redis } from 'ioredis';
 import { createHash, randomUUID } from 'node:crypto';
+import type Redis from 'ioredis';
 import { EmailNotificationService } from '../services/email-notification.service';
 import { NotificationType } from '../entities/notification.entity';
 import { AppLogger } from '../../logger/logger.service';
-import { redactSecretStrings } from '../../utils/redact-secrets';
 
 export const NOTIFICATION_QUEUE = 'notifications';
 export const NOTIFICATION_DLQ = 'notifications-dlq';
+export const NOTIFICATION_JOB_OPTIONS: JobsOptions = {
+  attempts: 5,
+  backoff: { type: 'exponential', delay: 2000 },
+  removeOnComplete: { count: 500 },
+  removeOnFail: false,
+};
 
 export interface NotificationJobData {
   userId: string;
@@ -106,9 +112,13 @@ export class NotificationProcessor extends WorkerHost {
 
     const maxAttempts = (job.opts as any)?.attempts ?? 1;
 
-    const safeError = redactSecretStrings(error.message)
-      .replace(/[\r\n\t]+/g, ' ')
-      .slice(0, 500);
+    // SMTP error text can contain credentials, recipients and private content.
+    // Persist only an allowlisted classification in logs and DLQ metadata.
+    const code = (error as Error & { code?: string }).code;
+    const safeError = code && [
+      'ETIMEDOUT', 'ECONNECTION', 'ECONNREFUSED', 'EAUTH',
+      'EENVELOPE', 'EMESSAGE', 'ESOCKET',
+    ].includes(code) ? code : 'DELIVERY_FAILED';
     this.logger.warn(
       `Job ${job.id} failed (attempt ${job.attemptsMade}/${maxAttempts}): ${safeError}`,
     );
@@ -144,7 +154,7 @@ export class NotificationProcessor extends WorkerHost {
             failedAt: new Date().toISOString(),
             attemptsMade: job.attemptsMade,
             lastError: safeError,
-            lastErrorClass: error.name || 'Error',
+            lastErrorClass: 'Error',
           },
         },
         {

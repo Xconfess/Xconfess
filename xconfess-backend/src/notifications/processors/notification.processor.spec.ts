@@ -137,7 +137,7 @@ describe('NotificationProcessor', () => {
       'dead-letter',
       expect.objectContaining({
         ...job.data,
-        _meta: expect.objectContaining({ originalJobId: String(job.id), attemptsMade: job.attemptsMade, lastError: 'terminal failure' }),
+        _meta: expect.objectContaining({ originalJobId: String(job.id), attemptsMade: job.attemptsMade, lastError: 'DELIVERY_FAILED' }),
       }),
       expect.objectContaining({ removeOnComplete: false, removeOnFail: false }),
     );
@@ -237,7 +237,7 @@ describe('NotificationProcessor', () => {
         _meta: expect.objectContaining({
           originalJobId: 'job-dlq-meta',
           attemptsMade: 3,
-          lastError: 'perm fail',
+          lastError: 'DELIVERY_FAILED',
           failedAt: expect.any(String),
         }),
       }),

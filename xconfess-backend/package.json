@@ -26,7 +26,8 @@
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "test:feed:e2e": "jest --config ./test/jest-e2e.json --testPathPattern=public-feed",
-    "test:websocket-fanout": "jest --config ./jest.config.js src/notifications/gateways/notification.gateway.load.spec.ts --runInBand"
+    "test:websocket-fanout": "jest --config ./jest.config.js src/notifications/gateways/notification.gateway.load.spec.ts --runInBand",
+    "test:reliability": "TZ=Africa/Lagos PG_INTEGRATION=true REDIS_INTEGRATION=true jest --config jest.config.js --runInBand --runTestsByPath src/cache/redis-outage.integration.spec.ts src/confession/feed-filter.property.pg.spec.ts src/messages/messages.concurrent.pg.spec.ts src/notifications/notification-delivery.failure.integration.spec.ts"
   },
   "dependencies": {
     "@nestjs-modules/ioredis": "^2.0.2",
@@ -130,7 +131,8 @@
     "ts-node": "^10.9.2",
     "tsconfig-paths": "^4.2.0",
     "typescript": "^5.9.3",
-    "typescript-eslint": "^8.20.0"
+    "typescript-eslint": "^8.20.0",
+    "fast-check": "^4.0.0"
   },
   "overrides": {
     "@nestjs/swagger": {
