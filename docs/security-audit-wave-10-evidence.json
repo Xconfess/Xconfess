@@ -1,0 +1,116 @@
+{
+    "date":  "2026-10-22",
+    "baseCommit":  "d16800eda897317ea668559354fedcec08702e15",
+    "trackedFiles":  1672,
+    "remoteRefs":  [
+                       "refs/remotes/origin/Godsmiracle001-patch-1",
+                       "refs/remotes/origin/Godsmiracle001-patch-2",
+                       "refs/remotes/origin/HEAD",
+                       "refs/remotes/origin/ci-fixed",
+                       "refs/remotes/origin/feat/trending-confessions-endpoint",
+                       "refs/remotes/origin/feature/22-user-registration-tests",
+                       "refs/remotes/origin/feature/28-global-rate-limiting",
+                       "refs/remotes/origin/feature/36-get-confessions-endpoint",
+                       "refs/remotes/origin/feature/anonymous-confession",
+                       "refs/remotes/origin/feature/anonymous-confession-entity",
+                       "refs/remotes/origin/feature/anonymous-context-middleware",
+                       "refs/remotes/origin/feature/comment-moderation-queue",
+                       "refs/remotes/origin/feature/comment-notification-queue",
+                       "refs/remotes/origin/feature/get-confession",
+                       "refs/remotes/origin/feature/global-rate-limiting",
+                       "refs/remotes/origin/feature/onboarding-tutorial",
+                       "refs/remotes/origin/feature/user-account-deactivation",
+                       "refs/remotes/origin/feature/user-profile-endpoint",
+                       "refs/remotes/origin/feature/xconfess-premium-native-wallet",
+                       "refs/remotes/origin/fix/mobile-freighter-responsive",
+                       "refs/remotes/origin/fix/password-reset-test-is-active",
+                       "refs/remotes/origin/fix/public-feed-ui",
+                       "refs/remotes/origin/fix/restore-npm-workflow",
+                       "refs/remotes/origin/fix/user-registration-tests",
+                       "refs/remotes/origin/main",
+                       "refs/remotes/origin/remove-program-readiness-references",
+                       "refs/remotes/origin/repo-clean",
+                       "refs/remotes/origin/revert-700-main"
+                   ],
+    "binaryOrNulFiles":  [
+                             {
+                                 "path":  "docs/adr/README.md",
+                                 "bytes":  1117,
+                                 "sha256":  "7E61ED90A844D2D4A0E0CE0777FDCAA57BA545C2F985EF9C28DE6D988E032DE5",
+                                 "header":  "EF-BB-BF-23-20-41-72-63"
+                             },
+                             {
+                                 "path":  "xconfess-frontend/app/favicon.ico",
+                                 "bytes":  25931,
+                                 "sha256":  "2B8AD2D33455A8F736FC3A8EBF8F0BDEA8848AD4C0DB48A2833BD0F9CD775932",
+                                 "header":  "00-00-01-00-04-00-10-10"
+                             },
+                             {
+                                 "path":  "xconfess-frontend/public/apple-icon.png",
+                                 "bytes":  2626,
+                                 "sha256":  "DA678942D4656A903F61000551CC51C09464D7A223FAAAE304E8210E1CA19257",
+                                 "header":  "89-50-4E-47-0D-0A-1A-0A"
+                             },
+                             {
+                                 "path":  "xconfess-frontend/public/branding/favicon.ico",
+                                 "bytes":  32674,
+                                 "sha256":  "4D8EC3C8B5648B353625C3A15C2AC11226F8100B1C1B55717462E476B987A2A5",
+                                 "header":  "00-00-01-00-07-00-10-10"
+                             },
+                             {
+                                 "path":  "xconfess-frontend/public/branding/new.png",
+                                 "bytes":  13550,
+                                 "sha256":  "82F943A20C2E0FC1DB60FFADF9A843D3AAC41D58EDADD2FDA84EAEF984EAAE5C",
+                                 "header":  "89-50-4E-47-0D-0A-1A-0A"
+                             },
+                             {
+                                 "path":  "xconfess-frontend/public/icon-dark-32x32.png",
+                                 "bytes":  585,
+                                 "sha256":  "8A1570B2955C3748B6844356A7487D88C60F9F1E699E870A3452A3DECD1BA03C",
+                                 "header":  "89-50-4E-47-0D-0A-1A-0A"
+                             },
+                             {
+                                 "path":  "xconfess-frontend/public/icon-light-32x32.png",
+                                 "bytes":  566,
+                                 "sha256":  "83145E5BB033ACE23CD8E7FBB63E7C39733AAF58F8A7280D7800995CCED6F7C2",
+                                 "header":  "89-50-4E-47-0D-0A-1A-0A"
+                             },
+                             {
+                                 "path":  "xconfess-frontend/public/placeholder-logo.png",
+                                 "bytes":  568,
+                                 "sha256":  "D7C39D978AF643BA9525DE6FB8171E0F834882DB4110C82ECAD0DF3F4F69551A",
+                                 "header":  "89-50-4E-47-0D-0A-1A-0A"
+                             },
+                             {
+                                 "path":  "xconfess-frontend/public/placeholder-user.jpg",
+                                 "bytes":  1635,
+                                 "sha256":  "22BE067D748175598A5E00123902F5C8332DD7F101DE03DFB92EC08D85BB5E53",
+                                 "header":  "FF-D8-FF-E0-00-10-4A-46"
+                             },
+                             {
+                                 "path":  "xconfess-frontend/public/placeholder.jpg",
+                                 "bytes":  1064,
+                                 "sha256":  "14BE0C7AA11CCA1E78F0966176B286A6D36D00EC64BE027775DFEB33D8E2DFDF",
+                                 "header":  "FF-D8-FF-E0-00-10-4A-46"
+                             },
+                             {
+                                 "path":  "xconfess-frontend/tests/e2e/notification-center.spec.ts-snapshots/notification-center-unread-desktop-win32.png",
+                                 "bytes":  108209,
+                                 "sha256":  "2767846082E6C94DB542C0481DC5983ADBBC15DA363C857EF01A72E16B02253D",
+                                 "header":  "89-50-4E-47-0D-0A-1A-0A"
+                             },
+                             {
+                                 "path":  "xconfess-frontend/tests/e2e/notification-center.spec.ts-snapshots/notification-center-unread-mobile-mobile-portrait-win32.png",
+                                 "bytes":  38810,
+                                 "sha256":  "513C043E6E798406A9A7B92B63B16C3CFE1B8D2795FEFFF74B2494C834621AE4",
+                                 "header":  "89-50-4E-47-0D-0A-1A-0A"
+                             },
+                             {
+                                 "path":  "xconfess-frontend/tests/e2e/notification-center.spec.ts-snapshots/notification-center-unread-mobile-portrait-win32.png",
+                                 "bytes":  2222,
+                                 "sha256":  "3328438B0B48A94C3E99C1FE5B2C28092E697C84B532D632EB8C8B3E70C8EACF",
+                                 "header":  "89-50-4E-47-0D-0A-1A-0A"
+                             }
+                         ],
+    "scope":  "Baseline tracked files, byte signatures and headers; no payload execution. Current scanner and audit documents added after baseline."
+}

@@ -104,17 +104,13 @@ export class ReactionCounterService {
   /**
    * Get current reaction counts for a confession.
    */
-  async getReactionCounts(confessionId: number): Promise<{ [emoji: string]: number }> {
-    const confession = await this.confessionRepo.findOne({
-      where: { id: confessionId },
-      select: ['reaction_counts'],
-    });
-
-    if (!confession) {
-      return {};
-    }
-
-    return confession.reaction_counts || {};
+  async getReactionCounts(confessionId: string | number): Promise<{ [emoji: string]: number }> {
+    // The current confession entity has no denormalized reaction_counts column.
+    const rows: Array<{ emoji: string; count: number }> = await this.confessionRepo.query(
+      'SELECT emoji, COUNT(*)::int AS count FROM reaction WHERE confession_id = $1 GROUP BY emoji',
+      [confessionId],
+    );
+    return Object.fromEntries(rows.map(({ emoji, count }) => [emoji, count]));
   }
 
   /**

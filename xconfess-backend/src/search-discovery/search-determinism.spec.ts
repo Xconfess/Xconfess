@@ -171,7 +171,10 @@ describe('SearchDeterminismService', () => {
         take: jest.fn().mockReturnThis(),
         getMany: jest.fn()
           .mockResolvedValueOnce(confessions)
-          .mockResolvedValueOnce(confessions),
+          .mockResolvedValueOnce([
+            { id: 'conf-3' } as AnonymousConfession,
+            { id: 'conf-4' } as AnonymousConfession,
+          ]),
       };
 
       jest

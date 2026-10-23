@@ -22,9 +22,7 @@ extract_functions_from_source() {
     echo ""
     return
   fi
-  # Extract all `pub fn <name>` lines, strip the `pub fn ` prefix and trailing parens/params
-  # This catches both `pub fn name(...)` and `pub fn name(…)` patterns
-  grep -oP 'pub\s+fn\s+\K[a-z_][a-z_0-9]*' "$lib_file" | sort -u
+  python3 "$SCRIPT_DIR/extract_contract_functions.py" "$lib_file"
 }
 
 # Read functions list from an abi.json file

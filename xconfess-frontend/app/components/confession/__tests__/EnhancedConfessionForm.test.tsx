@@ -1,5 +1,5 @@
 import React from "react";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { EnhancedConfessionForm } from "../EnhancedConfessionForm";
 import apiClient from "@/app/lib/api/client";
@@ -80,6 +80,18 @@ function getForm(container: HTMLElement) {
 beforeEach(() => {
   const storage = new Map<string, string>();
   jest.clearAllMocks();
+  window.sessionStorage.clear();
+  (apiClient.get as jest.Mock).mockReset();
+  (apiClient.post as jest.Mock).mockReset();
+  // The global JSDOM stub is a no-op; emulate the browser submit event so
+  // keyboard submission exercises the real React handler and re-entry guard.
+  (HTMLFormElement.prototype.requestSubmit as jest.Mock).mockImplementation(
+    function (this: HTMLFormElement) {
+      if (this.checkValidity()) {
+        this.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+      }
+    },
+  );
   (window.localStorage.setItem as jest.Mock).mockImplementation((key, value) => {
     storage.set(key, value);
   });
@@ -192,7 +204,7 @@ describe("EnhancedConfessionForm", () => {
     expect(screen.queryByText("Please review the highlighted fields and try again.")).not.toBeInTheDocument();
   });
 
-  it(\"saves a valid pending confession and redirects guests to login\", async () => {
+  it("saves a valid pending confession and redirects guests to login", async () => {
     (useAuth as jest.Mock).mockReturnValue({
       isAuthenticated: false,
       isLoading: false,
@@ -262,7 +274,7 @@ describe("EnhancedConfessionForm", () => {
         expect(screen.getByRole("button", { name: /publishing confession/i })).toBeDisabled(),
       );
 
-      resolve();
+      await act(async () => resolve());
     });
 
     it("does not call the API twice when the submit button is clicked rapidly", async () => {
@@ -284,7 +296,7 @@ describe("EnhancedConfessionForm", () => {
       // Should only call the API once despite two clicks
       expect(apiClient.post).toHaveBeenCalledTimes(1);
 
-      resolve();
+      await act(async () => resolve());
     });
 
     it("does not call the API twice on rapid keyboard submit (Ctrl+Enter)", async () => {

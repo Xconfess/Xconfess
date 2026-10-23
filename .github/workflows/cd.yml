@@ -71,22 +71,27 @@ jobs:
     environment: ${{ needs.prepare.outputs.environment }}
     steps:
       - name: Check required deployment secrets
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          BACKEND_ENV_FILE: ${{ secrets.BACKEND_ENV_FILE }}
+          BACKEND_API_URL: ${{ secrets.BACKEND_API_URL }}
+          NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL }}
+          TARGET_ENVIRONMENT: ${{ needs.prepare.outputs.environment }}
         run: |
           missing=()
-          [[ -z "${{ secrets.DEPLOY_HOST }}" ]] && missing+=("DEPLOY_HOST")
-          [[ -z "${{ secrets.DEPLOY_USER }}" ]] && missing+=("DEPLOY_USER")
-          [[ -z "${{ secrets.DEPLOY_SSH_KEY }}" ]] && missing+=("DEPLOY_SSH_KEY")
-          [[ -z "${{ secrets.BACKEND_ENV_FILE }}" ]] && missing+=("BACKEND_ENV_FILE")
-          [[ -z "${{ secrets.BACKEND_API_URL }}" ]] && missing+=("BACKEND_API_URL")
-          [[ -z "${{ secrets.NEXT_PUBLIC_API_URL }}" ]] && missing+=("NEXT_PUBLIC_API_URL")
+          for name in DEPLOY_HOST DEPLOY_USER DEPLOY_SSH_KEY BACKEND_ENV_FILE BACKEND_API_URL NEXT_PUBLIC_API_URL; do
+            [[ -z "${!name}" ]] && missing+=("$name")
+          done
 
           if [[ ${#missing[@]} -gt 0 ]]; then
-            echo "::error::Missing required secrets for '${{ needs.prepare.outputs.environment }}': ${missing[*]}"
-            echo "Configure these secrets in Settings -> Environments -> ${{ needs.prepare.outputs.environment }} before running the CD pipeline."
+            echo "::error::Missing required secrets for '$TARGET_ENVIRONMENT': ${missing[*]}"
+            echo "Configure these secrets in Settings -> Environments -> $TARGET_ENVIRONMENT before running the CD pipeline."
             exit 1
           fi
 
-          echo "All required secrets are present. Proceeding with '${{ needs.prepare.outputs.environment }}' deployment."
+          echo "All required secrets are present. Proceeding with '$TARGET_ENVIRONMENT' deployment."
 
   build:
     name: Build artifacts
@@ -137,6 +142,9 @@ jobs:
     if: always() && needs.validate.result == 'success' && (needs.build.result == 'success' || needs.build.result == 'skipped')
     runs-on: ubuntu-latest
     environment: ${{ needs.prepare.outputs.environment }}
+    env:
+      DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+      DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
     concurrency:
       group: deploy-${{ needs.prepare.outputs.environment }}
       cancel-in-progress: false
@@ -153,7 +161,7 @@ jobs:
       - name: Add remote host to known_hosts
         run: |
           mkdir -p ~/.ssh
-          ssh-keyscan -H "${{ secrets.DEPLOY_HOST }}" >> ~/.ssh/known_hosts
+          ssh-keyscan -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts
 
       - name: Download backend artifact
         if: needs.prepare.outputs.run_build == 'true'
@@ -170,17 +178,19 @@ jobs:
           path: xconfess-frontend/.next
 
       - name: Write backend environment file
+        env:
+          BACKEND_ENV_FILE: ${{ secrets.BACKEND_ENV_FILE }}
         run: |
-          cat > xconfess-backend/.env.deploy <<EOF
-          ${{ secrets.BACKEND_ENV_FILE }}
-          EOF
+          umask 077
+          printf '%s\n' "$BACKEND_ENV_FILE" > xconfess-backend/.env.deploy
 
       - name: Write frontend environment file
+        env:
+          BACKEND_API_URL: ${{ secrets.BACKEND_API_URL }}
+          NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL }}
         run: |
-          cat > xconfess-frontend/.env.production <<EOF
-          BACKEND_API_URL=${{ secrets.BACKEND_API_URL }}
-          NEXT_PUBLIC_API_URL=${{ secrets.NEXT_PUBLIC_API_URL }}
-          EOF
+          umask 077
+          printf 'BACKEND_API_URL=%s\nNEXT_PUBLIC_API_URL=%s\n' "$BACKEND_API_URL" "$NEXT_PUBLIC_API_URL" > xconfess-frontend/.env.production
 
       - name: Sync backend to server
         run: |
@@ -188,11 +198,11 @@ jobs:
             --exclude='.git' \
             --exclude='node_modules' \
             xconfess-backend/ \
-            "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:~/xconfess/backend/"
+            "$DEPLOY_USER@$DEPLOY_HOST:~/xconfess/backend/"
 
       - name: Install backend dependencies and restart backend
         run: |
-          ssh "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}" bash -s <<'REMOTE'
+          ssh "$DEPLOY_USER@$DEPLOY_HOST" bash -s <<'REMOTE'
             set -euo pipefail
 
             cd ~/xconfess/backend
@@ -209,7 +219,7 @@ jobs:
         run: |
           echo "Waiting for backend to become ready..."
           for i in $(seq 1 12); do
-            status=$(ssh "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}" \
+            status=$(ssh "$DEPLOY_USER@$DEPLOY_HOST" \
               "curl -sf http://localhost:5000/api/health/ready || echo 'not-ready'")
             if [[ "$status" != "not-ready" ]]; then
               echo "Backend is healthy."
@@ -227,11 +237,11 @@ jobs:
             --exclude='.git' \
             --exclude='node_modules' \
             xconfess-frontend/ \
-            "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:~/xconfess/frontend/"
+            "$DEPLOY_USER@$DEPLOY_HOST:~/xconfess/frontend/"
 
       - name: Install frontend dependencies and restart frontend
         run: |
-          ssh "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}" bash -s <<'REMOTE'
+          ssh "$DEPLOY_USER@$DEPLOY_HOST" bash -s <<'REMOTE'
             set -euo pipefail
 
             cd ~/xconfess/frontend

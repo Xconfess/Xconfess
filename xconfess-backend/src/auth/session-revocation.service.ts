@@ -26,7 +26,7 @@ export class SessionRevocationService {
    * is added to a blacklist in Redis for the token's remaining lifetime.
    */
   async revokeUserSessions(userId: number | string): Promise<void> {
-    const user = await this.userRepo.findOne({ where: { id: userId } });
+    const user = await this.userRepo.findOne({ where: { id: Number(userId) } });
     if (!user) {
       this.logger.warn(`User not found for session revocation: ${userId}`);
       return;

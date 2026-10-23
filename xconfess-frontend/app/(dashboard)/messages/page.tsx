@@ -262,64 +262,6 @@ export default function MessagesPage() {
   const activeThreadKey = selectedThread ? threadKey(selectedThread) : null;
   const newMessage = activeThreadKey ? drafts[activeThreadKey] ?? '' : '';
 
-  // WebSocket for real-time message updates with reconnection and reconciliation
-  const {
-    isConnected,
-    isReconnecting,
-    reconnectAttempts,
-    forceReconnect,
-  } = useMessagesWebSocket({
-    onNewMessage: (threadId) => {
-      // Update thread list with new message
-      setThreads(prev => prev.map(t => 
-        `${t.confessionId}_${t.senderId}` === threadId
-          ? { ...t, lastMessageAt: new Date().toISOString(), hasUnread: !t.isAuthor }
-          : t
-      ));
-      // If this thread is currently selected, fetch messages
-      if (selectedThread && `${selectedThread.confessionId}_${selectedThread.senderId}` === threadId) {
-        fetchMessages(selectedThread);
-      }
-    },
-    onNewReply: (threadId) => {
-      setThreads(prev => prev.map(t => 
-        `${t.confessionId}_${t.senderId}` === threadId
-          ? { ...t, lastMessageAt: new Date().toISOString(), hasUnread: t.isAuthor }
-          : t
-      ));
-      if (selectedThread && `${selectedThread.confessionId}_${selectedThread.senderId}` === threadId) {
-        fetchMessages(selectedThread);
-      }
-    },
-    onMessageRead: (threadId, messageIds) => {
-      // Update read state in messages if thread is selected
-      if (selectedThread && `${selectedThread.confessionId}_${selectedThread.senderId}` === threadId) {
-        setMessages(prev => prev.map(m => 
-          messageIds.includes(m.id) ? { ...m, readAt: new Date().toISOString() } : m
-        ));
-      }
-    },
-    onThreadUpdated: () => {
-      // Refresh thread list
-      fetchThreads();
-    },
-    enabled: e2eReady,
-  });
-
-  // Reconciliation hook for missed messages after reconnect
-  const { pendingReconciliation, onReconnect } = useMessageReconciliation(
-    selectedThread ? `${selectedThread.confessionId}_${selectedThread.senderId}` : null,
-    () => selectedThread ? fetchMessages(selectedThread) : Promise.resolve(),
-    { enabled: e2eReady && isConnected }
-  );
-
-  // Trigger reconciliation on reconnect
-  useEffect(() => {
-    if (isConnected && !isReconnecting) {
-      onReconnect();
-    }
-  }, [isConnected, isReconnecting, onReconnect]);
-
   const fetchThreads = useCallback(async () => {
     try {
       setIsLoadingThreads(true);
@@ -400,6 +342,64 @@ export default function MessagesPage() {
     },
     [decryptMessages, e2eReady],
   );
+
+  // WebSocket for real-time message updates with reconnection and reconciliation
+  const {
+    isConnected,
+    isReconnecting,
+    reconnectAttempts,
+    forceReconnect,
+  } = useMessagesWebSocket({
+    onNewMessage: (threadId) => {
+      // Update thread list with new message
+      setThreads(prev => prev.map(t =>
+        `${t.confessionId}_${t.senderId}` === threadId
+          ? { ...t, lastMessageAt: new Date().toISOString(), hasUnread: !t.isAuthor }
+          : t
+      ));
+      // If this thread is currently selected, fetch messages
+      if (selectedThread && `${selectedThread.confessionId}_${selectedThread.senderId}` === threadId) {
+        fetchMessages(selectedThread);
+      }
+    },
+    onNewReply: (threadId) => {
+      setThreads(prev => prev.map(t =>
+        `${t.confessionId}_${t.senderId}` === threadId
+          ? { ...t, lastMessageAt: new Date().toISOString(), hasUnread: t.isAuthor }
+          : t
+      ));
+      if (selectedThread && `${selectedThread.confessionId}_${selectedThread.senderId}` === threadId) {
+        fetchMessages(selectedThread);
+      }
+    },
+    onMessageRead: (threadId, messageIds) => {
+      // Update read state in messages if thread is selected
+      if (selectedThread && `${selectedThread.confessionId}_${selectedThread.senderId}` === threadId) {
+        setMessages(prev => prev.map(m =>
+          messageIds.includes(m.id) ? { ...m, readAt: new Date().toISOString() } : m
+        ));
+      }
+    },
+    onThreadUpdated: () => {
+      // Refresh thread list
+      fetchThreads();
+    },
+    enabled: e2eReady,
+  });
+
+  // Reconciliation hook for missed messages after reconnect
+  const { pendingReconciliation, onReconnect } = useMessageReconciliation(
+    selectedThread ? `${selectedThread.confessionId}_${selectedThread.senderId}` : null,
+    () => selectedThread ? fetchMessages(selectedThread) : Promise.resolve(),
+    { enabled: e2eReady && isConnected }
+  );
+
+  // Trigger reconciliation on reconnect
+  useEffect(() => {
+    if (isConnected && !isReconnecting) {
+      onReconnect();
+    }
+  }, [isConnected, isReconnecting, onReconnect]);
 
   useEffect(() => {
     fetchThreads();

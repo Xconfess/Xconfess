@@ -62,6 +62,7 @@ export function useWebSocket(options: WebSocketOptions) {
 
   const [state, setState] = useState<ConnectionState>('disconnected');
   const [reconnectAttempts, setReconnectAttempts] = useState(0);
+  const [lastEventId, setLastEventId] = useState(initialLastEventId);
   const wsRef = useRef<WebSocket | null>(null);
   const attemptRef = useRef(0);
   const lastEventIdRef = useRef<string | undefined>(initialLastEventId);
@@ -74,15 +75,17 @@ export function useWebSocket(options: WebSocketOptions) {
   // need these in their dependency arrays (avoids reconnect on every render
   // when callers pass inline functions).
   const onMessageRef = useRef(onMessage);
-  onMessageRef.current = onMessage;
   const onOpenRef = useRef(onOpen);
-  onOpenRef.current = onOpen;
   const onCloseRef = useRef(onClose);
-  onCloseRef.current = onClose;
   const onErrorRef = useRef(onError);
-  onErrorRef.current = onError;
   const onStateChangeRef = useRef(onStateChange);
-  onStateChangeRef.current = onStateChange;
+  useEffect(() => {
+    onMessageRef.current = onMessage;
+    onOpenRef.current = onOpen;
+    onCloseRef.current = onClose;
+    onErrorRef.current = onError;
+    onStateChangeRef.current = onStateChange;
+  }, [onMessage, onOpen, onClose, onError, onStateChange]);
 
   // Clean up old event IDs from cache periodically
   useEffect(() => {
@@ -148,6 +151,7 @@ export function useWebSocket(options: WebSocketOptions) {
         // Track lastEventId if the server sends it
         if (data && typeof data === 'object' && 'id' in data && data.id) {
           lastEventIdRef.current = String(data.id);
+          setLastEventId(String(data.id));
         }
         // Deduplicate events
         if (!isDuplicateEvent(data)) {
@@ -242,7 +246,7 @@ export function useWebSocket(options: WebSocketOptions) {
     disconnect, 
     send,
     forceReconnect,
-    lastEventId: lastEventIdRef.current,
+    lastEventId,
   };
 }
 

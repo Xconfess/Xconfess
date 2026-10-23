@@ -20,8 +20,23 @@ env:
   CI: true
 
 jobs:
+  malware-indicators:
+    name: Security / Malware indicators
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Validate detector fixtures
+        shell: pwsh
+        run: ./scripts/check-malware-indicators.ps1 -SelfTest
+      - name: Scan tracked files without installing dependencies
+        shell: pwsh
+        run: ./scripts/check-malware-indicators.ps1
+
   audit:
     name: Security / npm audit
+    needs: malware-indicators
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -197,7 +212,9 @@ jobs:
       - run: cargo clippy --workspace --all-targets -- -D warnings
       - run: cargo test --workspace
       - name: Check contract ABI drift
-        run: bash scripts/check-abi-drift.sh
+        run: |
+          python3 scripts/test_extract_contract_functions.py
+          bash scripts/check-abi-drift.sh
       - name: Check contract upgrade compatibility checklist
         working-directory: ${{ github.workspace }}
         run: npm run contracts:compatibility

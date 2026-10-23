@@ -1,7 +1,7 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
-import { GracefulShutdownService } from 'src/common/graceful-shutdown.service';
+import { GracefulShutdownService } from '../common/graceful-shutdown.service';
 import { EXPORT_QUEUE_NAME } from './data-export.constants';
 
 @Injectable()
