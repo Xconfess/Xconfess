@@ -30,7 +30,7 @@
     "test:reliability": "TZ=Africa/Lagos PG_INTEGRATION=true REDIS_INTEGRATION=true jest --config jest.config.js --runInBand --runTestsByPath src/cache/redis-outage.integration.spec.ts src/confession/feed-filter.property.pg.spec.ts src/messages/messages.concurrent.pg.spec.ts src/notifications/notification-delivery.failure.integration.spec.ts"
   },
   "dependencies": {
-    "@nestjs-modules/ioredis": "^2.0.2",
+    "@nestjs-modules/ioredis": "^2.3.1",
     "@nestjs/bullmq": "^11.0.4",
     "@nestjs/cache-manager": "^3.1.0",
     "@nestjs/common": "^11.1.3",
