@@ -46,12 +46,14 @@ Playwright starts the Next.js dev server on port 3000 (see `playwright.config.ts
 
 Run the same command in your pipeline after `npm ci`. Full browser matrix tests live in other `tests/e2e` specs; smoke uses the `smoke` project (desktop Chromium only).
 
-## Accessibility smoke
+## Accessibility and keyboard smoke
 
-The axe-core accessibility smoke suite scans the public home page, login page,
-and authenticated admin dashboard. It uses local API fixtures only (including
-a fake `example.com` test account); no live service or credentials are needed.
-Critical and serious axe-core violations fail the run.
+The axe-core suite scans the public home page, login page, and authenticated
+admin dashboard. The keyboard regression suite checks tab order and visible
+keyboard focus in registration, confession composition, messaging, and the
+messaging key-recovery dialog. Local API fixtures use fake identities and do
+not require live services or credentials. Encrypted message previews and
+generic key initialization errors are checked without exposing fixture content.
 
 From the repository root:
 
@@ -64,7 +66,7 @@ npm run frontend:test:a11y
 Or from `xconfess-frontend/` after installing the browser:
 
 ```bash
-npx playwright test tests/e2e/accessibility-smoke.spec.ts --project=smoke
+npm run test:a11y
 ```
 
 Playwright starts the frontend on port 3000. On failure, the assertion lists the
@@ -72,11 +74,14 @@ axe rule, impact, and affected selectors; use those selectors to locate the
 markup and reproduce the issue in a browser. The run also retains Playwright's
 failure trace as configured in `playwright.config.ts`.
 
-There are no accepted critical or serious exceptions currently. Do not suppress
-a violation broadly: if a temporary exception is approved, record its route,
-axe rule, affected selector, rationale, owner, tracking issue, and remediation
-date in the root `A11Y_CHECKLIST.md`. Keep any test exclusion limited to that
-documented route/rule/selector, and remove it when the fix ships.
+The gender field is one radio group: it has one Tab stop, and arrow keys move
+between its options according to native radio behavior. Tests intentionally do
+not expect a separate Tab stop for every option. There are no other accepted
+keyboard-navigation or critical/serious axe exceptions. Do not suppress a
+violation broadly: if a temporary exception is approved, record its route,
+rule, affected selector, rationale, owner, tracking issue, and remediation date
+in the root `A11Y_CHECKLIST.md`. Keep exclusions limited to that documented
+scope and remove them when the fix ships.
 
 ## Wave 5 seeded demo journey
 
