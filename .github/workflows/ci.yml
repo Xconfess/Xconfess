@@ -24,7 +24,7 @@ jobs:
     name: Security / Malware indicators
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
       - name: Validate detector fixtures
@@ -39,7 +39,7 @@ jobs:
     needs: malware-indicators
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -53,7 +53,7 @@ jobs:
     name: Security / Secret Scan
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - run: ./scripts/secret-scanning-preflight.sh --self-test
       - run: ./scripts/secret-scanning-preflight.sh
 
@@ -86,7 +86,7 @@ jobs:
       DB_PASSWORD: unused
       DB_NAME: xconfess_migration_smoke
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -153,7 +153,7 @@ jobs:
       NEXT_PUBLIC_STELLAR_CONTRACT_ID: CBFR2MDZBQPTNBIJCT32MTDDQLW2AQNDWNO777F3QT6ANYKTHETQZWD3
       NEXT_PUBLIC_DEV_BYPASS_AUTH: false
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -202,7 +202,7 @@ jobs:
       run:
         working-directory: xconfess-contracts
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: 1.86.0
