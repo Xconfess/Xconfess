@@ -43,7 +43,7 @@
     "@radix-ui/react-toast": "^1.2.23",
     "@radix-ui/react-toggle": "^1.1.18",
     "@radix-ui/react-toggle-group": "^1.1.19",
-    "@radix-ui/react-tooltip": "^1.2.16",
+    "@radix-ui/react-tooltip": "^1.4.1",
     "@reactour/tour": "^3.8.0",
     "@stellar/freighter-api": "^6.0.1",
     "@stellar/stellar-sdk": "14.6.1",
