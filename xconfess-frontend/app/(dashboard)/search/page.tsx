@@ -213,7 +213,7 @@ export default function SearchPage() {
             type="button"
             variant="outline"
             onClick={() => setSidebarOpen((open) => !open)}
-            className="border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800"
+            className="border-[var(--border)] bg-[var(--surface)] text-[var(--foreground)] hover:bg-[var(--surface-muted)]"
           >
             <Filter className="h-4 w-4" />
             Filters
@@ -235,12 +235,12 @@ export default function SearchPage() {
             ) : (
               <>
                 {hasSearched && (
-                  <p className="text-sm text-zinc-400">
+                  <p className="text-sm text-[var(--text-muted)]">
                     {isLoading ? "Searching..." : `${total} result${total === 1 ? "" : "s"}`}
                   </p>
                 )}
                 {isEmpty && (
-                  <Card className="border-zinc-800 bg-zinc-900 p-6 text-sm text-zinc-400">
+                  <Card className="border-[var(--border)] bg-[var(--surface)] p-6 text-sm text-[var(--text-muted)]">
                     No confessions matched your search.
                   </Card>
                 )}

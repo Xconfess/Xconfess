@@ -63,7 +63,7 @@ export function RelatedConfessions({
     >
       <h2
         id="related-confessions-heading"
-        className="text-lg font-semibold text-white mb-4"
+        className="text-lg font-semibold text-[var(--foreground)] mb-4"
       >
         Related confessions
       </h2>
@@ -75,14 +75,14 @@ export function RelatedConfessions({
               className={cn("block hover:opacity-95 transition-opacity", focusVisible)}
             >
               <Card className="h-full overflow-hidden">
-                <CardHeader className="py-3 px-4 text-xs text-zinc-500">
+                <CardHeader className="py-3 px-4 text-xs text-[var(--text-muted)]">
                   {formatDate(new Date(c.createdAt))}
                 </CardHeader>
                 <CardContent className="py-0 px-4 pb-4 pt-0">
-                  <p className="text-zinc-200 text-sm line-clamp-3 wrap-break-word">
+                  <p className="text-[var(--foreground)] text-sm line-clamp-3 wrap-break-word">
                     {c.content}
                   </p>
-                  <div className="mt-2 flex items-center gap-3 text-xs text-zinc-500">
+                  <div className="mt-2 flex items-center gap-3 text-xs text-[var(--text-muted)]">
                     <span>👍 {c.reactions?.like ?? 0}</span>
                     <span>❤️ {c.reactions?.love ?? 0}</span>
                     {c.commentCount != null && (

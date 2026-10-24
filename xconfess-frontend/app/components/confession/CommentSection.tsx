@@ -123,12 +123,12 @@ export function CommentSection({
   return (
     <section
       id="comments"
-      className="max-w-full overflow-hidden rounded-xl border border-zinc-800 bg-zinc-900/50 p-3 sm:p-6"
+      className="max-w-full overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface)]/50 p-3 sm:p-6"
       aria-labelledby="comments-heading"
     >
       <h2
         id="comments-heading"
-        className="mb-4 text-lg font-semibold text-white"
+        className="mb-4 text-lg font-semibold text-[var(--foreground)]"
       >
         Comments ({comments.length})
       </h2>
@@ -140,7 +140,7 @@ export function CommentSection({
         aria-label="Add a comment"
       >
         {replyTo && (
-          <div className="mb-2 flex min-w-0 flex-wrap items-center justify-between gap-2 rounded bg-zinc-800/50 px-3 py-2 text-sm text-zinc-400" role="status">
+          <div className="mb-2 flex min-w-0 flex-wrap items-center justify-between gap-2 rounded bg-[var(--surface-muted)]/50 px-3 py-2 text-sm text-[var(--text-muted)]" role="status">
             <span className="min-w-0 break-words [overflow-wrap:anywhere]">
               Replying to {replyTo.author || "Anonymous"}
             </span>
@@ -150,7 +150,7 @@ export function CommentSection({
                 setReplyTo(null);
                 setContent("");
               }}
-              className="min-h-10 shrink-0 touch-manipulation text-zinc-500 hover:text-zinc-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 rounded px-1"
+              className="min-h-10 shrink-0 touch-manipulation text-[var(--text-muted)] hover:text-[var(--secondary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] rounded px-1"
               aria-label="Cancel reply"
             >
               Cancel
@@ -176,14 +176,14 @@ export function CommentSection({
             }
             disabled={!isAuthenticated}
             rows={3}
-            className="min-h-20 w-full min-w-0 resize-y rounded-lg border border-zinc-700 bg-zinc-800 px-4 py-3 text-zinc-200 placeholder-zinc-500 focus:border-zinc-600 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-60"
+            className="min-h-20 w-full min-w-0 resize-y rounded-lg border border-[var(--border)] bg-[var(--surface-muted)] px-4 py-3 text-[var(--foreground)] placeholder-[var(--text-muted)] focus:border-[var(--accent-border)] focus:outline-none focus:ring-2 focus:ring-[var(--focus-ring)] disabled:opacity-60"
             maxLength={2000}
             aria-describedby="char-count-info"
           />
         </div>
 
         <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
-          <span id="char-count-info" className="text-xs text-zinc-500" aria-live="polite">
+          <span id="char-count-info" className="text-xs text-[var(--text-muted)]" aria-live="polite">
             {content.length}/2000 characters
           </span>
           <Button
@@ -194,7 +194,7 @@ export function CommentSection({
               !isAuthenticated
             }
             size="sm"
-            className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+            className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]"
             aria-busy={createCommentMutation.isPending}
           >
             {createCommentMutation.isPending ? "Posting..." : "Post comment"}
@@ -212,14 +212,14 @@ export function CommentSection({
 
       {!loading && error && comments.length === 0 && (
         <div
-          className="rounded-lg border border-red-900/50 bg-red-900/10 p-4 text-sm text-red-300"
+          className="rounded-lg border border-[var(--danger)]/50 bg-[var(--danger)]/10 p-4 text-sm text-[var(--danger)]"
           role="alert"
         >
           <p>{error.message || "Failed to load comments"}</p>
           <Button
             variant="outline"
             size="sm"
-            className="mt-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
+            className="mt-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]"
             onClick={() => {
               void refetch();
             }}
@@ -247,14 +247,14 @@ export function CommentSection({
 
           {isFetchNextPageError && (
             <div
-              className="mt-4 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-red-900/50 bg-red-900/10 p-3 text-sm text-red-300"
+              className="mt-4 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[var(--danger)]/50 bg-[var(--danger)]/10 p-3 text-sm text-[var(--danger)]"
               role="alert"
             >
               <p>Couldn&apos;t load more comments. Your loaded comments are still here.</p>
               <Button
                 variant="outline"
                 size="sm"
-                className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
+                className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]"
                 onClick={() => {
                   void fetchNextPage();
                 }}
@@ -274,7 +274,7 @@ export function CommentSection({
                   void fetchNextPage();
                 }}
                 disabled={isFetchingNextPage}
-                className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]"
                 aria-busy={isFetchingNextPage}
               >
                 {isFetchingNextPage ? "Loading..." : "Load more comments"}
@@ -285,7 +285,7 @@ export function CommentSection({
       )}
 
       {!loading && !error && comments.length === 0 && (
-        <p className="py-4 text-sm text-zinc-500" role="status">
+        <p className="py-4 text-sm text-[var(--text-muted)]" role="status">
           No comments yet. Be the first to comment.
         </p>
       )}

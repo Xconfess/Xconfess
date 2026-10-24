@@ -31,7 +31,7 @@ const ConfessionHistory = ({ userId }: Props) => {
   return (
     <div className="space-y-4">
       {confessions.map((confession) => (
-        <div key={confession.id} className="p-4 bg-gray-800 rounded">
+        <div key={confession.id} className="p-4 bg-[var(--surface-muted)] rounded">
           {confession.content}
         </div>
       ))}

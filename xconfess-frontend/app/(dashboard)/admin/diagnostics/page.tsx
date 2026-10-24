@@ -22,23 +22,23 @@ function ConfigRow({
   description?: string;
 }) {
   return (
-    <div className="flex flex-col py-4 border-b border-gray-100 dark:border-gray-800 last:border-0">
+    <div className="flex flex-col py-4 border-b border-[var(--border)] last:border-0">
       <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4">
-        <dt className="text-sm font-medium text-gray-500 dark:text-gray-400 sm:w-48 shrink-0">
+        <dt className="text-sm font-medium text-[var(--text-muted)] sm:w-48 shrink-0">
           {label}
         </dt>
         <dd
-          className={`text-sm text-gray-900 dark:text-white break-all ${mono ? "font-mono text-xs text-teal-600 dark:text-teal-400" : ""}`}
+          className={`text-sm text-[var(--foreground)] break-all ${mono ? "font-mono text-xs text-teal-600 dark:text-teal-400" : ""}`}
         >
           {value || (
-            <span className="text-amber-500 dark:text-amber-400 italic bg-amber-50 dark:bg-amber-950/40 px-2 py-0.5 rounded text-xs border border-amber-200 dark:border-amber-900/50">
+            <span className="text-[var(--warning)] italic bg-[var(--warning)]/10 px-2 py-0.5 rounded text-xs border border-[var(--warning)]/30">
               Not configured
             </span>
           )}
         </dd>
       </div>
       {description && (
-        <p className="mt-1 text-xs text-gray-400 dark:text-slate-500 max-w-2xl">
+        <p className="mt-1 text-xs text-[var(--text-muted)] max-w-2xl">
           {description}
         </p>
       )}
@@ -50,7 +50,7 @@ function ServiceStatusSkeleton() {
   return (
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 animate-pulse">
       {Array.from({ length: 4 }).map((_, i) => (
-        <div key={i} className="h-28 w-full rounded-xl bg-gray-100 dark:bg-gray-800" />
+        <div key={i} className="h-28 w-full rounded-xl bg-[var(--surface-muted)]" />
       ))}
     </div>
   );
@@ -58,11 +58,11 @@ function ServiceStatusSkeleton() {
 
 function ObservabilitySkeleton() {
   return (
-    <div className="w-full rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-6 animate-pulse">
-      <div className="h-5 w-40 rounded bg-gray-200 dark:bg-gray-700 mb-4" />
+    <div className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] p-6 animate-pulse">
+      <div className="h-5 w-40 rounded bg-[var(--skeleton)] mb-4" />
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
         {Array.from({ length: 6 }).map((_, i) => (
-          <div key={i} className="h-20 w-full rounded-xl bg-gray-100 dark:bg-gray-800" />
+          <div key={i} className="h-20 w-full rounded-xl bg-[var(--surface-muted)]" />
         ))}
       </div>
     </div>
@@ -73,7 +73,7 @@ function StellarSkeleton() {
   return (
     <div className="animate-pulse space-y-3">
       {Array.from({ length: 2 }).map((_, i) => (
-        <div key={i} className="h-48 w-full rounded-xl bg-gray-100 dark:bg-gray-800" />
+        <div key={i} className="h-48 w-full rounded-xl bg-[var(--surface-muted)]" />
       ))}
     </div>
   );
@@ -85,19 +85,19 @@ const STATUS_STYLES: Record<
 > = {
   up: {
     badge:
-      "bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300 border border-green-200 dark:border-green-800",
+      "bg-[var(--success)]/10 text-[var(--foreground)] border border-[var(--success)]/30",
     icon: "●",
     label: "Healthy",
   },
   down: {
     badge:
-      "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300 border border-red-200 dark:border-red-800",
+      "bg-[var(--danger)]/10 text-[var(--foreground)] border border-[var(--danger)]/30",
     icon: "✕",
     label: "Down",
   },
   unknown: {
     badge:
-      "bg-gray-100 text-gray-800 dark:bg-gray-900/40 dark:text-gray-300 border border-gray-200 dark:border-gray-800",
+      "bg-[var(--surface-muted)] text-[var(--foreground)] border border-[var(--border)]",
     icon: "?",
     label: "Unknown",
   },
@@ -126,9 +126,9 @@ function ServiceStatusCard({
 }) {
   const resolvedStatus = status === "up" ? "up" : "down";
   return (
-    <div className="rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-5 shadow-sm">
+    <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5 shadow-sm">
       <div className="flex items-center justify-between mb-3">
-        <h4 className="text-sm font-semibold text-gray-900 dark:text-white">
+        <h4 className="text-sm font-semibold text-[var(--foreground)]">
           {name}
         </h4>
         <StatusBadge status={resolvedStatus} />
@@ -139,10 +139,10 @@ function ServiceStatusCard({
             .filter(([k]) => k !== "status")
             .map(([key, value]) => (
               <div key={key} className="flex justify-between text-xs">
-                <dt className="text-gray-500 dark:text-gray-400 capitalize">
+                <dt className="text-[var(--text-muted)] capitalize">
                   {key.replace(/([A-Z])/g, " $1").trim()}
                 </dt>
-                <dd className="text-gray-900 dark:text-white font-mono">
+                <dd className="text-[var(--foreground)] font-mono">
                   {String(value)}
                 </dd>
               </div>
@@ -160,24 +160,24 @@ const HORIZON_STATUS_CONFIG: Record<
   ok: {
     label: "Reachable",
     badgeClass:
-      "bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300 border border-green-200 dark:border-green-800",
+      "bg-[var(--success)]/10 text-[var(--foreground)] border border-[var(--success)]/30",
     bannerClass: "",
     icon: "●",
   },
   degraded: {
     label: "Degraded",
     badgeClass:
-      "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300 border border-amber-200 dark:border-amber-800",
+      "bg-[var(--warning)]/10 text-[var(--foreground)] border border-[var(--warning)]/30",
     bannerClass:
-      "rounded-lg border border-amber-200 dark:border-amber-900 bg-amber-50 dark:bg-amber-950/40 p-3 mt-4",
+      "rounded-lg border border-[var(--warning)]/30 bg-[var(--warning)]/10 p-3 mt-4",
     icon: "▲",
   },
   unreachable: {
     label: "Unreachable",
     badgeClass:
-      "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300 border border-red-200 dark:border-red-800",
+      "bg-[var(--danger)]/10 text-[var(--foreground)] border border-[var(--danger)]/30",
     bannerClass:
-      "rounded-lg border border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-950/40 p-3 mt-4",
+      "rounded-lg border border-[var(--danger)]/30 bg-[var(--danger)]/10 p-3 mt-4",
     icon: "✕",
   },
 };
@@ -196,9 +196,9 @@ function HorizonStatusCard({
   const cfg = HORIZON_STATUS_CONFIG[status];
 
   return (
-    <div className="rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-6 shadow-sm">
+    <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-6 shadow-sm">
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+        <h3 className="text-lg font-semibold text-[var(--foreground)]">
           Horizon RPC Status
         </h3>
         <span
@@ -209,7 +209,7 @@ function HorizonStatusCard({
         </span>
       </div>
 
-      <dl className="divide-y divide-gray-100 dark:divide-gray-800">
+      <dl className="divide-y divide-[var(--border)]">
         <ConfigRow label="Endpoint" value={horizonUrl} mono />
         <ConfigRow
           label="Latency"
@@ -223,7 +223,7 @@ function HorizonStatusCard({
 
       {status !== "ok" && (
         <div className={cfg.bannerClass}>
-          <p className="text-sm font-medium text-gray-800 dark:text-gray-200">
+          <p className="text-sm font-medium text-[var(--foreground)]">
             {status === "unreachable"
               ? "Horizon is unreachable. Anchoring and on-chain operations will fail until connectivity is restored."
               : "Horizon returned a non-success response. Some operations may be impaired."}
@@ -294,26 +294,26 @@ export default function DiagnosticsPage() {
     <div className="space-y-6 max-w-4xl mx-auto p-4">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
+          <h2 className="text-2xl font-semibold text-[var(--foreground)]">
             System Diagnostics
           </h2>
-          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+          <p className="mt-1 text-sm text-[var(--text-muted)]">
             Service health, queue metrics, and operational overview.
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+          <label className="flex items-center gap-2 text-sm text-[var(--secondary)]">
             <input
               type="checkbox"
               checked={autoRefresh}
               onChange={(e) => setAutoRefresh(e.target.checked)}
-              className="rounded border-gray-300 dark:border-gray-700"
+              className="rounded border-[var(--accent-border)]"
             />
             Auto-refresh
           </label>
           <button
             onClick={handleRefresh}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-1.5 text-sm font-medium text-[var(--secondary)] hover:bg-[var(--surface-muted)] transition-colors"
           >
             Refresh
           </button>
@@ -322,13 +322,13 @@ export default function DiagnosticsPage() {
 
       {/* Service Status Cards */}
       <div>
-        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">
+        <h3 className="text-lg font-semibold text-[var(--foreground)] mb-3">
           Service Status
         </h3>
         {healthLoading && <ServiceStatusSkeleton />}
         {healthError && (
-          <div className="rounded-xl border border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-950/40 p-4">
-            <p className="text-sm text-red-700 dark:text-red-300">
+          <div className="rounded-xl border border-[var(--danger)]/30 bg-[var(--danger)]/10 p-4">
+            <p className="text-sm text-[var(--danger)]">
               Failed to fetch system health. Backend may be unreachable.
             </p>
           </div>
@@ -368,15 +368,15 @@ export default function DiagnosticsPage() {
       {/* Queue Metrics */}
       {observabilityLoading && <ObservabilitySkeleton />}
       {observabilityError && (
-        <div className="rounded-lg border border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-950 p-4">
-          <p className="text-sm text-red-700 dark:text-red-300">
+        <div className="rounded-lg border border-[var(--danger)]/30 bg-[var(--danger)]/10 p-4">
+          <p className="text-sm text-[var(--danger)]">
             Failed to load queue metrics.
           </p>
         </div>
       )}
       {observability && (
-        <div className="rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-6 shadow-sm">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+        <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-6 shadow-sm">
+          <h3 className="text-lg font-semibold text-[var(--foreground)] mb-4">
             BullMQ Queue Metrics
           </h3>
           <dl className="grid grid-cols-2 gap-4 sm:grid-cols-3">
@@ -408,12 +408,12 @@ export default function DiagnosticsPage() {
             ].map(({ label, value }) => (
               <div
                 key={label}
-                className="rounded-xl border border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-950 p-4"
+                className="rounded-xl border border-[var(--border)] bg-[var(--surface-muted)] p-4"
               >
-                <dt className="text-sm text-gray-500 dark:text-gray-400">
+                <dt className="text-sm text-[var(--text-muted)]">
                   {label}
                 </dt>
-                <dd className="mt-2 text-2xl font-semibold text-gray-900 dark:text-white">
+                <dd className="mt-2 text-2xl font-semibold text-[var(--foreground)]">
                   {value}
                 </dd>
               </div>
@@ -424,28 +424,28 @@ export default function DiagnosticsPage() {
 
       {/* Audit Activity */}
       {observability && (
-        <div className="rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-6 shadow-sm">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+        <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-6 shadow-sm">
+          <h3 className="text-lg font-semibold text-[var(--foreground)] mb-4">
             Audit Activity
           </h3>
           <dl className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-            <div className="rounded-xl border border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-950 p-4">
-              <dt className="text-sm text-gray-500 dark:text-gray-400">
+            <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-muted)] p-4">
+              <dt className="text-sm text-[var(--text-muted)]">
                 Total logs
               </dt>
-              <dd className="mt-2 text-2xl font-semibold text-gray-900 dark:text-white">
+              <dd className="mt-2 text-2xl font-semibold text-[var(--foreground)]">
                 {observability.audit.totalLogs}
               </dd>
             </div>
             {observability.audit.actionTypeCounts.map((count) => (
               <div
                 key={count.actionType}
-                className="rounded-xl border border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-950 p-4"
+                className="rounded-xl border border-[var(--border)] bg-[var(--surface-muted)] p-4"
               >
-                <dt className="text-sm text-gray-500 dark:text-gray-400">
+                <dt className="text-sm text-[var(--text-muted)]">
                   {count.actionType}
                 </dt>
-                <dd className="mt-2 text-xl font-semibold text-gray-900 dark:text-white">
+                <dd className="mt-2 text-xl font-semibold text-[var(--foreground)]">
                   {count.count}
                 </dd>
               </div>
@@ -457,11 +457,11 @@ export default function DiagnosticsPage() {
       {/* Stellar Diagnostics */}
       {isLoading && <StellarSkeleton />}
       {error && (
-        <div className="rounded-xl border border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-950/40 p-5 space-y-2">
-          <p className="text-sm font-semibold text-red-800 dark:text-red-400">
+        <div className="rounded-xl border border-[var(--danger)]/30 bg-[var(--danger)]/10 p-5 space-y-2">
+          <p className="text-sm font-semibold text-[var(--foreground)]">
             Failed to load Stellar diagnostics.
           </p>
-          <p className="text-xs text-red-700 dark:text-red-300/80">
+          <p className="text-xs text-[var(--danger)]">
             Ensure the backend is running and accessible, and that your session
             has admin permissions.
           </p>
@@ -477,11 +477,11 @@ export default function DiagnosticsPage() {
             checkedAt={diagnostics.checkedAt}
           />
 
-          <div className="rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-6 shadow-sm">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+          <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-6 shadow-sm">
+            <h3 className="text-lg font-semibold text-[var(--foreground)] mb-2">
               Network Profile
             </h3>
-            <dl className="divide-y divide-gray-100 dark:divide-gray-800">
+            <dl className="divide-y divide-[var(--border)]">
               <ConfigRow
                 label="Target Network"
                 value={diagnostics.network}
@@ -500,11 +500,11 @@ export default function DiagnosticsPage() {
             </dl>
           </div>
 
-          <div className="rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-6 shadow-sm">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+          <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-6 shadow-sm">
+            <h3 className="text-lg font-semibold text-[var(--foreground)] mb-2">
               Smart Contract Deployments
             </h3>
-            <dl className="divide-y divide-gray-100 dark:divide-gray-800">
+            <dl className="divide-y divide-[var(--border)]">
               <ConfigRow
                 label="Confession Anchor"
                 value={diagnostics.contractIds?.confessionAnchor}
@@ -523,11 +523,11 @@ export default function DiagnosticsPage() {
             </dl>
           </div>
 
-          <div className="rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-6">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+          <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-6">
+            <h3 className="text-lg font-semibold text-[var(--foreground)] mb-4">
               Deployment Metadata
             </h3>
-            <dl className="divide-y divide-gray-100 dark:divide-gray-800">
+            <dl className="divide-y divide-[var(--border)]">
               <ConfigRow
                 label="Loaded"
                 value={diagnostics.deploymentMetadata.loaded ? "Yes" : "No"}
@@ -554,7 +554,7 @@ export default function DiagnosticsPage() {
               />
             </dl>
             {diagnostics.deploymentMetadata.loadError && (
-              <div className="mt-4 rounded-lg border border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-950 p-3 text-sm text-red-700 dark:text-red-300">
+              <div className="mt-4 rounded-lg border border-[var(--danger)]/30 bg-[var(--danger)]/10 p-3 text-sm text-[var(--danger)]">
                 {diagnostics.deploymentMetadata.loadError}
               </div>
             )}
@@ -562,7 +562,7 @@ export default function DiagnosticsPage() {
         </div>
       )}
 
-      <div className="text-[11px] font-medium tracking-wide text-gray-400 dark:text-slate-500 text-center bg-gray-50 dark:bg-gray-950/60 py-3 rounded-lg border border-gray-100 dark:border-gray-800/60">
+      <div className="text-[11px] font-medium tracking-wide text-[var(--text-muted)] text-center bg-[var(--surface-muted)] py-3 rounded-lg border border-[var(--border)]">
         Signer keys, seed phrases, and operational secrets are never exposed in
         this panel.
       </div>

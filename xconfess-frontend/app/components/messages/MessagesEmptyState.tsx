@@ -6,7 +6,7 @@ export function ThreadListEmptyState() {
   return (
     <div role="status">
       <EmptyState
-        icon={<Inbox className="h-10 w-10 text-gray-400" aria-hidden="true" />}
+        icon={<Inbox className="h-10 w-10 text-[var(--text-muted)]" aria-hidden="true" />}
         title="No messages yet"
         description="When someone replies to your confession or you send a message, conversations will appear here."
       />
@@ -20,7 +20,7 @@ export function ThreadMessagesEmptyState() {
     <div role="status">
       <EmptyState
         icon={
-          <MessageSquare className="h-8 w-8 text-gray-400" aria-hidden="true" />
+          <MessageSquare className="h-8 w-8 text-[var(--text-muted)]" aria-hidden="true" />
         }
         title="No messages in this thread yet"
         description="Send a message below to start the conversation."

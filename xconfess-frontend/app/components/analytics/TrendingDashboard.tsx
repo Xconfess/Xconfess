@@ -203,20 +203,20 @@ export const TrendingDashboard = () => {
   };
 
   return (
-    <div className="min-h-screen bg-black text-white">
+    <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)]">
       <div className="max-w-7xl mx-auto px-4 py-8">
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-8 gap-4">
           <div>
-            <h1 className="text-4xl font-bold mb-2 flex items-center gap-3">
-              <TrendingUp className="w-8 h-8 text-purple-500" />
+            <h1 className="text-4xl font-semibold mb-2 flex items-center gap-3">
+              <TrendingUp className="w-8 h-8 text-[var(--primary-deep)]" />
               Trending Dashboard
             </h1>
-            <p className="text-gray-400">
+            <p className="text-[var(--text-muted)]">
               Discover the most popular confessions and platform insights
             </p>
             {fetchedAt && (
-              <p className={`text-sm mt-2 ${isStale ? 'text-amber-400' : 'text-zinc-500'}`}>
+              <p className={`text-sm mt-2 ${isStale ? 'text-[var(--warning)]' : 'text-[var(--text-muted)]'}`}>
                 {isStale ? 'Stale data — consider refreshing' : `Last updated ${new Date(fetchedAt).toLocaleString()}`}
               </p>
             )}
@@ -224,13 +224,13 @@ export const TrendingDashboard = () => {
 
           {/* Period Selector */}
           <div className="flex flex-wrap items-center gap-2 mt-4 md:mt-0">
-            <Calendar className="w-5 h-5 text-gray-400" />
+            <Calendar className="w-5 h-5 text-[var(--text-muted)]" />
             <div className="flex gap-1">
               <button
                 onClick={() => setPeriod('24h')}
                 className={`px-3 py-2 rounded-lg font-medium transition-colors text-sm ${period === '24h'
-                    ? 'bg-purple-600 text-white'
-                    : 'bg-zinc-800 text-gray-400 hover:bg-zinc-700'
+                    ? 'bg-[var(--primary)] text-white'
+                    : 'bg-[var(--surface-muted)] text-[var(--text-muted)] hover:bg-[var(--surface-elevated)]'
                   }`}
               >
                 <Clock className="w-3.5 h-3.5 inline mr-1" />
@@ -239,8 +239,8 @@ export const TrendingDashboard = () => {
               <button
                 onClick={() => setPeriod('7days')}
                 className={`px-3 py-2 rounded-lg font-medium transition-colors text-sm ${period === '7days'
-                    ? 'bg-purple-600 text-white'
-                    : 'bg-zinc-800 text-gray-400 hover:bg-zinc-700'
+                    ? 'bg-[var(--primary)] text-white'
+                    : 'bg-[var(--surface-muted)] text-[var(--text-muted)] hover:bg-[var(--surface-elevated)]'
                   }`}
               >
                 7 Days
@@ -248,8 +248,8 @@ export const TrendingDashboard = () => {
               <button
                 onClick={() => setPeriod('30days')}
                 className={`px-3 py-2 rounded-lg font-medium transition-colors text-sm ${period === '30days'
-                    ? 'bg-purple-600 text-white'
-                    : 'bg-zinc-800 text-gray-400 hover:bg-zinc-700'
+                    ? 'bg-[var(--primary)] text-white'
+                    : 'bg-[var(--surface-muted)] text-[var(--text-muted)] hover:bg-[var(--surface-elevated)]'
                   }`}
               >
                 30 Days
@@ -257,8 +257,8 @@ export const TrendingDashboard = () => {
               <button
                 onClick={() => setPeriod('all')}
                 className={`px-3 py-2 rounded-lg font-medium transition-colors text-sm ${period === 'all'
-                    ? 'bg-purple-600 text-white'
-                    : 'bg-zinc-800 text-gray-400 hover:bg-zinc-700'
+                    ? 'bg-[var(--primary)] text-white'
+                    : 'bg-[var(--surface-muted)] text-[var(--text-muted)] hover:bg-[var(--surface-elevated)]'
                   }`}
               >
                 All Time
@@ -267,9 +267,9 @@ export const TrendingDashboard = () => {
             <button
               onClick={fetchAnalytics}
               disabled={loading}
-              className="px-4 py-2 rounded-lg bg-slate-800 text-slate-200 hover:bg-slate-700 disabled:opacity-50 flex items-center gap-1"
+              className="px-4 py-2 rounded-lg bg-[var(--surface-muted)] text-[var(--foreground)] hover:bg-[var(--surface-elevated)] disabled:opacity-50 flex items-center gap-1"
             >
-              <Flame className="w-4 h-4 text-orange-400" />
+              <Flame className="w-4 h-4 text-[var(--warning)]" />
               {loading ? 'Refreshing…' : 'Refresh'}
             </button>
           </div>
@@ -278,18 +278,18 @@ export const TrendingDashboard = () => {
         {/* Error banner */}
         {error && (
           <div
-            className="mb-6 rounded-xl border px-4 py-3 bg-red-900/20 border-red-800 text-sm flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
+            className="mb-6 rounded-xl border px-4 py-3 bg-[var(--danger)]/10 border-[var(--danger)]/30 text-sm flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
             role="alert"
           >
             <div>
               <strong className="mr-2">Failed to Load Analytics</strong>
-              <span className="text-red-200">{error}</span>
+              <span className="text-[var(--danger)]">{error}</span>
             </div>
             <div>
               <button
                 onClick={fetchAnalytics}
                 disabled={loading}
-                className="px-3 py-1 bg-red-600 hover:bg-red-700 rounded text-white"
+                className="px-3 py-1 bg-[var(--danger)] hover:opacity-90 rounded text-white"
               >
                 {loading ? "Retrying..." : "Retry"}
               </button>
@@ -307,18 +307,18 @@ export const TrendingDashboard = () => {
         {/* Charts Section */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
           {showSkeleton ? (
-            <div className="bg-zinc-900 rounded-xl p-6 border border-zinc-800 min-h-[320px]">
-              <div className="h-6 w-48 bg-zinc-800 rounded-lg animate-pulse mb-6" />
-              <div className="h-64 bg-zinc-800 rounded-lg animate-pulse" />
+            <div className="bg-[var(--surface)] rounded-xl p-6 border border-[var(--border)] min-h-[320px]">
+              <div className="h-6 w-48 bg-[var(--surface-muted)] rounded-lg animate-pulse mb-6" />
+              <div className="h-64 bg-[var(--surface-muted)] rounded-lg animate-pulse" />
             </div>
           ) : (
             <ReactionChart data={reactionDistribution} />
           )}
 
           {showSkeleton ? (
-            <div className="bg-zinc-900 rounded-xl p-6 border border-zinc-800 min-h-[320px]">
-              <div className="h-6 w-48 bg-zinc-800 rounded-lg animate-pulse mb-6" />
-              <div className="h-64 bg-zinc-800 rounded-lg animate-pulse" />
+            <div className="bg-[var(--surface)] rounded-xl p-6 border border-[var(--border)] min-h-[320px]">
+              <div className="h-6 w-48 bg-[var(--surface-muted)] rounded-lg animate-pulse mb-6" />
+              <div className="h-64 bg-[var(--surface-muted)] rounded-lg animate-pulse" />
             </div>
           ) : (
             <ActivityChart data={dailyActivity} />
@@ -326,13 +326,13 @@ export const TrendingDashboard = () => {
         </div>
 
         {/* Trending Confessions */}
-        <div className="bg-zinc-900 rounded-xl p-6 border border-zinc-800 min-h-[220px]">
-          <h2 className="text-2xl font-bold mb-6 flex items-center gap-2">
-            <Flame className="w-7 h-7 text-orange-500" />
+        <div className="bg-[var(--surface)] rounded-xl p-6 border border-[var(--border)] min-h-[220px]">
+          <h2 className="text-2xl font-semibold mb-6 flex items-center gap-2">
+            <Flame className="w-7 h-7 text-[var(--warning)]" />
             Top Trending Confessions
-            <span className="text-sm font-normal text-zinc-500 ml-2">
+            <span className="text-sm font-normal text-[var(--text-muted)] ml-2">
               {fetchedAt && (
-                <span className={isStale ? 'text-amber-400' : 'text-zinc-500'}>
+                <span className={isStale ? 'text-[var(--warning)]' : 'text-[var(--text-muted)]'}>
                   Auto-refreshes every 5 min
                 </span>
               )}
@@ -342,12 +342,12 @@ export const TrendingDashboard = () => {
           <div className="space-y-4">
             {showSkeleton ? (
               Array.from({ length: 5 }).map((_, i) => (
-                <div key={i} className="bg-zinc-800 rounded-xl p-5">
+                <div key={i} className="bg-[var(--surface-muted)] rounded-xl p-5">
                   <div className="flex gap-4">
-                    <div className="w-12 h-12 bg-zinc-700 rounded-lg animate-pulse" />
+                    <div className="w-12 h-12 bg-[var(--surface-elevated)] rounded-lg animate-pulse" />
                     <div className="flex-1 space-y-3">
-                      <div className="h-6 w-full bg-zinc-700 rounded-lg animate-pulse" />
-                      <div className="h-4 w-3/4 bg-zinc-700 rounded-lg animate-pulse" />
+                      <div className="h-6 w-full bg-[var(--surface-elevated)] rounded-lg animate-pulse" />
+                      <div className="h-4 w-3/4 bg-[var(--surface-elevated)] rounded-lg animate-pulse" />
                     </div>
                   </div>
                 </div>
@@ -365,20 +365,20 @@ export const TrendingDashboard = () => {
 
           {!loading && data && trending.length === 0 && (
             <div className="text-center py-12" role="status" aria-live="polite">
-              <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-lg border border-zinc-700 bg-zinc-800 text-zinc-300">
+              <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-lg border border-[var(--border)] bg-[var(--surface-muted)] text-[var(--secondary)]">
                 <TrendingUp className="h-6 w-6" aria-hidden />
               </div>
-              <p className="text-gray-200 font-medium">
+              <p className="text-[var(--foreground)] font-medium">
                 No trending confessions yet
               </p>
-              <p className="mx-auto mt-2 max-w-md text-sm text-gray-400">
+              <p className="mx-auto mt-2 max-w-md text-sm text-[var(--text-muted)]">
                 Try a different time period, refresh the dashboard, or seed demo
                 data before a product walkthrough.
               </p>
               <button
                 type="button"
                 onClick={fetchAnalytics}
-                className="mt-4 rounded-lg border border-zinc-700 bg-zinc-800 px-4 py-2 text-sm font-medium text-zinc-200 transition-colors hover:bg-zinc-700"
+                className="mt-4 rounded-lg border border-[var(--border)] bg-[var(--surface-muted)] px-4 py-2 text-sm font-medium text-[var(--foreground)] transition-colors hover:bg-[var(--surface-elevated)]"
               >
                 Refresh trending
               </button>

@@ -34,11 +34,11 @@ export function FeedRefreshNotice({
     <div
       role="alert"
       data-testid="feed-refresh-notice"
-      className="mb-4 flex flex-col gap-3 rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 sm:flex-row sm:items-center sm:justify-between"
+      className="mb-4 flex flex-col gap-3 rounded-2xl border border-[var(--warning)]/30 bg-[var(--warning)]/10 p-4 sm:flex-row sm:items-center sm:justify-between"
     >
       <div className="flex min-w-0 items-start gap-3">
         <AlertTriangle
-          className="mt-0.5 h-5 w-5 shrink-0 text-amber-600"
+          className="mt-0.5 h-5 w-5 shrink-0 text-[var(--warning)]"
           aria-hidden="true"
         />
         <div className="min-w-0">

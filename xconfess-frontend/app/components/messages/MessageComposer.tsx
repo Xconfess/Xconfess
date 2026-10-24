@@ -59,7 +59,7 @@ export function MessageComposer({
             disabled={disabled || isSending}
             aria-label="Discard unsent message"
             title="Discard unsent message"
-            className="shrink-0 text-gray-500 hover:text-red-600 dark:text-gray-400 dark:hover:text-red-400"
+            className="shrink-0 text-[var(--text-muted)] hover:text-[var(--danger)]"
           >
             <Trash2 className="h-4 w-4" aria-hidden="true" />
           </Button>
@@ -93,7 +93,7 @@ export function MessageComposer({
         <p
           role="status"
           aria-live="polite"
-          className="mt-1.5 text-[11px] text-gray-500 dark:text-gray-400"
+          className="mt-1.5 text-[11px] text-[var(--text-muted)]"
         >
           Draft saved for this conversation.
         </p>

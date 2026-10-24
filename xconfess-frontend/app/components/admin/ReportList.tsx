@@ -107,7 +107,7 @@ export default function ReportList() {
 
   if (isLoading) {
     return (
-      <div className="text-center py-8 text-gray-500">Loading reports...</div>
+      <div className="text-center py-8 text-[var(--text-muted)]">Loading reports...</div>
     );
   }
 
@@ -121,13 +121,13 @@ export default function ReportList() {
 
   const statusClassMap: Record<string, string> = {
     pending:
-      'px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800 dark:bg-yellow-800 dark:text-yellow-100',
+      'px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-[var(--warning)]/10 text-[var(--foreground)]',
     reviewing:
-      'px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800 dark:bg-blue-800 dark:text-blue-100',
+      'px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-[var(--accent-soft)] text-[var(--primary-deep)]',
     resolved:
-      'px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-100',
+      'px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-[var(--success)]/10 text-[var(--foreground)]',
     dismissed:
-      'px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200',
+      'px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-[var(--surface-muted)] text-[var(--foreground)]',
   };
 
   const humanizeStatus = (s: string) => {
@@ -153,10 +153,10 @@ export default function ReportList() {
       {confirmDialog}
 
       {/* Filters */}
-      <div className="min-w-0 bg-white dark:bg-gray-800 shadow rounded-lg p-4">
+      <div className="border border-[var(--border)] min-w-0 bg-[var(--surface)] rounded-lg p-4">
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-5">
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            <label className="block text-sm font-medium text-[var(--secondary)] mb-2">
               Status
             </label>
             <select
@@ -165,7 +165,7 @@ export default function ReportList() {
                 setStatusFilter(e.target.value);
                 setPage(1);
               }}
-              className="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white"
+              className="w-full rounded-md border-[var(--accent-border)] shadow-sm focus:border-[var(--focus-ring)] focus:ring-[var(--focus-ring)]"
             >
               <option value="all">All</option>
               <option value="pending">Pending</option>
@@ -175,7 +175,7 @@ export default function ReportList() {
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            <label className="block text-sm font-medium text-[var(--secondary)] mb-2">
               Type
             </label>
             <select
@@ -184,7 +184,7 @@ export default function ReportList() {
                 setTypeFilter(e.target.value);
                 setPage(1);
               }}
-              className="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white"
+              className="w-full rounded-md border-[var(--accent-border)] shadow-sm focus:border-[var(--focus-ring)] focus:ring-[var(--focus-ring)]"
             >
               <option value="all">All</option>
               <option value="spam">Spam</option>
@@ -198,7 +198,7 @@ export default function ReportList() {
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            <label className="block text-sm font-medium text-[var(--secondary)] mb-2">
               Start date
             </label>
             <input
@@ -208,11 +208,11 @@ export default function ReportList() {
                 setStartDate(e.target.value);
                 setPage(1);
               }}
-              className="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white"
+              className="w-full rounded-md border-[var(--accent-border)] shadow-sm focus:border-[var(--focus-ring)] focus:ring-[var(--focus-ring)]"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            <label className="block text-sm font-medium text-[var(--secondary)] mb-2">
               End date
             </label>
             <input
@@ -222,7 +222,7 @@ export default function ReportList() {
                 setEndDate(e.target.value);
                 setPage(1);
               }}
-              className="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white"
+              className="w-full rounded-md border-[var(--accent-border)] shadow-sm focus:border-[var(--focus-ring)] focus:ring-[var(--focus-ring)]"
             />
           </div>
           <div className="flex flex-wrap items-end gap-2">
@@ -254,7 +254,7 @@ export default function ReportList() {
                 size="sm"
                 onClick={handleBulkResolve}
                 aria-label={`Resolve ${selectedIds.size} selected reports`}
-                className="min-h-[44px] rounded-md bg-indigo-600 px-4 py-2 text-sm text-white hover:bg-indigo-700"
+                className="min-h-[44px] rounded-md bg-[var(--primary)] px-4 py-2 text-sm text-white hover:bg-[var(--primary-hover)]"
               >
                 Resolve Selected ({selectedIds.size})
               </Button>
@@ -266,9 +266,9 @@ export default function ReportList() {
       {/* Reports Table */}
       {/* Empty state when filters match nothing */}
       {!isLoading && reports.length === 0 && isFilterActive ? (
-        <div className="bg-white dark:bg-gray-800 shadow rounded-lg p-8 text-center">
-          <p className="text-lg font-medium text-gray-900 dark:text-white">No reports match your filters</p>
-          <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">Try clearing filters to see all reports.</p>
+        <div className="border border-[var(--border)] bg-[var(--surface)] rounded-lg p-8 text-center">
+          <p className="text-lg font-medium text-[var(--foreground)]">No reports match your filters</p>
+          <p className="mt-2 text-sm text-[var(--secondary)]">Try clearing filters to see all reports.</p>
           <div className="mt-4 flex justify-center">
             <Button
               variant="default"
@@ -286,12 +286,12 @@ export default function ReportList() {
           </div>
         </div>
       ) : (
-        <div className="min-w-0 max-w-full overflow-hidden rounded-lg bg-white shadow dark:bg-gray-800">
+        <div className="min-w-0 max-w-full overflow-hidden rounded-lg bg-[var(--surface)] shadow">
           <div className="max-w-full overflow-x-auto overscroll-x-contain">
-            <table className="min-w-[48rem] divide-y divide-gray-200 dark:divide-gray-700 md:min-w-full">
-            <thead className="bg-gray-50 dark:bg-gray-700">
+            <table className="min-w-[48rem] divide-y divide-[var(--border)] md:min-w-full">
+            <thead className="bg-[var(--surface-muted)]">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-[var(--text-muted)] uppercase tracking-wider">
                   <input
                     type="checkbox"
                     aria-label="Select all reports"
@@ -302,31 +302,31 @@ export default function ReportList() {
                         setSelectedIds(new Set());
                       }
                     }}
-                    className="rounded border-gray-300"
+                    className="rounded border-[var(--accent-border)]"
                   />
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-[var(--text-muted)] uppercase tracking-wider">
                   Type
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-[var(--text-muted)] uppercase tracking-wider">
                   Status
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-[var(--text-muted)] uppercase tracking-wider">
                   Reporter
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-[var(--text-muted)] uppercase tracking-wider">
                   Created
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider sticky right-0 bg-gray-50 dark:bg-gray-700 after:absolute after:inset-y-0 after:left-0 after:w-px after:bg-gray-300 dark:after:bg-gray-600">
+                <th className="px-6 py-3 text-left text-xs font-medium text-[var(--text-muted)] uppercase tracking-wider sticky right-0 bg-[var(--surface-muted)] after:absolute after:inset-y-0 after:left-0 after:w-px after:bg-[var(--skeleton)]">
                   Actions
                 </th>
               </tr>
             </thead>
-            <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+            <tbody className="bg-[var(--surface)] divide-y divide-[var(--border)]">
               {reports.map((report: Report) => (
                 <tr
                   key={report.id}
-                  className="hover:bg-gray-50 dark:hover:bg-gray-700"
+                  className="hover:bg-[var(--surface-muted)]"
                 >
                   <td className="px-6 py-4 whitespace-nowrap">
                     <input
@@ -334,10 +334,10 @@ export default function ReportList() {
                       aria-label={`Select report ${report.id}`}
                       checked={selectedIds.has(report.id)}
                       onChange={() => toggleSelect(report.id)}
-                      className="min-h-[44px] min-w-[44px] rounded border-gray-300"
+                      className="min-h-[44px] min-w-[44px] rounded border-[var(--accent-border)]"
                     />
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-[var(--foreground)]">
                     {report.type}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
@@ -345,19 +345,19 @@ export default function ReportList() {
                       {humanizeStatus(report.status)}
                     </span>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-[var(--text-muted)]">
                     {report.reporter?.username || "Anonymous"}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-[var(--text-muted)]">
                     {new Date(report.createdAt).toLocaleDateString()}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium sticky right-0 bg-white dark:bg-gray-800 after:absolute after:inset-y-0 after:left-0 after:w-px after:bg-gray-200 dark:after:bg-gray-700">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium sticky right-0 bg-[var(--surface)] after:absolute after:inset-y-0 after:left-0 after:w-px after:bg-[var(--skeleton)]">
                     <Button
                       variant="ghost"
                       size="sm"
                       onClick={() => setSelectedReport(report.id)}
                       aria-label={`View report ${report.id}`}
-                      className="min-h-[44px] min-w-[44px] rounded-md px-3 text-indigo-600 hover:text-indigo-900 dark:text-indigo-400 dark:hover:text-indigo-300"
+                      className="min-h-[44px] min-w-[44px] rounded-md px-3 text-[var(--primary-deep)] hover:text-[var(--primary-deep)]"
                     >
                       View
                     </Button>
@@ -373,7 +373,7 @@ export default function ReportList() {
       {/* Pagination */}
       {totalPages > 1 && (
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="text-sm text-gray-700 dark:text-gray-300">
+          <div className="text-sm text-[var(--secondary)]">
             Showing {(page - 1) * limit + 1} to {Math.min(page * limit, total)}{" "}
             of {total} results
           </div>

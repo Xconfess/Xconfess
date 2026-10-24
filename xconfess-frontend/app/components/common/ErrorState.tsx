@@ -36,10 +36,10 @@ const ErrorState: React.FC<ErrorStateProps> = ({
     ? 'min-h-screen flex items-center justify-center'
     : 'py-8 px-4';
   const isWarning = variant === "warning";
-  const accentText = isWarning ? "text-[var(--foreground)]" : "text-red-200";
-  const subtitleText = isWarning ? "text-[var(--secondary)]" : "text-red-300";
-  const iconBg = isWarning ? "bg-[var(--accent-soft)]" : "bg-red-950/40";
-  const iconColor = isWarning ? "text-[var(--primary-deep)]" : "text-red-300";
+  const accentText = isWarning ? "text-[var(--foreground)]" : "text-[var(--danger)]";
+  const subtitleText = isWarning ? "text-[var(--secondary)]" : "text-[var(--danger)]";
+  const iconBg = isWarning ? "bg-[var(--accent-soft)]" : "bg-[var(--danger)]/10";
+  const iconColor = isWarning ? "text-[var(--primary-deep)]" : "text-[var(--danger)]";
 
   return (
     <div className={containerClass}>
@@ -70,7 +70,7 @@ const ErrorState: React.FC<ErrorStateProps> = ({
           </div>
         )}
 
-        <h3 className={`mb-2 font-editorial text-3xl ${accentText}`}>{title}</h3>
+        <h3 className={`mb-2 text-xl font-semibold ${accentText}`}>{title}</h3>
 
         {description && (
           <p className="mb-2 text-sm leading-7 text-[var(--secondary)]">{description}</p>
@@ -86,7 +86,7 @@ const ErrorState: React.FC<ErrorStateProps> = ({
             <button
               type="button"
               onClick={onPrimaryAction}
-              className="rounded-xl bg-[linear-gradient(135deg,var(--primary),var(--primary-deep))] px-4 py-2 text-sm font-medium text-white shadow-[0_18px_40px_-22px_rgba(0,0,0,0.72)] transition-colors hover:brightness-105"
+              className="rounded-xl bg-[linear-gradient(135deg,var(--primary),var(--primary-deep))] px-4 py-2 text-sm font-medium text-[var(--foreground)] shadow-[0_18px_40px_-22px_rgba(0,0,0,0.72)] transition-colors hover:brightness-105"
             >
               {primaryActionLabel}
             </button>

@@ -16,17 +16,17 @@ import {
 
 const ActivityChart = dynamic(
     () => import('@/app/components/analytics/ActivityChart').then(mod => mod.ActivityChart),
-    { loading: () => <div className="animate-pulse bg-zinc-900 rounded-lg p-6 h-80"></div> }
+    { loading: () => <div className="border border-[var(--border)] animate-pulse bg-[var(--surface)] rounded-lg p-6 h-80"></div> }
 );
 
 const ReactionDistribution = dynamic(
     () => import('@/app/components/analytics/ReactionDistribution').then(mod => mod.ReactionDistribution),
-    { loading: () => <div className="animate-pulse bg-zinc-900 rounded-lg p-6 h-80"></div> }
+    { loading: () => <div className="border border-[var(--border)] animate-pulse bg-[var(--surface)] rounded-lg p-6 h-80"></div> }
 );
 
 const TrendingConfessions = dynamic(
     () => import('@/app/components/analytics/TrendingConfessions').then(mod => mod.TrendingConfessions),
-    { loading: () => <div className="animate-pulse bg-zinc-900 rounded-lg p-6 h-96"></div> }
+    { loading: () => <div className="border border-[var(--border)] animate-pulse bg-[var(--surface)] rounded-lg p-6 h-96"></div> }
 );
 
 interface AnalyticsData {
@@ -128,16 +128,16 @@ export default function AnalyticsPage() {
     const comparisonNote = comparisonEnabled ? (data?.comparison?.note ?? null) : null;
 
     return (
-        <div className="min-h-screen bg-gradient-to-b from-zinc-950 via-zinc-900 to-black">
+        <div className="min-h-screen bg-[var(--surface)]  ">
             <div className="container mx-auto px-4 py-8">
                 {/* Header */}
                 <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8">
                     <div>
-                        <h1 className="text-3xl md:text-4xl font-bold text-white mb-2 flex items-center gap-3">
-                            <TrendingUp className="w-8 h-8 text-blue-500" />
+                        <h1 className="text-3xl md:text-4xl font-semibold text-[var(--foreground)] mb-2 flex items-center gap-3">
+                            <TrendingUp className="w-8 h-8 text-[var(--primary-deep)]" />
                             Analytics Dashboard
                         </h1>
-                        <p className="text-zinc-400">
+                        <p className="text-[var(--text-muted)]">
                             Platform insights and trending confessions
                         </p>
                     </div>
@@ -167,8 +167,8 @@ export default function AnalyticsPage() {
                 {comparisonEnabled && !loading && data?.comparison?.availability !== 'available' && (
                     <div
                         className={`mb-6 rounded-xl border px-4 py-3 text-sm ${data?.comparison?.availability === 'estimated'
-                            ? 'border-amber-700/70 bg-amber-950/20 text-amber-200'
-                            : 'border-zinc-700 bg-zinc-900/60 text-zinc-300'
+                            ? 'border-[var(--warning)]/70 bg-[var(--warning)]/10 text-[var(--warning)]'
+                            : 'border-[var(--border)] bg-[var(--surface)]/60 text-[var(--secondary)]'
                             }`}
                         role="status"
                     >
@@ -183,7 +183,7 @@ export default function AnalyticsPage() {
                         value={data?.metrics?.totalConfessions ?? 0}
                         delta={data?.metrics?.confessionsDelta}
                         icon={MessageSquare}
-                        color="text-blue-500"
+                        color="text-[var(--primary-deep)]"
                         loading={loading}
                         comparisonEnabled={comparisonEnabled}
                     />
@@ -192,7 +192,7 @@ export default function AnalyticsPage() {
                         value={data?.metrics?.totalUsers ?? 0}
                         delta={data?.metrics?.usersDelta}
                         icon={Users}
-                        color="text-emerald-500"
+                        color="text-[var(--success)]"
                         loading={loading}
                         comparisonEnabled={comparisonEnabled}
                     />
@@ -201,7 +201,7 @@ export default function AnalyticsPage() {
                         value={data?.metrics?.totalReactions ?? 0}
                         delta={data?.metrics?.reactionsDelta}
                         icon={Heart}
-                        color="text-rose-500"
+                        color="text-[var(--danger)]"
                         loading={loading}
                         comparisonEnabled={comparisonEnabled}
                     />
@@ -210,7 +210,7 @@ export default function AnalyticsPage() {
                         value={data?.metrics?.activeUsers ?? 0}
                         delta={data?.metrics?.activeDelta}
                         icon={Activity}
-                        color="text-purple-500"
+                        color="text-[var(--primary-deep)]"
                         loading={loading}
                         comparisonEnabled={comparisonEnabled}
                     />

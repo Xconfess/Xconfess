@@ -23,7 +23,7 @@ const LoadingSpinner: React.FC<LoadingSpinnerProps> = ({
     <div className="flex flex-col items-center justify-center gap-3">
       <div className={`${sizeClasses[size]} relative`}>
         <svg
-          className="animate-spin text-blue-500"
+          className="animate-spin text-[var(--primary-deep)]"
           xmlns="http://www.w3.org/2000/svg"
           fill="none"
           viewBox="0 0 24 24"
@@ -44,7 +44,7 @@ const LoadingSpinner: React.FC<LoadingSpinnerProps> = ({
         </svg>
       </div>
       {message && (
-        <p className="text-sm text-gray-400 text-center">{message}</p>
+        <p className="text-sm text-[var(--text-muted)] text-center">{message}</p>
       )}
     </div>
   );
@@ -52,7 +52,7 @@ const LoadingSpinner: React.FC<LoadingSpinnerProps> = ({
   if (fullScreen) {
     return (
       <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 backdrop-blur-sm">
-        <div className="bg-zinc-900 rounded-lg p-8 max-w-sm">
+        <div className="border border-[var(--border)] bg-[var(--surface)] rounded-lg p-8 max-w-sm">
           {spinnerContent}
         </div>
       </div>

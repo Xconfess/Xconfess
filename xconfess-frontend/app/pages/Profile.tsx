@@ -11,7 +11,7 @@ const ProfilePage = () => {
   const { profile, stats, loading, error, saveProfile } = useProfile();
 
   if (loading) return <Loading />;
-  if (error) return <p className="text-red-500 text-center mt-10">{error}</p>;
+  if (error) return <p className="text-[var(--danger)] text-center mt-10">{error}</p>;
   if (!profile || !stats) return <p className="text-center mt-10">Profile not found</p>;
 
   return (

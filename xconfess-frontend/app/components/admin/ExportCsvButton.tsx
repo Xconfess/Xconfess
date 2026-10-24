@@ -35,9 +35,9 @@ export function ExportCsvButton({
       aria-busy={isExporting}
       aria-label={isExporting ? 'Exporting, please wait…' : label}
       className={cn(
-        'inline-flex items-center gap-2 rounded-md bg-gray-600 px-4 py-2 text-sm font-medium text-white',
-        'transition-colors hover:bg-gray-700',
-        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-500 focus-visible:ring-offset-2',
+        'inline-flex items-center gap-2 rounded-md bg-[var(--text-muted)] px-4 py-2 text-sm font-medium text-[var(--foreground)]',
+        'transition-colors hover:bg-[var(--surface-elevated)]',
+        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--border)] focus-visible:ring-offset-2',
         'disabled:cursor-not-allowed disabled:opacity-60',
         className,
       )}

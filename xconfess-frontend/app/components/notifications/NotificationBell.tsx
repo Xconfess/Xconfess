@@ -37,15 +37,15 @@ export function NotificationBell({
       <button
         type="button"
         onClick={() => setIsOpen((prev) => !prev)}
-        className="relative flex h-10 w-10 items-center justify-center rounded-full text-[var(--secondary)] transition-colors hover:bg-[var(--surface-muted)] hover:text-[var(--foreground)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--primary)]"
+        className="relative flex h-9 w-9 items-center justify-center rounded-[var(--radius-control)] text-[var(--secondary)] transition-colors hover:bg-[var(--surface-muted)] hover:text-[var(--foreground)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--primary)]"
         aria-label={`Notifications${unreadCount > 0 ? `, ${unreadCount} unread` : ""}`}
         aria-expanded={isOpen}
       >
-        <Bell className="h-5 w-5" aria-hidden="true" />
+        <Bell className="h-4 w-4" aria-hidden="true" />
         {unreadCount > 0 && (
           <span
             data-testid="notification-badge"
-            className="absolute top-1 right-1 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white shadow-sm"
+            className="absolute top-1 right-1 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-[var(--danger)] px-1 text-[10px] font-semibold text-white shadow-sm"
           >
             {unreadCount > 99 ? "99+" : unreadCount}
           </span>

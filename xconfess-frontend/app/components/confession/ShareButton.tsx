@@ -101,18 +101,18 @@ export function ShareButton({
               onClick={() => setOpen(false)}
             />
             <div
-              className="absolute right-0 top-full z-20 mt-1 min-w-[180px] rounded-lg border border-zinc-700 bg-zinc-900 py-1 shadow-xl"
+              className="absolute right-0 top-full z-20 mt-1 min-w-[180px] rounded-[var(--radius-panel)] border border-[var(--border)] bg-[var(--surface-elevated)] p-1 shadow-[var(--shadow-popover)]"
               role="menu"
             >
               <button
                 type="button"
                 onClick={copyLink}
-                className={cn("flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-zinc-200 hover:bg-zinc-800", focusVisible)}
+                className={cn("flex w-full items-center gap-2 px-3 py-2 text-left text-sm rounded-[var(--radius-control)] text-[var(--foreground)] hover:bg-[var(--surface-muted)]", focusVisible)}
                 role="menuitem"
                 title="Copy confession link to clipboard"
               >
                 {copied ? (
-                  <Check className="h-4 w-4 text-green-400" />
+                  <Check className="h-4 w-4 text-[var(--success)]" />
                 ) : (
                   <Copy className="h-4 w-4" />
                 )}
@@ -122,7 +122,7 @@ export function ShareButton({
                 <button
                   type="button"
                   onClick={shareNative}
-                  className={cn("flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-zinc-200 hover:bg-zinc-800", focusVisible)}
+                  className={cn("flex w-full items-center gap-2 px-3 py-2 text-left text-sm rounded-[var(--radius-control)] text-[var(--foreground)] hover:bg-[var(--surface-muted)]", focusVisible)}
                   role="menuitem"
                   title="Share using native app"
                 >
@@ -133,7 +133,7 @@ export function ShareButton({
               <button
                 type="button"
                 onClick={shareToTwitter}
-                className={cn("flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-zinc-200 hover:bg-zinc-800", focusVisible)}
+                className={cn("flex w-full items-center gap-2 px-3 py-2 text-left text-sm rounded-[var(--radius-control)] text-[var(--foreground)] hover:bg-[var(--surface-muted)]", focusVisible)}
                 role="menuitem"
                 title="Share to X (formerly Twitter)"
               >
@@ -142,7 +142,7 @@ export function ShareButton({
               <button
                 type="button"
                 onClick={shareViaEmail}
-                className={cn("flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-zinc-200 hover:bg-zinc-800", focusVisible)}
+                className={cn("flex w-full items-center gap-2 px-3 py-2 text-left text-sm rounded-[var(--radius-control)] text-[var(--foreground)] hover:bg-[var(--surface-muted)]", focusVisible)}
                 role="menuitem"
                 title="Send via email"
               >
@@ -178,7 +178,7 @@ export function ShareButton({
         title="Copy link to clipboard"
       >
         {copied ? (
-          <Check className="h-4 w-4 text-green-400" />
+          <Check className="h-4 w-4 text-[var(--success)]" />
         ) : (
           <Copy className="h-4 w-4" />
         )}

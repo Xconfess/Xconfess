@@ -22,19 +22,19 @@ export default function ReportHealthCard() {
 
   if (isError) {
     return (
-      <div className="luxury-panel overflow-hidden rounded-[24px]">
+      <div className="luxury-panel overflow-hidden rounded-xl">
         <div className="p-5">
           <h3 className="mb-2 text-lg font-semibold text-[var(--foreground)]">
             Report Queue Health
           </h3>
-          <p className="text-sm text-red-600">Report stats unavailable.</p>
+          <p className="text-sm text-[var(--danger)]">Report stats unavailable.</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="luxury-panel overflow-hidden rounded-[24px]">
+    <div className="luxury-panel overflow-hidden rounded-xl">
       <div className="p-5">
         <h3 className="mb-4 text-lg font-semibold text-[var(--foreground)]">
           Report Queue Health

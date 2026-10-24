@@ -70,7 +70,7 @@ export function AnchorButton({
         type="button"
         onClick={() => window.location.assign("/wallet")}
         disabled={wallet.isLoading}
-        className="anchor-btn anchor-btn--connect px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium text-sm"
+        className="anchor-btn anchor-btn--connect px-4 py-2 bg-[var(--primary)] text-white rounded-lg hover:bg-[var(--primary-hover)] transition font-medium text-sm"
       >
         {wallet.isLoading ? "Connecting…" : "Connect Wallet to Anchor"}
       </button>
@@ -80,14 +80,14 @@ export function AnchorButton({
   // Connected but not ready (network mismatch or other readiness failure)
   if (!wallet.isReady) {
     return (
-      <div className="anchor-mismatch p-4 bg-amber-50 border border-amber-200 rounded-lg" role="alert">
-        <p className="anchor-mismatch__message text-amber-800 text-sm mb-2 font-medium">
+      <div className="anchor-mismatch p-4 bg-[var(--warning)]/10 border border-[var(--warning)]/30 rounded-lg" role="alert">
+        <p className="anchor-mismatch__message text-[var(--foreground)] text-sm mb-2 font-medium">
           {wallet.readinessError ??
             "Wallet is not ready. Please check your network in Freighter."}
         </p>
         <button
           type="button"
-          className="anchor-btn anchor-btn--disabled px-4 py-2 bg-gray-200 text-gray-500 rounded-lg cursor-not-allowed text-sm font-medium"
+          className="anchor-btn anchor-btn--disabled px-4 py-2 bg-[var(--skeleton)] text-[var(--text-muted)] rounded-lg cursor-not-allowed text-sm font-medium"
           disabled
         >
           Anchor Confession
@@ -103,12 +103,12 @@ export function AnchorButton({
         onClick={handleAnchor}
         disabled={status === "pending" || status === "confirmed"}
         className={`anchor-btn px-4 py-2 rounded-lg font-medium text-sm transition flex items-center justify-center gap-2 ${status === "confirmed"
-            ? "bg-green-100 text-green-700 cursor-default"
+            ? "bg-[var(--success)]/10 text-[var(--success)] cursor-default"
             : status === "pending"
-              ? "bg-blue-400 text-white cursor-wait"
+              ? "bg-[var(--primary)] text-white cursor-wait"
               : status === "failed" || status === "stale"
-                ? "bg-red-600 text-white hover:bg-red-700"
-                : "bg-blue-600 text-white hover:bg-blue-700"
+                ? "bg-[var(--danger)] text-white hover:opacity-90"
+                : "bg-[var(--primary)] text-white hover:bg-[var(--primary-hover)]"
           }`}
         aria-busy={status === "pending"}
       >
@@ -120,7 +120,7 @@ export function AnchorButton({
         )}
         {status === "confirmed" && (
           <>
-            <CheckCircle2 className="w-4 h-4 text-green-600" />
+            <CheckCircle2 className="w-4 h-4 text-[var(--success)]" />
             Confirmed On-Chain
           </>
         )}
@@ -140,7 +140,7 @@ export function AnchorButton({
       </button>
 
       {(status === "failed" || status === "stale") && errorMsg && (
-        <p className="anchor-action__error text-xs text-red-600 flex items-center gap-1" role="alert">
+        <p className="anchor-action__error text-xs text-[var(--danger)] flex items-center gap-1" role="alert">
           <AlertCircle className="w-3.5 h-3.5 shrink-0" />
           {errorMsg}
         </p>

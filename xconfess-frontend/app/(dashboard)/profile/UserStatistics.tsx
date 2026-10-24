@@ -31,65 +31,65 @@ export function UserStatistics({ statistics }: UserStatisticsProps) {
       label: "Confessions Posted",
       value: statistics.confessionsPosted,
       icon: MessageSquare,
-      color: "bg-blue-500",
-      bgColor: "bg-blue-50",
-      textColor: "text-blue-700",
+      color: "bg-[var(--primary)]",
+      bgColor: "bg-[var(--accent-soft)]",
+      textColor: "text-[var(--primary-deep)]",
     },
     {
       label: "Total Views",
       value: statistics.totalViews.toLocaleString(),
       icon: Eye,
-      color: "bg-purple-500",
-      bgColor: "bg-purple-50",
-      textColor: "text-purple-700",
+      color: "bg-[var(--primary)]",
+      bgColor: "bg-[var(--accent-soft)]",
+      textColor: "text-[var(--primary-deep)]",
     },
     {
       label: "Reactions Given",
       value: statistics.reactionsGiven,
       icon: Heart,
-      color: "bg-pink-500",
-      bgColor: "bg-pink-50",
-      textColor: "text-pink-700",
+      color: "bg-[var(--primary)]",
+      bgColor: "bg-[var(--accent-soft)]",
+      textColor: "text-[var(--primary-deep)]",
     },
     {
       label: "Reactions Received",
       value: statistics.reactionsReceived,
       icon: TrendingUp,
-      color: "bg-green-500",
-      bgColor: "bg-green-50",
-      textColor: "text-green-700",
+      color: "bg-[var(--success)]",
+      bgColor: "bg-[var(--success)]/10",
+      textColor: "text-[var(--success)]",
     },
     {
       label: "Tips Sent",
       value: statistics.tipsSent,
       subValue: `$${statistics.totalTipsSentAmount.toFixed(2)}`,
       icon: DollarSign,
-      color: "bg-yellow-500",
-      bgColor: "bg-yellow-50",
-      textColor: "text-yellow-700",
+      color: "bg-[var(--warning)]",
+      bgColor: "bg-[var(--warning)]/10",
+      textColor: "text-[var(--warning)]",
     },
     {
       label: "Tips Received",
       value: statistics.tipsReceived,
       subValue: `$${statistics.totalTipsReceivedAmount.toFixed(2)}`,
       icon: DollarSign,
-      color: "bg-orange-500",
-      bgColor: "bg-orange-50",
-      textColor: "text-orange-700",
+      color: "bg-[var(--warning)]",
+      bgColor: "bg-[var(--warning)]/10",
+      textColor: "text-[var(--warning)]",
     },
     {
       label: "Badges Earned",
       value: statistics.badgesEarned,
       icon: Award,
-      color: "bg-indigo-500",
-      bgColor: "bg-indigo-50",
-      textColor: "text-indigo-700",
+      color: "bg-[var(--primary)]",
+      bgColor: "bg-[var(--accent-soft)]",
+      textColor: "text-[var(--primary-deep)]",
     },
   ];
 
   return (
     <div>
-      <h2 className="text-2xl font-bold text-gray-900 mb-4">Your Statistics</h2>
+      <h2 className="text-2xl font-semibold text-[var(--foreground)] mb-4">Your Statistics</h2>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
         {statCards.map((stat, index) => {
@@ -98,19 +98,19 @@ export function UserStatistics({ statistics }: UserStatisticsProps) {
           return (
             <div
               key={index}
-              className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow"
+              className="rounded-[var(--radius-panel)] border border-[var(--border)] bg-[var(--surface)] p-5"
             >
               <div className="flex items-center justify-between mb-4">
-                <div className={`p-3 rounded-lg ${stat.bgColor}`}>
-                  <Icon className={`w-6 h-6 ${stat.textColor}`} />
+                <div className="text-[var(--text-muted)]">
+                  <Icon className="h-4 w-4" aria-hidden="true" />
                 </div>
               </div>
 
               <div className="space-y-1">
-                <p className="text-sm font-medium text-gray-600">
+                <p className="text-sm font-medium text-[var(--secondary)]">
                   {stat.label}
                 </p>
-                <p className="text-3xl font-bold text-gray-900">{stat.value}</p>
+                <p className="text-2xl font-semibold tabular-nums text-[var(--foreground)]">{stat.value}</p>
                 {stat.subValue && (
                   <p className={`text-sm font-medium ${stat.textColor}`}>
                     {stat.subValue}
@@ -123,18 +123,18 @@ export function UserStatistics({ statistics }: UserStatisticsProps) {
       </div>
 
       {/* Engagement Summary */}
-      <div className="mt-6 bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg shadow-md p-6 text-white">
-        <h3 className="text-lg font-semibold mb-2">Engagement Summary</h3>
+      <div className="mt-6 rounded-[var(--radius-panel)] border border-[var(--border)] bg-[var(--surface)] p-6">
+        <h3 className="mb-4 text-sm font-semibold text-[var(--foreground)]">Engagement summary</h3>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <div>
-            <p className="text-sm opacity-90">Total Activity</p>
-            <p className="text-2xl font-bold">
+            <p className="text-sm text-[var(--secondary)]">Total Activity</p>
+            <p className="mt-1 text-xl font-semibold tabular-nums text-[var(--foreground)]">
               {statistics.confessionsPosted + statistics.reactionsGiven}
             </p>
           </div>
           <div>
-            <p className="text-sm opacity-90">Engagement Rate</p>
-            <p className="text-2xl font-bold">
+            <p className="text-sm text-[var(--secondary)]">Engagement Rate</p>
+            <p className="mt-1 text-xl font-semibold tabular-nums text-[var(--foreground)]">
               {statistics.confessionsPosted > 0
                 ? (
                     (statistics.reactionsReceived /
@@ -146,8 +146,8 @@ export function UserStatistics({ statistics }: UserStatisticsProps) {
             </p>
           </div>
           <div>
-            <p className="text-sm opacity-90">Avg Views/Post</p>
-            <p className="text-2xl font-bold">
+            <p className="text-sm text-[var(--secondary)]">Avg Views/Post</p>
+            <p className="mt-1 text-xl font-semibold tabular-nums text-[var(--foreground)]">
               {statistics.confessionsPosted > 0
                 ? Math.round(
                     statistics.totalViews / statistics.confessionsPosted
@@ -156,8 +156,8 @@ export function UserStatistics({ statistics }: UserStatisticsProps) {
             </p>
           </div>
           <div>
-            <p className="text-sm opacity-90">Community Score</p>
-            <p className="text-2xl font-bold">
+            <p className="text-sm text-[var(--secondary)]">Community Score</p>
+            <p className="mt-1 text-xl font-semibold tabular-nums text-[var(--foreground)]">
               {Math.min(
                 Math.round(
                   (statistics.reactionsGiven * 0.5 +

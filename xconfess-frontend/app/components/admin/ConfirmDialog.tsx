@@ -109,13 +109,13 @@ export function ConfirmDialog({
       >
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
-          <DialogDescription className="pt-2 text-sm text-gray-600 dark:text-gray-400">
+          <DialogDescription className="pt-2 text-sm text-[var(--secondary)]">
             {description}
           </DialogDescription>
           {consequences && consequences.length > 0 && (
             <ul
               data-testid="confirm-dialog-consequences"
-              className="mt-3 list-disc space-y-1 pl-5 text-left text-sm text-gray-700 dark:text-gray-300"
+              className="mt-3 list-disc space-y-1 pl-5 text-left text-sm text-[var(--secondary)]"
             >
               {consequences.map((consequence) => (
                 <li key={consequence}>{consequence}</li>
@@ -128,7 +128,7 @@ export function ConfirmDialog({
             type="button"
             onClick={requestClose}
             disabled={loading}
-            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-600 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-4 py-2 text-sm font-medium text-[var(--secondary)] bg-[var(--surface)] border border-[var(--accent-border)] rounded-md hover:bg-[var(--surface-muted)] disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {cancelLabel}
           </button>
@@ -138,15 +138,15 @@ export function ConfirmDialog({
             disabled={loading}
             className={`px-4 py-2 text-sm font-medium text-white rounded-md disabled:opacity-50 disabled:cursor-not-allowed ${
               variant === 'danger'
-                ? 'bg-red-600 hover:bg-red-700'
-                : 'bg-indigo-600 hover:bg-indigo-700'
+                ? 'bg-[var(--danger)] hover:opacity-90'
+                : 'bg-[var(--primary)] hover:bg-[var(--primary-hover)]'
             }`}
           >
             {loading ? 'Processing...' : confirmLabel}
           </button>
         </DialogFooter>
         {!loading && (
-          <p className="text-center text-xs text-gray-500 dark:text-gray-400">
+          <p className="text-center text-xs text-[var(--text-muted)]">
             Press <kbd>Esc</kbd> to cancel, or <kbd>Tab</kbd> to{' '}
             <kbd>{confirmLabel}</kbd> and press <kbd>Enter</kbd> to confirm.
           </p>

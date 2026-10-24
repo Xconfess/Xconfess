@@ -168,18 +168,18 @@ export const AnchorButton: FC<AnchorButtonProps> = ({
         role="status"
         aria-live="polite"
       >
-        <CheckCircle2 className="h-4 w-4 text-green-400" aria-hidden="true" />
-        <span className="text-xs font-medium text-emerald-600 dark:text-emerald-400">Anchored</span>
-        <span className="rounded-full border border-[var(--border)] px-2 py-0.5 text-[10px] uppercase tracking-wide text-[var(--secondary)]">
+        <CheckCircle2 className="h-4 w-4 text-[var(--success)]" aria-hidden="true" />
+        <span className="text-xs font-medium text-[var(--success)]">Anchored</span>
+        <span className="rounded-md border border-[var(--border)] px-1.5 py-0.5 text-[11px] text-[var(--secondary)]">
           {network === "PUBLIC_NETWORK" ? "Mainnet" : "Testnet"}
         </span>
-        <span className="font-mono text-xs text-zinc-500">{shortHash(txHash)}</span>
+        <span className="font-mono text-xs text-[var(--text-muted)]">{shortHash(txHash)}</span>
         {explorerUrl && (
           <a
             href={explorerUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 rounded"
+            className="flex items-center gap-1 text-xs rounded text-[var(--primary-deep)] hover:underline focus-visible:outline-2 focus-visible:outline-[var(--focus-ring)]"
             aria-label="View transaction on Stellar explorer (opens in a new tab)"
           >
             View on explorer
@@ -199,9 +199,9 @@ export const AnchorButton: FC<AnchorButtonProps> = ({
         role="status"
         aria-live="polite"
       >
-        <Loader2 className="h-4 w-4 animate-spin text-amber-400" aria-hidden="true" />
-        <span className="text-xs font-medium text-amber-700 dark:text-amber-400">Anchor pending</span>
-        <span className="rounded-full border border-[var(--border)] px-2 py-0.5 text-[10px] uppercase tracking-wide text-[var(--secondary)]">
+        <Loader2 className="h-4 w-4 animate-spin text-[var(--warning)]" aria-hidden="true" />
+        <span className="text-xs font-medium text-[var(--warning)]">Anchor pending</span>
+        <span className="rounded-md border border-[var(--border)] px-1.5 py-0.5 text-[11px] text-[var(--secondary)]">
           {network === "PUBLIC_NETWORK" ? "Mainnet" : "Testnet"}
         </span>
         {explorerUrl && (
@@ -209,7 +209,7 @@ export const AnchorButton: FC<AnchorButtonProps> = ({
             href={explorerUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className={cn("flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300", focusVisible)}
+            className={cn("flex items-center gap-1 text-xs text-[var(--primary-deep)] hover:underline", focusVisible)}
           >
             Check transaction
             <ExternalLink className="h-3 w-3" aria-hidden="true" />
@@ -227,8 +227,8 @@ export const AnchorButton: FC<AnchorButtonProps> = ({
         role="status"
         aria-live="polite"
       >
-        <AlertCircle className="h-4 w-4 text-red-400" aria-hidden="true" />
-        <span className="text-xs font-medium text-amber-700 dark:text-amber-400">Anchor unavailable</span>
+        <AlertCircle className="h-4 w-4 text-[var(--danger)]" aria-hidden="true" />
+        <span className="text-xs font-medium text-[var(--warning)]">Anchor unavailable</span>
         <Button
           variant="outline"
           size="sm"
@@ -250,9 +250,9 @@ export const AnchorButton: FC<AnchorButtonProps> = ({
         role="region"
         aria-label="Wallet installation warning"
       >
-        <div className="flex items-center gap-2 rounded-md border border-yellow-500/30 bg-yellow-500/10 px-2.5 py-1.5">
-          <AlertCircle className="h-3.5 w-3.5 flex-shrink-0 text-yellow-500" aria-hidden="true" />
-          <span className="text-xs text-yellow-400">{walletCTA.guidance}</span>
+        <div className="flex items-center gap-2 rounded-md border border-[var(--warning)]/30 bg-[var(--warning)]/5 px-2.5 py-1.5">
+          <AlertCircle className="h-3.5 w-3.5 flex-shrink-0 text-[var(--warning)]" aria-hidden="true" />
+          <span className="text-xs text-[var(--warning)]">{walletCTA.guidance}</span>
         </div>
       </div>
     );
@@ -266,7 +266,7 @@ export const AnchorButton: FC<AnchorButtonProps> = ({
       {isEmbeddedWallet && (
         <label htmlFor="anchor-wallet-pin" className="block text-xs text-[var(--secondary)]">
           Wallet PIN
-          <input id="anchor-wallet-pin" type="password" inputMode="numeric" value={walletPin} onChange={(event) => setWalletPin(event.target.value)} placeholder="Required to sign locally" className={cn("mt-1 h-9 w-full rounded-lg border border-[var(--border)] bg-[var(--surface-muted)] px-3 text-sm text-[var(--foreground)]", focusVisible)} />
+          <input id="anchor-wallet-pin" type="password" inputMode="numeric" value={walletPin} onChange={(event) => setWalletPin(event.target.value)} placeholder="Required to sign locally" className={cn("mt-1 h-9 w-full rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--surface-strong)] px-3 text-sm text-[var(--foreground)]", focusVisible)} />
         </label>
       )}
       <Button
@@ -277,9 +277,9 @@ export const AnchorButton: FC<AnchorButtonProps> = ({
           aria-busy={isPending}
           title="Anchor this confession on Stellar"
           className={cn(
-            "h-7 px-2 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500",
+            "h-7 px-2 text-xs focus-visible:outline-2 focus-visible:outline-[var(--focus-ring)]",
             walletCTA.status === "not-connected" &&
-            "stellar-wallet-cta border-blue-500/40 text-blue-400 hover:bg-blue-500/10 hover:text-blue-300",
+            "stellar-wallet-cta border-[var(--border)] text-[var(--foreground)] hover:bg-[var(--surface-muted)]",
           )}
         >
           {isPending || (isLoading && isConnected) ? (
@@ -300,16 +300,16 @@ export const AnchorButton: FC<AnchorButtonProps> = ({
           )}
       </Button>
 
-      <span className="text-[10px] uppercase tracking-wide text-[var(--secondary)]">
+      <span className="text-[11px] text-[var(--text-muted)]">
         Not anchored · {network === "PUBLIC_NETWORK" ? "Mainnet" : "Testnet"}
       </span>
 
       {walletCTA.status === "not-connected" && walletCTA.guidance && (
-        <p className="text-xs text-zinc-500">{walletCTA.guidance}</p>
+        <p className="text-xs text-[var(--text-muted)]">{walletCTA.guidance}</p>
       )}
 
       {walletCTA.status === "not-ready" && (
-        <div className="text-xs text-orange-400" role="status" aria-live="polite">
+        <div className="text-xs text-[var(--warning)]" role="status" aria-live="polite">
           {walletCTA.guidance}
         </div>
       )}

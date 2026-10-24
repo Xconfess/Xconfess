@@ -49,11 +49,11 @@ export const FeatureTour = ({ run, onComplete, onSkip }: Props) => {
     const target = document.querySelector(step.target);
     if (!target) return;
 
-    target.classList.add("ring-2", "ring-purple-500", "rounded-lg");
+    target.classList.add("ring-2", "ring-[var(--focus-ring)]", "rounded-lg");
     (target as HTMLElement).scrollIntoView({ behavior: "smooth", block: "center" });
 
     return () => {
-      target.classList.remove("ring-2", "ring-purple-500", "rounded-lg");
+      target.classList.remove("ring-2", "ring-[var(--focus-ring)]", "rounded-lg");
     };
   }, [run, step]);
 
@@ -86,22 +86,22 @@ export const FeatureTour = ({ run, onComplete, onSkip }: Props) => {
 
   return (
     <div className="fixed inset-0 z-[10000] bg-black/70 flex items-end md:items-center justify-center p-4">
-      <div className="w-full max-w-md rounded-xl border border-zinc-700 bg-zinc-900 p-5 shadow-2xl">
-        <p className="text-xs uppercase tracking-wide text-zinc-400 mb-2">
+      <div className="w-full max-w-md rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5 shadow-[var(--shadow-popover)]">
+        <p className="text-xs uppercase tracking-wide text-[var(--text-muted)] mb-2">
           Step {stepIndex + 1} of {visibleSteps.length}
         </p>
-        <h3 className="text-lg font-semibold text-white">{step.title}</h3>
-        <p className="mt-2 text-sm text-zinc-300">{step.description}</p>
+        <h3 className="text-lg font-semibold text-[var(--foreground)]">{step.title}</h3>
+        <p className="mt-2 text-sm text-[var(--secondary)]">{step.description}</p>
 
         {isStellarStep && !walletAvailable && (
-          <div className="mt-3 rounded-md border border-yellow-500/30 bg-yellow-500/10 px-3 py-2">
-            <p className="text-xs text-yellow-400">
+          <div className="mt-3 rounded-md border border-[var(--warning)]/30 bg-[var(--warning)]/10 px-3 py-2">
+            <p className="text-xs text-[var(--warning)]">
               No Stellar wallet is set up yet.{" "}
               <a
                 href={WALLET_ROUTE}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="underline hover:text-yellow-300"
+                className="underline hover:text-[var(--warning)]"
               >
                 Create an XConfess Wallet
               </a>{" "}
@@ -114,7 +114,7 @@ export const FeatureTour = ({ run, onComplete, onSkip }: Props) => {
           <button
             type="button"
             onClick={onSkip}
-            className="text-sm text-zinc-400 hover:text-zinc-200 transition-colors"
+            className="text-sm text-[var(--text-muted)] hover:text-[var(--foreground)] transition-colors"
           >
             Skip tour
           </button>
@@ -124,14 +124,14 @@ export const FeatureTour = ({ run, onComplete, onSkip }: Props) => {
               type="button"
               onClick={handleBack}
               disabled={stepIndex === 0}
-              className="px-3 py-2 text-sm rounded-md bg-zinc-700 text-white disabled:opacity-40"
+              className="px-3 py-2 text-sm rounded-md bg-[var(--surface-elevated)] text-[var(--foreground)] disabled:opacity-40"
             >
               Back
             </button>
             <button
               type="button"
               onClick={handleNext}
-              className="px-3 py-2 text-sm rounded-md bg-purple-600 text-white hover:bg-purple-500"
+              className="px-3 py-2 text-sm rounded-md bg-[var(--primary)] text-white hover:bg-[var(--primary-hover)]"
             >
               {isLastStep ? "Finish" : "Next"}
             </button>

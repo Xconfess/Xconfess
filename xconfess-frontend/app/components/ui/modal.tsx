@@ -36,7 +36,7 @@ export const Modal: React.FC<ModalProps> = ({
     >
       {/* Backdrop */}
       <div
-        className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+        className="absolute inset-0 bg-black/60"
         onClick={onClose}
         aria-hidden="true"
       />
@@ -46,15 +46,15 @@ export const Modal: React.FC<ModalProps> = ({
         ref={containerRef}
         tabIndex={-1}
         className={cn(
-          "relative z-50 w-full max-w-lg rounded-xl border border-zinc-800 bg-zinc-900 shadow-xl",
+          "relative z-50 w-full max-w-lg rounded-[var(--radius-panel)] border border-[var(--border)] bg-[var(--surface-elevated)] text-[var(--foreground)] shadow-[var(--shadow-popover)]",
           "max-h-[90vh] overflow-y-auto",
           "outline-none",
           className,
         )}
       >
         {title && (
-          <div className="flex items-center justify-between border-b border-zinc-800 px-6 py-4">
-            <h2 id={titleId} className="text-lg font-semibold text-white">
+          <div className="flex items-center justify-between border-b border-[var(--border)] px-6 py-4">
+            <h2 id={titleId} className="text-base font-semibold text-[var(--foreground)]">
               {title}
             </h2>
             <Button

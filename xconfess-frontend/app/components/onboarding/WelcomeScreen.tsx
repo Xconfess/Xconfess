@@ -54,11 +54,11 @@ export const WelcomeScreen = ({ onStart, onSkip, onClose }: Props) => {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-4 backdrop-blur-sm">
-      <div className="luxury-panel relative w-full max-w-2xl overflow-hidden rounded-[28px] p-7">
+      <div className="luxury-panel relative w-full max-w-2xl overflow-hidden rounded-xl p-7">
         <div className="pointer-events-none absolute inset-x-0 top-0 h-36 bg-[radial-gradient(circle_at_top,var(--accent-soft),transparent_60%)]" />
 
         <button
-          className="absolute right-4 top-4 rounded-full p-2 text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-700"
+          className="absolute right-4 top-4 rounded-full p-2 text-[var(--text-muted)] transition hover:bg-[var(--surface-muted)] hover:text-[var(--secondary)]"
           onClick={handleClose}
           aria-label="Close onboarding"
         >
@@ -66,13 +66,13 @@ export const WelcomeScreen = ({ onStart, onSkip, onClose }: Props) => {
         </button>
 
         <div className="relative space-y-3">
-          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-zinc-500">
+          <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">
             Welcome
           </p>
-          <h2 className="text-3xl font-semibold tracking-tight text-zinc-950">
+          <h2 className="text-3xl font-semibold tracking-tight text-[var(--foreground)]">
             Welcome to XConfess
           </h2>
-          <p className="max-w-xl text-sm leading-7 text-zinc-600 sm:text-base">
+          <p className="max-w-xl text-sm leading-7 text-[var(--secondary)] sm:text-base">
             A calmer space for anonymous confessions, supportive reactions, and
             optional Stellar-backed permanence when you need it.
           </p>
@@ -86,14 +86,14 @@ export const WelcomeScreen = ({ onStart, onSkip, onClose }: Props) => {
                 key={feature.title}
                 className="flex items-start gap-3 rounded-2xl border border-[var(--border)] bg-[var(--surface-muted)] p-4"
               >
-                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white/75 shadow-sm">
+                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[var(--surface-muted)] shadow-sm">
                   <Icon className="h-5 w-5 text-[var(--primary-deep)]" />
                 </div>
                 <div>
-                  <h3 className="font-semibold text-zinc-950">
+                  <h3 className="font-semibold text-[var(--foreground)]">
                     {feature.title}
                   </h3>
-                  <p className="text-sm leading-6 text-zinc-600">
+                  <p className="text-sm leading-6 text-[var(--secondary)]">
                     {feature.description}
                   </p>
                 </div>
@@ -105,19 +105,19 @@ export const WelcomeScreen = ({ onStart, onSkip, onClose }: Props) => {
         <div className="relative flex flex-col gap-3 sm:flex-row">
           <button
             onClick={handleStart}
-            className="flex-1 rounded-full bg-zinc-950 py-3 text-white transition hover:bg-zinc-800"
+            className="flex-1 rounded-full bg-[var(--background)] py-3 text-[var(--foreground)] transition hover:bg-[var(--surface-muted)]"
           >
             Start Tour
           </button>
           <button
             onClick={handleSkip}
-            className="flex-1 rounded-full border border-zinc-300 py-3 text-zinc-700 transition hover:bg-zinc-100"
+            className="flex-1 rounded-full border border-[var(--accent-border)] py-3 text-[var(--secondary)] transition hover:bg-[var(--surface-muted)]"
           >
             Skip & Explore
           </button>
         </div>
 
-        <p className="mt-4 text-center text-xs text-zinc-500">
+        <p className="mt-4 text-center text-xs text-[var(--text-muted)]">
           You can restart the tour anytime from settings.
         </p>
       </div>
