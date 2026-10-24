@@ -140,7 +140,7 @@ export const FormattingToolbar: React.FC<FormattingToolbarProps> = ({
           onClick={handleBold}
           aria-label="Bold"
           title="Bold (Ctrl+B)"
-          className="h-8 w-8 p-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+          className="h-8 w-8 p-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]"
         >
           <Bold className="h-4 w-4" aria-hidden="true" />
         </Button>
@@ -151,7 +151,7 @@ export const FormattingToolbar: React.FC<FormattingToolbarProps> = ({
           onClick={handleItalic}
           aria-label="Italic"
           title="Italic (Ctrl+I)"
-          className="h-8 w-8 p-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+          className="h-8 w-8 p-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]"
         >
           <Italic className="h-4 w-4" aria-hidden="true" />
         </Button>
@@ -162,7 +162,7 @@ export const FormattingToolbar: React.FC<FormattingToolbarProps> = ({
           onClick={handleLink}
           aria-label="Insert link"
           title="Insert link"
-          className="h-8 w-8 p-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+          className="h-8 w-8 p-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]"
         >
           <Link className="h-4 w-4" aria-hidden="true" />
         </Button>
@@ -177,14 +177,14 @@ export const FormattingToolbar: React.FC<FormattingToolbarProps> = ({
             aria-expanded={isEmojiPickerOpen}
             aria-haspopup="true"
             title="Insert emoji"
-            className="h-8 w-8 p-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+            className="h-8 w-8 p-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]"
           >
             <Smile className="h-4 w-4" aria-hidden="true" />
           </Button>
           {isEmojiPickerOpen && (
             <div
               ref={emojiPickerRef}
-              className="absolute left-0 top-full z-50 mt-2 rounded-lg border border-[var(--border)] bg-[var(--surface-strong)] p-2 shadow-xl"
+              className="absolute left-0 top-full z-50 mt-2 rounded-lg border border-[var(--border)] bg-[var(--surface-strong)] p-2 shadow-[var(--shadow-popover)]"
               role="region"
               aria-label="Emoji picker"
             >
@@ -194,7 +194,7 @@ export const FormattingToolbar: React.FC<FormattingToolbarProps> = ({
                     key={emoji}
                     type="button"
                     onClick={() => handleEmojiClick(emoji)}
-                    className="rounded p-1 text-lg hover:bg-[var(--surface-muted)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                    className="rounded p-1 text-lg hover:bg-[var(--surface-muted)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]"
                     aria-label={`Insert ${emoji} emoji`}
                   >
                     {emoji}
@@ -234,7 +234,7 @@ export const FormattingToolbar: React.FC<FormattingToolbarProps> = ({
                   handleInsertLink();
                 }
               }}
-              className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+              className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]"
             />
           </div>
           <div className="flex justify-end gap-2">
@@ -245,14 +245,14 @@ export const FormattingToolbar: React.FC<FormattingToolbarProps> = ({
                 setIsLinkModalOpen(false);
                 setLinkUrl("");
               }}
-              className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+              className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]"
             >
               Cancel
             </Button>
             <Button
               type="button"
               onClick={handleInsertLink}
-              className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+              className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]"
             >
               Insert Link
             </Button>

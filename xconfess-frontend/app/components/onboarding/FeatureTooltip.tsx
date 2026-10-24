@@ -61,37 +61,37 @@ export const FeatureTooltip = ({
       {/* Children element */}
       <div onClick={handleToggle} className="cursor-pointer">
         {children}
-        <Info className="inline ml-1 w-4 h-4 text-gray-400" />
+        <Info className="inline ml-1 w-4 h-4 text-[var(--text-muted)]" />
       </div>
 
       {/* Tooltip */}
       {isVisible && (
         <div
-          className={`absolute z-50 ${placementClasses[placement]} w-64 bg-zinc-800 text-white p-3 rounded-lg shadow-lg`}
+          className={`absolute z-50 ${placementClasses[placement]} w-64 bg-[var(--surface-muted)] text-[var(--foreground)] p-3 rounded-lg shadow-[var(--shadow-popover)]`}
         >
           {/* Arrow */}
           <div
-            className={`absolute w-3 h-3 bg-zinc-800 rotate-45 ${arrowClasses[placement]}`}
+            className={`absolute w-3 h-3 bg-[var(--surface-muted)] rotate-45 ${arrowClasses[placement]}`}
           />
 
           {/* Header */}
           <div className="flex justify-between items-center mb-2">
-            <h4 className="font-semibold text-white">{title}</h4>
+            <h4 className="font-semibold text-[var(--foreground)]">{title}</h4>
             <button
               onClick={handleDismiss}
-              className="text-gray-400 hover:text-white"
+              className="text-[var(--text-muted)] hover:text-[var(--foreground)]"
             >
               <X className="w-4 h-4" />
             </button>
           </div>
 
           {/* Description */}
-          <p className="text-gray-300 text-sm">{description}</p>
+          <p className="text-[var(--secondary)] text-sm">{description}</p>
 
           {/* Got it button */}
           <button
             onClick={handleDismiss}
-            className="mt-2 w-full bg-purple-600 hover:bg-purple-700 text-white text-sm py-1 rounded-lg transition"
+            className="mt-2 w-full bg-[var(--primary)] hover:bg-[var(--primary-hover)] text-white text-sm py-1 rounded-lg transition"
           >
             Got it!
           </button>

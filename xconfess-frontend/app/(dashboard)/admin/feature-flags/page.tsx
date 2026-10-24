@@ -135,10 +135,10 @@ export default function FeatureFlagsPage() {
   return (
     <div className="max-w-6xl mx-auto px-4 py-8">
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold">Feature Flags</h1>
+        <h1 className="text-2xl font-semibold">Feature Flags</h1>
         <button
           onClick={() => setShowCreate(!showCreate)}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+          className="flex items-center gap-2 px-4 py-2 bg-[var(--primary)] text-white rounded-lg hover:bg-[var(--primary-hover)]"
         >
           <Plus className="w-4 h-4" />
           Create Flag
@@ -146,7 +146,7 @@ export default function FeatureFlagsPage() {
       </div>
 
       {showCreate && (
-        <div className="mb-6 p-6 border rounded-lg bg-gray-50 dark:bg-gray-800">
+        <div className="mb-6 p-6 border rounded-lg bg-[var(--surface-muted)]">
           <h3 className="text-lg font-semibold mb-4">
             Create New Feature Flag
           </h3>
@@ -211,13 +211,13 @@ export default function FeatureFlagsPage() {
             <div className="flex gap-2">
               <button
                 onClick={createFlag}
-                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                className="px-4 py-2 bg-[var(--primary)] text-white rounded-md hover:bg-[var(--primary-hover)]"
               >
                 Create
               </button>
               <button
                 onClick={() => setShowCreate(false)}
-                className="px-4 py-2 bg-gray-300 dark:bg-gray-600 rounded-md"
+                className="px-4 py-2 bg-[var(--skeleton)] rounded-md"
               >
                 Cancel
               </button>
@@ -230,16 +230,16 @@ export default function FeatureFlagsPage() {
         {flags.map((flag) => (
           <div
             key={flag.id}
-            className="p-6 border rounded-lg bg-white dark:bg-gray-900 space-y-4"
+            className="p-6 border rounded-lg bg-[var(--surface)] space-y-4"
           >
             <div className="flex items-start justify-between">
               <div>
                 <h3 className="text-lg font-semibold">{flag.name}</h3>
-                <p className="text-sm text-gray-500">{flag.description}</p>
+                <p className="text-sm text-[var(--text-muted)]">{flag.description}</p>
               </div>
               <button
                 onClick={() => deleteFlag(flag.name)}
-                className="p-2 text-red-600 hover:bg-red-50 rounded-md"
+                className="p-2 text-[var(--danger)] hover:bg-[var(--danger)]/10 rounded-md"
               >
                 <Trash2 className="w-4 h-4" />
               </button>
@@ -261,8 +261,8 @@ export default function FeatureFlagsPage() {
                 <span
                   className={`px-2 py-1 text-xs rounded-full ${
                     flag.enabled
-                      ? "bg-green-100 text-green-800"
-                      : "bg-gray-100 text-gray-800"
+                      ? "bg-[var(--success)]/10 text-[var(--foreground)]"
+                      : "bg-[var(--surface-muted)] text-[var(--foreground)]"
                   }`}
                 >
                   {flag.enabled ? "Active" : "Inactive"}
@@ -290,10 +290,10 @@ export default function FeatureFlagsPage() {
                 />
               </div>
 
-              <div className="flex items-center justify-between text-xs text-gray-500 pt-2 border-t border-gray-100 dark:border-gray-800">
+              <div className="flex items-center justify-between text-xs text-[var(--text-muted)] pt-2 border-t border-[var(--border)]">
                 <div>
                   <span>Last changed by: </span>
-                  <span className="font-semibold text-gray-700 dark:text-gray-300">
+                  <span className="font-semibold text-[var(--secondary)]">
                     {flag.lastChangedBy || "System"}
                   </span>
                   {" at "}
@@ -308,7 +308,7 @@ export default function FeatureFlagsPage() {
                 {flag.rollbackMetadata?.previousState && (
                   <button
                     onClick={() => rollbackFlag(flag.name)}
-                    className="flex items-center gap-1 text-amber-600 hover:text-amber-700 text-xs font-medium"
+                    className="flex items-center gap-1 text-[var(--warning)] hover:text-[var(--warning)] text-xs font-medium"
                     title="Rollback to previous state"
                   >
                     <RotateCcw className="w-3.5 h-3.5" />
@@ -317,9 +317,9 @@ export default function FeatureFlagsPage() {
                 )}
               </div>
 
-              <div className="text-xs text-gray-500">
+              <div className="text-xs text-[var(--text-muted)]">
                 Test URL:{" "}
-                <code className="bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded">
+                <code className="bg-[var(--surface-muted)] px-2 py-1 rounded">
                   ?ff_{flag.name}=true
                 </code>
               </div>
@@ -328,7 +328,7 @@ export default function FeatureFlagsPage() {
         ))}
 
         {flags.length === 0 && (
-          <div className="text-center py-12 text-gray-500">
+          <div className="text-center py-12 text-[var(--text-muted)]">
             <ToggleLeft className="w-12 h-12 mx-auto mb-4" />
             <p>No feature flags yet. Create your first flag to get started.</p>
           </div>

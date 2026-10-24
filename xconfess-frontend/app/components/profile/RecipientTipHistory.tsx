@@ -14,12 +14,12 @@ function TipHistorySkeleton() {
   return (
     <div role="status" aria-label="Loading recipient tip history" className="space-y-3">
       {Array.from({ length: 3 }).map((_, index) => (
-        <div key={index} className="flex items-center justify-between gap-4 border-b border-zinc-200 py-3 last:border-0 dark:border-zinc-800">
+        <div key={index} className="flex items-center justify-between gap-4 border-b border-[var(--border)] py-3 last:border-0">
           <div className="min-w-0 flex-1 space-y-2">
-            <div className="h-4 w-28 animate-pulse rounded bg-zinc-200 dark:bg-zinc-800" />
-            <div className="h-3 w-20 animate-pulse rounded bg-zinc-200 dark:bg-zinc-800" />
+            <div className="h-4 w-28 animate-pulse rounded bg-[var(--skeleton)]" />
+            <div className="h-3 w-20 animate-pulse rounded bg-[var(--skeleton)]" />
           </div>
-          <div className="h-5 w-16 animate-pulse rounded bg-zinc-200 dark:bg-zinc-800" />
+          <div className="h-5 w-16 animate-pulse rounded bg-[var(--skeleton)]" />
         </div>
       ))}
     </div>
@@ -67,7 +67,7 @@ export function RecipientTipHistory({ userId }: RecipientTipHistoryProps) {
           <TipHistorySkeleton />
         ) : failed ? (
           <div className="space-y-3 text-sm">
-            <p role="alert" className="text-zinc-600 dark:text-zinc-400">
+            <p role="alert" className="text-[var(--secondary)]">
               Tip history is unavailable right now.
             </p>
             <Button variant="outline" size="sm" onClick={() => setRetry((current) => current + 1)}>
@@ -75,16 +75,16 @@ export function RecipientTipHistory({ userId }: RecipientTipHistoryProps) {
             </Button>
           </div>
         ) : tips.length === 0 ? (
-          <p className="py-4 text-sm text-zinc-500">No tips received yet.</p>
+          <p className="py-4 text-sm text-[var(--text-muted)]">No tips received yet.</p>
         ) : (
           <ul>
             {tips.map((tip) => (
-              <li key={tip.id} className="flex items-center justify-between gap-4 border-b border-zinc-200 py-3 last:border-0 dark:border-zinc-800">
+              <li key={tip.id} className="flex items-center justify-between gap-4 border-b border-[var(--border)] py-3 last:border-0">
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-medium text-zinc-900 dark:text-zinc-100">
+                  <p className="truncate text-sm font-medium text-[var(--foreground)]">
                     From {tip.senderUsername || "Anonymous"}
                   </p>
-                  <time dateTime={tip.createdAt} className="text-xs text-zinc-500">
+                  <time dateTime={tip.createdAt} className="text-xs text-[var(--text-muted)]">
                     {new Date(tip.createdAt).toLocaleDateString()}
                   </time>
                 </div>

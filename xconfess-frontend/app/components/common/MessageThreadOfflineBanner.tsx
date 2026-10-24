@@ -20,7 +20,7 @@ export function MessageThreadOfflineBanner({ state }: Props) {
     <div
       role="status"
       aria-live="polite"
-      className="flex items-center gap-2 rounded-lg border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-amber-200 text-xs"
+      className="flex items-center gap-2 rounded-lg border border-[var(--warning)]/20 bg-[var(--warning)]/10 px-3 py-2 text-[var(--warning)] text-xs"
     >
       {isReconnecting ? (
         <RefreshCcw className="w-3.5 h-3.5 animate-spin flex-shrink-0" aria-hidden />

@@ -18,21 +18,21 @@ export const MetricsOverview = ({ metrics, period }: Props) => {
       value: metrics.totalConfessions,
       icon: MessageSquare,
       color: 'from-purple-500 to-blue-500',
-      textColor: 'text-purple-400'
+      textColor: 'text-[var(--primary-deep)]'
     },
     {
       label: 'Total Reactions',
       value: metrics.totalReactions,
       icon: Heart,
       color: 'from-pink-500 to-rose-500',
-      textColor: 'text-pink-400'
+      textColor: 'text-[var(--primary-deep)]'
     },
     {
       label: 'Active Users',
       value: metrics.totalUsers,
       icon: Users,
       color: 'from-blue-500 to-cyan-500',
-      textColor: 'text-blue-400'
+      textColor: 'text-[var(--primary-deep)]'
     }
   ];
 
@@ -52,18 +52,18 @@ export const MetricsOverview = ({ metrics, period }: Props) => {
         return (
           <div
             key={card.label}
-            className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 hover:border-zinc-700 transition-colors"
+            className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-6 hover:border-[var(--border)] transition-colors"
           >
             <div className="flex items-start justify-between mb-4">
-              <div className={`w-12 h-12 rounded-lg bg-gradient-to-br ${card.color} flex items-center justify-center`}>
-                <Icon className="w-6 h-6 text-white" />
+              <div className={`w-12 h-12 rounded-lg bg-[var(--surface)] ${card.color} flex items-center justify-center`}>
+                <Icon className="w-6 h-6 text-[var(--foreground)]" />
               </div>
             </div>
-            <div className={`text-4xl font-bold mb-2 ${card.textColor}`}>
+            <div className={`text-4xl font-semibold mb-2 ${card.textColor}`}>
               {card.value.toLocaleString()}
             </div>
-            <div className="text-gray-400 text-sm">{card.label}</div>
-            <div className="text-gray-500 text-xs mt-1">{periodLabel}</div>
+            <div className="text-[var(--text-muted)] text-sm">{card.label}</div>
+            <div className="text-[var(--text-muted)] text-xs mt-1">{periodLabel}</div>
           </div>
         );
       })}

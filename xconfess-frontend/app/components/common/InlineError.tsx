@@ -37,7 +37,7 @@ export function InlineError({ message, id, className }: InlineErrorProps) {
       aria-live="assertive"
       data-testid="inline-error"
       className={cn(
-        'rounded-xl border border-red-500/25 bg-red-950/30 p-3 text-sm text-red-200',
+        'rounded-xl border border-[var(--danger)]/25 bg-[var(--danger)]/10 p-3 text-sm text-[var(--danger)]',
         className,
       )}
     >

@@ -24,26 +24,26 @@ const IndicatorContent = ({ userId }: { userId: string }) => {
   const isExhausted = connectionState === 'disconnected' && reconnectAttempts >= MAX_RECONNECT_ATTEMPTS;
 
   return (
-    <div className="fixed bottom-4 left-4 z-50 flex items-center px-3 py-1.5 rounded-full bg-white dark:bg-gray-800 shadow-sm border border-gray-100 dark:border-gray-700 text-xs font-medium opacity-80 hover:opacity-100 transition-opacity">
+    <div className="fixed bottom-4 left-4 z-50 flex items-center px-3 py-1.5 rounded-full bg-[var(--surface)] shadow-sm border border-[var(--border)] text-xs font-medium opacity-80 hover:opacity-100 transition-opacity">
       {isConnected ? (
         <>
-          <span className="w-2 h-2 rounded-full bg-green-500 mr-2" />
-          <span className="text-gray-600 dark:text-gray-300">Live</span>
+          <span className="w-2 h-2 rounded-full bg-[var(--success)] mr-2" />
+          <span className="text-[var(--secondary)]">Live</span>
         </>
       ) : isExhausted ? (
         <>
-          <span className="w-2 h-2 rounded-full bg-red-500 mr-2" />
-          <span className="text-gray-600 dark:text-gray-300">Disconnected</span>
+          <span className="w-2 h-2 rounded-full bg-[var(--danger)] mr-2" />
+          <span className="text-[var(--secondary)]">Disconnected</span>
         </>
       ) : connectionState === 'reconnecting' ? (
         <>
-          <span className="w-2 h-2 rounded-full bg-yellow-500 mr-2 animate-pulse" />
-          <span className="text-gray-600 dark:text-gray-300">Reconnecting... ({reconnectAttempts}/{MAX_RECONNECT_ATTEMPTS})</span>
+          <span className="w-2 h-2 rounded-full bg-[var(--warning)] mr-2 animate-pulse" />
+          <span className="text-[var(--secondary)]">Reconnecting... ({reconnectAttempts}/{MAX_RECONNECT_ATTEMPTS})</span>
         </>
       ) : (
         <>
-          <span className="w-2 h-2 rounded-full bg-red-500 mr-2" />
-          <span className="text-gray-600 dark:text-gray-300">Disconnected</span>
+          <span className="w-2 h-2 rounded-full bg-[var(--danger)] mr-2" />
+          <span className="text-[var(--secondary)]">Disconnected</span>
         </>
       )}
     </div>

@@ -115,7 +115,7 @@ function TractionContent({
         <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div className="max-w-3xl space-y-4">
             <p className="eyebrow">Public traction</p>
-            <h1 className="font-editorial text-4xl leading-tight text-[var(--foreground)] sm:text-5xl lg:text-6xl">
+            <h1 className="text-2xl font-semibold tracking-tight text-[var(--foreground)] sm:text-3xl">
               Real usage, aggregate only.
             </h1>
             <p className="max-w-2xl text-base leading-8 text-[var(--secondary)]">

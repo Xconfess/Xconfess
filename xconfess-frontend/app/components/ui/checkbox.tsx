@@ -31,7 +31,7 @@ const Checkbox = React.forwardRef<HTMLInputElement, CheckboxProps>(
         )}
         {...props}
       />
-      <Check className="pointer-events-none absolute h-3 w-3 text-white opacity-0 peer-checked:opacity-100" />
+      <Check className="pointer-events-none absolute h-3 w-3 text-[var(--foreground)] opacity-0 peer-checked:opacity-100" />
     </span>
   ),
 );

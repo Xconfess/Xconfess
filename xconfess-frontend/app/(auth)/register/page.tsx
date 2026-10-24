@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react';
 import type React from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { CheckCircle2, Eye, EyeOff, ShieldCheck } from 'lucide-react';
+import { CheckCircle2, Eye, EyeOff } from 'lucide-react';
 import { Button } from '@/app/components/ui/button';
 import { Input } from '@/app/components/ui/input';
 import { BrandLogo } from '@/app/components/brand/BrandLogo';
@@ -111,38 +111,19 @@ export default function RegisterPage() {
   };
 
   return (
-    <div className="editorial-shell min-h-screen px-4 py-10">
-      <div className="mx-auto flex min-h-[calc(100vh-5rem)] w-full max-w-6xl items-center justify-center">
-        <div className="grid w-full gap-8 lg:grid-cols-[0.9fr_1.1fr] lg:items-center">
-          <div className="space-y-5">
-            <BrandLogo priority imageClassName="w-[168px] dark:hidden" />
-            <BrandLogo priority tone="light" imageClassName="hidden w-[168px] dark:block" />
-            <p className="eyebrow">Join privately</p>
-            <h1 className="font-editorial text-5xl leading-[0.96] text-[var(--foreground)] sm:text-6xl">
-              Create your account.
-            </h1>
-            <p className="max-w-md text-base leading-8 text-[var(--secondary)]">
-              Post anonymously. Stay in control.
-            </p>
-            <div className="flex flex-wrap gap-3 text-sm text-[var(--secondary)]">
-              <span className="inline-flex items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-2">
-                <ShieldCheck className="h-4 w-4 text-[var(--primary)]" aria-hidden="true" />
-                Encrypted identity
-              </span>
-              <span className="inline-flex items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-2">
-                <CheckCircle2 className="h-4 w-4 text-emerald-600" aria-hidden="true" />
-                Automatic sign-in
-              </span>
-            </div>
+    <div className="min-h-screen px-4 py-12 sm:py-20">
+      <div className="mx-auto w-full max-w-[420px]">
+        <div className="space-y-8">
+          <div className="flex justify-center">
+            <BrandLogo priority imageClassName="w-[132px] dark:hidden" />
+            <BrandLogo priority tone="light" imageClassName="hidden w-[132px] dark:block" />
           </div>
-
-          <form onSubmit={doRegister} className="luxury-panel rounded-2xl p-7 sm:p-8">
-            <div className="space-y-3">
-              <p className="eyebrow">Account setup</p>
-              <h2 className="font-editorial text-4xl text-[var(--foreground)]">
+          <form onSubmit={doRegister} className="rounded-[var(--radius-panel)] border border-[var(--border)] bg-[var(--surface)] p-6 sm:p-8">
+            <div className="space-y-1.5">
+              <h1 className="text-xl font-semibold text-[var(--foreground)]">
                 Create account
-              </h2>
-              <p className="text-sm leading-7 text-[var(--secondary)]">
+              </h1>
+              <p className="text-sm leading-6 text-[var(--secondary)]">
                 Already have an account?{' '}
                 <Link href={buildAuthSwitchUrl('/login')} className="text-[var(--primary-deep)] hover:text-[var(--primary)]">
                   Sign in
@@ -258,7 +239,7 @@ export default function RegisterPage() {
                   return (
                     <span key={check.label} className="inline-flex items-center gap-2">
                       <CheckCircle2
-                        className={passed ? 'h-4 w-4 text-emerald-600' : 'h-4 w-4 text-[var(--secondary)]'}
+                        className={passed ? 'h-4 w-4 text-[var(--success)]' : 'h-4 w-4 text-[var(--secondary)]'}
                         aria-hidden="true"
                       />
                       {check.label}
@@ -326,7 +307,7 @@ function Field({
       </label>
       {children}
       {error && (
-        <p id={`${id}-error`} className="mt-2 text-sm text-red-300" role="alert">
+        <p id={`${id}-error`} className="mt-2 text-sm text-[var(--danger)]" role="alert">
           {error}
         </p>
       )}

@@ -44,7 +44,7 @@ export function AttachmentUploadList({ uploads, onCancel, onRetry }: AttachmentU
             >
               <div
                 className={`h-full rounded-full transition-all ${
-                  upload.status === "error" ? "bg-red-400" : "bg-[var(--primary)]"
+                  upload.status === "error" ? "bg-[var(--danger)]" : "bg-[var(--primary)]"
                 }`}
                 style={{ width: `${upload.status === "error" ? 100 : upload.progress}%` }}
               />

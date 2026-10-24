@@ -20,7 +20,7 @@ export default function LoginLoading() {
                     </div>
 
                     {/* Right Column Form Card Skeleton */}
-                    <div className="luxury-panel rounded-[34px] p-7 sm:p-8">
+                    <div className="luxury-panel rounded-xl p-7 sm:p-8">
                         <div className="space-y-3">
                             <Skeleton className="h-4 w-32 rounded-full" />
                             <Skeleton className="h-9 w-28" />

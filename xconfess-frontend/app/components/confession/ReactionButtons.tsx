@@ -68,38 +68,37 @@ export const ReactionButton = ({
         aria-pressed={computedIsActive}
         title={error || undefined}
         className={cn(
-          "relative flex items-center gap-2 px-4 py-2 rounded-full",
-          "min-w-11 min-h-11 touch-manipulation",
-          "transition-all duration-200 ease-out",
-          "border border-[var(--border)] bg-[var(--surface)] text-[var(--secondary)] hover:border-[var(--accent-border)] hover:bg-[var(--accent-soft)] hover:text-[var(--foreground)]",
-          "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--primary)]",
-          "active:scale-95",
-          computedIsActive && "border-[var(--accent-border)] bg-[var(--accent-soft)] text-[var(--primary-deep)] ring-1 ring-[var(--accent-border)]",
+          "relative flex h-8 items-center gap-1.5 rounded-[var(--radius-control)] px-2.5",
+          "min-w-11 touch-manipulation",
+          "transition-colors duration-150",
+          "border border-[var(--border)] bg-transparent text-[var(--secondary)] hover:bg-[var(--surface-muted)] hover:text-[var(--foreground)]",
+          "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--focus-ring)]",
+          computedIsActive && "border-[var(--accent-border)] bg-[var(--accent-soft)] text-[var(--primary-deep)]",
           isAnimating && "animate-reaction-bounce",
-          error && "ring-2 ring-red-500"
+          error && "border-[var(--danger)]"
         )}
       >
-        <span className="text-lg select-none">
+        <span className="text-sm leading-none select-none">
           {type === "like" ? "👍" : "❤️"}
         </span>
 
-        <span className="text-sm font-medium">{displayCount}</span>
+        <span className="text-xs font-medium tabular-nums">{displayCount}</span>
         <span
           role="status"
           aria-label={statusLabel}
           title={statusLabel}
           className={cn(
-            "h-2 w-2 rounded-full",
-            connectionState === "connected" && "bg-[var(--primary)]",
-            connectionState === "reconnecting" && "bg-amber-400 animate-pulse",
-            connectionState === "disconnected" && "bg-zinc-500"
+            "h-1.5 w-1.5 rounded-full",
+            connectionState === "connected" && "bg-[var(--success)]",
+            connectionState === "reconnecting" && "bg-[var(--warning)]",
+            connectionState === "disconnected" && "bg-[var(--text-muted)]"
           )}
         />
       </button>
 
       {error && (
         <div role="alert" className="absolute top-full mt-1 left-1/2 -translate-x-1/2 whitespace-nowrap">
-          <div className="text-xs text-red-500 bg-red-50 dark:bg-red-900/20 px-2 py-1 rounded">
+          <div className="rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--surface-elevated)] px-2 py-1 text-xs text-[var(--danger)]">
             {error}
           </div>
         </div>

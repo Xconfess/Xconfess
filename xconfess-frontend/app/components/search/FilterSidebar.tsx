@@ -48,20 +48,20 @@ export function FilterSidebar({
   return (
     <aside
       className={cn(
-        "rounded-xl border border-zinc-800 bg-zinc-900 p-5 lg:p-6 h-fit",
+        "rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5 lg:p-6 h-fit",
         className
       )}
       role="search"
       aria-label="Search filters"
     >
-      <h3 className="text-sm font-semibold text-white mb-5">Filters</h3>
+      <h3 className="text-sm font-semibold text-[var(--foreground)] mb-5">Filters</h3>
 
       <div className="space-y-6">
         {/* Sort */}
         <div>
           <label
             htmlFor="search-sort"
-            className="block text-xs font-medium text-zinc-400 mb-2"
+            className="block text-xs font-medium text-[var(--text-muted)] mb-2"
           >
             Sort by
           </label>
@@ -74,7 +74,7 @@ export function FilterSidebar({
                 sort: e.target.value as SearchFilters["sort"],
               }))
             }
-            className="w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-zinc-500"
+            className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface-muted)] px-3 py-2 text-sm text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--border)]"
             aria-label="Sort results"
           >
             {SORT_OPTIONS.map((opt) => (
@@ -87,7 +87,7 @@ export function FilterSidebar({
 
         {/* Date range */}
         <div className="space-y-3">
-          <span className="block text-xs font-medium text-zinc-400">
+          <span className="block text-xs font-medium text-[var(--text-muted)]">
             Date range
           </span>
           <div className="grid grid-cols-2 gap-2">
@@ -105,7 +105,7 @@ export function FilterSidebar({
                     dateFrom: e.target.value || undefined,
                   }))
                 }
-                className="w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-zinc-500 [color-scheme:dark]"
+                className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface-muted)] px-3 py-2 text-sm text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--border)] [color-scheme:dark]"
                 aria-label="From date"
               />
             </div>
@@ -123,7 +123,7 @@ export function FilterSidebar({
                     dateTo: e.target.value || undefined,
                   }))
                 }
-                className="w-full rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-zinc-500 [color-scheme:dark]"
+                className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface-muted)] px-3 py-2 text-sm text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--border)] [color-scheme:dark]"
                 aria-label="To date"
               />
             </div>
@@ -134,7 +134,7 @@ export function FilterSidebar({
         <div>
           <label
             htmlFor="filter-min-reactions"
-            className="block text-xs font-medium text-zinc-400 mb-2"
+            className="block text-xs font-medium text-[var(--text-muted)] mb-2"
           >
             Min. reactions ({local.minReactions ?? 0})
           </label>
@@ -151,7 +151,7 @@ export function FilterSidebar({
                 minReactions: e.target.value ? Number(e.target.value) : undefined,
               }))
             }
-            className="w-full h-2 rounded-lg appearance-none bg-zinc-700 accent-zinc-400"
+            className="w-full h-2 rounded-lg appearance-none bg-[var(--surface-elevated)] accent-zinc-400"
             aria-valuemin={0}
             aria-valuemax={50}
             aria-valuenow={local.minReactions ?? 0}
@@ -166,7 +166,7 @@ export function FilterSidebar({
             variant="outline"
             onClick={handleApply}
             disabled={!hasChanges}
-            className="w-full border-zinc-700 bg-zinc-800 text-zinc-100 hover:bg-zinc-700 disabled:opacity-50"
+            className="w-full border-[var(--border)] bg-[var(--surface-muted)] text-[var(--foreground)] hover:bg-[var(--surface-elevated)] disabled:opacity-50"
           >
             Apply filters
           </Button>
@@ -174,7 +174,7 @@ export function FilterSidebar({
             type="button"
             variant="ghost"
             onClick={handleReset}
-            className="w-full text-zinc-300 hover:bg-zinc-800 hover:text-white"
+            className="w-full text-[var(--secondary)] hover:bg-[var(--surface-muted)] hover:text-[var(--foreground)]"
           >
             Reset
           </Button>

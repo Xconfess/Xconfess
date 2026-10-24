@@ -164,7 +164,7 @@ export default function AdminLayout({
             <span className="flex items-center justify-between">
               <span>{item.label}</span>
               {item.href === "/admin/reports" && newReportsCount > 0 && (
-                <span className="ml-3 rounded-full bg-red-100 px-2 py-0.5 text-xs text-red-700">
+                <span className="ml-3 rounded-full bg-[var(--danger)]/10 px-2 py-0.5 text-xs text-[var(--danger)]">
                   {newReportsCount}
                 </span>
               )}
@@ -196,7 +196,7 @@ export default function AdminLayout({
               </span>
             )}
             {newReportsCount > 0 && (
-              <span className="rounded-full bg-red-100 px-2 py-0.5 text-[10px] uppercase tracking-wide text-red-700">
+              <span className="rounded-full bg-[var(--danger)]/10 px-2 py-0.5 text-[10px] uppercase tracking-wide text-[var(--danger)]">
                 {newReportsCount} new
               </span>
             )}
@@ -218,14 +218,14 @@ export default function AdminLayout({
             aria-hidden="true"
           />
           <aside
-            className="absolute left-0 top-0 h-full w-72 border-r border-[var(--border)] bg-[var(--surface-strong)] p-4 shadow-2xl"
+            className="absolute left-0 top-0 h-full w-72 border-r border-[var(--border)] bg-[var(--surface-strong)] p-4 shadow-[var(--shadow-popover)]"
             role="dialog"
             aria-modal="true"
             aria-label="Admin navigation"
             ref={mobileDrawerRef}
           >
             <div className="mb-4 flex items-center justify-between">
-              <span className="text-lg font-bold">Admin</span>
+              <span className="text-lg font-semibold">Admin</span>
               <button
                 type="button"
                 onClick={() => setMobileOpen(false)}

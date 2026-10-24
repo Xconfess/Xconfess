@@ -13,9 +13,9 @@ export function ComparisonTable({ data }: ComparisonTableProps) {
 
   if (!items.length) {
     return (
-      <Card className="p-6 text-center min-h-[240px] flex flex-col items-center justify-center gap-3 border-zinc-800 bg-zinc-950">
-        <p className="text-lg font-semibold text-white">No items selected for comparison</p>
-        <p className="max-w-xl text-sm text-zinc-400">
+      <Card className="p-6 text-center min-h-[240px] flex flex-col items-center justify-center gap-3 border-[var(--border)] bg-[var(--background)]">
+        <p className="text-lg font-semibold text-[var(--foreground)]">No items selected for comparison</p>
+        <p className="max-w-xl text-sm text-[var(--text-muted)]">
           Pick confessions from the feed and use the comparison link to compare engagement side by side.
         </p>
       </Card>
@@ -24,9 +24,9 @@ export function ComparisonTable({ data }: ComparisonTableProps) {
 
   if (!metrics.length) {
     return (
-      <Card className="p-6 text-center min-h-[240px] flex flex-col items-center justify-center gap-3 border-zinc-800 bg-zinc-950">
-        <p className="text-lg font-semibold text-white">Nothing to compare</p>
-        <p className="max-w-xl text-sm text-zinc-400">
+      <Card className="p-6 text-center min-h-[240px] flex flex-col items-center justify-center gap-3 border-[var(--border)] bg-[var(--background)]">
+        <p className="text-lg font-semibold text-[var(--foreground)]">Nothing to compare</p>
+        <p className="max-w-xl text-sm text-[var(--text-muted)]">
           The selected confessions do not have comparable metrics available.
         </p>
       </Card>
@@ -61,21 +61,21 @@ export function ComparisonTable({ data }: ComparisonTableProps) {
   };
 
   return (
-    <Card className="overflow-x-auto min-h-[280px] border-zinc-800 bg-zinc-950 rounded-2xl">
+    <Card className="overflow-x-auto min-h-[280px] border-[var(--border)] bg-[var(--background)] rounded-2xl">
       <table className="w-full border-separate border-spacing-0 table-fixed">
         <thead>
-          <tr className="border-b border-zinc-800 bg-zinc-900/40">
+          <tr className="border-b border-[var(--border)] bg-[var(--surface)]/40">
             {/* First column empty for Metric Labels */}
-            <th className="p-4 text-left font-semibold text-zinc-400 text-xs uppercase tracking-wider w-48 border-b border-zinc-800">
+            <th className="p-4 text-left font-semibold text-[var(--text-muted)] text-xs uppercase tracking-wider w-48 border-b border-[var(--border)]">
               Analysis Metric
             </th>
             {/* Renders Confessions Side-by-Side as columns headers */}
             {items.map(item => (
-              <th key={item.id} className="p-4 text-left font-bold text-white border-b border-zinc-800 border-l border-zinc-800/60 min-w-[280px]">
+              <th key={item.id} className="p-4 text-left font-semibold text-[var(--foreground)] border-b border-[var(--border)] border-l border-[var(--border)] min-w-[280px]">
                 <div className="flex flex-col gap-1">
                   <span className="truncate text-sm" title={item.name}>{item.name}</span>
                   {item.data?.category && (
-                    <span className="text-[10px] font-mono font-normal text-zinc-500 max-w-max bg-zinc-900 px-2 py-0.5 rounded">
+                    <span className="text-[10px] font-mono font-normal text-[var(--text-muted)] max-w-max bg-[var(--surface)] px-2 py-0.5 rounded">
                       {item.data.category}
                     </span>
                   )}
@@ -86,13 +86,13 @@ export function ComparisonTable({ data }: ComparisonTableProps) {
         </thead>
         <tbody>
           {/* Confession Body Row */}
-          <tr className="border-b border-zinc-800 hover:bg-zinc-900/10 transition-colors">
-            <td className="p-4 align-top text-xs font-medium text-zinc-400 bg-zinc-900/20 border-b border-zinc-800">
+          <tr className="border-b border-[var(--border)] hover:bg-[var(--surface)]/10 transition-colors">
+            <td className="p-4 align-top text-xs font-medium text-[var(--text-muted)] bg-[var(--surface)]/20 border-b border-[var(--border)]">
               Confession Context
             </td>
             {items.map(item => (
-              <td key={item.id} className="p-4 align-top border-b border-zinc-800 border-l border-zinc-800/60">
-                <p className="text-xs text-zinc-300 leading-relaxed max-h-48 overflow-y-auto whitespace-pre-wrap font-sans">
+              <td key={item.id} className="p-4 align-top border-b border-[var(--border)] border-l border-[var(--border)]">
+                <p className="text-xs text-[var(--secondary)] leading-relaxed max-h-48 overflow-y-auto whitespace-pre-wrap font-sans">
                   {item.data?.content || "No context text provided."}
                 </p>
               </td>
@@ -101,8 +101,8 @@ export function ComparisonTable({ data }: ComparisonTableProps) {
 
           {/* Dynamic Metrics Side-By-Side Row Maps */}
           {metrics.map((metric) => (
-            <tr key={metric} className="border-b border-zinc-800 hover:bg-zinc-900/20 transition-colors">
-              <td className="p-4 align-middle text-xs font-semibold text-zinc-300 capitalize bg-zinc-900/20 border-b border-zinc-800">
+            <tr key={metric} className="border-b border-[var(--border)] hover:bg-[var(--surface)]/20 transition-colors">
+              <td className="p-4 align-middle text-xs font-semibold text-[var(--secondary)] capitalize bg-[var(--surface)]/20 border-b border-[var(--border)]">
                 {metric.replace(/([A-Z])/g, ' $1').trim()}
               </td>
               {items.map(item => {
@@ -115,13 +115,13 @@ export function ComparisonTable({ data }: ComparisonTableProps) {
                   : rawValue;
 
                 return (
-                  <td key={item.id} className="p-4 align-middle border-b border-zinc-800 border-l border-zinc-800/60">
+                  <td key={item.id} className="p-4 align-middle border-b border-[var(--border)] border-l border-[var(--border)]">
                     <div className="flex items-center justify-between gap-2">
-                      <span className={best ? 'font-bold text-emerald-400 text-sm' : 'text-zinc-300 text-sm'}>
+                      <span className={best ? 'font-semibold text-[var(--success)] text-sm' : 'text-[var(--secondary)] text-sm'}>
                         {displayValue}
                       </span>
                       {best && (
-                        <Badge className="bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/10 border-emerald-500/20 text-[10px] font-semibold py-0 px-2 rounded-full">
+                        <Badge className="bg-[var(--success)]/10 text-[var(--success)] hover:bg-[var(--success)]/10 border-[var(--success)]/20 text-[10px] font-semibold py-0 px-2 rounded-full">
                           Highest
                         </Badge>
                       )}

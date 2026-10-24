@@ -11,20 +11,20 @@ export default function ActivityPanel() {
   const getStatusClass = (status: ChainActivity["status"]) => {
     switch (status) {
       case "confirmed":
-        return "text-green-600";
+        return "text-[var(--success)]";
       case "failed":
-        return "text-red-600";
+        return "text-[var(--danger)]";
       default:
-        return "text-yellow-600";
+        return "text-[var(--warning)]";
     }
   };
 
   return (
-    <div className="p-4 bg-white shadow rounded-xl">
+    <div className="border border-[var(--border)] p-4 bg-[var(--surface)] rounded-xl">
       <h2 className="text-lg font-semibold mb-4">Chain Activity</h2>
 
       {activities.length === 0 && (
-        <p className="text-sm text-gray-500">No activity yet</p>
+        <p className="text-sm text-[var(--text-muted)]">No activity yet</p>
       )}
 
       <div className="space-y-3">
@@ -41,7 +41,7 @@ export default function ActivityPanel() {
             >
               <div>
                 <p className="font-medium">{a.type.toUpperCase()}</p>
-                <p className="text-sm text-gray-500">
+                <p className="text-sm text-[var(--text-muted)]">
                   Confession: {a.confessionId ?? "N/A"}
                 </p>
                 {explorerUrl && (
@@ -49,7 +49,7 @@ export default function ActivityPanel() {
                     href={explorerUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 mt-1 text-xs text-blue-600 hover:text-blue-800"
+                    className="inline-flex items-center gap-1 mt-1 text-xs text-[var(--primary-deep)] hover:text-[var(--primary-deep)]"
                   >
                     <ExternalLink className="h-3 w-3" />
                     View on Explorer

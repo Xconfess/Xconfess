@@ -34,13 +34,13 @@ export const MetricsCard: React.FC<MetricsCardProps> = ({
 }) => {
     if (loading) {
         return (
-            <div role='status' aria-label='loading' className="bg-zinc-900/50 border border-zinc-800 rounded-2xl p-6 animate-pulse">
+            <div role='status' aria-label='loading' className="bg-[var(--surface)]/50 border border-[var(--border)] rounded-2xl p-6 animate-pulse">
                 <div className="flex justify-between items-start mb-4">
-                    <div className="w-10 h-10 bg-zinc-800 rounded-xl" />
-                    <div className="w-16 h-4 bg-zinc-800 rounded" />
+                    <div className="w-10 h-10 bg-[var(--surface-muted)] rounded-xl" />
+                    <div className="w-16 h-4 bg-[var(--surface-muted)] rounded" />
                 </div>
-                <div className="w-24 h-8 bg-zinc-800 rounded mb-2" />
-                <div className="w-32 h-4 bg-zinc-800 rounded" />
+                <div className="w-24 h-8 bg-[var(--surface-muted)] rounded mb-2" />
+                <div className="w-32 h-4 bg-[var(--surface-muted)] rounded" />
             </div>
         );
     }
@@ -67,20 +67,20 @@ export const MetricsCard: React.FC<MetricsCardProps> = ({
             : TrendingUp;
 
     return (
-        <div className="bg-zinc-900/50 border border-zinc-800 rounded-2xl p-6 transition-all hover:border-zinc-700 group">
+        <div className="bg-[var(--surface)]/50 border border-[var(--border)] rounded-2xl p-6 transition-all hover:border-[var(--border)] group">
             <div className="flex justify-between items-start mb-4">
-                <div className={`p-2.5 rounded-xl ${color} bg-opacity-10 text-opacity-100 group-hover:scale-110 transition-transform`}>
+                <div className={`p-2.5 rounded-xl ${color} bg-opacity-10 text-opacity-100  transition-transform`}>
                     <Icon className="w-6 h-6" />
                 </div>
                 {normalizedDelta && (
                     <div
                         className={`inline-flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-full ${isUnavailable
-                            ? 'bg-zinc-800 text-zinc-400'
+                            ? 'bg-[var(--surface-muted)] text-[var(--text-muted)]'
                             : isPositive
-                                ? 'bg-emerald-500/10 text-emerald-500'
+                                ? 'bg-[var(--success)]/10 text-[var(--success)]'
                                 : isNegative
-                                    ? 'bg-rose-500/10 text-rose-500'
-                                    : 'bg-amber-500/10 text-amber-400'
+                                    ? 'bg-[var(--danger)]/10 text-[var(--danger)]'
+                                    : 'bg-[var(--warning)]/10 text-[var(--warning)]'
                             }`}
                         title={normalizedDelta.note}
                     >
@@ -99,12 +99,12 @@ export const MetricsCard: React.FC<MetricsCardProps> = ({
                     </div>
                 )}
             </div>
-            <h3 className="text-zinc-400 text-sm font-medium mb-1">{title}</h3>
-            <div className="text-3xl font-bold text-white tracking-tight">
+            <h3 className="text-[var(--text-muted)] text-sm font-medium mb-1">{title}</h3>
+            <div className="text-3xl font-semibold text-[var(--foreground)] tracking-tight">
                 {typeof value === 'number' ? value.toLocaleString() : value}
             </div>
             {comparisonEnabled && normalizedDelta?.note && (
-                <p className="text-[11px] text-zinc-500 mt-2">{normalizedDelta.note}</p>
+                <p className="text-[11px] text-[var(--text-muted)] mt-2">{normalizedDelta.note}</p>
             )}
         </div>
     );

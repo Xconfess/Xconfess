@@ -31,13 +31,13 @@ export function SearchSuggestions({
       role="listbox"
       aria-label="Search suggestions"
       className={cn(
-        "absolute left-0 right-0 top-full z-50 mt-1 max-h-80 overflow-y-auto rounded-lg border border-zinc-700 bg-zinc-900 py-2 shadow-xl",
+        "absolute left-0 right-0 top-full z-50 mt-1 max-h-80 overflow-y-auto rounded-lg border border-[var(--border)] bg-[var(--surface)] py-2 shadow-[var(--shadow-popover)]",
         className
       )}
     >
       {hasRecentSection && (
         <div className="px-3 pb-2 flex items-center justify-between">
-          <span className="text-xs font-medium uppercase tracking-wider text-zinc-500">
+          <span className="text-xs font-medium uppercase tracking-wider text-[var(--text-muted)]">
             Recent searches
           </span>
           {onClearHistory && (
@@ -47,7 +47,7 @@ export function SearchSuggestions({
                 e.stopPropagation();
                 onClearHistory();
               }}
-              className="text-xs text-zinc-400 hover:text-white transition-colors"
+              className="text-xs text-[var(--text-muted)] hover:text-[var(--foreground)] transition-colors"
             >
               Clear history
             </button>
@@ -63,17 +63,17 @@ export function SearchSuggestions({
               className={cn(
                 "w-full px-4 py-2.5 text-left text-sm transition-colors flex items-center gap-2",
                 idx === selectedIndex
-                  ? "bg-zinc-800 text-white"
-                  : "text-zinc-300 hover:bg-zinc-800/50 hover:text-white"
+                  ? "bg-[var(--surface-muted)] text-[var(--foreground)]"
+                  : "text-[var(--secondary)] hover:bg-[var(--surface-muted)]/50 hover:text-[var(--foreground)]"
               )}
             >
               {item.type === "recent" && (
-                <span className="text-zinc-500" aria-hidden>
+                <span className="text-[var(--text-muted)]" aria-hidden>
                   🕐
                 </span>
               )}
               {item.type === "popular" && (
-                <span className="text-zinc-500" aria-hidden>
+                <span className="text-[var(--text-muted)]" aria-hidden>
                   🔥
                 </span>
               )}

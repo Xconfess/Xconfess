@@ -259,7 +259,7 @@ const ConfessionFeedBody = ({
           role="region"
           aria-label="Empty feed state"
         >
-          <p className="mb-3 font-editorial text-3xl text-[var(--foreground)] sm:text-4xl">
+          <p className="mb-3 text-xl font-semibold text-[var(--foreground)] sm:text-2xl">
             No confessions yet.
           </p>
           <p className="mx-auto mb-4 max-w-xl text-sm leading-7 text-[var(--secondary)]">
@@ -269,7 +269,7 @@ const ConfessionFeedBody = ({
             <button
               type="button"
               onClick={scrollToComposer}
-              className="rounded-xl bg-[var(--brand-gradient)] px-5 py-2.5 text-sm font-medium text-white shadow-[0_18px_42px_-22px_rgba(0,0,0,0.85)] transition-colors hover:brightness-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]"
+              className="rounded-xl bg-[var(--brand-gradient)] px-5 py-2.5 text-sm font-medium text-[var(--foreground)] shadow-[0_18px_42px_-22px_rgba(0,0,0,0.85)] transition-colors hover:brightness-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]"
             >
               Begin writing
             </button>
@@ -373,7 +373,7 @@ const ConfessionFeedBody = ({
         <button
           type="button"
           onClick={scrollToTop}
-          className="fixed bottom-5 right-4 z-40 flex h-11 w-11 items-center justify-center rounded-full bg-[var(--primary)] text-white shadow-lg transition-all hover:-translate-y-1 hover:bg-[var(--primary-deep)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)] sm:bottom-8 sm:right-8"
+          className="fixed bottom-5 right-4 z-40 flex h-11 w-11 items-center justify-center rounded-full bg-[var(--primary)] text-white shadow-[var(--shadow-popover)] transition-all hover:bg-[var(--primary-deep)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)] sm:bottom-8 sm:right-8"
           aria-label="Scroll to top"
         >
           <ArrowUp className="h-5 w-5" aria-hidden="true" />

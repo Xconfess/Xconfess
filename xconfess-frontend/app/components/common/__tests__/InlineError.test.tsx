@@ -50,6 +50,6 @@ describe('InlineError', () => {
     render(<InlineError message="Error" />);
     const el = screen.getByRole('alert');
     expect(el).toHaveClass('rounded-xl');
-    expect(el).toHaveClass('text-red-200');
+    expect(el).toHaveClass('text-[var(--danger)]');
   });
 });

@@ -88,29 +88,20 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="editorial-shell min-h-screen px-4 py-10">
-      <div className="mx-auto flex min-h-[calc(100vh-5rem)] w-full max-w-5xl items-center justify-center">
-        <div className="grid w-full gap-8 lg:grid-cols-[0.95fr_1.05fr] lg:items-center">
-          <div className="space-y-5">
-            <BrandLogo href={null} priority imageClassName="w-[168px] dark:hidden" />
-            <BrandLogo href={null} priority tone="light" imageClassName="hidden w-[168px] dark:block" />
-            <p className="eyebrow">Private access</p>
-            <h1 className="font-editorial text-5xl leading-[0.96] text-[var(--foreground)] sm:text-6xl">
-              Login
-            </h1>
-            <p className="max-w-md text-base leading-8 text-[var(--secondary)]">
-              Continue to your private account.
-            </p>
+    <div className="min-h-screen px-4 py-12 sm:py-20">
+      <div className="mx-auto w-full max-w-[420px]">
+        <div className="space-y-8">
+          <div className="flex justify-center">
+            <BrandLogo href={null} priority imageClassName="w-[132px] dark:hidden" />
+            <BrandLogo href={null} priority tone="light" imageClassName="hidden w-[132px] dark:block" />
           </div>
-
-          <div className="luxury-panel rounded-2xl p-7 sm:p-8">
-            <div className="space-y-3">
-              <p className="eyebrow">Account sign in</p>
-              <h2 className="font-editorial text-4xl text-[var(--foreground)]">
-                Sign in
-              </h2>
-              <p className="text-sm leading-7 text-[var(--secondary)]">
-                Sign in with your account credentials.
+          <div className="rounded-[var(--radius-panel)] border border-[var(--border)] bg-[var(--surface)] p-6 sm:p-8">
+            <div className="space-y-1.5">
+              <h1 className="text-xl font-semibold text-[var(--foreground)]">
+                Login
+              </h1>
+              <p className="text-sm leading-6 text-[var(--secondary)]">
+                Welcome back. Sign in to continue.
               </p>
             </div>
 
@@ -118,7 +109,7 @@ export default function LoginPage() {
               <div
                 id="login-email-error"
                 role="alert"
-                className="mt-5 rounded-xl border border-red-500/25 bg-red-950/30 p-3 text-sm text-red-200"
+                className="mt-5 rounded-xl border border-[var(--danger)]/25 bg-[var(--danger)]/10 p-3 text-sm text-[var(--danger)]"
               >
                 {errors.email}
               </div>
@@ -128,7 +119,7 @@ export default function LoginPage() {
               <div
                 id="login-password-error"
                 role="alert"
-                className="mt-5 rounded-xl border border-red-500/25 bg-red-950/30 p-3 text-sm text-red-200"
+                className="mt-5 rounded-xl border border-[var(--danger)]/25 bg-[var(--danger)]/10 p-3 text-sm text-[var(--danger)]"
               >
                 {errors.password}
               </div>

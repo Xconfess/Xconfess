@@ -106,32 +106,32 @@ function MobileThreadList({
   onReconnect: () => void;
 }) {
   return (
-    <div className="h-full flex flex-col bg-white dark:bg-gray-950">
-      <div className="p-4 border-b border-gray-200 dark:border-gray-800 flex items-center gap-2">
+    <div className="h-full flex flex-col bg-[var(--surface)]">
+      <div className="p-4 border-b border-[var(--border)] flex items-center gap-2">
         {selectedThread && (
           <Button variant="ghost" size="sm" onClick={onBack} className="mr-1">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
           </Button>
         )}
-        <h1 className="text-lg font-bold flex items-center gap-2">
+        <h1 className="text-lg font-semibold flex items-center gap-2">
           <MessageSquare className="w-5 h-5" />
           Messages
         </h1>
         <div className="ml-auto flex items-center gap-2">
           {isReconnecting && (
-            <span className="text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1">
+            <span className="text-xs text-[var(--warning)] flex items-center gap-1">
               <RefreshCw className="w-3 h-3 animate-spin" />
               Reconnecting... ({reconnectAttempts})
             </span>
           )}
           {pendingReconciliation && (
-            <span className="text-xs text-blue-600 dark:text-blue-400 flex items-center gap-1">
+            <span className="text-xs text-[var(--primary-deep)] flex items-center gap-1">
               <RefreshCw className="w-3 h-3 animate-spin" />
               Syncing...
             </span>
           )}
           {!isReconnecting && !pendingReconciliation && (
-            <span className={`flex items-center gap-1 text-xs ${isConnected ? 'text-green-600 dark:text-green-400' : 'text-gray-400'}`}>
+            <span className={`flex items-center gap-1 text-xs ${isConnected ? 'text-[var(--success)]' : 'text-[var(--text-muted)]'}`}>
               {isConnected ? (
                 <>
                   <Wifi className="w-3 h-3" />
@@ -161,12 +161,12 @@ function MobileThreadList({
         <ScrollArea className="flex-1">
           {error ? (
             <div className="p-8 flex flex-col items-center justify-center text-center space-y-4">
-              <div className="bg-amber-50 dark:bg-amber-900/20 p-4 rounded-full">
-                <WifiOff className="w-8 h-8 text-amber-500" />
+              <div className="bg-[var(--warning)]/10 p-4 rounded-full">
+                <WifiOff className="w-8 h-8 text-[var(--warning)]" />
               </div>
               <div className="space-y-1">
-                <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">Backend Unreachable</p>
-                <p className="text-xs text-gray-500 dark:text-gray-400 max-w-[200px]">{error}</p>
+                <p className="text-sm font-semibold text-[var(--foreground)]">Backend Unreachable</p>
+                <p className="text-xs text-[var(--text-muted)] max-w-[200px]">{error}</p>
               </div>
               <Button size="sm" variant="secondary" onClick={onRetry} className="mt-2 gap-2">
                 <RefreshCw className="w-3 h-3" />
@@ -190,25 +190,25 @@ function MobileThreadList({
               <ThreadListEmptyState />
             </div>
           ) : (
-            <div className="divide-y divide-gray-100 dark:divide-gray-800">
+            <div className="divide-y divide-[var(--border)]">
               {threads.map((thread) => (
                 <button
                   key={`${thread.confessionId}-${thread.senderId}`}
                   onClick={() => onSelect(thread)}
-                  className="w-full p-4 text-left hover:bg-gray-50 dark:hover:bg-gray-900 transition-colors flex flex-col gap-1"
+                  className="w-full p-4 text-left hover:bg-[var(--surface-muted)] transition-colors flex flex-col gap-1"
                 >
                   <div className="flex justify-between items-start">
-                    <span className="text-xs font-semibold text-purple-600 dark:text-purple-400 uppercase tracking-wider">
+                    <span className="text-xs font-semibold text-[var(--primary-deep)] uppercase tracking-wider">
                       {thread.isAuthor ? 'Your Confession' : 'Sent Message'}
                     </span>
-                    <span className="text-[10px] text-gray-400">
+                    <span className="text-[10px] text-[var(--text-muted)]">
                       {formatDistanceToNow(new Date(thread.lastMessageAt), { addSuffix: true })}
                     </span>
                   </div>
-                  <p className="text-sm font-medium text-gray-900 dark:text-gray-100 line-clamp-1">
+                  <p className="text-sm font-medium text-[var(--foreground)] line-clamp-1">
                     {thread.confessionMessage}
                   </p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 line-clamp-1">
+                  <p className="text-xs text-[var(--text-muted)] line-clamp-1">
                     {thread.lastMessageEncrypted ? ENCRYPTED_PREVIEW : thread.lastMessage}
                   </p>
                 </button>
@@ -538,11 +538,11 @@ export default function MessagesPage() {
       {needsKeyRecovery && (
         <div
           role="alert"
-          className="bg-amber-50 dark:bg-amber-900/20 border-b border-amber-200 dark:border-amber-800 px-4 py-4 space-y-3"
+          className="bg-[var(--warning)]/10 border-b border-[var(--warning)]/30 px-4 py-4 space-y-3"
         >
           <div className="flex items-start gap-2">
-            <Lock className="w-4 h-4 mt-0.5 text-amber-600 dark:text-amber-400 flex-shrink-0" />
-            <p className="text-sm text-amber-800 dark:text-amber-200">
+            <Lock className="w-4 h-4 mt-0.5 text-[var(--warning)] flex-shrink-0" />
+            <p className="text-sm text-[var(--foreground)]">
               We found encryption keys registered for your account on another
               device. Enter your recovery passphrase to restore access to your
               previous messages, or start fresh — starting fresh will make
@@ -583,26 +583,26 @@ export default function MessagesPage() {
       />
 
       {keyError && (
-        <div className="bg-amber-50 dark:bg-amber-900/20 border-b border-amber-200 dark:border-amber-800 px-4 py-2 text-sm text-amber-800 dark:text-amber-200 flex items-center justify-between gap-2">
+        <div className="bg-[var(--warning)]/10 border-b border-[var(--warning)]/30 px-4 py-2 text-sm text-[var(--foreground)] flex items-center justify-between gap-2">
           <span>{keyError}</span>
-          <Button variant="link" className="h-auto p-0 text-amber-900" onClick={() => setShowRecovery(true)}>
+          <Button variant="link" className="h-auto p-0 text-[var(--foreground)]" onClick={() => setShowRecovery(true)}>
             Restore from backup
           </Button>
         </div>
       )}
 
       {e2eReady && e2eSession && !e2eSession.hasBackup && !keyError && (
-        <div className="bg-blue-50 dark:bg-blue-900/20 border-b border-blue-200 dark:border-blue-800 px-4 py-2 text-sm text-blue-800 dark:text-blue-200 flex items-center justify-between gap-2">
+        <div className="bg-[var(--accent-soft)] border-b border-[var(--accent-border)] px-4 py-2 text-sm text-[var(--primary-deep)] flex items-center justify-between gap-2">
           <span>No recovery backup set up. If you lose this device, your encrypted messages cannot be recovered.</span>
-          <Button variant="link" className="h-auto p-0 text-blue-900 dark:text-blue-100" onClick={() => setShowRecovery(true)}>
+          <Button variant="link" className="h-auto p-0 text-[var(--primary-deep)]" onClick={() => setShowRecovery(true)}>
             Set up backup
           </Button>
         </div>
       )}
 
       {showRecovery && (
-        <div className="border-b border-gray-200 dark:border-gray-800 p-4 bg-white dark:bg-gray-950 space-y-2">
-          <p className="text-sm text-gray-600 dark:text-gray-400">
+        <div className="border-b border-[var(--border)] p-4 bg-[var(--surface)] space-y-2">
+          <p className="text-sm text-[var(--secondary)]">
             Set or enter a recovery passphrase to backup or restore encryption keys on this device.
           </p>
           <Input
@@ -620,7 +620,7 @@ export default function MessagesPage() {
       )}
 
       {/* Mobile: toggle between list and detail */}
-      <div className="flex h-[calc(100vh-4rem)] bg-gray-50 dark:bg-gray-900 overflow-hidden">
+      <div className="flex h-[calc(100vh-4rem)] bg-[var(--surface-muted)] overflow-hidden">
         <div className="md:hidden w-full">
           {showMobileList || !selectedThread ? (
             <MobileThreadList
@@ -639,33 +639,33 @@ export default function MessagesPage() {
             />
           ) : (
             <div className="h-full flex flex-col">
-              <div className="p-3 border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 flex items-center gap-2">
+              <div className="p-3 border-b border-[var(--border)] bg-[var(--surface)] flex items-center gap-2">
                 <Button variant="ghost" size="sm" onClick={handleBackToList}>
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
                 </Button>
                 <div className="flex items-center gap-2 min-w-0 flex-1">
-                  <div className="bg-purple-100 dark:bg-purple-900/40 p-1.5 rounded-full text-purple-600 flex-shrink-0">
+                  <div className="bg-[var(--accent-soft)] p-1.5 rounded-full text-[var(--primary-deep)] flex-shrink-0">
                     <UserIcon className="w-4 h-4" />
                   </div>
                   <div className="min-w-0">
-                    <p className="text-sm font-bold text-gray-900 dark:text-gray-100 truncate">{selectedThread.confessionMessage}</p>
+                    <p className="text-sm font-semibold text-[var(--foreground)] truncate">{selectedThread.confessionMessage}</p>
                     <Badge variant="outline" className="text-[9px] py-0 h-3.5">{selectedThread.isAuthor ? 'AUTHOR' : 'SENDER'}</Badge>
                   </div>
                   <div className="flex items-center gap-1">
                     {isReconnecting && (
-                      <span className="text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                      <span className="text-xs text-[var(--warning)] flex items-center gap-1">
                         <RefreshCw className="w-3 h-3 animate-spin" />
                         Reconnecting... ({reconnectAttempts})
                       </span>
                     )}
                     {pendingReconciliation && (
-                      <span className="text-xs text-blue-600 dark:text-blue-400 flex items-center gap-1">
+                      <span className="text-xs text-[var(--primary-deep)] flex items-center gap-1">
                         <RefreshCw className="w-3 h-3 animate-spin" />
                         Syncing...
                       </span>
                     )}
                     {!isReconnecting && !pendingReconciliation && (
-                      <span className={`flex items-center gap-1 text-xs ${isConnected ? 'text-green-600 dark:text-green-400' : 'text-gray-400'}`}>
+                      <span className={`flex items-center gap-1 text-xs ${isConnected ? 'text-[var(--success)]' : 'text-[var(--text-muted)]'}`}>
                         {isConnected ? (
                           <>
                             <Wifi className="w-3 h-3" />
@@ -692,7 +692,7 @@ export default function MessagesPage() {
                   </div>
                 </div>
               </div>
-              <ScrollArea className="flex-1 p-3 bg-gray-50 dark:bg-gray-900">
+              <ScrollArea className="flex-1 p-3 bg-[var(--surface-muted)]">
                 {isLoadingMessages || !e2eReady ? (
                   <div className="space-y-3">
                     <Skeleton className="h-8 w-2/3 rounded-lg" />
@@ -701,8 +701,8 @@ export default function MessagesPage() {
                   </div>
                 ) : messagesError ? (
                   <div className="p-6 flex flex-col items-center justify-center text-center space-y-3 h-full">
-                    <AlertCircle className="w-8 h-8 text-amber-500" />
-                    <p className="text-sm text-gray-500 dark:text-gray-400">{messagesError}</p>
+                    <AlertCircle className="w-8 h-8 text-[var(--warning)]" />
+                    <p className="text-sm text-[var(--text-muted)]">{messagesError}</p>
                     <Button size="sm" variant="outline" onClick={() => selectedThread && fetchMessages(selectedThread)} className="gap-2">
                       <RefreshCw className="w-3 h-3" />
                       Try Again
@@ -719,16 +719,16 @@ export default function MessagesPage() {
                         <div className={`flex ${selectedThread.isAuthor ? 'justify-start' : 'justify-end'}`}>
                           <Card className={`max-w-[85%] p-2.5 ${
                             selectedThread.isAuthor
-                              ? 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700'
-                              : 'bg-purple-600 text-white border-none'
+                              ? 'bg-[var(--surface)] border-[var(--border)]'
+                              : 'bg-[var(--primary)] text-white border-none'
                           }`}>
                             <p className="text-sm">{msg.decryptedContent}</p>
                             <div className="flex items-center gap-1 mt-1">
-                              <p className={`text-[10px] ${selectedThread.isAuthor ? 'text-gray-400' : 'text-purple-200'}`}>
+                              <p className={`text-[10px] ${selectedThread.isAuthor ? 'text-[var(--text-muted)]' : 'text-[var(--primary-deep)]'}`}>
                                 {formatDistanceToNow(new Date(msg.createdAt), { addSuffix: true })}
                               </p>
                               {!selectedThread.isAuthor && msg.hasReply && (
-                                <Badge variant="secondary" className="bg-purple-500/50 text-[8px] py-0 h-3 text-white border-none">Replied</Badge>
+                                <Badge variant="secondary" className="bg-[var(--accent-soft)] text-[8px] py-0 h-3 text-[var(--foreground)] border-none">Replied</Badge>
                               )}
                             </div>
                           </Card>
@@ -737,11 +737,11 @@ export default function MessagesPage() {
                           <div className={`flex ${selectedThread.isAuthor ? 'justify-end' : 'justify-start'}`}>
                             <Card className={`max-w-[85%] p-2.5 ${
                               selectedThread.isAuthor
-                                ? 'bg-purple-600 text-white border-none'
-                                : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700'
+                                ? 'bg-[var(--primary)] text-white border-none'
+                                : 'bg-[var(--surface)] border-[var(--border)]'
                             }`}>
                               <p className="text-sm">{msg.decryptedReply}</p>
-                              <p className={`text-[10px] mt-1 ${selectedThread.isAuthor ? 'text-purple-200' : 'text-gray-400'}`}>
+                              <p className={`text-[10px] mt-1 ${selectedThread.isAuthor ? 'text-[var(--primary-deep)]' : 'text-[var(--text-muted)]'}`}>
                                 {msg.repliedAt && formatDistanceToNow(new Date(msg.repliedAt), { addSuffix: true })}
                               </p>
                             </Card>
@@ -753,7 +753,7 @@ export default function MessagesPage() {
                   </div>
                 )}
               </ScrollArea>
-              <div className="p-2 sm:p-3 bg-white dark:bg-gray-950 border-t border-gray-200 dark:border-gray-800">
+              <div className="p-2 sm:p-3 bg-[var(--surface)] border-t border-[var(--border)]">
                 <MessageComposer
                   inputRef={inputRef}
                   value={newMessage}
@@ -767,7 +767,7 @@ export default function MessagesPage() {
                   label={selectedThread.isAuthor ? 'Type an encrypted reply' : 'Send encrypted message'}
                 />
                 {selectedThread.isAuthor && messages.every(m => m.hasReply) && (
-                  <p className="text-[10px] text-gray-400 mt-2 text-center">You have replied to all messages. Wait for the sender to message you again.</p>
+                  <p className="text-[10px] text-[var(--text-muted)] mt-2 text-center">You have replied to all messages. Wait for the sender to message you again.</p>
                 )}
               </div>
             </div>
@@ -776,9 +776,9 @@ export default function MessagesPage() {
 
         {/* Desktop: split view */}
         <div className="hidden md:flex w-full">
-          <div className="w-1/3 border-r border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 flex flex-col">
-            <div className="p-4 border-b border-gray-200 dark:border-gray-800">
-              <h1 className="text-xl font-bold flex items-center gap-2">
+          <div className="w-1/3 border-r border-[var(--border)] bg-[var(--surface)] flex flex-col">
+            <div className="p-4 border-b border-[var(--border)]">
+              <h1 className="text-xl font-semibold flex items-center gap-2">
                 <MessageSquare className="w-5 h-5" />
                 Messages
               </h1>
@@ -786,12 +786,12 @@ export default function MessagesPage() {
             <ScrollArea className="flex-1">
               {threadsError ? (
                 <div className="p-8 flex flex-col items-center justify-center text-center space-y-4">
-                  <div className="bg-amber-50 dark:bg-amber-900/20 p-4 rounded-full">
-                    <WifiOff className="w-8 h-8 text-amber-500" />
+                  <div className="bg-[var(--warning)]/10 p-4 rounded-full">
+                    <WifiOff className="w-8 h-8 text-[var(--warning)]" />
                   </div>
                   <div className="space-y-1">
-                    <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">Backend Unreachable</p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400 max-w-[200px]">{threadsError}</p>
+                    <p className="text-sm font-semibold text-[var(--foreground)]">Backend Unreachable</p>
+                    <p className="text-xs text-[var(--text-muted)] max-w-[200px]">{threadsError}</p>
                   </div>
                   <Button size="sm" variant="secondary" onClick={fetchThreads} className="mt-2 gap-2">
                     <RefreshCw className="w-3 h-3" />
@@ -815,25 +815,25 @@ export default function MessagesPage() {
                   <ThreadListEmptyState />
                 </div>
               ) : (
-                <div className="divide-y divide-gray-100 dark:divide-gray-800">
+                <div className="divide-y divide-[var(--border)]">
                   {threads.map((thread) => (
                     <button
                       key={`${thread.confessionId}-${thread.senderId}`}
                       onClick={() => handleSelectThread(thread)}
-                      className={`w-full p-4 text-left hover:bg-gray-50 dark:hover:bg-gray-900 transition-colors flex flex-col gap-1 ${
-                        selectedThread?.confessionId === thread.confessionId && selectedThread?.senderId === thread.senderId ? 'bg-purple-50 dark:bg-purple-900/20' : ''
+                      className={`w-full p-4 text-left hover:bg-[var(--surface-muted)] transition-colors flex flex-col gap-1 ${
+                        selectedThread?.confessionId === thread.confessionId && selectedThread?.senderId === thread.senderId ? 'bg-[var(--accent-soft)]' : ''
                       }`}
                     >
                       <div className="flex justify-between items-start">
-                        <span className="text-xs font-semibold text-purple-600 dark:text-purple-400 uppercase tracking-wider">
+                        <span className="text-xs font-semibold text-[var(--primary-deep)] uppercase tracking-wider">
                           {thread.isAuthor ? 'Your Confession' : 'Sent Message'}
                         </span>
-                        <span className="text-[10px] text-gray-400">
+                        <span className="text-[10px] text-[var(--text-muted)]">
                           {formatDistanceToNow(new Date(thread.lastMessageAt), { addSuffix: true })}
                         </span>
                       </div>
-                      <p className="text-sm font-medium text-gray-900 dark:text-gray-100 line-clamp-1">{thread.confessionMessage}</p>
-                      <p className="text-xs text-gray-500 dark:text-gray-400 line-clamp-1">
+                      <p className="text-sm font-medium text-[var(--foreground)] line-clamp-1">{thread.confessionMessage}</p>
+                      <p className="text-xs text-[var(--text-muted)] line-clamp-1">
                         {thread.lastMessageEncrypted ? ENCRYPTED_PREVIEW : thread.lastMessage}
                       </p>
                     </button>
@@ -846,31 +846,31 @@ export default function MessagesPage() {
           <div className="flex-1 flex flex-col">
             {selectedThread ? (
               <>
-                <div className="p-4 border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950">
+                <div className="p-4 border-b border-[var(--border)] bg-[var(--surface)]">
                   <div className="flex items-center gap-3">
-                    <div className="bg-purple-100 dark:bg-purple-900/40 p-2 rounded-full text-purple-600">
+                    <div className="bg-[var(--accent-soft)] p-2 rounded-full text-[var(--primary-deep)]">
                       <UserIcon className="w-5 h-5" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <h2 className="text-sm font-bold text-gray-900 dark:text-gray-100 line-clamp-1">{selectedThread.confessionMessage}</h2>
+                      <h2 className="text-sm font-semibold text-[var(--foreground)] line-clamp-1">{selectedThread.confessionMessage}</h2>
                       <Badge variant="outline" className="text-[10px] py-0 h-4">{selectedThread.isAuthor ? 'AUTHOR VIEW' : 'SENDER VIEW'}</Badge>
                     </div>
                     {/* Connection status indicator */}
                     <div className="flex items-center gap-2">
                       {isReconnecting && (
-                        <span className="text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                        <span className="text-xs text-[var(--warning)] flex items-center gap-1">
                           <RefreshCw className="w-3 h-3 animate-spin" />
                           Reconnecting... ({reconnectAttempts})
                         </span>
                       )}
                       {pendingReconciliation && (
-                        <span className="text-xs text-blue-600 dark:text-blue-400 flex items-center gap-1">
+                        <span className="text-xs text-[var(--primary-deep)] flex items-center gap-1">
                           <RefreshCw className="w-3 h-3 animate-spin" />
                           Syncing messages...
                         </span>
                       )}
                       {!isReconnecting && !pendingReconciliation && (
-                        <span className={`flex items-center gap-1 text-xs ${isConnected ? 'text-green-600 dark:text-green-400' : 'text-gray-400'}`}>
+                        <span className={`flex items-center gap-1 text-xs ${isConnected ? 'text-[var(--success)]' : 'text-[var(--text-muted)]'}`}>
                           {isConnected ? (
                             <>
                               <Wifi className="w-3 h-3" />
@@ -898,7 +898,7 @@ export default function MessagesPage() {
                   </div>
                 </div>
 
-                <ScrollArea className="flex-1 p-4 bg-gray-50 dark:bg-gray-900">
+                <ScrollArea className="flex-1 p-4 bg-[var(--surface-muted)]">
                   {isLoadingMessages || !e2eReady ? (
                     <div className="space-y-4">
                       <Skeleton className="h-10 w-2/3 rounded-lg" />
@@ -907,8 +907,8 @@ export default function MessagesPage() {
                     </div>
                   ) : messagesError ? (
                     <div className="p-8 flex flex-col items-center justify-center text-center space-y-4 h-full">
-                      <AlertCircle className="w-8 h-8 text-amber-500" />
-                      <p className="text-sm text-gray-500 dark:text-gray-400">{messagesError}</p>
+                      <AlertCircle className="w-8 h-8 text-[var(--warning)]" />
+                      <p className="text-sm text-[var(--text-muted)]">{messagesError}</p>
                       <Button size="sm" variant="outline" onClick={() => selectedThread && fetchMessages(selectedThread)} className="gap-2">
                         <RefreshCw className="w-3 h-3" />
                         Try Again
@@ -921,16 +921,16 @@ export default function MessagesPage() {
                           <div className={`flex ${selectedThread.isAuthor ? 'justify-start' : 'justify-end'}`}>
                             <Card className={`max-w-[80%] p-3 ${
                               selectedThread.isAuthor
-                                ? 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700'
-                                : 'bg-purple-600 text-white border-none'
+                                ? 'bg-[var(--surface)] border-[var(--border)]'
+                                : 'bg-[var(--primary)] text-white border-none'
                             }`}>
                               <p className="text-sm">{msg.decryptedContent}</p>
                               <div className="flex items-center gap-1 mt-1">
-                                <p className={`text-[10px] ${selectedThread.isAuthor ? 'text-gray-400' : 'text-purple-200'}`}>
+                                <p className={`text-[10px] ${selectedThread.isAuthor ? 'text-[var(--text-muted)]' : 'text-[var(--primary-deep)]'}`}>
                                   {formatDistanceToNow(new Date(msg.createdAt), { addSuffix: true })}
                                 </p>
                                 {!selectedThread.isAuthor && msg.hasReply && (
-                                  <Badge variant="secondary" className="bg-purple-500/50 text-[8px] py-0 h-3 text-white border-none">Replied</Badge>
+                                  <Badge variant="secondary" className="bg-[var(--accent-soft)] text-[8px] py-0 h-3 text-[var(--foreground)] border-none">Replied</Badge>
                                 )}
                               </div>
                             </Card>
@@ -939,11 +939,11 @@ export default function MessagesPage() {
                             <div className={`flex ${selectedThread.isAuthor ? 'justify-end' : 'justify-start'}`}>
                               <Card className={`max-w-[80%] p-3 ${
                                 selectedThread.isAuthor
-                                  ? 'bg-purple-600 text-white border-none'
-                                  : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700'
+                                  ? 'bg-[var(--primary)] text-white border-none'
+                                  : 'bg-[var(--surface)] border-[var(--border)]'
                               }`}>
                                 <p className="text-sm">{msg.decryptedReply}</p>
-                                <p className={`text-[10px] mt-1 ${selectedThread.isAuthor ? 'text-purple-200' : 'text-gray-400'}`}>
+                                <p className={`text-[10px] mt-1 ${selectedThread.isAuthor ? 'text-[var(--primary-deep)]' : 'text-[var(--text-muted)]'}`}>
                                   {msg.repliedAt && formatDistanceToNow(new Date(msg.repliedAt), { addSuffix: true })}
                                 </p>
                               </Card>
@@ -961,7 +961,7 @@ export default function MessagesPage() {
                   )}
                 </ScrollArea>
 
-                <div className="p-3 sm:p-4 bg-white dark:bg-gray-950 border-t border-gray-200 dark:border-gray-800">
+                <div className="p-3 sm:p-4 bg-[var(--surface)] border-t border-[var(--border)]">
                   <MessageComposer
                     value={newMessage}
                     onChange={handleDraftChange}
@@ -974,16 +974,16 @@ export default function MessagesPage() {
                     label={selectedThread.isAuthor ? 'Type an encrypted reply' : 'Send encrypted message'}
                   />
                   {selectedThread.isAuthor && messages.every(m => m.hasReply) && (
-                    <p className="text-[10px] text-gray-400 mt-2 text-center">You have replied to all messages. Wait for the sender to message you again.</p>
+                    <p className="text-[10px] text-[var(--text-muted)] mt-2 text-center">You have replied to all messages. Wait for the sender to message you again.</p>
                   )}
                 </div>
               </>
             ) : (
-              <div className="flex-1 flex flex-col items-center justify-center text-gray-400 p-8">
-                <div className="bg-gray-100 dark:bg-gray-800 p-6 rounded-full mb-4">
+              <div className="flex-1 flex flex-col items-center justify-center text-[var(--text-muted)] p-8">
+                <div className="bg-[var(--surface-muted)] p-6 rounded-full mb-4">
                   <MessageSquare className="w-12 h-12" />
                 </div>
-                <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-1">Select a conversation</h3>
+                <h3 className="text-lg font-medium text-[var(--foreground)] mb-1">Select a conversation</h3>
                 <p className="text-sm max-w-xs text-center">
                   Choose a message thread from the list to view the conversation.
                 </p>

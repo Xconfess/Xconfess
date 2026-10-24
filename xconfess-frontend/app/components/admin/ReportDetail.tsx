@@ -233,7 +233,7 @@ export default function ReportDetail({
       <div className="flex items-center justify-between">
         <button
           onClick={onBack}
-          className="text-indigo-600 hover:text-indigo-900 dark:text-indigo-400"
+          className="text-[var(--primary-deep)] hover:text-[var(--primary-deep)]"
         >
           Back to Reports
         </button>
@@ -247,30 +247,30 @@ export default function ReportDetail({
         }
       >
         <div className="min-w-0 space-y-6">
-          <div className="space-y-6 rounded-lg bg-white p-6 shadow dark:bg-gray-800">
+          <div className="border border-[var(--border)] space-y-6 rounded-lg bg-[var(--surface)] p-6">
             <div>
-              <h3 className="mb-4 text-lg font-medium text-gray-900 dark:text-white">
+              <h3 className="mb-4 text-lg font-medium text-[var(--foreground)]">
                 Report Details
               </h3>
               <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>
-                  <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">ID</dt>
-                  <dd className="mt-1 text-sm text-gray-900 dark:text-white">{report.id}</dd>
+                  <dt className="text-sm font-medium text-[var(--text-muted)]">ID</dt>
+                  <dd className="mt-1 text-sm text-[var(--foreground)]">{report.id}</dd>
                 </div>
                 <div>
-                  <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">Type</dt>
-                  <dd className="mt-1 text-sm text-gray-900 dark:text-white">{report.type}</dd>
+                  <dt className="text-sm font-medium text-[var(--text-muted)]">Type</dt>
+                  <dd className="mt-1 text-sm text-[var(--foreground)]">{report.type}</dd>
                 </div>
                 <div>
-                  <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">Status</dt>
+                  <dt className="text-sm font-medium text-[var(--text-muted)]">Status</dt>
                   <dd className="mt-1">
                     <span
                       className={`inline-flex rounded-full px-2 text-xs font-semibold leading-5 ${
                         report.status === 'pending'
-                          ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-800 dark:text-yellow-100'
+                          ? 'bg-[var(--warning)]/10 text-[var(--foreground)]'
                           : report.status === 'resolved'
-                            ? 'bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-100'
-                            : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200'
+                            ? 'bg-[var(--success)]/10 text-[var(--foreground)]'
+                            : 'bg-[var(--surface-muted)] text-[var(--foreground)]'
                       }`}
                     >
                       {report.status}
@@ -278,23 +278,23 @@ export default function ReportDetail({
                   </dd>
                 </div>
                 <div>
-                  <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">Reporter</dt>
-                  <dd className="mt-1 text-sm text-gray-900 dark:text-white">
+                  <dt className="text-sm font-medium text-[var(--text-muted)]">Reporter</dt>
+                  <dd className="mt-1 text-sm text-[var(--foreground)]">
                     {report.reporter?.username || 'Anonymous'}
                   </dd>
                 </div>
                 <div>
-                  <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">Created</dt>
-                  <dd className="mt-1 text-sm text-gray-900 dark:text-white">
+                  <dt className="text-sm font-medium text-[var(--text-muted)]">Created</dt>
+                  <dd className="mt-1 text-sm text-[var(--foreground)]">
                     {new Date(report.createdAt).toLocaleString()}
                   </dd>
                 </div>
                 {report.resolvedAt && (
                   <div>
-                    <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">
+                    <dt className="text-sm font-medium text-[var(--text-muted)]">
                       Resolved
                     </dt>
-                    <dd className="mt-1 text-sm text-gray-900 dark:text-white">
+                    <dd className="mt-1 text-sm text-[var(--foreground)]">
                       {new Date(report.resolvedAt).toLocaleString()}
                     </dd>
                   </div>
@@ -304,10 +304,10 @@ export default function ReportDetail({
 
             {report.reason && (
               <div>
-                <dt className="mb-2 text-sm font-medium text-gray-500 dark:text-gray-400">
+                <dt className="mb-2 text-sm font-medium text-[var(--text-muted)]">
                   Reason
                 </dt>
-                <dd className="rounded bg-gray-50 p-3 text-sm text-gray-900 dark:bg-gray-700 dark:text-white">
+                <dd className="rounded bg-[var(--surface-muted)] p-3 text-sm text-[var(--foreground)]">
                   {report.reason}
                 </dd>
               </div>
@@ -315,23 +315,23 @@ export default function ReportDetail({
 
             {report.resolutionNotes && (
               <div>
-                <dt className="mb-2 text-sm font-medium text-gray-500 dark:text-gray-400">
+                <dt className="mb-2 text-sm font-medium text-[var(--text-muted)]">
                   Resolution Notes
                 </dt>
-                <dd className="rounded bg-gray-50 p-3 text-sm text-gray-900 dark:bg-gray-700 dark:text-white">
+                <dd className="rounded bg-[var(--surface-muted)] p-3 text-sm text-[var(--foreground)]">
                   {report.resolutionNotes}
                 </dd>
               </div>
             )}
 
             <div>
-              <h4 className="text-md mb-2 font-medium text-gray-900 dark:text-white">
+              <h4 className="text-md mb-2 font-medium text-[var(--foreground)]">
                 Confession Content
               </h4>
               {report.confession?.isDeleted && (
                 <p
                   role="status"
-                  className="mb-2 rounded bg-red-50 px-3 py-2 text-xs font-medium text-red-700 dark:bg-red-900/40 dark:text-red-300"
+                  className="mb-2 rounded bg-[var(--danger)]/10 px-3 py-2 text-xs font-medium text-[var(--danger)]"
                 >
                   This confession has been deleted. The content below reflects the
                   message at the time it was reported.
@@ -340,13 +340,13 @@ export default function ReportDetail({
               {!report.confession?.isDeleted && report.confession?.isHidden && (
                 <p
                   role="status"
-                  className="mb-2 rounded bg-amber-50 px-3 py-2 text-xs font-medium text-amber-700 dark:bg-amber-900/40 dark:text-amber-300"
+                  className="mb-2 rounded bg-[var(--warning)]/10 px-3 py-2 text-xs font-medium text-[var(--warning)]"
                 >
                   This confession is currently hidden from other users.
                 </p>
               )}
-              <div className="rounded bg-gray-50 p-4 dark:bg-gray-700">
-                <p className="whitespace-pre-wrap break-words text-sm text-gray-900 dark:text-white">
+              <div className="rounded bg-[var(--surface-muted)] p-4">
+                <p className="whitespace-pre-wrap break-words text-sm text-[var(--foreground)]">
                   {report.confession?.message || 'Confession not available'}
                 </p>
               </div>
@@ -361,18 +361,18 @@ export default function ReportDetail({
         </div>
 
         {pending && (
-          <aside className="mt-6 min-w-0 space-y-4 rounded-lg border border-gray-200 bg-white p-6 shadow dark:border-gray-700 dark:bg-gray-800 lg:sticky lg:top-4 lg:mt-0 lg:self-start">
-            <h3 className="text-base font-semibold text-gray-900 dark:text-white">Actions</h3>
+          <aside className="mt-6 min-w-0 space-y-4 rounded-lg border border-[var(--border)] bg-[var(--surface)] p-6 shadow lg:sticky lg:top-4 lg:mt-0 lg:self-start">
+            <h3 className="text-base font-semibold text-[var(--foreground)]">Actions</h3>
             <div className="space-y-4">
               <div>
-                <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                <label className="mb-2 block text-sm font-medium text-[var(--secondary)]">
                   Resolution Notes (optional)
                 </label>
                 <textarea
                   value={resolutionNotes}
                   onChange={(e) => setResolutionNotes(e.target.value)}
                   rows={3}
-                  className="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white"
+                  className="w-full rounded-md border-[var(--accent-border)] shadow-sm focus:border-[var(--focus-ring)] focus:ring-[var(--focus-ring)]"
                   placeholder="Add notes about this resolution..."
                 />
                 <div className="mt-2 flex flex-wrap gap-2">
@@ -381,7 +381,7 @@ export default function ReportDetail({
                       key={idx}
                       type="button"
                       onClick={() => setResolutionNotes(template)}
-                      className="rounded bg-gray-100 px-2 py-1 text-xs hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600"
+                      className="rounded bg-[var(--surface-muted)] px-2 py-1 text-xs hover:bg-[var(--skeleton)]"
                     >
                       {template}
                     </button>
@@ -393,7 +393,7 @@ export default function ReportDetail({
                       key={`dismiss-${idx}`}
                       type="button"
                       onClick={() => setResolutionNotes(template)}
-                      className="rounded bg-gray-100 px-2 py-1 text-xs hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600"
+                      className="rounded bg-[var(--surface-muted)] px-2 py-1 text-xs hover:bg-[var(--skeleton)]"
                     >
                       {template}
                     </button>
@@ -405,35 +405,35 @@ export default function ReportDetail({
                 <button
                   type="button"
                   onClick={confirmResolve}
-                  className="flex-1 rounded-md bg-green-600 px-4 py-2 text-white hover:bg-green-700"
+                  className="flex-1 rounded-md bg-[var(--success)] px-4 py-2 text-white hover:opacity-90"
                 >
                   Resolve Report
                 </button>
                 <button
                   type="button"
                   onClick={confirmDismiss}
-                  className="flex-1 rounded-md bg-gray-600 px-4 py-2 text-white hover:bg-gray-700"
+                  className="flex-1 rounded-md bg-[var(--text-muted)] px-4 py-2 text-[var(--foreground)] hover:bg-[var(--surface-elevated)]"
                 >
                   Dismiss Report
                 </button>
               </div>
 
-              <div className="border-t border-gray-200 pt-4 dark:border-gray-600">
-                <h4 className="text-md mb-2 font-medium text-gray-900 dark:text-white">
+              <div className="border-t border-[var(--border)] pt-4">
+                <h4 className="text-md mb-2 font-medium text-[var(--foreground)]">
                   Quick Actions
                 </h4>
                 <div className="flex flex-wrap gap-2">
                   <button
                     type="button"
                     onClick={confirmDelete}
-                    className="rounded-md bg-red-600 px-4 py-2 text-sm text-white hover:bg-red-700"
+                    className="rounded-md bg-[var(--danger)] px-4 py-2 text-sm text-white hover:opacity-90"
                   >
                     Delete Confession
                   </button>
                   <button
                     type="button"
                     onClick={confirmHide}
-                    className="rounded-md bg-yellow-600 px-4 py-2 text-sm text-white hover:bg-yellow-700"
+                    className="rounded-md bg-[var(--warning)] px-4 py-2 text-sm text-[#18181b] hover:opacity-90"
                   >
                     Hide Confession
                   </button>

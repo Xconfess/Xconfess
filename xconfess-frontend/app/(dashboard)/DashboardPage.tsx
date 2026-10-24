@@ -38,7 +38,7 @@ function StatBadge({
 
   return (
     <div className="flex flex-col items-center rounded-2xl border border-[var(--border)] bg-[var(--surface-muted)] px-6 py-4 text-center">
-      <span className="text-2xl font-bold text-[var(--foreground)]">
+      <span className="text-2xl font-semibold text-[var(--foreground)]">
         {value ?? "-"}
       </span>
       <span className="mt-1 text-xs font-medium uppercase tracking-wide text-[var(--secondary)]">
@@ -67,11 +67,11 @@ function UserSummarySection() {
   const joinedAt = user?.createdAt ? formatDate(user.createdAt) : null;
 
   return (
-    <section className="luxury-panel space-y-5 rounded-[28px] p-6">
+    <section className="luxury-panel space-y-5 rounded-xl p-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <p className="eyebrow">Dashboard</p>
-          <h1 className="mt-2 text-2xl font-bold text-[var(--foreground)]">
+          <h1 className="mt-2 text-2xl font-semibold text-[var(--foreground)]">
             Welcome back,{" "}
             <span className="text-[var(--primary)]">{displayName}</span>
           </h1>
@@ -83,15 +83,15 @@ function UserSummarySection() {
         </div>
         <Link
           href="/#composer"
-          className="inline-flex items-center justify-center rounded-full bg-[var(--brand-gradient)] px-5 py-2.5 text-sm font-semibold text-white shadow-[0_18px_42px_-22px_rgba(91,46,255,0.58)] transition-transform hover:-translate-y-0.5"
+          className="inline-flex items-center justify-center rounded-full bg-[var(--brand-gradient)] px-5 py-2.5 text-sm font-semibold text-[var(--foreground)] shadow-[0_18px_42px_-22px_rgba(91,46,255,0.58)] transition-transform"
         >
           New confession
         </Link>
       </div>
 
       {isError ? (
-        <div className="rounded-2xl border border-red-500/25 bg-red-950/30 p-4 text-center">
-          <p className="mb-2 text-sm text-red-200">
+        <div className="rounded-2xl border border-[var(--danger)]/25 bg-[var(--danger)]/10 p-4 text-center">
+          <p className="mb-2 text-sm text-[var(--danger)]">
             <span>Failed to load stats</span> <span>Stats are temporarily unavailable.</span>
           </p>
           <button
@@ -128,7 +128,7 @@ function RecentConfessionsSection() {
   return (
     <section className="space-y-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-xl font-bold text-[var(--foreground)]">
+        <h2 className="text-xl font-semibold text-[var(--foreground)]">
           Recent confessions
         </h2>
         <Link

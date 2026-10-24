@@ -21,7 +21,7 @@ export default function AdminDashboardPage() {
   if (!analytics) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="text-red-500">Failed to load analytics</div>
+        <div className="text-[var(--danger)]">Failed to load analytics</div>
       </div>
     );
   }
@@ -30,7 +30,7 @@ export default function AdminDashboardPage() {
     <div className="space-y-6">
       <div>
         <p className="eyebrow">Admin</p>
-        <h1 className="mt-2 text-2xl font-bold text-[var(--foreground)]">
+        <h1 className="mt-2 text-2xl font-semibold text-[var(--foreground)]">
           Platform health
         </h1>
       </div>

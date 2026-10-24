@@ -8,7 +8,7 @@ const BadgeDisplay = ({ badges }: Props) => {
       {badges.map((badge) => (
         <span
           key={badge}
-          className="bg-yellow-500 text-black px-3 py-1 rounded-full text-sm font-semibold"
+          className="bg-[var(--warning)] text-[var(--foreground)] px-3 py-1 rounded-full text-sm font-semibold"
         >
           {badge}
         </span>

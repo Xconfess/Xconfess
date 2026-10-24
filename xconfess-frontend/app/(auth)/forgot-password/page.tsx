@@ -60,34 +60,25 @@ export default function ForgotPasswordPage() {
   };
 
   return (
-    <div className="editorial-shell min-h-screen px-4 py-10">
-      <div className="mx-auto flex min-h-[calc(100vh-5rem)] w-full max-w-5xl items-center justify-center">
-        <div className="grid w-full gap-8 lg:grid-cols-[0.95fr_1.05fr] lg:items-center">
-          <div className="space-y-5">
-            <BrandLogo priority imageClassName="w-[168px] dark:hidden" />
-            <BrandLogo priority tone="light" imageClassName="hidden w-[168px] dark:block" />
-            <p className="eyebrow">Password reset</p>
-            <h1 className="font-editorial text-5xl leading-[0.96] text-[var(--foreground)] sm:text-6xl">
-              Reset password.
-            </h1>
-            <p className="max-w-md text-base leading-8 text-[var(--secondary)]">
-              Enter your email to receive a reset link.
-            </p>
+    <div className="min-h-screen px-4 py-12 sm:py-20">
+      <div className="mx-auto w-full max-w-[420px]">
+        <div className="space-y-8">
+          <div className="flex justify-center">
+            <BrandLogo priority imageClassName="w-[132px] dark:hidden" />
+            <BrandLogo priority tone="light" imageClassName="hidden w-[132px] dark:block" />
           </div>
-
-          <div className="luxury-panel rounded-[34px] p-7 sm:p-8">
-            <div className="space-y-3">
-              <p className="eyebrow">Forgot password</p>
-              <h2 className="font-editorial text-4xl text-[var(--foreground)]">
-                Reset request
-              </h2>
-              <p className="text-sm leading-7 text-[var(--secondary)]">
-                For security, we won&apos;t reveal whether the email is registered.
+          <div className="rounded-[var(--radius-panel)] border border-[var(--border)] bg-[var(--surface)] p-6 sm:p-8">
+            <div className="space-y-1.5">
+              <h1 className="text-xl font-semibold text-[var(--foreground)]">
+                Reset password
+              </h1>
+              <p className="text-sm leading-6 text-[var(--secondary)]">
+                Enter your email and we&apos;ll send a reset link if an account exists.
               </p>
             </div>
 
             {statusMessage && (
-              <div className="mt-5 rounded-[20px] border border-slate-200 bg-slate-50 p-3 text-sm text-slate-900">
+              <div className="mt-5 rounded-xl border border-[var(--border)] bg-[var(--surface-muted)] p-3 text-sm text-[var(--foreground)]">
                 {statusMessage}
               </div>
             )}
@@ -96,7 +87,7 @@ export default function ForgotPasswordPage() {
               <div
                 id="forgot-email-error"
                 role="alert"
-                className="mt-5 rounded-[20px] border border-red-200 bg-red-50 p-3 text-sm text-red-700"
+                className="mt-5 rounded-xl border border-[var(--danger)]/30 bg-[var(--danger)]/10 p-3 text-sm text-[var(--danger)]"
               >
                 {errors.email}
               </div>
@@ -139,7 +130,7 @@ export default function ForgotPasswordPage() {
 
               <p className="text-sm text-[var(--secondary)]">
                 Remembered your password?{' '}
-                <Link href="/login" className="text-indigo-600 hover:text-indigo-500">
+                <Link href="/login" className="text-[var(--primary-deep)] hover:text-[var(--primary-deep)]">
                   Sign in instead.
                 </Link>
               </p>
