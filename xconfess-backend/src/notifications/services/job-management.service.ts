@@ -171,6 +171,11 @@ export class JobManagementService {
     return typeof value === 'string' && value.length > 0 ? value : undefined;
   }
 
+  /**
+   * Safely replay a single DLQ job with idempotency guarantees.
+   * Uses a deterministic replay job ID to prevent duplicate execution when
+   * the same replay request is retried (operator presses retry button twice).
+   */
   async replayDlqJob(
     jobId: string,
     actorId: string,
@@ -181,7 +186,25 @@ export class JobManagementService {
     if (!job) throw new NotFoundException(`DLQ job ${jobId} not found`);
 
     const operationId = this.buildOperationId('single-replay', actorId);
-    const outcome = await this.replayJobSafely(job);
+
+    // Idempotency: check if this exact job is already being replayed
+    const replayJobId = this.buildReplayJobId(job);
+    const existingReplay = await this.mainQueue.getJob(replayJobId);
+
+    let outcome: DlqReplayOutcome;
+    if (existingReplay) {
+      // Replay already in progress or completed — deduplicate
+      outcome = {
+        jobId: String(job.id),
+        originalJobId: this.getOriginalJobId(job),
+        replayJobId,
+        outcome: 'deduplicated',
+        existingJobId: String(existingReplay.id),
+      };
+    } else {
+      outcome = await this.replayJobSafely(job);
+    }
+
     const summary = this.buildReplaySummary([outcome]);
 
     await this.auditLogService.logNotificationDlqReplay(actorId, {

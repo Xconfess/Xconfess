@@ -75,4 +75,40 @@ export class KeyRotationController {
       checkedAt: new Date().toISOString(),
     };
   }
+
+  @Get('key-version-distribution')
+  @ApiOperation({
+    summary: 'Analyze key version distribution',
+    description: 'Shows how many confessions use each encryption key version. Useful for planning rotation windows.'
+  })
+  @ApiResponse({ status: 200, description: 'Distribution of confessions across key versions.' })
+  async analyzeKeyDistribution() {
+    return this.keyRotationService.analyzeKeyVersionDistribution();
+  }
+
+  @Post('retire-key')
+  @UseGuards(StepUpGuard)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Check if a key version can be retired',
+    description: 'Validates that no confessions depend on a key version before allowing retirement. ' +
+      'Blocks retirement of the current active key. Returns detailed coverage report.'
+  })
+  @ApiQuery({ name: 'keyVersion', required: true, type: String, description: 'Key version to check for retirement (e.g., "v1")' })
+  @ApiResponse({ status: 200, description: 'Retirement eligibility check complete.' })
+  @ApiResponse({ status: 403, description: 'Admin role + step-up proof required.' })
+  async checkKeyRetirement(
+    @Query('keyVersion') keyVersion: string,
+  ) {
+    if (!keyVersion) {
+      return {
+        canRetire: false,
+        recordsStillUsing: -1,
+        details: 'Missing required query parameter: keyVersion',
+        recommendations: ['Provide keyVersion query parameter (e.g., v1, v2)'],
+      };
+    }
+
+    return this.keyRotationService.checkKeyRetirementCoverage(keyVersion);
+  }
 }

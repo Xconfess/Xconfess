@@ -189,6 +189,48 @@ export class EncryptionService {
     return keyVersion === this.currentVersion;
   }
 
+  /**
+   * Check if a specific key version can be safely retired.
+   * Returns list of records that still depend on this key version.
+   */
+  canRetireKeyVersion(keyVersion: string): {
+    canRetire: boolean;
+    dependentCount: number;
+    description: string;
+  } {
+    if (!this.masterKeys.has(keyVersion)) {
+      return {
+        canRetire: false,
+        dependentCount: 0,
+        description: `Key version ${keyVersion} not found in configured keys`,
+      };
+    }
+
+    if (keyVersion === this.currentVersion) {
+      return {
+        canRetire: false,
+        dependentCount: -1,
+        description: `Cannot retire active key version ${this.currentVersion}. Rotate all records to a new key first.`,
+      };
+    }
+
+    return {
+      canRetire: true,
+      dependentCount: 0,
+      description: `Key version ${keyVersion} can be safely retired (no active encryption uses this version)`,
+    };
+  }
+
+  /** Get all configured key versions. */
+  getConfiguredKeyVersions(): string[] {
+    return Array.from(this.masterKeys.keys()).sort();
+  }
+
+  /** Get the current active key version. */
+  getCurrentKeyVersion(): string {
+    return this.currentVersion;
+  }
+
   // ─── Private helpers ────────────────────────────────────────────────────────
 
   /**
