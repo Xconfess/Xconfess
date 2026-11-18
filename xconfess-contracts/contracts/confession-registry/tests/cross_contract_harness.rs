@@ -1,4 +1,4 @@
-use anonymous_tipping::{AnonymousTipping, AnonymousTippingClient};
+use anonymous_tipping::{AnonymousTipping, AnonymousTippingClient, Error as TippingError};
 use confession_registry::{ConfessionRegistry, ConfessionRegistryClient, ConfessionStatus};
 use reputation_badges::{BadgeType, ReputationBadges, ReputationBadgesClient};
 use soroban_sdk::{testutils::Address as _, Address, BytesN, Env, String};
@@ -39,6 +39,7 @@ fn setup() -> (
     registry.initialize(&admin);
     badges.initialize(&admin);
     tipping.init(&tipping_id);
+    tipping.configure_controls(&admin, &1_000u32, &60u64);
 
     (env, registry, badges, tipping, admin, author)
 }
@@ -101,4 +102,42 @@ fn flagged_confession_flow_keeps_cross_contract_state_consistent() {
     assert_eq!(registry.get_total_count(), 1);
     assert_eq!(badges.get_total_badges(), 1);
     assert_eq!(tipping.latest_settlement_nonce(), 1);
+}
+
+#[test]
+fn tipping_authorization_and_pause_keep_registry_badge_and_tip_state_consistent() {
+    let (env, registry, badges, tipping, admin, author) = setup();
+
+    let confession_id = registry.create_confession(&author, &fixture_hash(&env, 0x51), &TS_CREATE);
+    let badge_id = badges.award_badge(&author, &BadgeType::GenerousSoul);
+
+    let outsider = Address::generate(&env);
+    assert_eq!(
+        tipping.try_pause(&outsider, &String::from_str(&env, "unauthorized")),
+        Err(Ok(TippingError::Unauthorized))
+    );
+    assert!(!tipping.is_paused());
+
+    assert_eq!(tipping.send_tip(&author, &author, &TIP_AMOUNT), 1);
+    tipping.pause(&admin, &String::from_str(&env, "incident"));
+    assert!(tipping.is_paused());
+    assert_eq!(
+        tipping.try_send_tip(&author, &author, &TIP_AMOUNT),
+        Err(Ok(TippingError::ContractPaused))
+    );
+
+    assert_eq!(
+        registry.get_confession(&confession_id).status,
+        ConfessionStatus::Active
+    );
+    assert_eq!(registry.get_total_count(), 1);
+    assert!(badges.has_badge(&author, &BadgeType::GenerousSoul));
+    assert_eq!(badges.get_total_badges(), badge_id);
+    assert_eq!(tipping.get_tips(&author), TIP_AMOUNT);
+    assert_eq!(tipping.latest_settlement_nonce(), 1);
+
+    tipping.unpause(&admin, &String::from_str(&env, "resolved"));
+    assert!(!tipping.is_paused());
+    assert_eq!(tipping.send_tip(&author, &author, &TIP_AMOUNT), 2);
+    assert_eq!(tipping.get_tips(&author), TIP_AMOUNT * 2);
 }

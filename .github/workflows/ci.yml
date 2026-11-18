@@ -31,7 +31,10 @@ jobs:
           cache: npm
           cache-dependency-path: package-lock.json
       - run: npm install --global npm@10.9.3
+      - name: Verify supported Node.js runtime
+        run: npm run setup:check
       - run: npm ci --include=optional --no-audit --no-fund
+      - run: npm run node:test
       - run: npm run audit:ci
 
   secret-scan:
@@ -104,8 +107,12 @@ jobs:
           cache: npm
           cache-dependency-path: package-lock.json
       - run: npm install --global npm@10.9.3
+      - name: Verify supported Node.js runtime
+        run: npm run setup:check
       - run: npm ci --include=optional --no-audit --no-fund
       - run: npm run ci:apps
+      - name: Run deterministic event parser and nonce replay tests
+        run: npm run event-parser:test
 
   contracts:
     name: Contracts

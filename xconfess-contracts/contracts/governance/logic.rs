@@ -7,12 +7,15 @@ use crate::access_control::{is_authorized, require_owner};
 use crate::emergency_pause;
 use crate::error::ContractError;
 
+pub const DEFAULT_PROPOSAL_LIFETIME_SECONDS: u64 = 30 * 24 * 60 * 60;
+
 pub fn get_config(e: &Env) -> GovernanceConfig {
     e.storage()
         .instance()
         .get(&DataKey::GovernanceConfig)
         .unwrap_or(GovernanceConfig {
             quorum_threshold: 1,
+            proposal_lifetime_seconds: DEFAULT_PROPOSAL_LIFETIME_SECONDS,
         })
 }
 
@@ -21,6 +24,15 @@ pub fn set_config(e: &Env, caller: &Address, config: GovernanceConfig) {
     e.storage()
         .instance()
         .set(&DataKey::GovernanceConfig, &config);
+}
+
+pub fn set_proposal_lifetime(e: &Env, caller: &Address, lifetime_seconds: u64) {
+    if lifetime_seconds == 0 {
+        panic!("proposal lifetime must be greater than zero");
+    }
+    let mut config = get_config(e);
+    config.proposal_lifetime_seconds = lifetime_seconds;
+    set_config(e, caller, config);
 }
 
 pub fn get_next_proposal_id(e: &Env) -> u64 {
@@ -46,13 +58,20 @@ pub fn propose(e: &Env, proposer: Address, action: CriticalAction) -> u64 {
     let id = get_next_proposal_id(e);
     increment_proposal_id(e);
 
+    let created_at = e.ledger().timestamp();
+    let lifetime = get_config(e).proposal_lifetime_seconds;
+    let expires_at = created_at
+        .checked_add(lifetime)
+        .expect("proposal lifetime overflow");
     let proposal = Proposal {
         id,
         action,
         proposer: proposer.clone(),
         approvers: Vec::new(e),
-        created_at: e.ledger().timestamp(),
+        created_at,
+        expires_at,
         executed: false,
+        expired: false,
     };
 
     e.storage()
@@ -60,6 +79,16 @@ pub fn propose(e: &Env, proposer: Address, action: CriticalAction) -> u64 {
         .set(&DataKey::Proposal(id), &proposal);
     action_proposed(e, id, proposer);
     id
+}
+
+fn expire_if_needed(e: &Env, proposal: &mut Proposal) {
+    if !proposal.executed && !proposal.expired && e.ledger().timestamp() >= proposal.expires_at {
+        proposal.expired = true;
+        e.storage()
+            .instance()
+            .set(&DataKey::Proposal(proposal.id), proposal);
+        action_expired(e, proposal.id);
+    }
 }
 
 pub fn approve(e: &Env, approver: Address, id: u64) {
@@ -73,6 +102,11 @@ pub fn approve(e: &Env, approver: Address, id: u64) {
         .instance()
         .get(&DataKey::Proposal(id))
         .expect("proposal not found");
+
+    expire_if_needed(e, &mut proposal);
+    if proposal.expired {
+        panic!("proposal expired");
+    }
 
     if proposal.executed {
         panic!("{}", ContractError::AlreadyExecuted as u32);
@@ -97,6 +131,11 @@ pub fn revoke(e: &Env, actor: Address, id: u64) {
         .instance()
         .get(&DataKey::Proposal(id))
         .expect("proposal not found");
+
+    expire_if_needed(e, &mut proposal);
+    if proposal.expired {
+        panic!("proposal expired");
+    }
 
     if proposal.executed {
         panic!("{}", ContractError::AlreadyExecuted as u32);
@@ -135,6 +174,11 @@ pub fn execute(e: &Env, executor: Address, id: u64) {
         .get(&DataKey::Proposal(id))
         .expect("proposal not found");
 
+    expire_if_needed(e, &mut proposal);
+    if proposal.expired {
+        panic!("proposal expired");
+    }
+
     if proposal.executed {
         panic!("{}", ContractError::AlreadyExecuted as u32);
     }
@@ -171,4 +215,12 @@ pub fn execute(e: &Env, executor: Address, id: u64) {
         .instance()
         .set(&DataKey::Proposal(id), &proposal);
     action_executed(e, id, executor);
+}
+
+pub fn get_proposal(e: &Env, id: u64) -> Option<Proposal> {
+    let mut proposal: Option<Proposal> = e.storage().instance().get(&DataKey::Proposal(id));
+    if let Some(ref mut proposal) = proposal {
+        expire_if_needed(e, proposal);
+    }
+    proposal
 }

@@ -18,11 +18,14 @@ pub struct Proposal {
     pub proposer: Address,
     pub approvers: Vec<Address>,
     pub created_at: u64,
+    pub expires_at: u64,
     pub executed: bool,
+    pub expired: bool,
 }
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct GovernanceConfig {
     pub quorum_threshold: u32,
+    pub proposal_lifetime_seconds: u64,
 }

@@ -56,6 +56,15 @@ pub struct GovernanceCancelledAdminEvent {
     pub admin: Address,
 }
 
+#[contractevent(topics = ["gov_exp"], data_format = "vec")]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct GovernanceExpiredEvent {
+    #[topic]
+    pub proposal_id: u64,
+    pub nonce: u64,
+    pub timestamp: u64,
+}
+
 #[contractevent(topics = ["gov_inv"])]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct GovInvariantViolationEvent {
@@ -104,6 +113,15 @@ pub fn accepted(e: &Env, old: Address, new_admin: Address) {
 
 pub fn cancelled(e: &Env, admin: Address) {
     GovernanceCancelledAdminEvent { admin }.publish(e);
+}
+
+pub fn action_expired(e: &Env, proposal_id: u64) {
+    GovernanceExpiredEvent {
+        proposal_id,
+        nonce: next_governance_nonce(e, soroban_sdk::symbol_short!("gov_exp")),
+        timestamp: e.ledger().timestamp(),
+    }
+    .publish(e);
 }
 
 pub fn invariant_violation(e: &Env, operation: &str, reason: &str, attempted_by: Address) {

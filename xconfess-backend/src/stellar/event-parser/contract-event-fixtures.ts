@@ -86,6 +86,11 @@ export const CONTRACT_EVENT_FIXTURES: ContractEventFixture[] = [
     description: 'Governance proposal executed',
   },
   {
+    eventName: 'GovernanceExpiredEvent', category: 'governance', topic: 'gov_exp', eventVersion: 1,
+    values: [1, 12, 1_700_000_000_017],
+    description: 'Governance proposal expired and became permanently immutable',
+  },
+  {
     eventName: 'GovInvariantViolationEvent', category: 'governance', topic: 'gov_inv', eventVersion: 1,
     values: [6, 1_700_000_000_007, 'gov_execute', 'quorum_not_reached', ADDR_B],
     description: 'Governance invariant violated during execution',

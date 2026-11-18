@@ -59,6 +59,7 @@
     "deploy:smoke": "node scripts/deployed-smoke.js",
     "readiness": "npm run production:readiness",
     "readiness:test": "node --test scripts/__tests__/production-readiness.test.js",
+    "node:test": "node --test scripts/__tests__/node-version.test.js",
     "production:readiness": "node scripts/production-readiness.js",
     "production:readiness:full": "node scripts/production-readiness.js --full",
     "production:readiness:deployed": "node scripts/production-readiness.js --production --smoke",
@@ -67,7 +68,8 @@
     "secret-scan": "node scripts/run-secret-scanning-preflight.js",
     "secret-scan:self-test": "node scripts/run-secret-scanning-preflight.js --self-test",
     "audit:ci": "npx audit-ci --config audit-ci.json",
-    "audit:report": "npm audit --json > audit-report.json 2>&1 || true"
+    "audit:report": "npm audit --json > audit-report.json 2>&1 || true",
+    "event-parser:test": "npm test --workspace=xconfess-backend -- --runInBand src/stellar/event-parser/contract-event-parser.spec.ts src/stellar/event-parser/contract-event-replay.spec.ts"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
