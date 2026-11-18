@@ -141,4 +141,4 @@ if (require.main === module) {
   try { main(); } catch (error) { console.error(error instanceof Error ? error.message : String(error)); process.exitCode = 1; }
 }
 
-module.exports = { extractProxyRoutes, normalizePath, validateApiContract };
+module.exports = { extractProxyRoutes, normalizePath, collectFrontendProxyRoutes, validateApiContract };

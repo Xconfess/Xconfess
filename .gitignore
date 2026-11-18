@@ -31,3 +31,9 @@ CON
 audit-report.json
 pr.md
 issue.md
+
+# Local review-delay ledger (audit events are generated at release time)
+.review-delay/
+
+# Normalized OpenAPI output generated in CI / locally during reviews
+deployments/openapi.normalized.json
