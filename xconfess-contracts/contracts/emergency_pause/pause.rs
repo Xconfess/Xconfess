@@ -3,6 +3,7 @@ use soroban_sdk::{Env, String};
 use crate::emergency_pause::{
     admin::require_pause_authority,
     errors::PauseError,
+    events,
     events::{emit_paused, emit_unpaused},
     storage::DataKey,
 };
@@ -28,9 +29,13 @@ pub fn pause(env: Env, caller: soroban_sdk::Address, reason: String) -> Result<(
         return Err(PauseError::AlreadyPaused);
     }
 
+    // Validate before mutating state; although a returned Err rolls the whole
+    // invocation back on-chain, failing early keeps the invariant explicit.
+    events::validate_pause_reason(&reason)?;
+
     env.storage().instance().set(&DataKey::Paused, &true);
 
-    emit_paused(&env, &actor, reason);
+    emit_paused(&env, &actor, reason)?;
 
     Ok(())
 }
@@ -42,9 +47,11 @@ pub fn unpause(env: Env, caller: soroban_sdk::Address, reason: String) -> Result
         return Err(PauseError::NotPaused);
     }
 
+    events::validate_pause_reason(&reason)?;
+
     env.storage().instance().set(&DataKey::Paused, &false);
 
-    emit_unpaused(&env, &actor, reason);
+    emit_unpaused(&env, &actor, reason)?;
 
     Ok(())
 }

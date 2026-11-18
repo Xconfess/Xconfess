@@ -1,5 +1,8 @@
 #![no_std]
 
+#[path = "../../event_bounds.rs"]
+pub mod event_bounds;
+
 use soroban_sdk::{
     contract, contracterror, contractevent, contractimpl, contracttype, token::TokenClient,
     Address, Env, MuxedAddress, String as SorobanString,
@@ -208,7 +211,8 @@ pub struct PauseChangedEvent {
 
 #[contractimpl]
 impl AnonymousTipping {
-    pub const MAX_PROOF_METADATA_LEN: u32 = 128;
+    /// Sourced from the shared per-event bounds table.
+    pub const MAX_PROOF_METADATA_LEN: u32 = event_bounds::MAX_TIPPING_PROOF_METADATA_LEN;
     pub const DEFAULT_MAX_TIPS_PER_WINDOW: u32 = 1_000;
     pub const DEFAULT_RATE_WINDOW_SECONDS: u64 = 60;
 
@@ -271,9 +275,10 @@ impl AnonymousTipping {
 
         let metadata = match proof_metadata {
             Some(value) => {
-                if value.len() > Self::MAX_PROOF_METADATA_LEN {
-                    return Err(Error::MetadataTooLong);
-                }
+                // Stable rejection with a per-event bound; prevents an
+                // oversized settlement payload from inflating resource usage.
+                event_bounds::validate_tipping_metadata(&value)
+                    .map_err(|_| Error::MetadataTooLong)?;
                 value
             }
             None => SorobanString::from_str(&env, ""),
@@ -424,6 +429,7 @@ impl AnonymousTipping {
 
     pub fn pause(env: Env, caller: Address, reason: SorobanString) -> Result<(), Error> {
         Self::require_owner(&env, &caller)?;
+        event_bounds::validate_pause_reason(&reason).map_err(|_| Error::MetadataTooLong)?;
         env.storage().instance().set(&DataKey::IsPaused, &true);
         PauseChangedEvent {
             actor: caller,
@@ -437,6 +443,7 @@ impl AnonymousTipping {
 
     pub fn unpause(env: Env, caller: Address, reason: SorobanString) -> Result<(), Error> {
         Self::require_owner(&env, &caller)?;
+        event_bounds::validate_pause_reason(&reason).map_err(|_| Error::MetadataTooLong)?;
         env.storage().instance().set(&DataKey::IsPaused, &false);
         PauseChangedEvent {
             actor: caller,

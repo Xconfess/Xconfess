@@ -6,6 +6,8 @@ use soroban_sdk::{contracttype, symbol_short, Address, Env, String as SorobanStr
 /// When changing event schemas or `event_version`, follow:
 /// `docs/contract-event-version-bump-checklist.md`
 pub const EVENT_VERSION_V1: u32 = 1;
+/// Version of the enriched, traceable emergency-pause event schema.
+pub const EVENT_VERSION_V2: u32 = 2;
 pub const EVENT_FIXTURE_VERSION_V1: u32 = 1;
 
 /// Stable discriminators (NEVER CHANGE)
@@ -115,6 +117,42 @@ pub const PUBLIC_EVENT_SCHEMA_FIXTURES: &[EventSchemaFixture] = &[
         data_format: "single-value",
         event_version: EVENT_VERSION_V1,
         field_order: &["actor", "paused", "reason", "timestamp"],
+    },
+    // Legacy emergency-pause schemas (decode-only, never mutate).
+    EventSchemaFixture {
+        fixture_version: EVENT_FIXTURE_VERSION_V1,
+        event_name: "PausedEvent",
+        category: "pause",
+        topic: "paused",
+        data_format: "single-value",
+        event_version: EVENT_VERSION_V1,
+        field_order: &["reason"],
+    },
+    EventSchemaFixture {
+        fixture_version: EVENT_FIXTURE_VERSION_V1,
+        event_name: "UnpausedEvent",
+        category: "pause",
+        topic: "unpaused",
+        data_format: "single-value",
+        event_version: EVENT_VERSION_V1,
+        field_order: &["reason"],
+    },
+    // Current versioned pause audit stream: actor + reason + monotonic nonce.
+    EventSchemaFixture {
+        fixture_version: EVENT_FIXTURE_VERSION_V1,
+        event_name: "PauseStateChangedEvent",
+        category: "pause",
+        topic: "pause_state_changed",
+        data_format: "vec",
+        event_version: EVENT_VERSION_V2,
+        field_order: &[
+            "event_version",
+            "actor",
+            "reason",
+            "nonce",
+            "paused",
+            "timestamp",
+        ],
     },
     EventSchemaFixture {
         fixture_version: EVENT_FIXTURE_VERSION_V1,
@@ -314,13 +352,10 @@ pub const PUBLIC_EVENT_SCHEMA_FIXTURES: &[EventSchemaFixture] = &[
 pub fn decode_event_fixture_schema(
     fixture: &EventSchemaFixture,
 ) -> Result<EventSchemaFixture, EventDecodeError> {
-    if fixture.event_version != EVENT_VERSION_V1 {
-        return Err(EventDecodeError::UnsupportedEventVersion(
-            fixture.event_version,
-        ));
+    match fixture.event_version {
+        EVENT_VERSION_V1 | EVENT_VERSION_V2 => Ok(*fixture),
+        other => Err(EventDecodeError::UnsupportedEventVersion(other)),
     }
-
-    Ok(*fixture)
 }
 
 /// ===========================================

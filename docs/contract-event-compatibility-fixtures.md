@@ -13,8 +13,10 @@ in `xconfess-contracts/contracts/events.rs`. It records the fixture version,
 event version, event topic, data format, and exact field order that downstream
 decoders rely on.
 
-`EVENT_FIXTURE_VERSION_V1` is the current fixture registry version. All public
-event fixtures currently use `event_version = 1`.
+`EVENT_FIXTURE_VERSION_V1` is the current fixture registry version. Most public
+event fixtures use `event_version = 1`; the traceable pause stream
+(`PauseStateChangedEvent`) uses `event_version = 2` while the legacy V1 pause
+events remain registered so historical on-chain events keep decoding.
 
 ### V1 Public Event Fixtures
 
@@ -26,6 +28,9 @@ event fixtures currently use `event_version = 1`.
 | Confession | `ConfessionEvent` | `confess` | `single-value` | 1 |
 | Reaction | `ReactionEvent` | `react` | `single-value` | 1 |
 | Pause | `PauseChangedEvent` | `tip_pause` | `single-value` | 1 |
+| Pause | `PausedEvent` | `paused` | `single-value` | 1 |
+| Pause | `UnpausedEvent` | `unpaused` | `single-value` | 1 |
+| Pause | `PauseStateChangedEvent` | `pause_state_changed` | `vec` | 2 |
 | Report | `ReportEvent` | `report` | `single-value` | 1 |
 | Report | `ReportSubmittedLedgerEvent` | `report` | `single-value` | 1 |
 | Role | `RoleEvent` | `role` | `single-value` | 1 |

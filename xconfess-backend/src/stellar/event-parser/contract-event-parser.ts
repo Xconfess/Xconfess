@@ -63,6 +63,20 @@ const EVENT_SCHEMAS: readonly EventSchema[] = [
     eventName: 'PauseChangedEvent', category: 'pause', topic: 'tip_pause', eventVersion: 1,
     fieldOrder: ['actor', 'paused', 'reason', 'timestamp'],
   },
+  // Legacy emergency-pause schemas — retained so historical events keep parsing.
+  {
+    eventName: 'PausedEvent', category: 'pause', topic: 'paused', eventVersion: 1,
+    fieldOrder: ['reason'],
+  },
+  {
+    eventName: 'UnpausedEvent', category: 'pause', topic: 'unpaused', eventVersion: 1,
+    fieldOrder: ['reason'],
+  },
+  // Versioned, traceable pause audit stream.
+  {
+    eventName: 'PauseStateChangedEvent', category: 'pause', topic: 'pause_state_changed', eventVersion: 2,
+    fieldOrder: ['event_version', 'actor', 'reason', 'nonce', 'paused', 'timestamp'],
+  },
   {
     eventName: 'ReportEvent', category: 'report', topic: 'report', eventVersion: 1,
     fieldOrder: ['event_version', 'confession_id', 'reporter', 'reason', 'nonce', 'timestamp', 'correlation_id'],

@@ -54,6 +54,8 @@ pub mod codes {
     pub const COOLDOWN_ACTIVE: u32 = 1004;
     pub const PAYLOAD_TOO_LARGE: u32 = 1005;
     pub const METADATA_TOO_LONG: u32 = 1006;
+    pub const INVALID_TIMESTAMP: u32 = 1007;
+    pub const PAUSE_REASON_TOO_LONG: u32 = 1008;
 
     /// ====== Confession Module Errors (2000-2099) ======
     pub const CONFESSION_EXISTS: u32 = 2000;
@@ -100,12 +102,14 @@ pub enum ContractError {
     /// Global / common errors
     /// ===========================================
     Unauthorized, // caller not authorized (1000)
-    NotFound,        // requested entity not found (1001)
-    InvalidInput,    // input value invalid (1002)
-    Overflow,        // arithmetic overflow (1003)
-    CooldownActive,  // update cooldown not elapsed (1004)
-    PayloadTooLarge, // emitted payload or metadata exceeds configured bound (1005)
-    MetadataTooLong, // metadata field length exceeded (1006)
+    NotFound,           // requested entity not found (1001)
+    InvalidInput,       // input value invalid (1002)
+    Overflow,           // arithmetic overflow (1003)
+    CooldownActive,     // update cooldown not elapsed (1004)
+    PayloadTooLarge,    // emitted payload or metadata exceeds configured bound (1005)
+    MetadataTooLong,    // metadata field length exceeded (1006)
+    InvalidTimestamp,   // anchor timestamp moved backwards (1007)
+    PauseReasonTooLong, // pause/unpause reason exceeded per-event bound (1008)
 
     /// ===========================================
     /// Confession module errors
@@ -148,6 +152,8 @@ impl ContractError {
             ContractError::CooldownActive => codes::COOLDOWN_ACTIVE,
             ContractError::PayloadTooLarge => codes::PAYLOAD_TOO_LARGE,
             ContractError::MetadataTooLong => codes::METADATA_TOO_LONG,
+            ContractError::InvalidTimestamp => codes::INVALID_TIMESTAMP,
+            ContractError::PauseReasonTooLong => codes::PAUSE_REASON_TOO_LONG,
 
             ContractError::ConfessionExists => codes::CONFESSION_EXISTS,
             ContractError::ConfessionEmpty => codes::CONFESSION_EMPTY,
@@ -178,6 +184,8 @@ impl ContractError {
             ContractError::CooldownActive => "cooldown period not elapsed",
             ContractError::PayloadTooLarge => "payload exceeds configured limit",
             ContractError::MetadataTooLong => "metadata field too long",
+            ContractError::InvalidTimestamp => "anchor timestamp cannot move backwards",
+            ContractError::PauseReasonTooLong => "pause reason too long",
 
             ContractError::ConfessionExists => "confession already exists",
             ContractError::ConfessionEmpty => "confession content empty",
@@ -212,6 +220,8 @@ impl ContractError {
             ContractError::ReportReasonTooLong => ErrorClassification::Terminal,
             ContractError::PayloadTooLarge => ErrorClassification::Terminal,
             ContractError::MetadataTooLong => ErrorClassification::Terminal,
+            ContractError::InvalidTimestamp => ErrorClassification::Terminal,
+            ContractError::PauseReasonTooLong => ErrorClassification::Terminal,
             ContractError::ConfessionEmpty => ErrorClassification::Terminal,
             ContractError::ConfessionTooLong => ErrorClassification::Terminal,
             ContractError::UnauthorizedApproval => ErrorClassification::Terminal,
