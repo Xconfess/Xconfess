@@ -25,11 +25,14 @@ export interface DlqReplayOutcome {
   jobId: string;
   originalJobId: string | null;
   replayJobId: string;
-  outcome: 'replayed' | 'deduplicated' | 'failed';
+  outcome: 'replayed' | 'deduplicated' | 'failed' | 'max_retries_exceeded';
   newJobId?: string;
   existingJobId?: string;
   error?: string;
 }
+
+/** Maximum number of times a job may be replayed from the DLQ (#1981). */
+const MAX_DLQ_REPLAYS = 3;
 
 export interface DlqCleanupOutcome {
   jobId: string;
@@ -146,6 +149,12 @@ export class JobManagementService {
       job as Job<NotificationJobData> & { opts?: { attempts?: number } }
     ).opts?.attempts;
     return typeof attempts === 'number' ? attempts : 1;
+  }
+
+  private getDlqReplayCount(job: Job<NotificationJobData>): number {
+    return typeof job.data._meta?.replayCount === 'number'
+      ? job.data._meta.replayCount
+      : 0;
   }
 
   private timestampToIsoString(timestamp?: number): string | null {
@@ -440,6 +449,23 @@ export class JobManagementService {
     const replayJobId = this.buildReplayJobId(job);
     const recordedReplayJobId = job.data._meta?.replayJobId;
 
+    // Max-retry guard (#1981): prevent infinite replay loops.
+    const replayCount = this.getDlqReplayCount(job);
+    if (replayCount >= MAX_DLQ_REPLAYS) {
+      this.appLogger.emitWarningEvent('notification.dlq.max_retries_exceeded', {
+        jobId,
+        replayCount,
+        maxReplays: MAX_DLQ_REPLAYS,
+      }, 'NotificationDLQ');
+      return {
+        jobId,
+        originalJobId,
+        replayJobId,
+        outcome: 'max_retries_exceeded',
+        error: `Job has been replayed ${replayCount} times (max: ${MAX_DLQ_REPLAYS})`,
+      };
+    }
+
     if (recordedReplayJobId) {
       try {
         await job.remove();
@@ -555,6 +581,7 @@ export class JobManagementService {
         replayJobId,
         replayOutcome,
         replayedAt: new Date().toISOString(),
+        replayCount: (existingMeta?.replayCount ?? 0) + 1,
       },
     });
   }

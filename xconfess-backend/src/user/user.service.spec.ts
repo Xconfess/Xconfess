@@ -83,7 +83,9 @@ describe('UserService', () => {
         },
         {
           provide: ConfigService,
-          useValue: { get: jest.fn((_key: string, fallback?: unknown) => fallback ?? '') },
+          useValue: {
+            get: jest.fn((_key: string, fallback?: unknown) => fallback ?? ''),
+          },
         },
       ],
     }).compile();
@@ -317,6 +319,29 @@ describe('UserService', () => {
       expect(mockRepository.save).not.toHaveBeenCalled();
     });
 
+
+    it('maps a database unique-constraint race to the stable conflict error', async () => {
+      mockRepository.findOne.mockResolvedValue(null);
+      mockRepository.create.mockReturnValue(mockUser);
+      mockRepository.save.mockRejectedValue(
+        Object.assign(new Error('duplicate key'), { code: '23505' }),
+      );
+
+      await expect(
+        service.create(
+          validUserData.email,
+          validUserData.password,
+          validUserData.username,
+        ),
+      ).rejects.toMatchObject({
+        response: {
+          message: 'Email or username already in use.',
+          code: ErrorCode.ALREADY_EXISTS,
+        },
+        status: 409,
+      });
+    });
+
     it('should throw InternalServerErrorException on database error', async () => {
       mockRepository.findOne.mockResolvedValue(null);
       mockRepository.create.mockReturnValue(mockUser);
@@ -480,9 +505,16 @@ describe('UserService', () => {
       mockRepository.findOne.mockResolvedValue(null);
       mockRepository.create.mockReturnValue(mockUser);
       mockRepository.save.mockResolvedValue(mockUser);
-      mockEmailService.sendWelcomeEmail.mockRejectedValue(new Error('smtp down'));
+      mockEmailService.sendWelcomeEmail.mockRejectedValue(
+        new Error('smtp down'),
+      );
 
-      await service.create(data.email, data.password, data.username, 'req-trace-3');
+      await service.create(
+        data.email,
+        data.password,
+        data.username,
+        'req-trace-3',
+      );
 
       const logged = warnSpy.mock.calls.map((c) => String(c[0])).join('\n');
       expect(logged).toContain('req-trace-3');

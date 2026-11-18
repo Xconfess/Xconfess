@@ -3,6 +3,8 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { Card, CardContent, CardHeader } from "@/app/components/ui/card";
+import { cn } from "@/app/lib/utils/cn";
+import { focusVisible } from "@/app/lib/utils/focusStyles";
 import { formatDate } from "@/app/lib/utils/formatDate";
 import { getConfessions } from "@/app/lib/api/confessions";
 import type { NormalizedConfession } from "@/app/lib/utils/normalizeConfession";
@@ -61,7 +63,7 @@ export function RelatedConfessions({
     >
       <h2
         id="related-confessions-heading"
-        className="text-lg font-semibold text-white mb-4"
+        className="text-lg font-semibold text-[var(--foreground)] mb-4"
       >
         Related confessions
       </h2>
@@ -70,17 +72,17 @@ export function RelatedConfessions({
           <li key={c.id}>
             <Link
               href={`/confessions/${c.id}`}
-              className="block hover:opacity-95 transition-opacity"
+              className={cn("block hover:opacity-95 transition-opacity", focusVisible)}
             >
               <Card className="h-full overflow-hidden">
-                <CardHeader className="py-3 px-4 text-xs text-zinc-500">
+                <CardHeader className="py-3 px-4 text-xs text-[var(--text-muted)]">
                   {formatDate(new Date(c.createdAt))}
                 </CardHeader>
                 <CardContent className="py-0 px-4 pb-4 pt-0">
-                  <p className="text-zinc-200 text-sm line-clamp-3 wrap-break-word">
+                  <p className="text-[var(--foreground)] text-sm line-clamp-3 wrap-break-word">
                     {c.content}
                   </p>
-                  <div className="mt-2 flex items-center gap-3 text-xs text-zinc-500">
+                  <div className="mt-2 flex items-center gap-3 text-xs text-[var(--text-muted)]">
                     <span>👍 {c.reactions?.like ?? 0}</span>
                     <span>❤️ {c.reactions?.love ?? 0}</span>
                     {c.commentCount != null && (

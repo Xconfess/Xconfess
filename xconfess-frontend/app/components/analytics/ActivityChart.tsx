@@ -79,7 +79,7 @@ function DeltaBadge({
 
   if (delta.availability === 'unavailable') {
     return (
-      <span className="text-[11px] font-semibold px-2 py-1 rounded-full bg-zinc-800 text-zinc-400" title={delta.note}>
+      <span className="text-[11px] font-semibold px-2 py-1 rounded-full bg-[var(--surface-muted)] text-[var(--text-muted)]" title={delta.note}>
         {label}: No baseline
       </span>
     );
@@ -94,10 +94,10 @@ function DeltaBadge({
     <span
       className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-1 rounded-full ${
         positive
-          ? 'bg-emerald-500/10 text-emerald-400'
+          ? 'bg-[var(--success)]/10 text-[var(--success)]'
           : negative
-            ? 'bg-rose-500/10 text-rose-400'
-            : 'bg-amber-500/10 text-amber-400'
+            ? 'bg-[var(--danger)]/10 text-[var(--danger)]'
+            : 'bg-[var(--warning)]/10 text-[var(--warning)]'
       }`}
       title={delta.note}
     >
@@ -123,8 +123,8 @@ export const ActivityChart: React.FC<ActivityChartProps> = ({
 }) => {
   if (loading) {
     return (
-      <div role='status' aria-label='loading' className="bg-zinc-900/50 border border-zinc-800 rounded-2xl p-6 h-[400px] flex items-center justify-center animate-pulse">
-        <div className="w-full h-full bg-zinc-800/30 rounded-xl" />
+      <div role='status' aria-label='loading' className="bg-[var(--surface)]/50 border border-[var(--border)] rounded-2xl p-6 h-[400px] flex items-center justify-center animate-pulse">
+        <div className="w-full h-full bg-[var(--surface-muted)]/30 rounded-xl" />
       </div>
     );
   }
@@ -158,12 +158,12 @@ export const ActivityChart: React.FC<ActivityChartProps> = ({
   const resolvedReactionsDelta = normalizeDelta(reactionsDelta, derivedReactionsDelta);
 
   return (
-    <div className="bg-zinc-900/50 border border-zinc-800 rounded-2xl p-6 h-[400px]">
+    <div className="bg-[var(--surface)]/50 border border-[var(--border)] rounded-2xl p-6 h-[400px]">
       <div className="flex flex-col gap-3 mb-5">
         <div className="flex flex-wrap justify-between items-start gap-3">
           <div className="flex items-center gap-2">
-            <Activity className="w-6 h-6 text-purple-500" />
-            <h3 className="text-xl font-bold text-white">Platform Activity</h3>
+            <Activity className="w-6 h-6 text-[var(--primary-deep)]" />
+            <h3 className="text-xl font-semibold text-[var(--foreground)]">Platform Activity</h3>
           </div>
           <div className="flex flex-wrap gap-2">
             {comparisonEnabled && (
@@ -176,22 +176,22 @@ export const ActivityChart: React.FC<ActivityChartProps> = ({
         </div>
         <div className="flex flex-wrap gap-4">
           <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full bg-blue-500" />
-            <span className="text-xs text-zinc-400">Confessions</span>
+            <div className="w-3 h-3 rounded-full bg-[var(--primary)]" />
+            <span className="text-xs text-[var(--text-muted)]">Confessions</span>
           </div>
           <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full bg-emerald-500" />
-            <span className="text-xs text-zinc-400">Reactions</span>
+            <div className="w-3 h-3 rounded-full bg-[var(--success)]" />
+            <span className="text-xs text-[var(--text-muted)]">Reactions</span>
           </div>
           {hasComparisonSeries && (
             <>
               <div className="flex items-center gap-2">
-                <div className="w-3 h-0.5 border-t border-dashed border-blue-400" />
-                <span className="text-xs text-zinc-400">Previous confessions</span>
+                <div className="w-3 h-0.5 border-t border-dashed border-[var(--accent-border)]" />
+                <span className="text-xs text-[var(--text-muted)]">Previous confessions</span>
               </div>
               <div className="flex items-center gap-2">
-                <div className="w-3 h-0.5 border-t border-dashed border-emerald-400" />
-                <span className="text-xs text-zinc-400">Previous reactions</span>
+                <div className="w-3 h-0.5 border-t border-dashed border-[var(--success)]/30" />
+                <span className="text-xs text-[var(--text-muted)]">Previous reactions</span>
               </div>
             </>
           )}
@@ -200,10 +200,10 @@ export const ActivityChart: React.FC<ActivityChartProps> = ({
           <p
             className={`text-xs ${
               comparisonAvailability === 'estimated'
-                ? 'text-amber-400'
+                ? 'text-[var(--warning)]'
                 : comparisonAvailability === 'available'
-                  ? 'text-emerald-400'
-                  : 'text-zinc-500'
+                  ? 'text-[var(--success)]'
+                  : 'text-[var(--text-muted)]'
             }`}
           >
             {comparisonNote || 'Comparison baseline is unavailable for this chart window.'}

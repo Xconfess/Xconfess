@@ -259,37 +259,37 @@ export const DraftManager: React.FC<DraftManagerProps> = ({
           onClick={() => setIsModalOpen(true)}
           aria-label={drafts.length > 0 ? `Manage drafts (${drafts.length} saved)` : "Manage drafts"}
           title={drafts.length > 0 ? `Manage drafts (${drafts.length} saved)` : "Manage drafts"}
-          className="flex items-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+          className="flex items-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]"
         >
           <FileText className="h-4 w-4" aria-hidden="true" />
           <span className="hidden sm:inline">Drafts</span>
           {drafts.length > 0 && (
-            <span className="rounded-full bg-zinc-700 px-2 py-0.5 text-xs" aria-hidden="true">
+            <span className="rounded-full bg-[var(--surface-elevated)] px-2 py-0.5 text-xs" aria-hidden="true">
               {drafts.length}
             </span>
           )}
         </Button>
 
-        <div className="text-xs text-zinc-400" aria-live="polite" aria-atomic="true">
+        <div className="text-xs text-[var(--text-muted)]" aria-live="polite" aria-atomic="true">
           {saveStatus === "saved" && saveMessage && <span>{saveMessage}</span>}
           {saveStatus === "unsaved" && (
-            <span className="text-amber-300">Unsaved changes</span>
+            <span className="text-[var(--warning)]">Unsaved changes</span>
           )}
           {saveStatus === "saving" && <span>Saving draft…</span>}
           {saveStatus === "failed" && (
-            <span className="text-rose-300">
+            <span className="text-[var(--danger)]">
               {saveMessage ?? "Failed to save draft."}{" "}
               <button
                 type="button"
                 onClick={() => void persistDraft()}
-                className="underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500 rounded"
+                className="underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] rounded"
               >
                 Retry
               </button>
             </span>
           )}
           {saveStatus === "conflict" && activeConflict && (
-            <span className="text-amber-300">
+            <span className="text-[var(--warning)]">
               {activeConflict.reason === "remote_deleted"
                 ? "This draft was deleted remotely while you were offline."
                 : "This draft was changed elsewhere while you were offline."}
@@ -300,21 +300,21 @@ export const DraftManager: React.FC<DraftManagerProps> = ({
         {activeConflict && (
           <div
             role="alert"
-            className="rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-100"
+            className="rounded-md border border-[var(--warning)]/40 bg-[var(--warning)]/10 p-3 text-xs text-[var(--warning)]"
           >
             <p className="font-medium">
               {activeConflict.reason === "remote_deleted"
                 ? "This draft was deleted remotely while you were offline."
                 : "This draft was changed elsewhere while you were offline."}
             </p>
-            <p className="mt-1 text-amber-200/80">
+            <p className="mt-1 text-[var(--warning)]">
               Your local version is kept in the editor. Choose how to resolve:
             </p>
             <div className="mt-2 flex flex-wrap gap-3">
               <button
                 type="button"
                 onClick={() => void handleResolveConflict("keep-local")}
-                className="underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 rounded"
+                className="underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] rounded"
               >
                 {activeConflict.reason === "remote_deleted"
                   ? "Save mine as a new draft"
@@ -324,7 +324,7 @@ export const DraftManager: React.FC<DraftManagerProps> = ({
                 <button
                   type="button"
                   onClick={() => void handleResolveConflict("keep-remote")}
-                  className="underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 rounded"
+                  className="underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] rounded"
                 >
                   Use the newer version
                 </button>
@@ -332,7 +332,7 @@ export const DraftManager: React.FC<DraftManagerProps> = ({
               <button
                 type="button"
                 onClick={() => void handleResolveConflict("discard-local")}
-                className="underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 rounded"
+                className="underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] rounded"
               >
                 Dismiss
               </button>
@@ -348,11 +348,11 @@ export const DraftManager: React.FC<DraftManagerProps> = ({
       >
         <div className="space-y-4">
           {isLoading ? (
-            <p className="text-center text-zinc-400 py-8" role="status">
+            <p className="text-center text-[var(--text-muted)] py-8" role="status">
               Loading your drafts…
             </p>
           ) : drafts.length === 0 ? (
-            <p className="text-center text-zinc-400 py-8" role="status">
+            <p className="text-center text-[var(--text-muted)] py-8" role="status">
               No saved drafts yet. Your drafts will be auto-saved every few
               seconds.
             </p>
@@ -366,7 +366,7 @@ export const DraftManager: React.FC<DraftManagerProps> = ({
                 {drafts.map((draft) => (
                   <div
                     key={draft.id}
-                    className="group flex items-start gap-3 rounded-lg border border-zinc-800 bg-zinc-900 p-4 hover:bg-zinc-800 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                    className="group flex items-start gap-3 rounded-lg border border-[var(--border)] bg-[var(--surface)] p-4 hover:bg-[var(--surface-muted)] transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]"
                     onClick={() => handleLoadDraft(draft)}
                     role="button"
                     tabIndex={0}
@@ -380,14 +380,14 @@ export const DraftManager: React.FC<DraftManagerProps> = ({
                   >
                     <div className="flex-1 min-w-0">
                       {draft.title && (
-                        <h4 className="font-medium text-white mb-1 truncate">
+                        <h4 className="font-medium text-[var(--foreground)] mb-1 truncate">
                           {draft.title}
                         </h4>
                       )}
-                      <p className="text-sm text-zinc-400 line-clamp-2 mb-2">
+                      <p className="text-sm text-[var(--text-muted)] line-clamp-2 mb-2">
                         {draft.body}
                       </p>
-                      <div className="flex items-center gap-4 text-xs text-zinc-500">
+                      <div className="flex items-center gap-4 text-xs text-[var(--text-muted)]">
                         <span className="flex items-center gap-1">
                           <Clock className="h-3 w-3" aria-hidden="true" />
                           {formatDate(new Date(draft.savedAt))}
@@ -401,19 +401,19 @@ export const DraftManager: React.FC<DraftManagerProps> = ({
                       onClick={(e) => handleDeleteDraft(draft.id, e)}
                       aria-label={`Delete draft from ${formatDate(new Date(draft.savedAt))}`}
                       title={`Delete draft from ${formatDate(new Date(draft.savedAt))}`}
-                      className="opacity-0 group-hover:opacity-100 group-focus:opacity-100 transition-opacity focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
+                      className="opacity-0 group-hover:opacity-100 group-focus:opacity-100 transition-opacity focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]"
                     >
-                      <Trash2 className="h-4 w-4 text-red-400" aria-hidden="true" />
+                      <Trash2 className="h-4 w-4 text-[var(--danger)]" aria-hidden="true" />
                     </Button>
                   </div>
                 ))}
               </div>
-              <div className="flex justify-end pt-4 border-t border-zinc-800">
+              <div className="flex justify-end pt-4 border-t border-[var(--border)]">
                 <Button
                   variant="destructive"
                   size="sm"
                   onClick={() => setClearDraftsOpen(true)}
-                  className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
+                  className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]"
                 >
                   Clear All Drafts
                 </Button>

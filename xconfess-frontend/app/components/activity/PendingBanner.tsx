@@ -10,7 +10,7 @@ export default function PendingBanner() {
 
   return (
     <div
-      className="bg-yellow-100 text-yellow-800 p-2 text-center text-sm rounded-md"
+      className="bg-[var(--warning)]/10 text-[var(--foreground)] p-2 text-center text-sm rounded-md"
       role="status"
       aria-live="polite"
       title="Pending blockchain transactions"

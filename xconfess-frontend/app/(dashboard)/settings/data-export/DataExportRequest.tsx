@@ -261,25 +261,25 @@ export default function DataExportRequest() {
   };
 
   const statusBadgeClass: Record<DataExportStatus, string> = {
-    PENDING: 'bg-amber-100 text-amber-800',
-    PROCESSING: 'bg-blue-100 text-blue-800',
-    READY: 'bg-green-100 text-green-800',
-    FAILED: 'bg-red-100 text-red-800',
-    EXPIRED: 'bg-slate-200 text-slate-700',
+    PENDING: 'bg-[var(--warning)]/10 text-[var(--foreground)]',
+    PROCESSING: 'bg-[var(--accent-soft)] text-[var(--primary-deep)]',
+    READY: 'bg-[var(--success)]/10 text-[var(--foreground)]',
+    FAILED: 'bg-[var(--danger)]/10 text-[var(--foreground)]',
+    EXPIRED: 'bg-[var(--skeleton)] text-[var(--secondary)]',
   };
 
   const statusIcon = (status: DataExportStatus) => {
     switch (status) {
       case 'READY':
-        return <CheckCircle2 size={15} className="text-green-600" />;
+        return <CheckCircle2 size={15} className="text-[var(--success)]" />;
       case 'FAILED':
-        return <XCircle size={15} className="text-red-500" />;
+        return <XCircle size={15} className="text-[var(--danger)]" />;
       case 'PENDING':
       case 'PROCESSING':
-        return <Clock3 size={15} className="text-amber-600" />;
+        return <Clock3 size={15} className="text-[var(--warning)]" />;
       case 'EXPIRED':
       default:
-        return <AlertCircle size={15} className="text-slate-500" />;
+        return <AlertCircle size={15} className="text-[var(--text-muted)]" />;
     }
   };
 
@@ -298,8 +298,8 @@ export default function DataExportRequest() {
 
   if (loadingHistory) {
     return (
-      <div className="max-w-4xl p-8 bg-white rounded-2xl border border-slate-200">
-        <p className="text-sm text-slate-500">Loading export history...</p>
+      <div className="max-w-4xl p-8 bg-[var(--surface)] rounded-2xl border border-[var(--border)]">
+        <p className="text-sm text-[var(--text-muted)]">Loading export history...</p>
       </div>
     );
   }
@@ -316,19 +316,19 @@ export default function DataExportRequest() {
   }
 
   return (
-    <div className="max-w-4xl p-8 bg-white rounded-2xl border border-slate-200">
+    <div className="max-w-4xl p-8 bg-[var(--surface)] rounded-2xl border border-[var(--border)]">
       <header className="mb-8">
-        <h1 className="text-2xl font-bold text-slate-900">Export Your Data</h1>
-        <p className="text-slate-500 mt-2">
+        <h1 className="text-2xl font-semibold text-[var(--foreground)]">Export Your Data</h1>
+        <p className="text-[var(--text-muted)] mt-2">
           Request a download of all your personal information, confessions, and activity logs.
         </p>
       </header>
 
-      <div className="flex gap-4 p-4 mb-8 bg-slate-50 rounded-xl border border-slate-100">
-        <ShieldCheck className="text-indigo-600 w-6 h-6 shrink-0" />
+      <div className="flex gap-4 p-4 mb-8 bg-[var(--surface-muted)] rounded-xl border border-[var(--border)]">
+        <ShieldCheck className="text-[var(--primary-deep)] w-6 h-6 shrink-0" />
         <div>
-          <h4 className="font-semibold text-slate-800 text-sm">Privacy & Portability</h4>
-          <p className="text-xs text-slate-600 leading-relaxed mt-1">
+          <h4 className="font-semibold text-[var(--foreground)] text-sm">Privacy & Portability</h4>
+          <p className="text-xs text-[var(--secondary)] leading-relaxed mt-1">
             To comply with GDPR, we provide your data in JSON (for machines) and CSV (for humans) formats.
             Once your file is ready, you have 24 hours to download it before the link expires.
           </p>
@@ -336,12 +336,12 @@ export default function DataExportRequest() {
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-        <h2 className="text-base font-semibold text-slate-900">Export Requests</h2>
+        <h2 className="text-base font-semibold text-[var(--foreground)]">Export Requests</h2>
         <button
           type="button"
           onClick={() => loadHistory(true)}
           disabled={refreshing}
-          className="inline-flex items-center gap-2 text-sm px-3 py-2 border rounded-lg text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+          className="inline-flex items-center gap-2 text-sm px-3 py-2 border rounded-lg text-[var(--secondary)] hover:bg-[var(--surface-muted)] disabled:opacity-60"
         >
           <RotateCw size={14} className={refreshing ? 'animate-spin' : ''} />
           Refresh
@@ -349,28 +349,28 @@ export default function DataExportRequest() {
       </div>
 
       {error && (
-        <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <div className="mb-4 rounded-lg border border-[var(--danger)]/30 bg-[var(--danger)]/10 px-4 py-3 text-sm text-[var(--danger)]">
           {error}
         </div>
       )}
 
-      <div className="bg-white border rounded-xl p-6">
-        <div className="text-center py-3 border-b border-slate-100 mb-4">
+      <div className="bg-[var(--surface)] border rounded-xl p-6">
+        <div className="text-center py-3 border-b border-[var(--border)] mb-4">
           <button
             onClick={handleRequestExport}
             disabled={requestingExport || hasInProgressJob}
             aria-disabled={requestingExport || hasInProgressJob}
             aria-live="polite"
-            className="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-6 rounded-lg transition-all disabled:bg-slate-300 disabled:cursor-not-allowed"
+            className="inline-flex items-center gap-2 bg-[var(--primary)] hover:bg-[var(--primary-hover)] text-white font-medium py-2 px-6 rounded-lg transition-all disabled:bg-[var(--skeleton)] disabled:cursor-not-allowed"
           >
             {requestingExport && <Loader2 size={15} className="animate-spin" />}
             {requestingExport ? 'Initiating...' : 'Generate New Archive'}
           </button>
-          <p className="text-[11px] text-slate-400 mt-3 italic">
+          <p className="text-[11px] text-[var(--text-muted)] mt-3 italic">
             You can request an export once every 7 days.
           </p>
           {hasInProgressJob && (
-            <p className="text-xs text-amber-700 mt-2 flex items-center justify-center gap-1">
+            <p className="text-xs text-[var(--warning)] mt-2 flex items-center justify-center gap-1">
               <Clock3 size={12} className="shrink-0" />
               An export is already in progress — the button will re-enable once it completes.
             </p>
@@ -378,11 +378,11 @@ export default function DataExportRequest() {
         </div>
 
         {history.length === 0 ? (
-          <p className="text-sm text-slate-500">No export requests yet.</p>
+          <p className="text-sm text-[var(--text-muted)]">No export requests yet.</p>
         ) : (
           <div className="space-y-3">
             {history.map((item) => (
-              <div key={item.id} className="rounded-lg border border-slate-100 p-4">
+              <div key={item.id} className="rounded-lg border border-[var(--border)] p-4">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 mb-1">
@@ -391,10 +391,10 @@ export default function DataExportRequest() {
                         {formatStatus(item.status)}
                       </span>
                     </div>
-                    <p className="text-sm font-medium text-slate-900">
+                    <p className="text-sm font-medium text-[var(--foreground)]">
                       Requested {new Date(item.createdAt).toLocaleString()}
                     </p>
-                    <p className="text-xs text-slate-500 mt-1">{retentionMessage(item)}</p>
+                    <p className="text-xs text-[var(--text-muted)] mt-1">{retentionMessage(item)}</p>
                   </div>
 
                   <div className="flex items-center gap-2">
@@ -403,7 +403,7 @@ export default function DataExportRequest() {
                         type="button"
                         onClick={() => handleRedownload(item)}
                         disabled={actionLoadingId === item.id}
-                        className="inline-flex items-center gap-1.5 rounded-md bg-slate-900 px-3 py-2 text-xs font-medium text-white hover:bg-slate-800 disabled:opacity-60"
+                        className="inline-flex items-center gap-1.5 rounded-md bg-[var(--surface)] px-3 py-2 text-xs font-medium text-[var(--foreground)] hover:bg-[var(--surface-muted)] disabled:opacity-60"
                       >
                         <Download size={14} />
                         {actionLoadingId === item.id ? 'Preparing...' : 'Re-download'}
@@ -416,7 +416,7 @@ export default function DataExportRequest() {
                         onClick={handleRequestExport}
                         disabled={requestingExport || hasInProgressJob}
                         aria-disabled={requestingExport || hasInProgressJob}
-                        className="inline-flex items-center gap-1.5 rounded-md border border-slate-300 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60 disabled:cursor-not-allowed"
+                        className="inline-flex items-center gap-1.5 rounded-md border border-[var(--accent-border)] px-3 py-2 text-xs font-medium text-[var(--secondary)] hover:bg-[var(--surface-muted)] disabled:opacity-60 disabled:cursor-not-allowed"
                       >
                         {requestingExport && <Loader2 size={12} className="animate-spin" />}
                         Request New Link
@@ -431,7 +431,7 @@ export default function DataExportRequest() {
       </div>
 
       {latest?.status === 'FAILED' && (
-        <div className="mt-4 flex items-center gap-2 text-red-600 text-sm">
+        <div className="mt-4 flex items-center gap-2 text-[var(--danger)] text-sm">
           <AlertCircle size={16} />
           <span>Something went wrong. Please try again in a few minutes.</span>
         </div>

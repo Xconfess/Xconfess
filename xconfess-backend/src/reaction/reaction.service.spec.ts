@@ -394,6 +394,38 @@ describe('ReactionService', () => {
       await expect(service.createReaction(dto)).rejects.toThrow(dbError);
     });
 
+    // ── Transaction rollback (#2166) ───────────────────────────────────────
+
+    it('rolls back the reaction and skips the broadcast when the outbox write fails', async () => {
+      const author = {
+        getEmail: () => 'author@example.com',
+        shouldShowReactions: () => true,
+      };
+      const confession = makeConfession({
+        anonymousUser: makeAnonymousUser({ userLinks: [{ user: author }] } as any),
+      });
+      const user = makeAnonymousUser();
+      const reaction = makeReaction({ confession, anonymousUser: user });
+
+      confessionRepo.findOne.mockResolvedValue(confession);
+      anonymousUserRepo.findOne.mockResolvedValue(user);
+      managerReactionRepo.findOne.mockResolvedValue(null);
+      managerReactionRepo.create.mockReturnValue(reaction);
+      managerReactionRepo.save.mockResolvedValue(reaction);
+      managerOutboxRepo.create.mockReturnValue({});
+      managerOutboxRepo.save.mockRejectedValueOnce(
+        new Error('outbox insert failed'),
+      );
+
+      // The reaction insert succeeded inside the transaction, but the failing
+      // outbox write must reject the whole transaction so nothing commits.
+      await expect(service.createReaction(dto)).rejects.toThrow(
+        'outbox insert failed',
+      );
+      expect(managerReactionRepo.save).toHaveBeenCalledTimes(1);
+      expect(gatewayMock.broadcastReactionAdded).not.toHaveBeenCalled();
+    });
+
     // ── Concurrency regression (#1927) ─────────────────────────────────────
 
     describe('concurrent requests', () => {

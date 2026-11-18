@@ -221,19 +221,19 @@ const ShortcutRow: React.FC<{ keys: string[]; alternatives?: string[][]; childre
 }) => {
   const formatKeys = (k: string[]) => k.map((key, i) => (
     <React.Fragment key={key}>
-      {i > 0 && <span className="mx-1 text-zinc-500">then</span>}
-      <kbd className="inline-flex items-center justify-center min-w-[24px] h-6 px-1.5 rounded border border-zinc-600 bg-zinc-800 text-xs text-zinc-200 font-mono">{key}</kbd>
+      {i > 0 && <span className="mx-1 text-[var(--text-muted)]">then</span>}
+      <kbd className="inline-flex items-center justify-center min-w-[24px] h-6 px-1.5 rounded border border-[var(--accent-border)] bg-[var(--surface-muted)] text-xs text-[var(--foreground)] font-mono">{key}</kbd>
     </React.Fragment>
   ));
 
   return (
     <div className="flex items-start justify-between gap-4 py-1" role="listitem">
-      <div className="text-sm text-zinc-300">{children}</div>
-      <div className="flex items-center shrink-0 text-xs text-zinc-400">
+      <div className="text-sm text-[var(--secondary)]">{children}</div>
+      <div className="flex items-center shrink-0 text-xs text-[var(--text-muted)]">
         {formatKeys(keys)}
         {alternatives.map((alternative) => (
           <React.Fragment key={alternative.join("-")}>
-            <span className="mx-1 text-zinc-500">or</span>
+            <span className="mx-1 text-[var(--text-muted)]">or</span>
             {formatKeys(alternative)}
           </React.Fragment>
         ))}

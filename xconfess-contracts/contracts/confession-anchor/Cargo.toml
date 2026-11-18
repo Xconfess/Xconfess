@@ -31,5 +31,9 @@ name = "integration"
 path = "tests/integration.rs"
 
 [[test]]
+name = "timestamp_policy"
+path = "tests/timestamp_policy.rs"
+
+[[test]]
 name = "error_code_mapping"
 path = "../tests/error_code_mapping.rs"

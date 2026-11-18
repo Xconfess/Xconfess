@@ -19,6 +19,11 @@ export enum NotificationType {
 }
 
 @Entity("notifications")
+// Composite index backing the recipient feed (`getUserNotifications`) and
+// unread-count queries (`{ userId, isRead: false }`) — see migration
+// AddAuthFeedNotificationsAuditIndexes20260827000001 for the DB-level index
+// this declaration documents (idx_notifications_user_feed).
+@Index(["userId", "isRead", "createdAt"])
 export class Notification {
   @PrimaryGeneratedColumn("uuid")
   id: string;

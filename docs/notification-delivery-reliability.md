@@ -63,6 +63,29 @@ connect and subscription confirmation it emits `notifications:sync` with the
 latest unread notifications and unread count, so a websocket reconnect does not
 depend on replaying every missed socket event.
 
+## Redis outage and recovery
+
+When Redis is temporarily unavailable, BullMQ-backed delivery is unavailable too.
+The API must not report an email as delivered: the job remains retryable and the
+readiness endpoint reports the Redis/queue dependency as down. After Redis
+reconnects, BullMQ retries the same job. The stable `idempotencyKey`, delivery
+marker, and five-minute processing lock ensure that a recovered job is delivered
+once even if more than one worker observes it.
+
+Run the outage regression tests locally without real credentials or an external
+Redis instance:
+
+```bash
+npm test --workspace=xconfess-backend -- \
+  src/notifications/processors/notification.processor.spec.ts
+```
+
+The tests simulate a connection failure before processing and a disconnect during
+a failed delivery, then restore the mock Redis connection and verify successful
+retry plus duplicate suppression. In a live environment, use
+`GET /api/health/ready` to confirm recovery; never paste `REDIS_URL` or its
+password into test output or issue comments.
+
 ## Diagnostics
 
 Failed async jobs are visible through the existing admin DLQ endpoints:

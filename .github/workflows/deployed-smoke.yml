@@ -49,4 +49,7 @@ jobs:
         run: npm ci --include=optional --no-audit --no-fund
 
       - name: Run deployed smoke test
+        run: npm run deploy:smoke:test
+
+      - name: Exercise deployed frontend and backend routes
         run: npm run deploy:smoke

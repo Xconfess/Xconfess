@@ -1,7 +1,8 @@
 import { IoAdapter } from '@nestjs/platform-socket.io';
-import { ServerOptions } from 'socket.io';
+import { ServerOptions, Server as SocketIOServer, Socket } from 'socket.io';
 import { ConfigService } from '@nestjs/config';
 import { INestApplicationContext, Logger } from '@nestjs/common';
+import { WebSocketLogger } from './websocket.logger';
 
 const logger = new Logger('WebSocketAdapter');
 
@@ -37,11 +38,24 @@ export function buildWebSocketServerOptions(
 }
 
 export class WebSocketAdapter extends IoAdapter {
+  private ioServer: SocketIOServer | null = null;
+  private wsLogger: WebSocketLogger | null = null;
+
   constructor(
     private app: INestApplicationContext,
     private configService: ConfigService,
+    wsLogger?: WebSocketLogger,
   ) {
     super(app);
+    if (wsLogger) {
+      this.wsLogger = wsLogger;
+    } else {
+      try {
+        this.wsLogger = app.get(WebSocketLogger, { strict: false });
+      } catch {
+        this.wsLogger = null;
+      }
+    }
   }
 
   createIOServer(port: number, options?: ServerOptions): any {
@@ -50,6 +64,7 @@ export class WebSocketAdapter extends IoAdapter {
     const serverOptions = buildWebSocketServerOptions(corsOrigin, options);
 
     const server = super.createIOServer(port, serverOptions);
+    this.ioServer = server;
 
     /**
      * Global connection middleware — runs before any namespace/gateway logic.
@@ -103,9 +118,42 @@ export class WebSocketAdapter extends IoAdapter {
         });
       }
 
+      if (socket.recovered) {
+        this.wsLogger?.recordReconnection();
+      }
+
+      socket.on('disconnect', (reason: string) => {
+        this.wsLogger?.recordDisconnection(reason);
+      });
+
       next();
     });
 
     return server;
+  }
+
+  async closeAllConnections(): Promise<void> {
+    if (!this.ioServer) {
+      logger.warn('No WebSocket server instance to close');
+      return;
+    }
+
+    const connectedSockets = this.ioServer.sockets.sockets.size;
+    logger.log(`Closing ${connectedSockets} WebSocket connections...`);
+
+    // Disconnect all sockets with a reason
+    this.ioServer.sockets.sockets.forEach((socket: Socket) => {
+      socket.disconnect(true);
+    });
+
+    // Close the server
+    await new Promise<void>((resolve) => {
+      this.ioServer!.close(() => {
+        logger.log('WebSocket server closed');
+        resolve();
+      });
+    });
+
+    this.ioServer = null;
   }
 }

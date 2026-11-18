@@ -38,10 +38,15 @@ import { FeatureFlagsModule } from './feature-flags/feature-flags.module';
 import { BookmarkModule } from './bookmark/bookmark.module';
 import { KeyRotationModule } from './key-rotation/key-rotation.module';
 import { AnalyticsModule } from './analytics/analytics.module';
+import { AttachmentModule } from './attachment/attachment.module';
 // âœ… Canonical queue stack: @nestjs/bullmq (BullMQ v4 + ioredis)
 // The legacy @nestjs/bull import has been removed. All queues use BullMQ.
 import { BullModule } from '@nestjs/bullmq';
 import { StructuredLoggingInterceptor } from './common/logging/structured-logging.interceptor';
+import { DeprecationHeadersInterceptor } from './common/interceptors/deprecation-headers.interceptor';
+import { GracefulShutdownModule } from './common/graceful-shutdown.module';
+import { ObservabilityModule } from './observability/observability.module';
+import { HttpMetricsMiddleware } from './observability/http-metrics.middleware';
 
 @Module({
   imports: [
@@ -128,6 +133,7 @@ import { StructuredLoggingInterceptor } from './common/logging/structured-loggin
     }),
     EventEmitterModule.forRoot(),
     ScheduleModule.forRoot(),
+    ObservabilityModule,
     HealthModule,
     AnalyticsModule,
     UserModule,
@@ -149,9 +155,11 @@ import { StructuredLoggingInterceptor } from './common/logging/structured-loggin
     EncryptionModule,
     CacheModule,
     DatabaseModule,
-    FeatureFlagsModule,
+FeatureFlagsModule,
     BookmarkModule,
     KeyRotationModule,
+    AnalyticsModule,
+    AttachmentModule,
   ],
   controllers: [AppController],
   providers: [
@@ -164,12 +172,20 @@ import { StructuredLoggingInterceptor } from './common/logging/structured-loggin
       provide: APP_INTERCEPTOR,
       useClass: StructuredLoggingInterceptor,
     },
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: DeprecationHeadersInterceptor,
+    },
   ],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
     // RequestIdMiddleware first so downstream handlers/loggers can read
     // req.requestId, and so it's set even if SanitizationMiddleware throws.
-    consumer.apply(RequestIdMiddleware, SanitizationMiddleware).forRoutes('*');
+    // HttpMetricsMiddleware is first so latency covers the whole middleware
+    // chain and it still records requests rejected later (401/403/404/429).
+    consumer
+      .apply(HttpMetricsMiddleware, RequestIdMiddleware, SanitizationMiddleware)
+      .forRoutes('*');
   }
 }

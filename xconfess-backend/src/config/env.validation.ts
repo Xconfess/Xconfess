@@ -74,6 +74,27 @@ export const envValidationSchema = Joi.object({
     }),
   BACKEND_URL: Joi.string().uri().optional(),
   FRONTEND_URL: Joi.string().default('http://localhost:3000'),
+  // Comma-separated browser origins allowed to make credentialed requests.
+  // Wildcards are rejected: credentials plus "*" would let any site read
+  // authenticated responses.
+  CORS_ALLOWED_ORIGINS: Joi.string()
+    .optional()
+    .custom((value: string, helpers) => {
+      const origins = value
+        .split(',')
+        .map((origin) => origin.trim())
+        .filter(Boolean);
+
+      if (origins.includes('*')) {
+        return helpers.error('any.invalid');
+      }
+
+      return value;
+    }, 'CORS origin allowlist')
+    .messages({
+      'any.invalid':
+        'CORS_ALLOWED_ORIGINS must list explicit origins; "*" cannot be used because credentialed requests are enabled.',
+    }),
 
   // â”€â”€ Encryption â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   CONFESSION_ENCRYPTION_KEY: productionHexKey.required().messages({
@@ -204,6 +225,7 @@ export const envValidationSchema = Joi.object({
   RATE_LIMIT_GET_MAX: Joi.number().default(50),
   RATE_LIMIT_GET_WINDOW: Joi.number().default(60),
   NOTIFICATION_DEDUPE_TTL_SECONDS: Joi.number().default(60),
+  SEARCH_QUERY_TIMEOUT_MS: Joi.number().integer().min(100).max(60000).default(5000),
   ANALYTICS_ENABLED: Joi.string().valid('true', 'false').default('true'),
   ANALYTICS_RETENTION_DAYS: Joi.number().min(1).default(365),
   TRACTION_CACHE_TTL_SECONDS: Joi.number().min(1).max(3600).default(60),

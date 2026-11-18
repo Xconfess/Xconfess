@@ -19,12 +19,12 @@ export const PreviewPanel: React.FC<PreviewPanelProps> = ({
   return (
     <div
       className={cn(
-        "rounded-lg border border-zinc-800 bg-zinc-900 p-6 min-h-[200px]",
+        "rounded-lg border border-[var(--border)] bg-[var(--surface)] p-6 min-h-[200px]",
         className
       )}
     >
       {title && (
-        <h3 className="text-xl font-semibold text-white mb-4 pb-4 border-b border-zinc-800">
+        <h3 className="text-xl font-semibold text-[var(--foreground)] mb-4 pb-4 border-b border-[var(--border)]">
           {title}
         </h3>
       )}
@@ -33,50 +33,50 @@ export const PreviewPanel: React.FC<PreviewPanelProps> = ({
           remarkPlugins={[remarkGfm]}
           components={{
             p: ({ children }) => (
-              <p className="text-zinc-100 mb-4 leading-relaxed">{children}</p>
+              <p className="text-[var(--foreground)] mb-4 leading-relaxed">{children}</p>
             ),
             h1: ({ children }) => (
-              <h1 className="text-2xl font-bold text-white mb-4">{children}</h1>
+              <h1 className="text-2xl font-semibold text-[var(--foreground)] mb-4">{children}</h1>
             ),
             h2: ({ children }) => (
-              <h2 className="text-xl font-bold text-white mb-3">{children}</h2>
+              <h2 className="text-xl font-semibold text-[var(--foreground)] mb-3">{children}</h2>
             ),
             h3: ({ children }) => (
-              <h3 className="text-lg font-semibold text-white mb-2">{children}</h3>
+              <h3 className="text-lg font-semibold text-[var(--foreground)] mb-2">{children}</h3>
             ),
             strong: ({ children }) => (
-              <strong className="font-bold text-white">{children}</strong>
+              <strong className="font-semibold text-[var(--foreground)]">{children}</strong>
             ),
             em: ({ children }) => (
-              <em className="italic text-zinc-200">{children}</em>
+              <em className="italic text-[var(--foreground)]">{children}</em>
             ),
             a: ({ href, children }) => (
               <a
                 href={href}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-blue-400 hover:text-blue-300 underline"
+                className="text-[var(--primary-deep)] hover:text-[var(--primary-deep)] underline"
               >
                 {children}
               </a>
             ),
             ul: ({ children }) => (
-              <ul className="list-disc list-inside mb-4 text-zinc-100 space-y-1">
+              <ul className="list-disc list-inside mb-4 text-[var(--foreground)] space-y-1">
                 {children}
               </ul>
             ),
             ol: ({ children }) => (
-              <ol className="list-decimal list-inside mb-4 text-zinc-100 space-y-1">
+              <ol className="list-decimal list-inside mb-4 text-[var(--foreground)] space-y-1">
                 {children}
               </ol>
             ),
             li: ({ children }) => (
-              <li className="text-zinc-100">{children}</li>
+              <li className="text-[var(--foreground)]">{children}</li>
             ),
             code: ({ children, className }) => {
               const isInline = !className;
               return isInline ? (
-                <code className="bg-zinc-800 text-zinc-100 px-1.5 py-0.5 rounded text-sm">
+                <code className="bg-[var(--surface-muted)] text-[var(--foreground)] px-1.5 py-0.5 rounded text-sm">
                   {children}
                 </code>
               ) : (
@@ -84,12 +84,12 @@ export const PreviewPanel: React.FC<PreviewPanelProps> = ({
               );
             },
             pre: ({ children }) => (
-              <pre className="bg-zinc-800 rounded-lg p-4 mb-4 overflow-x-auto">
+              <pre className="bg-[var(--surface-muted)] rounded-lg p-4 mb-4 overflow-x-auto">
                 {children}
               </pre>
             ),
             blockquote: ({ children }) => (
-              <blockquote className="border-l-4 border-zinc-700 pl-4 italic text-zinc-300 mb-4">
+              <blockquote className="border-l-4 border-[var(--border)] pl-4 italic text-[var(--secondary)] mb-4">
                 {children}
               </blockquote>
             ),

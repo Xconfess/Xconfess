@@ -41,7 +41,7 @@ export function ShareButtons({ confessionId, content }: ShareButtonsProps) {
     <div className="flex items-center gap-2">
       <button
         onClick={handleTwitterShare}
-        className="flex items-center gap-1 px-3 py-1.5 text-sm rounded-md bg-blue-500 text-white hover:bg-blue-600 transition"
+        className="flex items-center gap-1 px-3 py-1.5 text-sm rounded-md bg-[var(--primary)] text-white hover:bg-[var(--primary-hover)] transition"
         title="Share on Twitter"
       >
         <Twitter className="w-4 h-4" />
@@ -50,7 +50,7 @@ export function ShareButtons({ confessionId, content }: ShareButtonsProps) {
 
       <button
         onClick={handleFacebookShare}
-        className="flex items-center gap-1 px-3 py-1.5 text-sm rounded-md bg-blue-600 text-white hover:bg-blue-700 transition"
+        className="flex items-center gap-1 px-3 py-1.5 text-sm rounded-md bg-[var(--primary)] text-white hover:bg-[var(--primary-hover)] transition"
         title="Share on Facebook"
       >
         <Facebook className="w-4 h-4" />
@@ -59,7 +59,7 @@ export function ShareButtons({ confessionId, content }: ShareButtonsProps) {
 
       <button
         onClick={handleCopyLink}
-        className="flex items-center gap-1 px-3 py-1.5 text-sm rounded-md bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 transition"
+        className="flex items-center gap-1 px-3 py-1.5 text-sm rounded-md bg-[var(--skeleton)] hover:bg-[var(--skeleton)] transition"
         title="Copy link"
       >
         {copied ? (

@@ -30,4 +30,14 @@ export default registerAs('app', () => ({
     10,
   ),
   searchSampleRate: parseFloat(process.env.SEARCH_SAMPLE_RATE ?? '0.1'),
+
+  /**
+   * SEARCH_QUERY_TIMEOUT_MS – server-side statement timeout for confession
+   *   search queries (default: 5000 ms). PostgreSQL cancels a search that runs
+   *   longer, and the client receives a 408 with a generic message.
+   */
+  searchQueryTimeoutMs: parseInt(
+    process.env.SEARCH_QUERY_TIMEOUT_MS ?? '5000',
+    10,
+  ),
 }));

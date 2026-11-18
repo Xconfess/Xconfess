@@ -5,9 +5,17 @@ import {
   ManyToOne,
   CreateDateColumn,
   JoinColumn,
+  UpdateDateColumn,
+  Index,
 } from 'typeorm';
 import { AnonymousUser } from '../../user/entities/anonymous-user.entity';
 import { AnonymousConfession } from '../../confession/entities/confession.entity';
+
+export enum MessageDeliveryStatus {
+  SENT = 'sent',
+  DELIVERED = 'delivered',
+  READ = 'read',
+}
 
 @Entity('messages')
 export class Message {
@@ -28,12 +36,19 @@ export class Message {
   @Column({ type: 'text' })
   content: string;
 
+  @Index('IDX_messages_idempotency_key', { unique: true })
+  @Column({ name: 'idempotency_key', type: 'varchar', length: 64, nullable: true })
+  idempotencyKey: string | null;
+
   /** True when content/replyContent are E2E ciphertext envelopes. */
   @Column({ default: true })
   isEncrypted: boolean;
 
   @CreateDateColumn()
   createdAt: Date;
+
+  @UpdateDateColumn()
+  updatedAt: Date;
 
   @Column({ default: false })
   hasReply: boolean;
@@ -51,4 +66,24 @@ export class Message {
   // Timestamp when sender read the reply state for this thread message entry.
   @Column({ type: 'timestamp', nullable: true })
   senderReadAt: Date | null;
+
+  // Delivery/read lifecycle for sender-side messages
+  @Column({
+    type: 'enum',
+    enum: MessageDeliveryStatus,
+    default: MessageDeliveryStatus.SENT,
+  })
+  deliveryStatus: MessageDeliveryStatus;
+
+  @Column({ type: 'timestamp', nullable: true })
+  deliveredAt: Date | null;
+
+  @Column({ type: 'timestamp', nullable: true })
+  readAt: Date | null;
+
+  @Column({ name: 'throttle_key', type: 'varchar', length: 255, nullable: true })
+  throttleKey: string | null;
+
+  @Column({ name: 'rate_limit_window', type: 'timestamp', nullable: true })
+  rateLimitWindow: Date | null;
 }

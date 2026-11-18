@@ -144,6 +144,41 @@ describe('ModerationWebhookController', () => {
     });
   });
 
+  it('evicts the cached confession and listings after a processed result (#2168)', async () => {
+    const cacheService = { del: jest.fn(), delPattern: jest.fn() };
+    const cachedController = new ModerationWebhookController(
+      {
+        get: jest.fn((key: string, def?: any) => {
+          if (key === 'WEBHOOK_SECRET') return webhookSecret;
+          if (key === 'WEBHOOK_TIMESTAMP_TOLERANCE_SECONDS') return 300;
+          return def;
+        }),
+      } as any,
+      eventEmitter as unknown as EventEmitter2,
+      confessionRepo as any,
+      moderationRepoService as any,
+      auditLogService as any,
+      cacheService as any,
+    );
+    const payload = {
+      eventId: crypto.randomUUID(),
+      confessionId: 'conf-123',
+      moderationScore: 0.71,
+      moderationFlags: ['harassment'],
+      moderationStatus: ModerationStatus.FLAGGED,
+      details: { harassment: 0.71 },
+      timestamp: new Date().toISOString(),
+    };
+
+    await cachedController.handleModerationResults(
+      payload,
+      buildSignature(payload),
+    );
+
+    expect(cacheService.del).toHaveBeenCalledWith('confession:conf-123');
+    expect(cacheService.delPattern).toHaveBeenCalledWith('confessions:');
+  });
+
   it('emits high-severity for rejected results', async () => {
     const payload = {
       eventId: crypto.randomUUID(),

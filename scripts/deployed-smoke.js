@@ -148,6 +148,19 @@ async function main() {
   }
 
   await request('frontend traction page', joinUrl(frontendUrl, '/traction'), {}, [200]);
+  const frontendHealth = await requestJson(
+    'frontend readiness proxy',
+    joinUrl(frontendUrl, '/api/health/ready'),
+    {},
+    [200, 503],
+  );
+  assertObject('frontend readiness proxy', frontendHealth);
+  const frontendTraction = await requestJson(
+    'frontend public traction proxy',
+    joinUrl(frontendUrl, '/api/public/traction'),
+  );
+  assertObject('frontend public traction proxy', frontendTraction);
+  assertNoSensitiveKeys('frontend public traction proxy', frontendTraction);
   await request('frontend session anonymous', joinUrl(frontendUrl, '/api/auth/session'), {}, [401]);
   await request('frontend register method guard', joinUrl(frontendUrl, '/api/users/register'), {}, [405]);
 
@@ -171,7 +184,17 @@ async function main() {
   }
 }
 
-main().catch((error) => {
-  console.error(error.message || error);
-  process.exit(1);
-});
+if (require.main === module) {
+  main().catch((error) => {
+    console.error(error.message || error);
+    process.exit(1);
+  });
+}
+
+module.exports = {
+  assertNoSensitiveKeys,
+  assertObject,
+  joinUrl,
+  request,
+  requestJson,
+};

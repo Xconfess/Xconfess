@@ -138,6 +138,9 @@ Unknown error codes (not in this registry) are treated as terminal failures. Thi
 | 6007 | `RATE_LIMITED` | Retryable | Rate limit exceeded for this recipient | 503 |
 | 6008 | `INVALID_RATE_LIMIT_CONFIG` | Terminal | Invalid rate limit configuration | 400 |
 | 6009 | `TOKEN_NOT_CONFIGURED` | Terminal | XLM token contract is not configured | 500 |
+| 6010 | `SETTLEMENT_REPLAY` | Terminal | Settlement ID reuse detected | 409 |
+| 6011 | `SETTLEMENT_NOT_FOUND` | Terminal | No settlement receipt exists for the given ID (never created or expired) | 404 |
+| 6012 | `RECIPIENT_MISMATCH` | Terminal | Settlement receipt belongs to a different recipient | 400 |
 
 ## Backend Integration Guide
 
@@ -429,7 +432,7 @@ function mapContractErrorToUserMessage(code: number, fallback: string): string {
 #### Version 1 (Current)
 - Initial stable registry
 - 21 anchor contract errors (1000–5005)
-- 9 tipping contract errors (6001–6009)
+- 12 tipping contract errors (6001–6012)
 - Classification system (Retryable, Terminal, Unknown)
 
 ### Future Changes

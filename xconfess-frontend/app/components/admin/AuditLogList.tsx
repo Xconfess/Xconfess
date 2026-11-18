@@ -163,13 +163,13 @@ export default function AuditLogList() {
 
   return (
     <div className="min-w-0 space-y-4">
-      <div className="rounded-lg bg-white p-4 shadow dark:bg-gray-800">
+      <div className="border border-[var(--border)] rounded-lg bg-[var(--surface)] p-4">
         <div className="mb-4 flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-200">
+          <div className="flex items-center gap-2 text-sm font-medium text-[var(--secondary)]">
             <SlidersHorizontal className="h-4 w-4" />
             Filters
           </div>
-          <div className="text-sm text-gray-500 dark:text-gray-300">
+          <div className="text-sm text-[var(--text-muted)]">
             {isFetching ? "Refreshing" : `${total} entries`}
           </div>
         </div>
@@ -177,7 +177,7 @@ export default function AuditLogList() {
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <Field label="Search">
             <div className="relative">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--text-muted)]" />
               <input
                 type="search"
                 value={searchQuery}
@@ -186,7 +186,7 @@ export default function AuditLogList() {
                   setPage(1);
                 }}
                 placeholder="Keyword"
-                className="min-h-[44px] w-full rounded-md border border-gray-300 bg-white pl-9 pr-3 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+                className="min-h-[44px] w-full rounded-md border border-[var(--accent-border)] bg-[var(--surface)] pl-9 pr-3 text-sm"
               />
             </div>
           </Field>
@@ -197,7 +197,7 @@ export default function AuditLogList() {
                 setActionFilter(e.target.value);
                 setPage(1);
               }}
-              className="min-h-[44px] w-full rounded-md border border-gray-300 bg-white px-3 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+              className="min-h-[44px] w-full rounded-md border border-[var(--accent-border)] bg-[var(--surface)] px-3 text-sm"
             >
               {actionOptions.map(([value, label]) => (
                 <option key={value} value={value}>
@@ -215,7 +215,7 @@ export default function AuditLogList() {
                 setPage(1);
               }}
               placeholder="Username or ID"
-              className="min-h-[44px] w-full rounded-md border border-gray-300 px-3 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+              className="min-h-[44px] w-full rounded-md border border-[var(--accent-border)] px-3 text-sm"
             />
           </Field>
           <Field label="Entity Type">
@@ -225,7 +225,7 @@ export default function AuditLogList() {
                 setEntityTypeFilter(e.target.value);
                 setPage(1);
               }}
-              className="min-h-[44px] w-full rounded-md border border-gray-300 bg-white px-3 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+              className="min-h-[44px] w-full rounded-md border border-[var(--accent-border)] bg-[var(--surface)] px-3 text-sm"
             >
               <option value="all">All</option>
               <option value="report">Report</option>
@@ -246,7 +246,7 @@ export default function AuditLogList() {
                 setPage(1);
               }}
               placeholder="Target identifier"
-              className="min-h-[44px] w-full rounded-md border border-gray-300 px-3 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+              className="min-h-[44px] w-full rounded-md border border-[var(--accent-border)] px-3 text-sm"
             />
           </Field>
           <Field label="Request ID">
@@ -258,7 +258,7 @@ export default function AuditLogList() {
                 setPage(1);
               }}
               placeholder="Correlation ID"
-              className="min-h-[44px] w-full rounded-md border border-gray-300 px-3 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+              className="min-h-[44px] w-full rounded-md border border-[var(--accent-border)] px-3 text-sm"
             />
           </Field>
           <Field label="Start Date">
@@ -269,7 +269,7 @@ export default function AuditLogList() {
                 setStartDateFilter(e.target.value);
                 setPage(1);
               }}
-              className="min-h-[44px] w-full rounded-md border border-gray-300 px-3 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+              className="min-h-[44px] w-full rounded-md border border-[var(--accent-border)] px-3 text-sm"
             />
           </Field>
           <Field label="End Date">
@@ -280,7 +280,7 @@ export default function AuditLogList() {
                 setEndDateFilter(e.target.value);
                 setPage(1);
               }}
-              className="min-h-[44px] w-full rounded-md border border-gray-300 px-3 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+              className="min-h-[44px] w-full rounded-md border border-[var(--accent-border)] px-3 text-sm"
             />
           </Field>
         </div>
@@ -302,33 +302,33 @@ export default function AuditLogList() {
         </div>
       </div>
 
-      <div className="min-w-0 overflow-hidden rounded-lg bg-white shadow dark:bg-gray-800">
+      <div className="min-w-0 overflow-hidden rounded-lg bg-[var(--surface)] shadow">
         <div className="max-w-full overflow-x-auto overscroll-x-contain">
-          <table className="min-w-[72rem] divide-y divide-gray-200 dark:divide-gray-700 md:min-w-full">
-            <thead className="bg-gray-50 dark:bg-gray-700">
+          <table className="min-w-[72rem] divide-y divide-[var(--border)] md:min-w-full">
+            <thead className="bg-[var(--surface-muted)]">
               <tr>
                 <SortableHeader label="Timestamp" field="createdAt" sortBy={sortBy} sortOrder={sortOrder} onSort={changeSort} />
                 <SortableHeader label="Actor" field="actor" sortBy={sortBy} sortOrder={sortOrder} onSort={changeSort} />
                 <SortableHeader label="Action" field="action" sortBy={sortBy} sortOrder={sortOrder} onSort={changeSort} />
                 <SortableHeader label="Target" field="target" sortBy={sortBy} sortOrder={sortOrder} onSort={changeSort} />
-                <th className="px-6 py-3 text-left text-xs font-medium uppercase text-gray-500 dark:text-gray-300">
+                <th className="px-6 py-3 text-left text-xs font-medium uppercase text-[var(--text-muted)]">
                   Details
                 </th>
-                <th className="sticky right-0 bg-gray-50 px-6 py-3 text-left text-xs font-medium uppercase text-gray-500 dark:bg-gray-700 dark:text-gray-300">
+                <th className="sticky right-0 bg-[var(--surface-muted)] px-6 py-3 text-left text-xs font-medium uppercase text-[var(--text-muted)]">
                   Payload
                 </th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-200 bg-white dark:divide-gray-700 dark:bg-gray-800">
+            <tbody className="divide-y divide-[var(--border)] bg-[var(--surface)]">
               {isLoading ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-10 text-center text-sm text-gray-500">
+                  <td colSpan={6} className="px-6 py-10 text-center text-sm text-[var(--text-muted)]">
                     Loading audit logs...
                   </td>
                 </tr>
               ) : logs.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-10 text-center text-sm text-gray-500">
+                  <td colSpan={6} className="px-6 py-10 text-center text-sm text-[var(--text-muted)]">
                     {hasActiveFilters
                       ? "No audit logs match your filters."
                       : "No audit logs recorded yet."}
@@ -336,23 +336,23 @@ export default function AuditLogList() {
                 </tr>
               ) : (
                 logs.map((log) => (
-                  <tr key={log.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/60">
-                    <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-500 dark:text-gray-300">
+                  <tr key={log.id} className="hover:bg-[var(--surface-muted)]">
+                    <td className="whitespace-nowrap px-6 py-4 text-sm text-[var(--text-muted)]">
                       {new Date(log.createdAt).toLocaleString()}
                     </td>
-                    <td className="px-6 py-4 text-sm text-gray-900 dark:text-white">
+                    <td className="px-6 py-4 text-sm text-[var(--foreground)]">
                       {actorLabel(log)}
                     </td>
-                    <td className="whitespace-nowrap px-6 py-4 text-sm capitalize text-gray-900 dark:text-white">
+                    <td className="whitespace-nowrap px-6 py-4 text-sm capitalize text-[var(--foreground)]">
                       {log.action.replace(/_/g, " ")}
                     </td>
-                    <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">
+                    <td className="px-6 py-4 text-sm text-[var(--text-muted)]">
                       {targetLabel(log)}
                     </td>
-                    <td className="max-w-sm px-6 py-4 text-sm text-gray-500 dark:text-gray-400">
+                    <td className="max-w-sm px-6 py-4 text-sm text-[var(--text-muted)]">
                       <div className="truncate">{detailsLabel(log)}</div>
                     </td>
-                    <td className="sticky right-0 bg-white px-6 py-4 dark:bg-gray-800">
+                    <td className="sticky right-0 bg-[var(--surface)] px-6 py-4">
                       <Button
                         variant="ghost"
                         size="sm"
@@ -373,7 +373,7 @@ export default function AuditLogList() {
       </div>
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="text-sm text-gray-700 dark:text-gray-300">
+        <div className="text-sm text-[var(--secondary)]">
           Showing {total === 0 ? 0 : (page - 1) * limit + 1} to {Math.min(page * limit, total)} of {total}
         </div>
         <div className="flex gap-2">
@@ -402,9 +402,9 @@ export default function AuditLogList() {
 
       {selectedLog && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-          <div className="max-h-[86vh] w-full max-w-3xl overflow-hidden rounded-lg bg-white shadow-xl dark:bg-gray-900">
-            <div className="flex items-center justify-between border-b border-gray-200 px-5 py-4 dark:border-gray-700">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+          <div className="max-h-[86vh] w-full max-w-3xl overflow-hidden rounded-lg bg-[var(--surface)] shadow-[var(--shadow-popover)]">
+            <div className="flex items-center justify-between border-b border-[var(--border)] px-5 py-4">
+              <h3 className="text-lg font-semibold text-[var(--foreground)]">
                 Audit Payload
               </h3>
               <Button
@@ -416,7 +416,7 @@ export default function AuditLogList() {
                 x
               </Button>
             </div>
-            <pre className="max-h-[70vh] overflow-auto p-5 text-xs leading-5 text-gray-800 dark:text-gray-100">
+            <pre className="max-h-[70vh] overflow-auto p-5 text-xs leading-5 text-[var(--foreground)]">
               {JSON.stringify(selectedLog, null, 2)}
             </pre>
           </div>
@@ -428,7 +428,7 @@ export default function AuditLogList() {
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+    <label className="block text-sm font-medium text-[var(--secondary)]">
       <span className="mb-2 block">{label}</span>
       {children}
     </label>
@@ -449,7 +449,7 @@ function SortableHeader({
   onSort: (field: AuditSortField) => void;
 }) {
   return (
-    <th className="px-6 py-3 text-left text-xs font-medium uppercase text-gray-500 dark:text-gray-300">
+    <th className="px-6 py-3 text-left text-xs font-medium uppercase text-[var(--text-muted)]">
       <button type="button" onClick={() => onSort(field)} className="min-h-[32px]">
         {label} {sortBy === field ? (sortOrder === "ASC" ? "A-Z" : "Z-A") : ""}
       </button>

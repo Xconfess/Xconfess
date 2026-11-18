@@ -172,6 +172,59 @@ describe('ModerationWebhookController - Idempotency and Signature Safety', () =>
       );
     });
 
+    it('should reject truncated signatures without length-based short-circuiting', async () => {
+      const payload = buildPayload();
+      const validHeader = buildSignatureHeader(payload);
+      const timestamp = validHeader.split(',')[0];
+      // Only the first half of a real HMAC — must still be rejected.
+      const truncated = validHeader.split('v1=')[1].slice(0, 32);
+      const header = `${timestamp},v1=${truncated}`;
+
+      await expect(
+        controller.handleModerationResults(payload, header),
+      ).rejects.toThrow(UnauthorizedException);
+
+      expect(auditLogService.log).toHaveBeenCalledWith(
+        expect.objectContaining({
+          metadata: expect.objectContaining({ reason: 'invalid_signature' }),
+        }),
+      );
+    });
+
+    it('should reject oversized signatures', async () => {
+      const payload = buildPayload();
+      const timestamp = Math.floor(Date.now() / 1000).toString();
+      const header = `t=${timestamp},v1=${'a'.repeat(128)}`;
+
+      await expect(
+        controller.handleModerationResults(payload, header),
+      ).rejects.toThrow(UnauthorizedException);
+    });
+
+    it('should reject non-hex signatures of the correct length', async () => {
+      const payload = buildPayload();
+      const timestamp = Math.floor(Date.now() / 1000).toString();
+      const header = `t=${timestamp},v1=${'z'.repeat(64)}`;
+
+      await expect(
+        controller.handleModerationResults(payload, header),
+      ).rejects.toThrow(UnauthorizedException);
+    });
+
+    it('should reject signatures when the payload was tampered with', async () => {
+      const payload = buildPayload();
+      const header = buildSignatureHeader(payload);
+      const tamperedPayload = buildPayload({
+        eventId: payload.eventId,
+        confessionId: payload.confessionId,
+        moderationScore: 0.11,
+      });
+
+      await expect(
+        controller.handleModerationResults(tamperedPayload, header),
+      ).rejects.toThrow(UnauthorizedException);
+    });
+
     it('should reject signature computed without timestamp binding (forged)', async () => {
       const payload = buildPayload();
       // Attacker computes HMAC over payload only (old scheme) — should fail

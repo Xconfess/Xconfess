@@ -18,12 +18,12 @@ export default function GlobalError({
   }, [error]);
 
   return (
-    <div className="min-h-screen bg-black flex items-center justify-center p-4">
-      <div className="bg-zinc-900 rounded-xl p-8 max-w-md w-full border border-red-900/50 text-center">
+    <div className="min-h-screen bg-[var(--background)] flex items-center justify-center p-4">
+      <div className="bg-[var(--surface)] rounded-xl p-8 max-w-md w-full border border-[var(--danger)]/50 text-center">
         <div className="flex justify-center mb-4">
-          <div className="w-16 h-16 bg-red-900/20 rounded-full flex items-center justify-center">
+          <div className="w-16 h-16 bg-[var(--danger)]/10 rounded-full flex items-center justify-center">
             <svg
-              className="w-8 h-8 text-red-500"
+              className="w-8 h-8 text-[var(--danger)]"
               fill="currentColor"
               viewBox="0 0 20 20"
             >
@@ -36,16 +36,16 @@ export default function GlobalError({
           </div>
         </div>
 
-        <h2 className="text-xl font-bold text-red-400 mb-2">
+        <h2 className="text-xl font-semibold text-[var(--danger)] mb-2">
           Something went wrong
         </h2>
-        <p className="text-gray-400 text-sm mb-6">
+        <p className="text-[var(--text-muted)] text-sm mb-6">
           An unexpected error occurred. Please try again or return to the home
           page.
         </p>
 
         {process.env.NODE_ENV === "development" && (
-          <details className="mb-6 text-xs text-gray-500 bg-zinc-800 p-3 rounded-lg text-left">
+          <details className="mb-6 text-xs text-[var(--text-muted)] bg-[var(--surface-muted)] p-3 rounded-lg text-left">
             <summary className="cursor-pointer font-mono">
               Error Details
             </summary>
@@ -60,14 +60,14 @@ export default function GlobalError({
         <div className="flex gap-3">
           <button
             onClick={reset}
-            className="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-lg text-sm transition-colors font-medium"
+            className="flex-1 bg-[var(--primary)] hover:bg-[var(--primary-hover)] text-white px-4 py-2.5 rounded-lg text-sm transition-colors font-medium"
           >
             Try Again
           </button>
           {/*  FIXED: Using Link component for internal navigation */}
           <Link
             href="/"
-            className="flex-1 bg-zinc-700 hover:bg-zinc-600 text-white px-4 py-2.5 rounded-lg text-sm transition-colors font-medium text-center"
+            className="flex-1 bg-[var(--surface-elevated)] hover:bg-[var(--text-muted)] text-[var(--foreground)] px-4 py-2.5 rounded-lg text-sm transition-colors font-medium text-center"
           >
             Home
           </Link>

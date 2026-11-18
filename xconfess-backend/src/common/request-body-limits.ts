@@ -28,7 +28,12 @@ export const DRAFT_REQUEST_MAX_BYTES = 16 * 1024; //  16 KiB
 /** Message key registration can carry a 4 096-char encrypted key backup. */
 export const MESSAGE_REQUEST_MAX_BYTES = 32 * 1024; //  32 KiB
 
-const DEFAULT_REQUEST_MAX_BYTES = 100 * 1024; // 100 KiB
+/**
+ * Fallback for every other JSON/urlencoded route. Multipart (file upload)
+ * bodies are not parsed here — express `json`/`urlencoded` only handle their
+ * own content types — so attachment limits stay with the upload handlers.
+ */
+export const DEFAULT_REQUEST_MAX_BYTES = 100 * 1024; // 100 KiB
 const REQUEST_TOO_LARGE_MESSAGE = 'Request body exceeds the allowed size';
 
 // ── Pre-allocated parser instances ──────────────────────────────────────────

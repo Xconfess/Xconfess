@@ -24,3 +24,11 @@ path = "tests/invariants.rs"
 [[test]]
 name = "migration"
 path = "tests/migration.rs"
+
+[[test]]
+name = "interface_compat"
+path = "tests/interface_compat.rs"
+
+[[test]]
+name = "error_code_registry"
+path = "tests/error_code_registry.rs"

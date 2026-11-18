@@ -15,6 +15,8 @@ For local development, the backend runs at `http://localhost:5000/api` by defaul
 
 xConfess uses stateless JWT authentication for protected routes.
 Third-party integrations should authenticate by exchanging email/password credentials for an access token.
+For the meanings of `anonymousUserId`, session context, and wallet-derived
+identity references, see the [identity terminology in the glossary](GLOSSARY.md#anonymous-identity-terminology).
 
 ### Supported auth endpoints
 
@@ -45,7 +47,7 @@ Successful response:
 ```json
 {
   "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-  "anonymousUserId": "anon_7f3a2b1c",
+  "anonymousUserId": "7f3a2b1c-2c11-4f06-a5d8-faf2917fd5d9",
   "user": {
     "id": 1,
     "username": "alice_42",
@@ -109,19 +111,24 @@ Response example:
 
 Query parameters:
 
-- `page` (optional)
+- `cursor` (optional, recommended) — opaque cursor from the previous response
 - `limit` (optional)
+- `page` (optional, **deprecated**) — offset pagination; responses include
+  `Deprecation`, `Sunset` and `Link` headers. Use `cursor` instead.
 
 Response shape:
 
 ```json
 {
   "data": [ /* confession objects */ ],
-  "total": 1,
-  "page": 1,
+  "nextCursor": "eyJpZCI6...",
+  "hasMore": true,
   "limit": 20
 }
 ```
+
+> Legacy offset responses still include `total` and `page`; see
+> [Deprecation headers](#deprecation-headers).
 
 ### Search confessions
 
@@ -134,6 +141,27 @@ Search parameters are validated and allow hybrid query behavior.
 `GET /api/confessions/search/fulltext`
 
 Same query shape as `/confessions/search` but performs a full-text search over confession content.
+
+### Search timeouts
+
+Both search endpoints run under a server-side statement timeout set by `SEARCH_QUERY_TIMEOUT_MS` (default `5000`, range `100`–`60000`). PostgreSQL cancels a search that runs longer.
+
+When a search is cancelled, the endpoint responds with **HTTP 408**. The error body uses the standard shape, with `code` set to `SEARCH_TIMEOUT`:
+
+```json
+{
+  "status": 408,
+  "code": "SEARCH_TIMEOUT",
+  "message": "Search took too long to complete. Please try a narrower search.",
+  "timestamp": "2026-04-23T00:00:00.000Z",
+  "path": "/api/confessions/search",
+  "requestId": "req_123"
+}
+```
+
+Clients should show the message and let the user narrow the query (for example, add a filter or shorten the term). Retrying the same query is unlikely to succeed. The server logs a `search.query_timeout` warning with the duration, the configured timeout, the page and limit, and the term's shape (length and word count). The raw term is never logged.
+
+Search requests that finish in time are unchanged. Other database failures keep the previous behaviour.
 
 ### Trending confessions
 
@@ -294,7 +322,7 @@ xConfess enforces request throttling both globally and on sensitive endpoints.
 - `POST /api/auth/login` and `POST /api/users/login`: 5 requests / 60 seconds
 - `POST /api/users/register`: 3 requests / 60 seconds
 - `POST /api/auth/forgot-password`: 3 requests / 300 seconds
-- `POST /api/reports`: 5 requests / 300 seconds
+- `POST /api/confessions/:id/report`: 5 requests / 300 seconds
 - `POST /api/confessions/:id/tips/verify`: strict throttling enforced by the backend because it calls Stellar Horizon
 
 ### Rate-limit response
@@ -303,8 +331,8 @@ When a client is throttled, the API returns HTTP `429 Too Many Requests` with a 
 
 ```json
 {
-  "status": 429,
-  "code": "THROTTLED",
+  "statusCode": 429,
+  "code": "RATE_LIMIT_EXCEEDED",
   "message": "Too many requests. Please wait a moment and try again.",
   "retryAfter": 12,
   "timestamp": "2026-04-25T10:00:00.000Z",
@@ -317,41 +345,185 @@ The response also includes a `Retry-After` response header.
 
 > Note: `POST /api/confessions/:id/tips/verify` may also include a stricter retry header such as `Retry-After-strict`.
 
+## Deprecation headers
+
+Legacy routes (or legacy modes of a supported route) send standardized
+deprecation headers so clients can migrate before the behaviour is removed:
+
+| Header | Meaning |
+| --- | --- |
+| `Deprecation` | `@<unix-seconds>` timestamp when the behaviour became deprecated (RFC 9745). |
+| `Sunset` | HTTP date after which the behaviour may be removed (RFC 8594). |
+| `Link` | `<successor>; rel="successor-version"`, with a `title` containing a short migration note. |
+
+The following legacy modes currently emit these headers only when the client
+uses the deprecated parameter, so cursor-based requests stay header-free:
+
+| Route | Deprecated parameter | Replacement |
+| --- | --- | --- |
+| `GET /api/confessions` | `page` | Cursor pagination with `cursor` + `limit`. |
+| `GET /api/confessions/:confessionId/comments` | `page` | Cursor pagination with `cursor` + `limit`. |
+| `GET /api/messages/thread/:threadId` | `page` | Cursor pagination with `cursor` + `limit`. |
+
+Sunset date for these modes is **30 April 2027**. Migrate by replacing
+`?page=<n>` with the `nextCursor` value returned by the previous response:
+
+```bash
+curl "http://localhost:5000/api/confessions?cursor=<nextCursor>&limit=20"
+```
+
+The headers are also exposed to browser JavaScript through
+`Access-Control-Expose-Headers`.
+
+## Correlation IDs
+
+The API returns an `X-Request-Id` response header for requests. A valid UUID v4
+provided in the `X-Request-Id` request header is preserved; missing, malformed,
+or non-UUID values are replaced with a server-generated UUID v4. The same ID is
+included as `requestId` in error responses and is suitable for support requests
+and log correlation. Arbitrary client-provided values are not accepted, which
+keeps unbounded user input out of log dimensions.
+
 ## Error codes
 
 xConfess uses consistent error codes in every non-2xx response.
 Common values include:
 
-- `AUTH_UNAUTHORIZED` — JWT missing or invalid
+- `AUTH_UNAUTHORIZED` — request was not authenticated
 - `AUTH_FORBIDDEN` — insufficient permissions
 - `AUTH_INVALID_CREDENTIALS` — login failed
-- `AUTH_SESSION_EXPIRED` — token expired or invalid
+- `AUTH_SESSION_EXPIRED` — JWT has expired
+- `AUTH_TOKEN_INVALID` — JWT is malformed or invalid
 - `BAD_REQUEST` — malformed request or missing parameters
 - `VALIDATION_FAILED` — schema validation failed
 - `MISSING_PARAMETER` / `INVALID_PARAMETER` — query or body input issues
 - `NOT_FOUND` — requested resource not found
 - `CONFLICT` — duplicate resource state
-- `THROTTLED` / `RATE_LIMIT_EXCEEDED` — rate limit exceeded
+- `RATE_LIMIT_EXCEEDED` — rate limit exceeded
 - `STELLAR_ERROR` — Stellar/Soroban integration failure
 - `INTERNAL_SERVER_ERROR` — unexpected server problem
 
-### Error response format
+### Error schema v1
 
-All error responses share this shape:
+Every API error uses schema version `1`. The stable required fields are
+`schemaVersion`, `status`, `statusCode`, `code`, `message`, `timestamp`, `path`,
+and `requestId`. `statusCode` is a compatibility alias for `status`; clients
+should use `status` for new integrations. `message` may be a string or a list of
+validation messages. `details` and `retryAfter` are optional extensions and may
+be omitted. Unknown fields must be ignored. Additive optional fields do not
+change the schema version; incompatible changes require a new schema version
+and must be called out in release notes before rollout.
+
+For 5xx errors, `message` is always a generic public-safe string. Internal
+exception messages, stacks, secrets, and private content are not returned.
+Timestamps and request IDs below are representative values.
+
+Invalid request body (`400 Bad Request`):
 
 ```json
 {
+  "schemaVersion": 1,
   "status": 400,
+  "statusCode": 400,
   "code": "BAD_REQUEST",
-  "message": "Human readable message",
-  "details": null,
-  "timestamp": "2026-04-25T10:00:00.000Z",
-  "path": "/api/endpoint",
-  "requestId": "uuid"
+  "message": ["message must be a string"],
+  "timestamp": "2026-10-17T10:00:00.000Z",
+  "path": "/api/confessions",
+  "requestId": "req-6f57b4d2"
 }
 ```
 
-Use `code` for deterministic handling and `message` for logging or UI display.
+Missing or expired authentication (`401 Unauthorized`):
+
+```json
+{
+  "schemaVersion": 1,
+  "status": 401,
+  "statusCode": 401,
+  "code": "AUTH_SESSION_EXPIRED",
+  "message": "Authentication token has expired",
+  "timestamp": "2026-10-17T10:00:00.000Z",
+  "path": "/api/auth/me",
+  "requestId": "req-6f57b4d2"
+}
+```
+
+Insufficient role (`403 Forbidden`):
+
+```json
+{
+  "schemaVersion": 1,
+  "status": 403,
+  "statusCode": 403,
+  "code": "AUTH_FORBIDDEN",
+  "message": "Only admins can access this endpoint",
+  "timestamp": "2026-10-17T10:00:00.000Z",
+  "path": "/api/admin/reports",
+  "requestId": "req-6f57b4d2"
+}
+```
+
+Missing resource (`404 Not Found`):
+
+```json
+{
+  "schemaVersion": 1,
+  "status": 404,
+  "statusCode": 404,
+  "code": "NOT_FOUND",
+  "message": "Report not found",
+  "timestamp": "2026-10-17T10:00:00.000Z",
+  "path": "/api/admin/reports/00000000-0000-4000-8000-000000000000",
+  "requestId": "req-6f57b4d2"
+}
+```
+
+An unexpected server error is returned as a generic message with
+`statusCode: 500`; the response does not contain an exception stack or internal
+error message:
+
+```json
+{
+  "schemaVersion": 1,
+  "status": 500,
+  "statusCode": 500,
+  "code": "INTERNAL_SERVER_ERROR",
+  "message": "An unexpected error occurred",
+  "timestamp": "2026-10-17T10:00:00.000Z",
+  "path": "/api/confessions",
+  "requestId": "req-6f57b4d2"
+}
+```
+
+Use `code` for deterministic handling and `message` for display. The ordinary
+error fields remain stable across compatible releases; optional fields may be
+added without changing `schemaVersion`.
+For common HTTP statuses, `400` means invalid input, `401` means authentication
+is missing or invalid, `403` means the caller lacks permission, `404` means the
+resource was not found, `409` means the request conflicts with current state,
+`429` means the caller exceeded a rate limit, and `500` means an unexpected
+server error. A `429` response also includes `retryAfter` and the `Retry-After`
+header.
+
+### Private resources return 404
+
+Routes that expose user-owned data never distinguish "does not exist" from "you
+cannot access it". A missing resource, an expired artifact, and a resource owned
+by another user all return the same `404` with the same `message`:
+
+- `GET /api/messages/thread/:threadId` and the thread read/delete routes →
+  `Thread not found`
+- `POST /api/messages/reply` from a non-author →
+  `Message not found` (identical to an unknown message id)
+- `GET /api/data-export/download/:id` and
+  `GET /api/export/jobs/:userId/:jobId/download` →
+  `Export not found or expired`
+- `GET /api/data-export/:id/status` →
+  `Export request not found or unauthorized`
+
+Do not rely on a `403` to detect ownership failures on these routes; treat any
+`404` as "unavailable" and refresh the caller's resource list instead of
+retrying with a different id.
 
 ## Webhooks
 
@@ -376,16 +548,24 @@ This endpoint is not authenticated via JWT. Instead it requires HMAC signature v
 
 ### Signature header
 
-The webhook sender must sign the raw JSON payload with HMAC SHA256 using `WEBHOOK_SECRET` and include:
+The webhook sender must sign `"<timestamp>.<raw JSON payload>"` with HMAC SHA256
+using `WEBHOOK_SECRET` and send both values in a timestamped header:
 
 ```http
-x-webhook-signature: <hex-encoded-hmac-sha256>
+x-webhook-signature: t=<unix-seconds>,v1=<hex-encoded-hmac-sha256>
 ```
+
+Replace `<unix-seconds>` with the same timestamp used to build the signed
+message, and `<hex-encoded-hmac-sha256>` with the 64-character hex digest.
 
 ### Delivery rules
 
-- The `timestamp` must be present and parse as a valid ISO-8601 value.
-- The payload must be received within 300 seconds of the timestamp.
+- The `timestamp` must be present and parse as a valid Unix timestamp in seconds.
+- The payload must be received within 300 seconds of the timestamp
+  (`WEBHOOK_TIMESTAMP_TOLERANCE_SECONDS` overrides the window).
+- Signatures are compared in constant time, so missing, malformed (non-hex or
+  wrong-length) and stale signatures are rejected with a generic error that does
+  not reveal which check failed.
 - Duplicate deliveries are treated as idempotent and ignored safely.
 
 ### Success response
@@ -512,8 +692,8 @@ curl -X POST "http://localhost:5000/api/confessions" \
 
 ## Troubleshooting
 
-- `401 AUTH_UNAUTHORIZED` means the JWT is missing, invalid, or expired.
-- `429 THROTTLED` means you exceeded the configured rate limit; retry after the header value.
-- `400 VALIDATION_FAILED` means request payload shape or field values are invalid.
+- `401 AUTH_UNAUTHORIZED`, `AUTH_TOKEN_INVALID`, or `AUTH_SESSION_EXPIRED` means the JWT is missing, invalid, or expired, respectively.
+- `429 RATE_LIMIT_EXCEEDED` means you exceeded the configured rate limit; retry after the header value.
+- `400 BAD_REQUEST` or `VALIDATION_FAILED` means request payload shape or field values are invalid.
 - `404 NOT_FOUND` means the resource ID was not found or the route is incorrect.
 - `500 INTERNAL_SERVER_ERROR` means an unexpected backend failure.

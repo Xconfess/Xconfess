@@ -17,19 +17,11 @@ jest.mock("next/navigation", () => ({
 }));
 
 jest.mock("@/app/lib/hooks/useSearch", () => ({
-  useSearch: () => ({
-    results: [],
-    total: 0,
-    hasMore: false,
-    page: 1,
-    isLoading: false,
-    isRetrying: false,
-    error: null,
-    statusMeta: null,
-    loadMore: jest.fn(),
-    reset: jest.fn(),
-    retry: jest.fn(),
-  }),
+  useSearch: jest.fn(() => ({
+    results: [], total: 0, hasMore: false, page: 1, isLoading: false,
+    isRetrying: false, error: null, statusMeta: null, loadMore: jest.fn(),
+    reset: jest.fn(), retry: jest.fn(),
+  })),
 }));
 
 jest.mock("@/app/lib/hooks/useAuth", () => ({
@@ -108,6 +100,25 @@ describe("Search Page URL State", () => {
       await user.type(searchInput, "new query{enter}");
     });
     
-    expect(mockPush).toHaveBeenCalledWith("?q=new+query", { scroll: false });
+    expect(mockPush).toHaveBeenCalledWith("/search?q=new+query", { scroll: false });
+  });
+
+  it("ignores malformed URL filters and pagination", () => {
+    currentSearchParams = new URLSearchParams(
+      "q=hello&sort=unknown&dateFrom=2026-02-31&minReactions=-2&page=NaN&gender=invalid",
+    );
+    render(<SearchPage />);
+
+    expect(screen.getByRole("combobox", { name: /search confessions/i })).toHaveValue("hello");
+    expect(screen.queryByText(/min .* reactions/i)).not.toBeInTheDocument();
+    expect(screen.queryByText("Oldest")).not.toBeInTheDocument();
+  });
+
+  it("restores a valid page from a deep link", () => {
+    currentSearchParams = new URLSearchParams("q=hello&page=3");
+    const mockUseSearch = jest.requireMock("@/app/lib/hooks/useSearch").useSearch;
+    render(<SearchPage />);
+
+    expect(mockUseSearch).toHaveBeenCalledWith(expect.objectContaining({ initialPage: 3 }));
   });
 });

@@ -11,6 +11,7 @@
     "test": "npx jest --no-coverage --runInBand",
     "test:e2e": "npx playwright test",
     "test:smoke": "npx playwright test --project=smoke",
+    "test:a11y": "npx playwright test tests/e2e/accessibility-smoke.spec.ts tests/e2e/keyboard-navigation.spec.ts --project=smoke",
     "generate-api": "npx tsx scripts/generate-openapi-client.ts",
     "typecheck:api": "npx tsx -e \"require('./app/lib/api/generated/types.ts')\" 2>/dev/null || echo 'Generated API types not found. Run generate-api first.'"
   },
@@ -64,7 +65,7 @@
     "qrcode.react": "^4.2.0",
     "react": "^19.2.3",
     "react-day-picker": "^10.0.1",
-    "react-dom": "^19.2.3",
+    "react-dom": "^19.2.5",
     "react-hook-form": "^7.71.1",
     "react-markdown": "^10.1.0",
     "react-resizable-panels": "^4.12.2",

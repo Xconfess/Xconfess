@@ -34,11 +34,11 @@ const RetryButton: React.FC<RetryButtonProps> = ({
 
   const variantClasses = {
     default:
-      'bg-gray-700 hover:bg-gray-600 text-white disabled:bg-gray-800 disabled:text-gray-500',
+      'bg-[var(--surface-elevated)] hover:bg-[var(--text-muted)] text-white disabled:bg-[var(--surface-muted)] disabled:text-[var(--text-muted)]',
     primary:
-      'bg-blue-600 hover:bg-blue-700 text-white disabled:bg-blue-800 disabled:text-blue-300',
+      'bg-[var(--primary)] hover:bg-[var(--primary-hover)] text-white disabled:bg-[var(--primary)] disabled:text-[var(--primary-deep)]',
     danger:
-      'bg-red-600 hover:bg-red-700 text-white disabled:bg-red-800 disabled:text-red-300',
+      'bg-[var(--danger)] hover:opacity-90 text-white disabled:bg-[var(--danger)] disabled:text-[var(--danger)]',
   };
 
   const sizeClasses = {
@@ -105,7 +105,7 @@ const RetryButton: React.FC<RetryButtonProps> = ({
         )}
       </button>
       {(error || retryError) && (
-        <p className="text-xs text-red-400">{retryError || error}</p>
+        <p className="text-xs text-[var(--danger)]">{retryError || error}</p>
       )}
     </div>
   );

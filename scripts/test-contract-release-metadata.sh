@@ -30,13 +30,15 @@ done
 
 export XCONFESS_CONTRACTS_DIR="$contracts_dir"
 export XCONFESS_TARGET_DIR="$target_dir"
+export XCONFESS_TARGET_TRIPLE="wasm32-unknown-unknown"
 
 source "$REPO_ROOT/scripts/contracts-release.sh"
 
 verify_wasm_outputs
 write_manifest "$manifest_file"
+check_manifest "$manifest_file"
 
-python3 - "$contracts_dir" "$manifest_file" "${crates[@]}" <<'PY'
+"$PYTHON_BIN" - "$contracts_dir" "$manifest_file" "${crates[@]}" <<'PY'
 import hashlib
 import json
 import pathlib
@@ -82,3 +84,27 @@ if ! grep -q "Missing artifact: .*confession_registry.wasm" "$tmpdir/missing.log
 fi
 
 echo "missing artifact failure coverage passed"
+
+# Restore the fixture before exercising a different manifest failure mode.
+printf 'fixture wasm bytes for confession-registry\n' > "$target_dir/confession_registry.wasm"
+write_manifest "$manifest_file"
+"$PYTHON_BIN" - "$manifest_file" <<'PY'
+import json
+import pathlib
+import sys
+
+path = pathlib.Path(sys.argv[1])
+payload = json.loads(path.read_text(encoding="utf-8"))
+payload["contracts"]["confession-anchor"]["sha256"] = "0" * 64
+path.write_text(json.dumps(payload), encoding="utf-8")
+PY
+if (check_manifest "$manifest_file") 2>"$tmpdir/stale.log"; then
+  echo "check_manifest succeeded despite a stale SHA-256" >&2
+  exit 1
+fi
+if ! grep -q "confession-anchor: sha256 mismatch" "$tmpdir/stale.log" || ! grep -q "contracts-release.sh build" "$tmpdir/stale.log"; then
+  echo "stale manifest failure was not actionable" >&2
+  cat "$tmpdir/stale.log" >&2
+  exit 1
+fi
+echo "stale manifest failure coverage passed"

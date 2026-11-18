@@ -6,7 +6,6 @@
     "anchor_confession",
     "assert_upgrade_from",
     "can_upgrade_from",
-    "get_admin",
     "get_admin_count",
     "get_capabilities",
     "get_confession_count",

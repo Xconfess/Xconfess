@@ -200,6 +200,16 @@ impl ConfessionAnchor {
     /// Anchor a new confession hash on-chain.
     /// - `hash`: 32-byte hash of the confession content.
     /// - `timestamp`: client-provided timestamp (e.g., ms since epoch).
+    ///
+    /// ## Timestamp trust model
+    /// `timestamp` is an untrusted claim supplied by the caller. The contract
+    /// stores it verbatim and does not check it against the ledger clock,
+    /// require ordering between anchors, or validate its units. `0` and
+    /// `u64::MAX` are accepted.
+    /// The ledger sequence is the authoritative metadata: `anchor_height` is
+    /// always the ledger sequence at anchor time and cannot be influenced by
+    /// `timestamp`. See `tests/timestamp_policy.rs` for the enforced behaviour.
+    ///
     /// Returns a `Symbol` status:
     /// - "anchored" when stored successfully.
     /// - "exists" if the hash was already anchored (no-op).
@@ -215,6 +225,12 @@ impl ConfessionAnchor {
             return symbol_short!("exists");
         }
 
+        // Calculate before writing any state. This makes an exhausted counter a
+        // deterministic failure and avoids relying on transaction rollback to
+        // protect the new hash from a partially completed anchor.
+        let next_count = get_count(&env)
+            .checked_add(1)
+            .expect("confession anchor count overflow");
         let anchor_height = env.ledger().sequence();
 
         let data = ConfessionData {
@@ -225,8 +241,7 @@ impl ConfessionAnchor {
         storage.set(&hash, &data);
 
         // Increment confession count.
-        let current_count = get_count(&env);
-        set_count(&env, current_count + 1);
+        set_count(&env, next_count);
 
         // Track last anchor timestamp when v2 schema is active.
         // We only write when the key already exists so we don't spuriously
@@ -671,6 +686,17 @@ mod test {
 
         let count = client.get_confession_count();
         assert_eq!(count, 1);
+    }
+
+    #[test]
+    fn count_overflow_rejects_anchor_without_storing_hash() {
+        let (env, client) = new_client();
+        let hash = sample_hash(&env, 253);
+        set_count(&env, u64::MAX);
+
+        assert!(client.try_anchor_confession(&hash, &1_000).is_err());
+        assert_eq!(get_count(&env), u64::MAX);
+        assert_eq!(client.verify_confession(&hash), None);
     }
 
     #[test]
@@ -1212,6 +1238,58 @@ mod test {
             client.try_pause(&outsider, &pause_reason),
             Err(Ok(Error::NotAuthorized))
         );
+        // #2197: an unauthorized call must leave state unchanged, not just error.
+        assert!(!client.is_paused());
+    }
+
+    /// #2198: resuming a paused contract is as privileged as pausing it, and an
+    /// unauthorized attempt must leave the contract paused.
+    #[test]
+    fn unauthorized_unpause_is_rejected_and_leaves_contract_paused() {
+        let (env, client) = new_client();
+        let owner = Address::generate(&env);
+        let outsider = Address::generate(&env);
+        let reason = SorobanString::from_str(&env, "incident");
+
+        client.initialize(&owner);
+        client.pause(&owner, &reason);
+
+        assert_eq!(
+            client.try_unpause(&outsider, &reason),
+            Err(Ok(Error::NotAuthorized))
+        );
+        assert!(client.is_paused());
+    }
+
+    /// #2199: transferring to the same address is rejected, the old owner
+    /// loses owner-only privileges immediately, and the new owner can
+    /// transfer again (repeated operation).
+    #[test]
+    fn transfer_owner_rejects_same_address_and_revokes_old_owner_privileges() {
+        let (env, client) = new_client();
+        let owner = Address::generate(&env);
+        let next_owner = Address::generate(&env);
+        let final_owner = Address::generate(&env);
+
+        client.initialize(&owner);
+
+        assert_eq!(
+            client.try_transfer_owner(&owner, &owner),
+            Err(Ok(Error::InvalidOwnershipTransfer))
+        );
+
+        client.transfer_owner(&owner, &next_owner);
+        assert_eq!(client.get_owner(), next_owner);
+
+        // Old owner immediately loses owner-only privileges.
+        assert_eq!(
+            client.try_transfer_owner(&owner, &final_owner),
+            Err(Ok(Error::NotOwner))
+        );
+
+        // Repeated operation: the new owner can transfer again.
+        client.transfer_owner(&next_owner, &final_owner);
+        assert_eq!(client.get_owner(), final_owner);
     }
 
     #[test]

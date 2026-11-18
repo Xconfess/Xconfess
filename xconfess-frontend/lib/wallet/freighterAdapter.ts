@@ -5,6 +5,7 @@ import {
   requestAccess,
   signTransaction as signFreighterTransaction,
 } from "@stellar/freighter-api";
+import { walletStateManager } from "./wallet-state";
 
 /**
  * Canonical Freighter / browser extension integration.
@@ -30,6 +31,42 @@ type MobileWalletKit = typeof import("@creit.tech/stellar-wallets-kit/sdk").Stel
 
 let mobileWalletKit: MobileWalletKit | null = null;
 let mobileWalletConnected = false;
+let walletStateCheckInterval: ReturnType<typeof setInterval> | null = null;
+
+function stopWalletStateMonitoring(): void {
+  if (walletStateCheckInterval !== null) {
+    clearInterval(walletStateCheckInterval);
+    walletStateCheckInterval = null;
+  }
+}
+
+function startWalletStateMonitoring(): void {
+  stopWalletStateMonitoring();
+  let checking = false;
+  const interval = setInterval(async () => {
+    if (checking) return;
+    checking = true;
+    try {
+      // Read the existing connection; polling must never open an access modal.
+      const publicKey = await freighterGetPublicKey();
+      const network = await freighterGetNetworkLabel();
+      if (walletStateCheckInterval !== interval) return;
+      if (walletStateManager.getState().publicKey !== publicKey) {
+        walletStateManager.clearState();
+        stopWalletStateMonitoring();
+        return;
+      }
+      walletStateManager.setConnected(publicKey, network);
+    } catch {
+      if (walletStateCheckInterval !== interval) return;
+      walletStateManager.clearState();
+      stopWalletStateMonitoring();
+    } finally {
+      checking = false;
+    }
+  }, walletStateManager.getStateCheckInterval());
+  walletStateCheckInterval = interval;
+}
 
 function isMobileWalletBrowser(): boolean {
   if (typeof window === "undefined") return false;
@@ -184,120 +221,156 @@ export async function freighterGetPublicKey(): Promise<string> {
 
 /**
  * Sign a transaction XDR using the same call shapes tipping and Soroban anchoring expect.
+ * Detects account changes and clears stale state if wallet disconnects.
  */
 export async function freighterSignTransaction(
   xdr: string,
   networkPassphrase: string,
 ): Promise<string> {
-  if (mobileWalletConnected && mobileWalletKit) {
-    const result = await mobileWalletKit.signTransaction(xdr, {
-      networkPassphrase,
-    });
-    if (result.signedTxXdr) return result.signedTxXdr;
-    throw new FreighterError("Freighter Mobile did not return a signed transaction");
-  }
-
-  const legacyClient = getFreighterClient();
-  if (legacyClient?.signTransaction) {
-    const legacySign = legacyClient.signTransaction.bind(legacyClient) as (x: string, o?: unknown) => Promise<string>;
-    try {
-      const signed = await legacySign(xdr, { network: networkPassphrase });
-      if (typeof signed === "string" && signed.length > 0) return signed;
-    } catch {
-      const signed = await legacySign(xdr, networkPassphrase).catch(() => "");
-      if (signed) return signed;
-    }
-  }
+  const storedState = walletStateManager.getState();
 
   try {
-    const result = await signFreighterTransaction(xdr, {
-      networkPassphrase,
-    });
-    if (!result.error && result.signedTxXdr) return result.signedTxXdr;
-  } catch {
-    /* Fall back to the legacy injected API below. */
-  }
+    if (mobileWalletConnected && mobileWalletKit) {
+      const currentKey = await freighterGetPublicKey();
+      const { changed } = await walletStateManager.detectAccountChange(currentKey);
+      if (changed) {
+        throw new FreighterError("Wallet account changed. Please reconnect.");
+      }
 
-  const client = getFreighterClient();
-  if (!client?.signTransaction) {
-    throw new FreighterError("Freighter wallet is not installed");
-  }
-
-  const sign = client.signTransaction.bind(client) as (
-    x: string,
-    o?: unknown,
-  ) => Promise<string>;
-
-  const attempts: Array<() => Promise<string>> = [
-    () => sign(xdr, { network: networkPassphrase }),
-    () => sign(xdr, networkPassphrase),
-  ];
-
-  const label = await freighterGetNetworkLabel().catch(() => "");
-  if (label && label !== "UNKNOWN") {
-    attempts.push(() => sign(xdr, { network: label }));
-  }
-
-  let last: unknown;
-  for (const run of attempts) {
-    try {
-      const out = await run();
-      if (typeof out === "string" && out.length > 0) return out;
-    } catch (e) {
-      last = e;
+      const result = await mobileWalletKit.signTransaction(xdr, {
+        networkPassphrase,
+      });
+      if (!result.signedTxXdr) {
+        throw new FreighterError("Freighter Mobile rejected the transaction");
+      }
+      return result.signedTxXdr;
     }
+
+    const legacyClient = getFreighterClient();
+    if (legacyClient?.signTransaction) {
+      const legacySign = legacyClient.signTransaction.bind(legacyClient) as (x: string, o?: unknown) => Promise<string>;
+      try {
+        const signed = await legacySign(xdr, { network: networkPassphrase });
+        if (typeof signed === "string" && signed.length > 0) return signed;
+      } catch {
+        const signed = await legacySign(xdr, networkPassphrase).catch(() => "");
+        if (signed) return signed;
+      }
+    }
+
+    try {
+      const result = await signFreighterTransaction(xdr, {
+        networkPassphrase,
+      });
+      if (!result.error && result.signedTxXdr) return result.signedTxXdr;
+    } catch {
+      /* Fall back to the legacy injected API below. */
+    }
+
+    const client = getFreighterClient();
+    if (!client?.signTransaction) {
+      throw new FreighterError("Freighter wallet is not installed");
+    }
+
+    const sign = client.signTransaction.bind(client) as (
+      x: string,
+      o?: unknown,
+    ) => Promise<string>;
+
+    const attempts: Array<() => Promise<string>> = [
+      () => sign(xdr, { network: networkPassphrase }),
+      () => sign(xdr, networkPassphrase),
+    ];
+
+    const label = await freighterGetNetworkLabel().catch(() => "");
+    if (label && label !== "UNKNOWN") {
+      attempts.push(() => sign(xdr, { network: label }));
+    }
+
+    let last: unknown;
+    for (const run of attempts) {
+      try {
+        const out = await run();
+        if (typeof out === "string" && out.length > 0) return out;
+      } catch (e) {
+        last = e;
+      }
+    }
+    throw normalizeFreighterError(
+      last ?? new Error("Failed to sign transaction"),
+    );
+  } catch (error) {
+    if (error instanceof FreighterError) {
+      throw error;
+    }
+    walletStateManager.clearState();
+    throw normalizeFreighterError(error);
   }
-  throw normalizeFreighterError(
-    last ?? new Error("Failed to sign transaction"),
-  );
 }
 
 export async function freighterConnect(): Promise<{
   publicKey: string;
   network: string;
 }> {
-  if (isMobileWalletBrowser()) {
-    const kit = await getMobileWalletKit();
-    const { address } = await withWalletTimeout(kit.authModal());
-    if (!address) throw new FreighterError("Freighter Mobile did not return an address");
-    mobileWalletConnected = true;
-    return {
-      publicKey: address,
-      network: await freighterGetNetworkLabel(),
-    };
-  }
-
   try {
-    const result = await requestAccess();
-    if (!result.error && result.address) {
-      return {
-        publicKey: result.address,
-        network: await freighterGetNetworkLabel(),
-      };
-    }
-  } catch {
-    /* Fall back to the legacy injected API below. */
-  }
+    let publicKey: string;
+    let network: string;
 
-  const publicKey = await freighterGetPublicKey();
-  const network = await freighterGetNetworkLabel();
-  return { publicKey, network };
+    if (isMobileWalletBrowser()) {
+      const kit = await getMobileWalletKit();
+      const { address } = await withWalletTimeout(kit.authModal());
+      if (!address) {
+        walletStateManager.clearState();
+        throw new FreighterError("Freighter Mobile did not return an address");
+      }
+      mobileWalletConnected = true;
+      publicKey = address;
+      network = await freighterGetNetworkLabel();
+    } else {
+      try {
+        const result = await requestAccess();
+        if (!result.error && result.address) {
+          publicKey = result.address;
+          network = await freighterGetNetworkLabel();
+        } else {
+          throw new FreighterError("Wallet access denied by user");
+        }
+      } catch {
+        const publicKey = await freighterGetPublicKey();
+        const network = await freighterGetNetworkLabel();
+        walletStateManager.setConnected(publicKey, network);
+        startWalletStateMonitoring();
+        return { publicKey, network };
+      }
+    }
+
+    walletStateManager.setConnected(publicKey, network);
+    startWalletStateMonitoring();
+    return { publicKey, network };
+  } catch (error) {
+    walletStateManager.clearState();
+    throw error;
+  }
 }
 
 export async function freighterDisconnect(): Promise<void> {
-  if (mobileWalletConnected && mobileWalletKit) {
-    await mobileWalletKit.disconnect();
-    mobileWalletConnected = false;
-    return;
-  }
-
-  const client = getFreighterClient();
-  if (client?.disconnect) {
-    try {
-      await client.disconnect();
-    } catch (e) {
-      console.error("Error disconnecting wallet:", e);
+  try {
+    if (mobileWalletConnected && mobileWalletKit) {
+      await mobileWalletKit.disconnect();
+      mobileWalletConnected = false;
+    } else {
+      const client = getFreighterClient();
+      if (client?.disconnect) {
+        try {
+          await client.disconnect();
+        } catch (e) {
+          console.error("Error disconnecting wallet:", e);
+        }
+      }
     }
+  } finally {
+    walletStateManager.clearState();
+    stopWalletStateMonitoring();
   }
 }
 
@@ -312,7 +385,8 @@ export async function freighterGetWalletInfo(): Promise<{
       return address
         ? { publicKey: address, network: await freighterGetNetworkLabel() }
         : null;
-    } catch {
+    } catch (e) {
+      mobileWalletConnected = false;
       return null;
     }
   }
@@ -323,5 +397,18 @@ export async function freighterGetWalletInfo(): Promise<{
     return await freighterConnect();
   } catch {
     return null;
+  }
+}
+
+export async function freighterValidateConnection(
+  expectedPublicKey?: string,
+): Promise<boolean> {
+  try {
+    const info = await freighterGetWalletInfo();
+    if (!info) return false;
+    if (expectedPublicKey && info.publicKey !== expectedPublicKey) return false;
+    return true;
+  } catch {
+    return false;
   }
 }

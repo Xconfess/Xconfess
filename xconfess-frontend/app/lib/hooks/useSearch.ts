@@ -17,6 +17,8 @@ interface UseSearchOptions {
   filters: SearchFilters;
   debouncedQuery: string;
   runSearch: boolean;
+  initialPage?: number;
+  onPageChange?: (page: number) => void;
 }
 
 interface UseSearchResult {
@@ -189,11 +191,13 @@ export function useSearch({
   filters,
   debouncedQuery,
   runSearch,
+  initialPage = 1,
+  onPageChange,
 }: UseSearchOptions): UseSearchResult {
   const [results, setResults] = useState<SearchConfession[]>([]);
   const [total, setTotal] = useState(0);
   const [hasMore, setHasMore] = useState(false);
-  const [page, setPage] = useState(1);
+  const [page, setPage] = useState(initialPage);
   const [isLoading, setIsLoading] = useState(false);
   const [isRetrying, setIsRetrying] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -204,6 +208,7 @@ export function useSearch({
   const abortRef = useRef<AbortController | null>(null);
   const accumulatedRef = useRef<SearchConfession[]>([]);
   const keyRef = useRef<string>("");
+  const requestSequenceRef = useRef(0);
 
   const currentKey = searchKey(debouncedQuery, filters);
 
@@ -214,6 +219,12 @@ export function useSearch({
     setPage(1);
     accumulatedRef.current = [];
   }, [runSearch, currentKey]);
+
+  // Back/forward navigation can restore a paginated deep link without changing
+  // the component instance. URL state is authoritative for that transition.
+  useEffect(() => {
+    if (runSearch) setPage(initialPage);
+  }, [initialPage, runSearch]);
 
   useEffect(() => {
     if (!runSearch) {
@@ -232,6 +243,7 @@ export function useSearch({
     abortRef.current?.abort();
     abortRef.current = new AbortController();
     const { signal } = abortRef.current;
+    const requestSequence = ++requestSequenceRef.current;
 
     const append = page > 1;
     const params = new URLSearchParams();
@@ -263,7 +275,7 @@ export function useSearch({
           }
         );
 
-        if (cancelled) return;
+        if (cancelled || requestSequence !== requestSequenceRef.current) return;
 
         const list = data.confessions ?? [];
         const totalCount = (data.total as number) ?? 0;
@@ -313,7 +325,7 @@ export function useSearch({
         );
       } catch (e: unknown) {
         if (e instanceof DOMException && e.name === "AbortError") return;
-        if (cancelled) return;
+        if (cancelled || requestSequence !== requestSequenceRef.current) return;
 
         const userMessage =
           e instanceof Error ? e.message : userMessageForSearchFailure(null);
@@ -338,7 +350,7 @@ export function useSearch({
           accumulatedRef.current = [];
         }
       } finally {
-        if (!cancelled) {
+        if (!cancelled && requestSequence === requestSequenceRef.current) {
           setIsLoading(false);
           setIsRetrying(false);
         }
@@ -355,8 +367,12 @@ export function useSearch({
 
   const loadMore = useCallback(() => {
     if (!hasMore || isLoading) return;
-    setPage((p) => p + 1);
-  }, [hasMore, isLoading]);
+    setPage((currentPage) => {
+      const nextPage = currentPage + 1;
+      onPageChange?.(nextPage);
+      return nextPage;
+    });
+  }, [hasMore, isLoading, onPageChange]);
 
   const reset = useCallback(() => {
     setResults([]);

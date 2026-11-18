@@ -23,11 +23,11 @@ const SkeletonLoader: React.FC<SkeletonLoaderProps> = ({
 
   if (circle) {
     return (
-      <div className={`flex gap-4 ${className}`}>
+      <div role="status" aria-label="Loading" className={`flex gap-4 ${className}`}>
         {items.map((_, i) => (
           <div
             key={i}
-            className={`${height} ${height === 'h-4' ? 'w-4' : height.replace('h-', 'w-')} bg-zinc-700 rounded-full animate-pulse`}
+            className={`${height} ${height.replace(/^h-/, 'w-')} bg-[var(--surface-elevated)] rounded-full animate-pulse`}
           />
         ))}
       </div>
@@ -35,14 +35,14 @@ const SkeletonLoader: React.FC<SkeletonLoaderProps> = ({
   }
 
   return (
-    <div className={className}>
+    <div role="status" aria-label="Loading" className={className}>
       {items.map((_, i) => (
         <div key={i} className="space-y-3 mb-6">
           {Array.from({ length: lines }).map((_, lineIndex) => (
             <div
               key={`${i}-${lineIndex}`}
               className={`
-                ${width} ${height} bg-zinc-700 rounded
+                ${width} ${height} bg-[var(--surface-elevated)] rounded
                 animate-pulse
                 ${lineIndex === lines - 1 ? 'w-5/6' : ''}
               `}
@@ -58,20 +58,20 @@ export const CardSkeleton: React.FC<{ count?: number }> = ({ count = 1 }) => {
   const items = Array.from({ length: count });
 
   return (
-    <div className="space-y-4">
+    <div role="status" aria-label="Loading" className="space-y-4">
       {items.map((_, i) => (
         <div
           key={i}
-          className="bg-zinc-800 rounded-lg p-6 space-y-4 animate-pulse"
+          className="min-h-[8rem] bg-[var(--surface-muted)] rounded-lg p-6 space-y-4 animate-pulse"
         >
-          <div className="h-6 bg-zinc-700 rounded w-2/3" />
-          <div className="space-y-2">
-            <div className="h-4 bg-zinc-700 rounded" />
-            <div className="h-4 bg-zinc-700 rounded w-5/6" />
+          <div className="h-6 bg-[var(--surface-elevated)] rounded w-2/3" />
+          <div role="status" aria-label="Loading" className="space-y-2">
+            <div className="h-4 bg-[var(--surface-elevated)] rounded" />
+            <div className="h-4 bg-[var(--surface-elevated)] rounded w-5/6" />
           </div>
           <div className="flex gap-4 pt-4">
-            <div className="h-8 bg-zinc-700 rounded w-24" />
-            <div className="h-8 bg-zinc-700 rounded w-24" />
+            <div className="h-8 bg-[var(--surface-elevated)] rounded w-24" />
+            <div className="h-8 bg-[var(--surface-elevated)] rounded w-24" />
           </div>
         </div>
       ))}
@@ -84,13 +84,13 @@ export const TableSkeleton: React.FC<{ rows?: number; cols?: number }> = ({
   cols = 4,
 }) => {
   return (
-    <div className="space-y-2">
+    <div role="status" aria-label="Loading" className="space-y-2">
       {Array.from({ length: rows }).map((_, i) => (
         <div key={i} className="flex gap-4">
           {Array.from({ length: cols }).map((_, j) => (
             <div
               key={`${i}-${j}`}
-              className="h-8 bg-zinc-700 rounded flex-1 animate-pulse"
+              className="h-8 bg-[var(--surface-elevated)] rounded flex-1 animate-pulse"
             />
           ))}
         </div>

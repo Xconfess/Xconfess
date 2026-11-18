@@ -6,7 +6,7 @@ import { v4 as uuidv4 } from 'uuid';
  * Middleware that attaches a unique request ID to every incoming request.
  *
  * Behavior:
- * - If the client sends an `x-request-id` header, that value is honored.
+ * - A client-supplied UUID v4 is honored; other values are replaced.
  * - Otherwise a new UUID v4 is generated.
  * - The ID is stored on `req['requestId']` for downstream consumers.
  * - The ID is echoed back in the `x-request-id` response header so
@@ -16,10 +16,13 @@ import { v4 as uuidv4 } from 'uuid';
 export class RequestIdMiddleware implements NestMiddleware {
   use(req: Request, res: Response, next: NextFunction): void {
     const incomingId = req.headers['x-request-id'];
-    const requestId: string =
-      typeof incomingId === 'string' && incomingId.trim().length > 0
-        ? incomingId.trim()
-        : uuidv4();
+    const normalizedIncomingId =
+      typeof incomingId === 'string' ? incomingId.trim() : '';
+    // UUIDs give callers a stable correlation handle without accepting
+    // arbitrary high-cardinality values into logs and response headers.
+    const requestId = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(normalizedIncomingId)
+      ? normalizedIncomingId
+      : uuidv4();
 
     // Attach to request object for downstream use
     (req as any).requestId = requestId;

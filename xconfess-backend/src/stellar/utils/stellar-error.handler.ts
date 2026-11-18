@@ -128,6 +128,10 @@ const CLIENT_SAFE_MESSAGES: Record<number, string> = {
   [TIPPING_ERROR_CODES.CONTRACT_PAUSED]: 'Tipping is temporarily paused. Please try again later.',
   [TIPPING_ERROR_CODES.RATE_LIMITED]: 'You are sending tips too quickly. Please wait before trying again.',
   [TIPPING_ERROR_CODES.INVALID_RATE_LIMIT_CONFIG]: 'The rate limit configuration is invalid. Please contact support.',
+  [TIPPING_ERROR_CODES.TOKEN_NOT_CONFIGURED]: 'Tipping is not available right now. Please contact support.',
+  [TIPPING_ERROR_CODES.SETTLEMENT_REPLAY]: 'This tip settlement has already been recorded.',
+  [TIPPING_ERROR_CODES.SETTLEMENT_NOT_FOUND]: 'The tip settlement could not be found.',
+  [TIPPING_ERROR_CODES.RECIPIENT_MISMATCH]: 'This tip settlement does not belong to the given recipient.',
 };
 
 // ---- Contract Error Functions ----

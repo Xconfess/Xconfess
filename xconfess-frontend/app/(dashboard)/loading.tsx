@@ -7,7 +7,7 @@ export default function DashboardLoading() {
         {Array.from({ length: 3 }).map((_, i) => (
           <div
             key={i}
-            className="h-10 w-28 animate-pulse rounded-full bg-zinc-200 dark:bg-zinc-800"
+            className="h-10 w-28 animate-pulse rounded-full bg-[var(--skeleton)]"
           />
         ))}
       </div>

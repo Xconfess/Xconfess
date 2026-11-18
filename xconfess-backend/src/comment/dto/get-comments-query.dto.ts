@@ -1,7 +1,11 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsEnum, IsOptional, IsBoolean, IsInt, Min } from 'class-validator';
+import { IsEnum, IsOptional, IsBoolean, IsInt, Max, Min } from 'class-validator';
 import { CursorPaginationDto } from '../../common/pagination/cursor-pagination.dto';
-import { Transform } from 'class-transformer';
+import {
+  PAGINATION,
+  PAGINATION_MESSAGES,
+} from '../../common/pagination/pagination.constants';
+import { Transform, Type } from 'class-transformer';
 
 export enum CommentSortField {
   CREATED_AT = 'createdAt',
@@ -21,11 +25,14 @@ export class GetCommentsQueryDto extends CursorPaginationDto {
   @ApiPropertyOptional({
     description: '1-indexed page number for legacy offset pagination.',
     example: 1,
+    minimum: PAGINATION.MIN_PAGE,
+    maximum: PAGINATION.MAX_PAGE,
   })
   @IsOptional()
-  @Transform(({ value }) => parseInt(value))
-  @IsInt()
-  @Min(1)
+  @Type(() => Number)
+  @IsInt({ message: PAGINATION_MESSAGES.PAGE_INTEGER })
+  @Min(PAGINATION.MIN_PAGE, { message: PAGINATION_MESSAGES.PAGE_MIN })
+  @Max(PAGINATION.MAX_PAGE, { message: PAGINATION_MESSAGES.PAGE_MAX })
   page?: number = 1;
 
   @ApiPropertyOptional({
@@ -54,5 +61,13 @@ export class GetCommentsQueryDto extends CursorPaginationDto {
     default: false,
   })
   @IsOptional()
+  @Transform(({ value }) =>
+    value === true || value === 'true'
+      ? true
+      : value === false || value === 'false'
+        ? false
+        : value,
+  )
+  @IsBoolean({ message: 'includeOrphanedReplies must be a boolean.' })
   includeOrphanedReplies?: boolean = false;
 }

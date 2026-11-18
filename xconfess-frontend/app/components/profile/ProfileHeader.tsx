@@ -9,14 +9,14 @@ const ProfileHeader = ({ profile }: Props) => {
     <div className="flex flex-col lg:flex-row items-center gap-6">
       <Image
         src={profile.avatarUrl || "/default-avatar.png"}
-        alt={profile.username}
+        alt=""
         width={112}
         height={112}
-        className="w-28 h-28 rounded-full object-cover shadow-lg"
+        className="w-28 h-28 rounded-full object-cover"
       />
       <div>
-        <h1 className="text-3xl font-bold">{profile.isAnonymous ? "Anonymous" : profile.username}</h1>
-        <p className="text-gray-400 text-sm">Member of Xconfess</p>
+        <h1 className="text-3xl font-semibold">{profile.isAnonymous ? "Anonymous" : profile.username}</h1>
+        <p className="text-[var(--text-muted)] text-sm">Member of Xconfess</p>
       </div>
     </div>
   );

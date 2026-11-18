@@ -110,7 +110,7 @@ describe('API Error Contract (e2e)', () => {
       );
       expect(response.body.details.fields.limit).toEqual(
         expect.arrayContaining([
-          expect.stringContaining('must not be greater than 50'),
+          expect.stringContaining('limit must not exceed 100'),
         ]),
       );
     });

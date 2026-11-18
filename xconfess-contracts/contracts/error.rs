@@ -88,6 +88,9 @@ pub mod codes {
     pub const TIPPING_RATE_LIMITED: u32 = 6007;
     pub const TIPPING_INVALID_RATE_LIMIT_CONFIG: u32 = 6008;
     pub const TIPPING_TOKEN_NOT_CONFIGURED: u32 = 6009;
+    pub const TIPPING_SETTLEMENT_REPLAY: u32 = 6010;
+    pub const TIPPING_SETTLEMENT_NOT_FOUND: u32 = 6011;
+    pub const TIPPING_RECIPIENT_MISMATCH: u32 = 6012;
 }
 
 /// ============================================================================

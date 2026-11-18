@@ -48,6 +48,8 @@ export const queryKeys = {
         ["admin", "reports", "list", filters] as const,
       // ["admin", "reports", "stats"]
       stats: () => ["admin", "reports", "stats"] as const,
+      // ["admin", "reports", "detail", id]
+      detail: (id: string) => ["admin", "reports", "detail", id] as const,
     },
 
     users: {

@@ -74,16 +74,9 @@ export const TIPPING_ERROR_CODES = {
   RATE_LIMITED: 6007,
   INVALID_RATE_LIMIT_CONFIG: 6008,
   TOKEN_NOT_CONFIGURED: 6009,
-} as const;
-
-/** Stable backend-facing error codes from reputation-badges contract */
-export const REPUTATION_ERROR_CODES = {
-  BADGE_ALREADY_OWNED: 7001,
-  BADGE_NOT_FOUND: 7002,
-  BADGE_TYPE_ALREADY_OWNED: 7003,
-  NOT_AUTHORIZED: 7004,
-  NOT_INITIALIZED: 7005,
-  BADGE_TYPE_METADATA_NOT_FOUND: 7006,
+  SETTLEMENT_REPLAY: 6010,
+  SETTLEMENT_NOT_FOUND: 6011,
+  RECIPIENT_MISMATCH: 6012,
 } as const;
 
 /**
@@ -147,6 +140,10 @@ const ERROR_CLASSIFICATIONS: Record<ErrorCodeValue, ContractErrorClassification>
   [TIPPING_ERROR_CODES.CONTRACT_PAUSED]: ContractErrorClassification.RETRYABLE,
   [TIPPING_ERROR_CODES.RATE_LIMITED]: ContractErrorClassification.RETRYABLE,
   [TIPPING_ERROR_CODES.INVALID_RATE_LIMIT_CONFIG]: ContractErrorClassification.TERMINAL,
+  [TIPPING_ERROR_CODES.TOKEN_NOT_CONFIGURED]: ContractErrorClassification.TERMINAL,
+  [TIPPING_ERROR_CODES.SETTLEMENT_REPLAY]: ContractErrorClassification.TERMINAL,
+  [TIPPING_ERROR_CODES.SETTLEMENT_NOT_FOUND]: ContractErrorClassification.TERMINAL,
+  [TIPPING_ERROR_CODES.RECIPIENT_MISMATCH]: ContractErrorClassification.TERMINAL,
 };
 
 /**
@@ -230,8 +227,15 @@ export function getHttpStatusForContractError(errorCode: number): number {
       }
       if (errorCode === ANCHOR_ERROR_CODES.CONFESSION_EXISTS ||
           errorCode === ANCHOR_ERROR_CODES.REACTION_EXISTS ||
-          errorCode === ANCHOR_ERROR_CODES.REPORT_EXISTS) {
+          errorCode === ANCHOR_ERROR_CODES.REPORT_EXISTS ||
+          errorCode === TIPPING_ERROR_CODES.SETTLEMENT_REPLAY) {
         return 409; // Conflict
+      }
+      if (errorCode === TIPPING_ERROR_CODES.SETTLEMENT_NOT_FOUND) {
+        return 404; // Not Found
+      }
+      if (errorCode === TIPPING_ERROR_CODES.TOKEN_NOT_CONFIGURED) {
+        return 500; // Server misconfiguration, not caller input
       }
       return 400; // Bad Request (default for terminal)
   }

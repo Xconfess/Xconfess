@@ -45,6 +45,7 @@ export function useNotifications(userId: string): UseNotificationsReturn {
   const reconnectAttemptRef = useRef(0);
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const subscribedUserRef = useRef<string | null>(null);
+  const seenNotificationIdsRef = useRef<Set<string>>(new Set());
   const { handleError } = useApiError({ context: 'Notifications' });
   const debugNotifications =
     process.env.NODE_ENV === 'development' &&
@@ -73,8 +74,16 @@ export function useNotifications(userId: string): UseNotificationsReturn {
       try {
         const data = await notificationApi.getNotifications(filter);
 
+        data.notifications.forEach((n) => {
+          seenNotificationIdsRef.current.add(n.id);
+        });
+
         if (filter?.page && filter.page > 1) {
-          setNotifications((prev) => [...prev, ...data.notifications]);
+          setNotifications((prev) => {
+            const existingIds = new Set(prev.map((n) => n.id));
+            const newNotifs = data.notifications.filter((n) => !existingIds.has(n.id));
+            return [...prev, ...newNotifs];
+          });
         } else {
           setNotifications(data.notifications);
         }
@@ -134,8 +143,20 @@ export function useNotifications(userId: string): UseNotificationsReturn {
     });
 
     socket.on("notification", (notification: Notification) => {
-      setNotifications((prev) => [notification, ...prev]);
-      setUnreadCount((prev) => prev + 1);
+      // Reconnects or repeated socket events do not double-count
+      const isAlreadySeen = seenNotificationIdsRef.current.has(notification.id);
+      seenNotificationIdsRef.current.add(notification.id);
+
+      setNotifications((prev) => {
+        if (prev.some((n) => n.id === notification.id)) {
+          return prev;
+        }
+        return [notification, ...prev];
+      });
+
+      if (!isAlreadySeen && !notification.isRead) {
+        setUnreadCount((prev) => prev + 1);
+      }
 
       playNotificationSound();
 
@@ -190,41 +211,91 @@ export function useNotifications(userId: string): UseNotificationsReturn {
   }, [scheduleReconnect]);
 
   const markAsRead = useCallback(async (notificationId: string) => {
+    let wasUnread = false;
+
+    // Immediately update count and notification status in UI
+    setNotifications((prev) =>
+      prev.map((notif) => {
+        if (notif.id === notificationId) {
+          if (!notif.isRead) {
+            wasUnread = true;
+          }
+          return { ...notif, isRead: true };
+        }
+        return notif;
+      })
+    );
+
+    if (wasUnread) {
+      setUnreadCount((prev) => Math.max(0, prev - 1));
+    }
+
     try {
       await notificationApi.markAsRead(notificationId);
-
-      setNotifications((prev) =>
-        prev.map((notif) =>
-          notif.id === notificationId ? { ...notif, isRead: true } : notif
-        )
-      );
-      setUnreadCount((prev) => Math.max(0, prev - 1));
     } catch (error) {
+      // Rollback on failure
+      if (wasUnread) {
+        setNotifications((prev) =>
+          prev.map((notif) =>
+            notif.id === notificationId ? { ...notif, isRead: false } : notif
+          )
+        );
+        setUnreadCount((prev) => prev + 1);
+      }
       handleError(error, 'Unable to mark notification as read. Please try again.');
     }
   }, [handleError]);
 
   const markAllAsRead = useCallback(async () => {
+    let prevNotifications: Notification[] = [];
+    let prevUnreadCount = 0;
+
+    // Immediately zero the badge and flip items
+    setNotifications((prev) => {
+      prevNotifications = prev;
+      return prev.map((notif) => ({ ...notif, isRead: true }));
+    });
+    setUnreadCount((prev) => {
+      prevUnreadCount = prev;
+      return 0;
+    });
+
     try {
       await notificationApi.markAllAsRead();
-
-      setNotifications((prev) =>
-        prev.map((notif) => ({ ...notif, isRead: true }))
-      );
-      setUnreadCount(0);
     } catch (error) {
+      // Rollback on failure
+      setNotifications(prevNotifications);
+      setUnreadCount(prevUnreadCount);
       handleError(error, 'Unable to mark all notifications as read. Please try again.');
     }
   }, [handleError]);
 
   const deleteNotification = useCallback(async (notificationId: string) => {
+    let deletedItem: Notification | undefined;
+    let wasUnread = false;
+
+    setNotifications((prev) => {
+      deletedItem = prev.find((n) => n.id === notificationId);
+      if (deletedItem && !deletedItem.isRead) {
+        wasUnread = true;
+      }
+      return prev.filter((notif) => notif.id !== notificationId);
+    });
+
+    if (wasUnread) {
+      setUnreadCount((prev) => Math.max(0, prev - 1));
+    }
+
     try {
       await notificationApi.deleteNotification(notificationId);
-
-      setNotifications((prev) =>
-        prev.filter((notif) => notif.id !== notificationId)
-      );
     } catch (error) {
+      // Rollback on failure
+      if (deletedItem) {
+        setNotifications((prev) => [deletedItem!, ...prev]);
+        if (wasUnread) {
+          setUnreadCount((prev) => prev + 1);
+        }
+      }
       handleError(error, 'Unable to delete notification. Please try again.');
     }
   }, [handleError]);

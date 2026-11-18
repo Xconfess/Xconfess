@@ -215,6 +215,21 @@ git commit -m "build: contract release manifest for version X.Y.Z"
 
 ## Artifact Checksum Review
 
+### CI manifest gate
+
+CI runs `./scripts/contracts-release.sh check`. It rebuilds all contracts with
+the pinned `xconfess-contracts/rust-toolchain.toml` toolchain, then compares
+each rebuilt WASM SHA-256 with `deployments/contract-wasm-manifest.json`.
+The command never rewrites the manifest. A failure names every mismatched
+contract and prints the exact refresh command:
+
+```bash
+./scripts/contracts-release.sh build
+git add deployments/contract-wasm-manifest.json
+```
+
+Only commit the regenerated manifest after reviewing why each hash changed.
+
 `./scripts/contracts-release.sh build` and `./scripts/contracts-release.sh deploy`
 both generate SHA-256 metadata from the release WASM files. The hash is written
 to:
@@ -386,47 +401,61 @@ Each contract object contains:
 - `wasm_file` — relative path to the deployed WASM artifact
 - `sha256` — SHA-256 hash of the deployed WASM artifact
 
-Example `deployments/testnet.json` shape:
+Example `deployments/testnet.json` shape (values are the committed testnet record):
 
 ```json
 {
-  "generated_at_utc": "2026-05-30T12:00:00Z",
-  "network": "testnet",
-  "target": "wasm32-unknown-unknown",
   "contracts": {
+    "anonymous-tipping": {
+      "contract_id": "CC74UWNAAYDTPEPVKR4CPANWJSF6GI2PCI7BLN6M46KB6CSQYVYLHIWM",
+      "sha256": "38c3d5d76bc026a1a3d25dabc473d9b37a2dd60787145400a1bb327624b76928",
+      "source": "xconfess-deployer",
+      "version": "1.0.0",
+      "wasm_file": "target/wasm32v1-none/release/anonymous_tipping.wasm"
+    },
     "confession-anchor": {
-      "contract_id": "CXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+      "contract_id": "CB5XMDHT66EISB4WXM4YGNDHYRMZDX42TOHZEAENIUTSSMRFHJSFRNHB",
+      "sha256": "fc4f4e6ccb4b38ad71ace722a69dc3470a675d3f112788abba94bb3b443ce7d7",
       "source": "xconfess-deployer",
       "version": "0.1.0",
-      "wasm_file": "target/wasm32-unknown-unknown/release/confession_anchor.wasm",
-      "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      "wasm_file": "target/wasm32v1-none/release/confession_anchor.wasm"
     },
     "confession-registry": {
-      "contract_id": "CXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+      "contract_id": "CDS3WZ2CBA2JAIGK2NJ7KOO3VPBFWSJ34FWMMVXEIA7O7ACQO3VWH2PQ",
+      "sha256": "0a4708682d777075100f5fb7f4e6d3222fef83ccf49a252b0f49c5167bcdfdce",
       "source": "xconfess-deployer",
       "version": "0.1.0",
-      "wasm_file": "target/wasm32-unknown-unknown/release/confession_registry.wasm",
-      "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+      "wasm_file": "target/wasm32v1-none/release/confession_registry.wasm"
     },
     "reputation-badges": {
-      "contract_id": "CXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+      "contract_id": "CDAN4HZHY6XNQR3TRPLPJKVKNURVMMQMF7XNZ6AUNJNFLR77J4DNAEYI",
+      "sha256": "a1737b45c44ded77f714769f3a16fcfb876ae0658e3db5262cc7d64d9c3274f7",
       "source": "xconfess-deployer",
-      "version": "0.1.0",
-      "wasm_file": "target/wasm32-unknown-unknown/release/reputation_badges.wasm",
-      "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
-    },
-    "anonymous-tipping": {
-      "contract_id": "CXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
-      "source": "xconfess-deployer",
-      "version": "0.1.0",
-      "wasm_file": "target/wasm32-unknown-unknown/release/anonymous_tipping.wasm",
-      "sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+      "version": "0.0.0",
+      "wasm_file": "target/wasm32v1-none/release/reputation_badges.wasm"
     }
-  }
+  },
+  "generated_at_utc": "2026-08-22T10:41:02Z",
+  "network": "testnet",
+  "target": "wasm32v1-none"
 }
 ```
 
 This file is safe to commit because it contains public deployment metadata and a named deployer key alias, not private key material.
+
+### Deployment metadata validation rules
+
+`npm run contracts:verify-env` (`scripts/verify-contract-env.js`) rejects a metadata file that does not meet all of these rules. The deploy step applies the same ID and version checks before it writes `deployments/<network>.json`, so a failed deploy leaves the previous file in place.
+
+- **Required contracts:** all four entries (`confession-anchor`, `confession-registry`, `anonymous-tipping`, `reputation-badges`) must be present. Unexpected names are rejected.
+- **`network`:** a Stellar CLI alias of lowercase letters, digits, and hyphens (for example `testnet` or `public`).
+- **`contract_id`:** must match `^C[A-Z2-7]{55}$`.
+- **`sha256`:** 64 hex characters. Values with fewer than 8 distinct characters, such as `000…0001`, are rejected as placeholders.
+- **`version`:** `MAJOR.MINOR.PATCH` (for example `1.0.0`), taken from the crate's `Cargo.toml`.
+- **`wasm_file`:** a `/release/` artifact named after the contract, such as `target/wasm32v1-none/release/confession_anchor.wasm`.
+- **`source`:** the real Stellar CLI key alias. Angle-bracket and `YYYY-MM-DD` template values are rejected.
+
+Sample or template files such as `deployments/sample.redacted.json` are documentation only. They fail these rules by design and must not be copied into a real `<network>.json`.
 
 **Expected output:**
 

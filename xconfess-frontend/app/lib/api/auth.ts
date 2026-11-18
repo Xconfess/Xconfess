@@ -1,3 +1,11 @@
+import {
+  AppError,
+  getStatusCodeString,
+  getStatusMessage,
+  logError,
+  LOGIN_ATTEMPT_FAILED_MESSAGE,
+} from '@/app/lib/utils/errorHandler';
+
 export interface AuthTokenPayload {
   sub: string;
   email?: string;
@@ -25,7 +33,15 @@ export async function getToken(): Promise<string | null> {
 }
 
 export async function removeToken(): Promise<void> {
-  await fetch("/api/auth/session", { method: "DELETE" }).catch(() => { });
+  await fetch("/api/auth/session", { method: "DELETE" }).catch((error) => {
+    // Logout must never block on a network failure, but a silently
+    // swallowed error here made this flow inconsistent with login/session
+    // refresh, which always log what went wrong.
+    logError(
+      toNetworkAwareAppError(error, "/api/auth/session"),
+      "removeToken",
+    );
+  });
 }
 
 export function decodeToken(token: string): AuthTokenPayload | null {
@@ -49,7 +65,14 @@ export async function isAuthenticated(): Promise<boolean> {
   try {
     const response = await fetch("/api/auth/session");
     return response.ok;
-  } catch {
+  } catch (error) {
+    // Network failure is not itself an auth error, but it must not be
+    // conflated with "no session" — log it so it's distinguishable from a
+    // genuine 401, then treat the caller as unauthenticated.
+    logError(
+      toNetworkAwareAppError(error, "/api/auth/session"),
+      "isAuthenticated",
+    );
     return false;
   }
 }
@@ -57,10 +80,22 @@ export async function isAuthenticated(): Promise<boolean> {
 export async function getCurrentUser(): Promise<AuthTokenPayload | null> {
   try {
     const response = await fetch("/api/auth/session");
-    if (!response.ok) return null;
+    if (!response.ok) {
+      const appError = await appErrorFromResponse(response, "/api/auth/session");
+      // A missing/expired session is an expected outcome for this accessor,
+      // not a failure worth logging — every other status is.
+      if (!(response.status === 401)) {
+        logError(appError, "getCurrentUser");
+      }
+      return null;
+    }
     const data = await response.json();
     return data.user;
-  } catch {
+  } catch (error) {
+    logError(
+      toNetworkAwareAppError(error, "/api/auth/session"),
+      "getCurrentUser",
+    );
     return null;
   }
 }
@@ -68,21 +103,69 @@ export async function getCurrentUser(): Promise<AuthTokenPayload | null> {
 export async function login(
   credentials: LoginCredentials,
 ): Promise<AuthTokenPayload> {
-  const response = await fetch("/api/auth/session", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(credentials),
-  });
+  let response: Response;
+  try {
+    response = await fetch("/api/auth/session", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(credentials),
+    });
+  } catch (error) {
+    const appError = toNetworkAwareAppError(error, "/api/auth/session");
+    logError(appError, "login");
+    throw appError;
+  }
 
   if (!response.ok) {
-    const error = await response
-      .json()
-      .catch(() => ({ message: "Login failed" }));
-    throw new Error(error.message ?? "Login failed");
+    const appError = await appErrorFromResponse(
+      response,
+      "/api/auth/session",
+      response.status === 401 ? LOGIN_ATTEMPT_FAILED_MESSAGE : undefined,
+    );
+    logError(appError, "login", { status: response.status });
+    throw appError;
   }
 
   const data = await response.json();
   return data.user;
+}
+
+/**
+ * Build a normalized AppError from a non-ok fetch Response, matching the
+ * mapping used across the other authentication flows (login, register,
+ * session refresh) so every path here surfaces the same user-facing
+ * messages instead of raw server/database error strings.
+ */
+async function appErrorFromResponse(
+  response: Response,
+  path: string,
+  overrideMessage?: string,
+): Promise<AppError> {
+  const body = await response.json().catch(() => ({}));
+  const status = response.status;
+  const rawApi =
+    (body && ((body as any).message || (body as any).error)) || null;
+  const message =
+    overrideMessage ??
+    (typeof rawApi === "string" && rawApi.trim().length > 0
+      ? rawApi
+      : getStatusMessage(status));
+  const code = getStatusCodeString(status);
+  return new AppError(message, code, status, {
+    responseBody: body,
+    path,
+    upstreamMessage: typeof rawApi === "string" ? rawApi : undefined,
+  });
+}
+
+/** Wrap a thrown fetch error (network failure, abort, etc.) as an AppError. */
+function toNetworkAwareAppError(error: unknown, path: string): AppError {
+  if (error instanceof AppError) return error;
+  const message =
+    error instanceof Error && error.message
+      ? "Network error. Please check your internet connection."
+      : "An unexpected error occurred. Please try again.";
+  return new AppError(message, "NETWORK_ERROR", 0, { path });
 }
 
 export function logout(): void {

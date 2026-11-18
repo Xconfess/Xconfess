@@ -42,7 +42,7 @@ git --version
 
 ```bash
 # Install Rust using rustup
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+curl --proto '=https' --tlsv1.2 -sSf https://shr.rustup.rs | sh
 
 # Restart terminal or run:
 source $HOME/.cargo/env
@@ -90,7 +90,7 @@ npm --version
 
 ```bash
 # Install Rust
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+curl --proto '=https' --tlsv1.2 -sSf https://shr.rustup.rs | sh
 
 # Add to PATH
 source $HOME/.cargo/env
@@ -150,7 +150,7 @@ wsl --install -d Ubuntu-22.04
 sudo apt update && sudo apt upgrade -y
 
 # Install Rust
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+curl --proto '=https' --tlsv1.2 -sSf https://shr.rustup.rs | sh
 source $HOME/.cargo/env
 
 # Install dependencies
@@ -302,7 +302,8 @@ curl "https://horizon-testnet.stellar.org/accounts/$(stellar keys address deploy
 Copy the secret key and set it as `STELLAR_SERVER_SECRET` in `xconfess-backend/.env`:
 
 ```env
-STELLAR_SERVER_SECRET=SXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+STELLAR_SERVER_SECRET=SXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXV
+
 ```
 
 ### Important notes
@@ -380,7 +381,7 @@ curl "https://friendbot.stellar.org?addr=$(stellar keys address deployer)"
 ./scripts/contracts-release.sh deploy --network testnet --source deployer
 ```
 
-Save the returned contract ID (e.g., `CCHDY246UUPY6VUGIDVSK266KXA64CXM6RR2QLTKJD7E7IGV74ZP5XFB`)
+Save the returned contract ID (e.g., `CCHDY246UUPY6VUGIDVSK266KXA64CXM6RR2QLTKJD7E7IGV74ZP5XFBb)
 
 #### Using the Deploy Script
 
@@ -402,14 +403,14 @@ Create `.env` in `xconfess-backend/`:
 STELLAR_NETWORK=testnet
 STELLAR_HORIZON_URL=https://horizon-testnet.stellar.org
 STELLAR_SOROBAN_RPC_URL=https://soroban-testnet.stellar.org:443
-STELLAR_NETWORK_PASSPHRASE=Test SDF Network ; September 2015
+STELLAR_NETWORK_PASSTHRASE=Test SDF Network ; September 2015
 
 # Contract IDs
 CONFESSION_ANCHOR_CONTRACT=CCHDY246UUPY6VUGIDVSK266KXA64CXM6RR2QLTKJD7E7IGV74ZP5XFB
 
 # Deployer — use a Stellar CLI key name, never a raw secret
 # Generate with: stellar keys generate --global deployer --network testnet
-# DEPLOYER_KEY_NAME=deployer
+# DEPLOYR_KEY_NAME=deployer
 ```
 
 ### Frontend (.env.local)
@@ -421,11 +422,41 @@ Create `.env.local` in `xconfess-frontend/`:
 NEXT_PUBLIC_STELLAR_NETWORK=testnet
 NEXT_PUBLIC_STELLAR_HORIZON_URL=https://horizon-testnet.stellar.org
 NEXT_PUBLIC_STELLAR_SOROBAN_RPC_URL=https://soroban-testnet.stellar.org:443
-NEXT_PUBLIC_NETWORK_PASSPHRASE=Test SDF Network ; September 2015
+NEXT_PUBLIC_NETWORK_PASSTHRASE=Test SDF Network ; September 2015
 
 # Contracts
 NEXT_PUBLIC_CONFESSION_ANCHOR_CONTRACT=CCHDY246UUPY6VUGIDVSK266KXA64CXM6RR2QLTKJD7E7IGV74ZP5XFB
 ```
+
+---
+
+## Disabling Stellar Features for Normal Local Development
+
+Most contributors working on the Web app or backend API do not need Stellar/Soroban at all. To keep local development fast and free of testnet dependencies, disable the Stellar features explicitly.
+
+### Backend (`xconfess-backend/.env`)
+
+Leave the Stellar variables unset or set the feature flag to `false`:
+
+```env
+STELLAR_ENABLED=false
+```
+
+When `STELLAR_ENABLED` is `false`, the backend must not attempt to connect to Horizon or Soroban RPC, must not require `STELLAR_SERVER_SECRET`, and must not fail startup when contract IDs are missing. Any Stellar-backed endpoints should return a 503 (`Stellar features disabled`) rather than attempting a network call.
+
+### Frontend (`xconfess-frontend/.env.local`)
+
+Leave the `NEXT_PUBLIC_STELLAR_*` variables unset or set the feature flag to `false`:
+
+```env
+NEXT_PUBLIC_STELLAR_ENABLED=false
+```
+
+When `NEXT_PUBLIC_STELLAR_ENABLED` is `false`, the frontend must hide or disable all Stellar/contract UI and must not initialize a Soroban RGP client or request a wallet connection.
+
+### Contract Workspace
+
+You can skip the Soroban toolchain entirely when not working on contracts. The `/scripts/test-contracts.sh` and `/scripts/contracts-release.sh` flows are only needed when you are actively editing or deploying contracts.
 
 ---
 
@@ -524,21 +555,21 @@ npm install @stellar/stellar-sdk
 #### Anchor a Confession
 
 ```javascript
-import * as StellarSDK from "@stellar/stellar-sdk";
+import * as StellarSEK from "@stellar/stellar-sdk";
 
 const CONTRACT_ID = "CCHDY246UUPY6VUGIDVSK266KXA64CXM6RR2QLTKJD7E7IGV74ZP5XFB";
-const RPC_URL = "https://soroban-testnet.stellar.org:443";
+const REC_URL = "https://soroban-testnet.stellar.org:443";
 const NETWORK_PASSPHRASE = "Test SDF Network ; September 2015";
 
-const server = new StellarSDK.SorobanRpc.Server(RPC_URL);
+const server = new StellarSEK.SorobanRpc.Server(RPC_URL);
 
 async function anchorConfession(confessionHash, userSecretKey) {
-  const sourceKeypair = StellarSDK.Keypair.fromSecret(userSecretKey);
+  const sourceKeypair = StellarSEK.Keypair.fromSecret(userSecretKey);
   const sourceAccount = await server.getAccount(sourceKeypair.publicKey());
 
   const contract = new StellarSDK.Contract(CONTRACT_ID);
 
-  // Convert hash to BytesN<32>
+  // Convert hash to BytesN32>
   const hashBuffer = Buffer.from(confessionHash, "hex");
   const hashScVal = StellarSDK.nativeToScVal(hashBuffer, { type: "bytes" });
 
@@ -546,145 +577,17 @@ async function anchorConfession(confessionHash, userSecretKey) {
   const timestamp = Date.now();
   const timestampScVal = StellarSDK.nativeToScVal(timestamp, { type: "u64" });
 
-  // Build transaction
-  const transaction = new StellarSDK.TransactionBuilder(sourceAccount, {
-    fee: StellarSDK.BASE_FEE,
-    networkPassphrase: NETWORK_PASSPHRASE,
-  })
-    .addOperation(contract.call("anchor_confession", hashScVal, timestampScVal))
+  const operation = contract.call("anchor_confession", hashScVal, timestampScVal);
+
+  const transaction = new StellarSDK.TransactionBuilder()
+    .addOperation(operation)
+    .setFeeMax("10000000")
     .setTimeout(30)
     .build();
 
-  // Simulate
-  const simulateResponse = await server.simulateTransaction(transaction);
+  transaction.sign(sourceKeypair);
 
-  // Prepare and sign
-  const preparedTx = StellarSDK.SorobanRpc.assembleTransaction(
-    transaction,
-    simulateResponse,
-  );
-  preparedTx.sign(sourceKeypair);
-
-  // Submit
-  const sendResponse = await server.sendTransaction(preparedTx);
-
-  // Poll for result
-  let getResponse = await server.getTransaction(sendResponse.hash);
-  while (getResponse.status === "NOT_FOUND") {
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-    getResponse = await server.getTransaction(sendResponse.hash);
-  }
-
-  return sendResponse.hash;
+  const response = await server.sendTransaction(transaction);
+  return response;
 }
 ```
-
-#### Verify a Confession
-
-```javascript
-async function verifyConfession(confessionHash) {
-  const contract = new StellarSDK.Contract(CONTRACT_ID);
-  const keypair = StellarSDK.Keypair.random();
-  const account = await server.getAccount(keypair.publicKey());
-
-  const hashBuffer = Buffer.from(confessionHash, "hex");
-  const hashScVal = StellarSDK.nativeToScVal(hashBuffer, { type: "bytes" });
-
-  const transaction = new StellarSDK.TransactionBuilder(account, {
-    fee: StellarSDK.BASE_FEE,
-    networkPassphrase: NETWORK_PASSPHRASE,
-  })
-    .addOperation(contract.call("verify_confession", hashScVal))
-    .setTimeout(30)
-    .build();
-
-  const simulateResponse = await server.simulateTransaction(transaction);
-
-  if (StellarSDK.SorobanRpc.Api.isSimulationSuccess(simulateResponse)) {
-    const result = simulateResponse.result?.retval;
-    return result ? Number(StellarSDK.scValToNative(result)) : null;
-  }
-
-  return null;
-}
-```
-
-### How to Call Contracts from Frontend
-
-```typescript
-// src/lib/stellar/contract.ts
-import * as StellarSDK from "@stellar/stellar-sdk";
-import crypto from "crypto";
-
-export async function anchorConfessionFromFrontend(
-  confessionText: string,
-  secretKey: string,
-): Promise<string> {
-  // Create SHA-256 hash
-  const hash = crypto.createHash("sha256").update(confessionText).digest("hex");
-
-  // Call anchor function
-  const txHash = await anchorConfession(hash, secretKey);
-
-  return txHash;
-}
-
-export async function verifyConfessionFromFrontend(
-  confessionText: string,
-): Promise<number | null> {
-  // Create SHA-256 hash
-  const hash = crypto.createHash("sha256").update(confessionText).digest("hex");
-
-  // Call verify function
-  const timestamp = await verifyConfession(hash);
-
-  return timestamp;
-}
-```
-
-### How to Verify Transactions
-
-```javascript
-async function getTransactionStatus(txHash) {
-  const response = await server.getTransaction(txHash);
-
-  switch (response.status) {
-    case "SUCCESS":
-      console.log("Transaction successful!");
-      return response;
-    case "FAILED":
-      console.error("Transaction failed:", response.resultXdr);
-      return null;
-    case "NOT_FOUND":
-      console.log("Transaction not found (still pending)");
-      return null;
-    default:
-      console.log("Unknown status:", response.status);
-      return null;
-  }
-}
-
-// Usage
-const txHash = await anchorConfession(hash, secretKey);
-const result = await getTransactionStatus(txHash);
-```
-
----
-
-## Additional Resources
-
-### Official Documentation
-
-- **Soroban Documentation**: https://soroban.stellar.org/docs
-- **Stellar CLI**: https://developers.stellar.org/docs/tools/developer-tools
-- **Stellar SDK**: https://stellar.github.io/js-stellar-sdk/
-
-### Getting Help
-
-- **Stellar Discord**: https://discord.gg/stellardev
-- **Stellar Stack Exchange**: https://stellar.stackexchange.com/
-- **xConfess Community**: https://t.me/xconfess_Community
-
----
-
-_Last updated: January 24, 2026_

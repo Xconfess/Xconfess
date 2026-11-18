@@ -156,10 +156,10 @@ export default function UserManagement() {
   };
   return (
     <div className="min-w-0 space-y-4">
-      <div className="rounded-lg bg-white p-4 shadow dark:bg-gray-800">
+      <div className="border border-[var(--border)] rounded-lg bg-[var(--surface)] p-4">
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div className="relative min-w-0 flex-1">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--text-muted)]" />
             <input
               type="search"
               value={searchQuery}
@@ -168,10 +168,10 @@ export default function UserManagement() {
                 setPage(1);
               }}
               placeholder="Search users"
-              className="min-h-[44px] w-full rounded-md border border-gray-300 bg-white pl-9 pr-3 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+              className="min-h-[44px] w-full rounded-md border border-[var(--accent-border)] bg-[var(--surface)] pl-9 pr-3 text-sm shadow-sm focus:border-[var(--focus-ring)] focus:ring-[var(--focus-ring)]"
             />
           </div>
-          <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-300">
+          <div className="flex items-center gap-2 text-sm text-[var(--text-muted)]">
             <UserCog className="h-4 w-4" />
             {isFetching ? 'Refreshing' : `${total} users`}
           </div>
@@ -179,30 +179,30 @@ export default function UserManagement() {
       </div>
 
       <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_24rem]">
-        <div className="min-w-0 overflow-hidden rounded-lg bg-white shadow dark:bg-gray-800">
+        <div className="min-w-0 overflow-hidden rounded-lg bg-[var(--surface)] shadow">
           <div className="max-w-full overflow-x-auto overscroll-x-contain">
-            <table className="min-w-[62rem] divide-y divide-gray-200 dark:divide-gray-700 md:min-w-full">
-              <thead className="bg-gray-50 dark:bg-gray-700">
+            <table className="min-w-[62rem] divide-y divide-[var(--border)] md:min-w-full">
+              <thead className="bg-[var(--surface-muted)]">
                 <tr>
                   <SortableHeader label="Username" field="username" sortBy={sortBy} sortOrder={sortOrder} onSort={changeSort} />
                   <SortableHeader label="Status" field="status" sortBy={sortBy} sortOrder={sortOrder} onSort={changeSort} />
                   <SortableHeader label="Role" field="role" sortBy={sortBy} sortOrder={sortOrder} onSort={changeSort} />
                   <SortableHeader label="Created" field="createdAt" sortBy={sortBy} sortOrder={sortOrder} onSort={changeSort} />
-                  <th className="sticky right-0 bg-gray-50 px-6 py-3 text-left text-xs font-medium uppercase text-gray-500 dark:bg-gray-700 dark:text-gray-300">
+                  <th className="sticky right-0 bg-[var(--surface-muted)] px-6 py-3 text-left text-xs font-medium uppercase text-[var(--text-muted)]">
                     Actions
                   </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-200 bg-white dark:divide-gray-700 dark:bg-gray-800">
+              <tbody className="divide-y divide-[var(--border)] bg-[var(--surface)]">
                 {isLoading ? (
                   <tr>
-                    <td className="px-6 py-10 text-center text-sm text-gray-500" colSpan={5}>
+                    <td className="px-6 py-10 text-center text-sm text-[var(--text-muted)]" colSpan={5}>
                       Loading users...
                     </td>
                   </tr>
                 ) : users.length === 0 ? (
                   <tr>
-                    <td className="px-6 py-10 text-center text-sm text-gray-500" colSpan={5}>
+                    <td className="px-6 py-10 text-center text-sm text-[var(--text-muted)]" colSpan={5}>
                       No users found
                     </td>
                   </tr>
@@ -210,9 +210,9 @@ export default function UserManagement() {
                   users.map((user) => (
                     <tr
                       key={user.id}
-                      className="hover:bg-gray-50 dark:hover:bg-gray-700/60"
+                      className="hover:bg-[var(--surface-muted)]"
                     >
-                      <td className="px-6 py-4 text-sm font-medium text-gray-900 dark:text-white">
+                      <td className="px-6 py-4 text-sm font-medium text-[var(--foreground)]">
                         <button
                           type="button"
                           onClick={() => setSelectedUser(user)}
@@ -235,7 +235,7 @@ export default function UserManagement() {
                           }
                           disabled={roleMutation.isPending}
                           aria-label={`Change role for ${user.username}`}
-                          className="min-h-[40px] rounded-md border border-gray-300 bg-white px-2 text-sm capitalize text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+                          className="min-h-[40px] rounded-md border border-[var(--accent-border)] bg-[var(--surface)] px-2 text-sm capitalize text-[var(--foreground)]"
                         >
                           {roles.map((role) => (
                             <option key={role} value={role}>
@@ -244,10 +244,10 @@ export default function UserManagement() {
                           ))}
                         </select>
                       </td>
-                      <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-500 dark:text-gray-400">
+                      <td className="whitespace-nowrap px-6 py-4 text-sm text-[var(--text-muted)]">
                         {new Date(user.createdAt).toLocaleDateString()}
                       </td>
-                      <td className="sticky right-0 bg-white px-6 py-4 dark:bg-gray-800">
+                      <td className="sticky right-0 bg-[var(--surface)] px-6 py-4">
                         <div className="flex gap-2">
                           <Button
                             variant="ghost"
@@ -265,7 +265,7 @@ export default function UserManagement() {
                               size="sm"
                               onClick={() => setBanTarget(user)}
                               aria-label={`Ban ${user.username}`}
-                              className="rounded-md px-3 text-red-600 dark:text-red-400"
+                              className="rounded-md px-3 text-[var(--danger)]"
                             >
                               <Ban className="h-4 w-4" />
                               Ban
@@ -276,7 +276,7 @@ export default function UserManagement() {
                               size="sm"
                               onClick={() => unbanMutation.mutate(user.id.toString())}
                               aria-label={`Unban ${user.username}`}
-                              className="rounded-md px-3 text-green-600 dark:text-green-400"
+                              className="rounded-md px-3 text-[var(--success)]"
                             >
                               <RotateCcw className="h-4 w-4" />
                               Unban
@@ -291,8 +291,8 @@ export default function UserManagement() {
             </table>
           </div>
 
-          <div className="flex flex-col gap-3 border-t border-gray-200 px-4 py-4 dark:border-gray-700 sm:flex-row sm:items-center sm:justify-between">
-            <div className="text-sm text-gray-700 dark:text-gray-300">
+          <div className="flex flex-col gap-3 border-t border-[var(--border)] px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="text-sm text-[var(--secondary)]">
               Showing {total === 0 ? 0 : (page - 1) * limit + 1} to {Math.min(page * limit, total)} of {total}
             </div>
             <div className="flex gap-2">
@@ -333,9 +333,9 @@ export default function UserManagement() {
           aria-label="Ban user dialog"
           onKeyDown={(e) => e.key === 'Escape' && setBanTarget(null)}
         >
-          <div className="w-full max-w-md rounded-lg bg-white p-5 shadow-xl outline-none dark:bg-gray-800">
+          <div className="border border-[var(--border)] w-full max-w-md rounded-lg bg-[var(--surface)] p-5 outline-none">
             <div className="mb-4 flex items-center justify-between gap-3">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+              <h3 className="text-lg font-semibold text-[var(--foreground)]">
                 Ban {banTarget.username}
               </h3>
               <Button
@@ -349,21 +349,21 @@ export default function UserManagement() {
               </Button>
             </div>
             <div className="space-y-3">
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+              <label className="block text-sm font-medium text-[var(--secondary)]">
                 Reason
                 <textarea
                   value={banReason}
                   onChange={(e) => setBanReason(e.target.value)}
-                  className="mt-1 min-h-24 w-full rounded-md border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+                  className="mt-1 min-h-24 w-full rounded-md border border-[var(--accent-border)] px-3 py-2 text-sm"
                   maxLength={500}
                 />
               </label>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+              <label className="block text-sm font-medium text-[var(--secondary)]">
                 Duration
                 <select
                   value={banDuration}
                   onChange={(e) => setBanDuration(e.target.value)}
-                  className="mt-1 min-h-[44px] w-full rounded-md border border-gray-300 bg-white px-3 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+                  className="mt-1 min-h-[44px] w-full rounded-md border border-[var(--accent-border)] bg-[var(--surface)] px-3 text-sm"
                 >
                   <option value="">Indefinite</option>
                   <option value="1">1 day</option>
@@ -420,7 +420,7 @@ function SortableHeader({
   onSort: (field: UserSortField) => void;
 }) {
   return (
-    <th className="px-6 py-3 text-left text-xs font-medium uppercase text-gray-500 dark:text-gray-300">
+    <th className="px-6 py-3 text-left text-xs font-medium uppercase text-[var(--text-muted)]">
       <button
         type="button"
         onClick={() => onSort(field)}
@@ -438,8 +438,8 @@ function StatusBadge({ active }: { active: boolean }) {
     <span
       className={`inline-flex rounded-full px-2 text-xs font-semibold leading-5 ${
         active
-          ? 'bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-100'
-          : 'bg-red-100 text-red-800 dark:bg-red-800 dark:text-red-100'
+          ? 'bg-[var(--success)]/10 text-[var(--foreground)]'
+          : 'bg-[var(--danger)]/10 text-[var(--foreground)]'
       }`}
     >
       {active ? 'Active' : 'Banned'}
@@ -456,7 +456,7 @@ function UserDetailPanel({ user }: { user: User | null }) {
 
   if (!user) {
     return (
-      <aside className="rounded-lg bg-white p-5 text-sm text-gray-500 shadow dark:bg-gray-800">
+      <aside className="border border-[var(--border)] rounded-lg bg-[var(--surface)] p-5 text-sm text-[var(--text-muted)]">
         Select a user to view profile and activity.
       </aside>
     );
@@ -467,15 +467,15 @@ function UserDetailPanel({ user }: { user: User | null }) {
   const timeline = data?.activityTimeline || [];
 
   return (
-    <aside className="min-w-0 rounded-lg bg-white p-5 shadow dark:bg-gray-800 xl:sticky xl:top-4 xl:self-start">
+    <aside className="border border-[var(--border)] min-w-0 rounded-lg bg-[var(--surface)] p-5 xl:sticky xl:top-4 xl:self-start">
       <div className="mb-4 flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <h3 className="truncate text-lg font-semibold text-gray-900 dark:text-white">
+          <h3 className="truncate text-lg font-semibold text-[var(--foreground)]">
             {profile.username}
           </h3>
           <div className="mt-1 flex flex-wrap items-center gap-2">
             <StatusBadge active={profile.is_active} />
-            <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2 py-0.5 text-xs capitalize text-gray-700 dark:bg-gray-700 dark:text-gray-200">
+            <span className="inline-flex items-center gap-1 rounded-full bg-[var(--surface-muted)] px-2 py-0.5 text-xs capitalize text-[var(--secondary)]">
               <Shield className="h-3 w-3" />
               {displayRole(profile)}
             </span>
@@ -484,7 +484,7 @@ function UserDetailPanel({ user }: { user: User | null }) {
       </div>
 
       {isLoading ? (
-        <div className="py-8 text-center text-sm text-gray-500">Loading profile...</div>
+        <div className="py-8 text-center text-sm text-[var(--text-muted)]">Loading profile...</div>
       ) : (
         <div className="space-y-5">
           <dl className="grid grid-cols-3 gap-2 text-center">
@@ -500,7 +500,7 @@ function UserDetailPanel({ user }: { user: User | null }) {
           </div>
 
           <div>
-            <h4 className="mb-2 text-sm font-semibold text-gray-900 dark:text-white">
+            <h4 className="mb-2 text-sm font-semibold text-[var(--foreground)]">
               Activity
             </h4>
             {timeline.length ? (
@@ -508,18 +508,18 @@ function UserDetailPanel({ user }: { user: User | null }) {
                 {timeline.map((item) => (
                   <div
                     key={`${item.type}-${item.id}`}
-                    className="rounded-md border border-gray-200 p-3 dark:border-gray-700"
+                    className="rounded-md border border-[var(--border)] p-3"
                   >
                     <div className="flex items-center justify-between gap-2">
-                      <div className="text-sm font-medium text-gray-900 dark:text-white">
+                      <div className="text-sm font-medium text-[var(--foreground)]">
                         {item.label}
                       </div>
-                      <div className="whitespace-nowrap text-xs text-gray-500">
+                      <div className="whitespace-nowrap text-xs text-[var(--text-muted)]">
                         {new Date(item.createdAt).toLocaleDateString()}
                       </div>
                     </div>
                     {item.summary && (
-                      <div className="mt-1 line-clamp-2 text-sm text-gray-600 dark:text-gray-300">
+                      <div className="mt-1 line-clamp-2 text-sm text-[var(--secondary)]">
                         {item.summary}
                       </div>
                     )}
@@ -527,7 +527,7 @@ function UserDetailPanel({ user }: { user: User | null }) {
                 ))}
               </div>
             ) : (
-              <div className="rounded-md border border-dashed border-gray-300 p-4 text-sm text-gray-500 dark:border-gray-700">
+              <div className="rounded-md border border-dashed border-[var(--accent-border)] p-4 text-sm text-[var(--text-muted)]">
                 No recent activity.
               </div>
             )}
@@ -540,18 +540,18 @@ function UserDetailPanel({ user }: { user: User | null }) {
 
 function Metric({ label, value }: { label: string; value: number }) {
   return (
-    <div className="rounded-md bg-gray-50 p-3 dark:bg-gray-700/60">
-      <div className="text-lg font-semibold text-gray-900 dark:text-white">{value}</div>
-      <div className="text-xs text-gray-500 dark:text-gray-300">{label}</div>
+    <div className="rounded-md bg-[var(--surface-muted)] p-3">
+      <div className="text-lg font-semibold text-[var(--foreground)]">{value}</div>
+      <div className="text-xs text-[var(--text-muted)]">{label}</div>
     </div>
   );
 }
 
 function InfoRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex justify-between gap-3 border-b border-gray-100 py-2 dark:border-gray-700">
-      <span className="text-gray-500 dark:text-gray-400">{label}</span>
-      <span className="max-w-[60%] truncate text-right text-gray-900 dark:text-white">{value}</span>
+    <div className="flex justify-between gap-3 border-b border-[var(--border)] py-2">
+      <span className="text-[var(--text-muted)]">{label}</span>
+      <span className="max-w-[60%] truncate text-right text-[var(--foreground)]">{value}</span>
     </div>
   );
 }

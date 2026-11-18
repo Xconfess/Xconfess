@@ -110,4 +110,60 @@ describe('validateFileAttachment', () => {
     });
     expect(result.errors.some((e) => e.includes('Metadata field'))).toBe(true);
   });
+
+  it('generates a server-controlled storage path that cannot be influenced by client filename', () => {
+    const maliciousAttachment = {
+      ...validBase,
+      originalName: '../../../../etc/passwd',
+      mimeType: 'image/png',
+    };
+    const result = validateFileAttachment(maliciousAttachment);
+
+    expect(result.valid).toBe(true);
+    expect(result.sanitized.storagePath).toBeDefined();
+    expect(result.sanitized.storagePath).not.toContain('..');
+    expect(result.sanitized.storagePath).not.toContain('passwd');
+    expect(result.sanitized.storagePath).toMatch(/^attachments\/[a-f0-9-]+\.png$/);
+  });
+
+  it('rejects uploads when attachment support is disabled', () => {
+    const result = validateFileAttachment(validBase, undefined, { attachmentsEnabled: false });
+    expect(result.valid).toBe(false);
+    expect(result.errors).toContain('Attachment uploads are currently disabled');
+  });
+
+  it('enforces custom maxSizeBytes limit when provided', () => {
+    const customLimit = 500 * 1024; // 500 KB
+    const result = validateFileAttachment(
+      { ...validBase, sizeBytes: 600 * 1024 },
+      undefined,
+      { maxSizeBytes: customLimit },
+    );
+    expect(result.valid).toBe(false);
+    expect(result.errors.some((e) => e.includes('exceeds the maximum'))).toBe(true);
+  });
+
+  it('throws BadRequestException with stable error code and structure when invalid', () => {
+    try {
+      validateFileAttachmentOrThrow({
+        originalName: '',
+        mimeType: 'application/x-executable',
+        sizeBytes: 0,
+      });
+      fail('Expected validateFileAttachmentOrThrow to throw');
+    } catch (err: any) {
+      expect(err.getStatus()).toBe(400);
+      const response = err.getResponse();
+      expect(response).toEqual(
+        expect.objectContaining({
+          statusCode: 400,
+          error: 'Bad Request',
+          code: 'ATTACHMENT_VALIDATION_FAILED',
+          message: 'File attachment validation failed',
+          errors: expect.any(Array),
+        }),
+      );
+    }
+  });
 });
+
