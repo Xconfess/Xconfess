@@ -76,7 +76,11 @@
     "secret-scan": "node scripts/run-secret-scanning-preflight.js",
     "secret-scan:self-test": "node scripts/run-secret-scanning-preflight.js --self-test",
     "audit:ci": "npx audit-ci --config audit-ci.json",
-    "audit:report": "npm audit --json > audit-report.json 2>&1 || true"
+    "audit:report": "npm audit --json > audit-report.json 2>&1 || true",
+    "packages:distribution": "node scripts/check-package-distribution.js",
+    "packages:distribution:self-test": "node scripts/check-package-distribution.js --self-test",
+    "contracts:manifest-check": "node scripts/check-contract-manifest-drift.js",
+    "contracts:error-registry-check": "node scripts/check-error-registry-compatibility.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",

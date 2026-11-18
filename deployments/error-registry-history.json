@@ -1,0 +1,24 @@
+{
+  "registry_version": 1,
+  "description": "Historical client-visible contract error meanings. Never reuse or renumber an entry; add a new code only and bump the registry version for a breaking change.",
+  "entries": [
+    {"code":6001,"name":"INVALID_TIP_AMOUNT","classification":"Terminal","http_status":400},
+    {"code":6002,"name":"METADATA_TOO_LONG","classification":"Terminal","http_status":400},
+    {"code":6003,"name":"TOTAL_OVERFLOW","classification":"Retryable","http_status":503},
+    {"code":6004,"name":"NONCE_OVERFLOW","classification":"Retryable","http_status":503},
+    {"code":6005,"name":"UNAUTHORIZED","classification":"Terminal","http_status":403},
+    {"code":6006,"name":"CONTRACT_PAUSED","classification":"Retryable","http_status":503},
+    {"code":6007,"name":"RATE_LIMITED","classification":"Retryable","http_status":503},
+    {"code":6008,"name":"INVALID_RATE_LIMIT_CONFIG","classification":"Terminal","http_status":400},
+    {"code":6009,"name":"TOKEN_NOT_CONFIGURED","classification":"Terminal","http_status":500},
+    {"code":6010,"name":"SETTLEMENT_REPLAY","classification":"Terminal","http_status":409},
+    {"code":6011,"name":"SETTLEMENT_NOT_FOUND","classification":"Terminal","http_status":404},
+    {"code":6012,"name":"RECIPIENT_MISMATCH","classification":"Terminal","http_status":400},
+    {"code":7001,"name":"BADGE_ALREADY_OWNED","classification":"Terminal","http_status":409},
+    {"code":7002,"name":"BADGE_NOT_FOUND","classification":"Terminal","http_status":404},
+    {"code":7003,"name":"BADGE_TYPE_ALREADY_OWNED","classification":"Terminal","http_status":409},
+    {"code":7004,"name":"NOT_AUTHORIZED","classification":"Terminal","http_status":403},
+    {"code":7005,"name":"NOT_INITIALIZED","classification":"Retryable","http_status":503},
+    {"code":7006,"name":"BADGE_TYPE_METADATA_NOT_FOUND","classification":"Terminal","http_status":404}
+  ]
+}
