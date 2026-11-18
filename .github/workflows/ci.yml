@@ -105,6 +105,16 @@ jobs:
           cache-dependency-path: package-lock.json
       - run: npm install --global npm@10.9.3
       - run: npm ci --include=optional --no-audit --no-fund
+      - name: Verify cross-layer contract fixtures
+        run: npm run contracts:fixtures:verify
+      - name: Generate release SBOMs
+        run: npm run sbom:generate
+      - name: Upload release SBOMs
+        uses: actions/upload-artifact@v4
+        with:
+          name: xconfess-release-sboms-${{ github.run_id }}
+          path: artifacts/sbom
+          retention-days: 30
       - run: npm run ci:apps
 
   contracts:
