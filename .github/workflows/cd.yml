@@ -253,6 +253,26 @@ jobs:
             fi
           REMOTE
 
+      - name: Setup Node for deployment checks
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Run post-deployment contract and journey checks
+        env:
+          SMOKE_FRONTEND_URL: ${{ secrets.NEXT_PUBLIC_APP_URL }}
+          SMOKE_BACKEND_URL: ${{ secrets.BACKEND_API_URL }}
+          SMOKE_RUN_MUTATION: false
+        run: |
+          npm ci --include=optional --no-audit --no-fund
+          npm run contracts:manifest-check
+          npm run contracts:error-registry-check
+          if [[ "${{ needs.prepare.outputs.environment }}" == "staging" ]]; then
+            npm run deploy:smoke
+          fi
+
       - name: Record deployment summary
         if: always()
         run: |

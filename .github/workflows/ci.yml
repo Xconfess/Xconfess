@@ -48,6 +48,10 @@ jobs:
       - run: npm install --global npm@10.9.3
       - run: npm ci --include=optional --no-audit --no-fund
       - run: npm run audit:ci
+      - name: Validate package distribution policy fixtures
+        run: npm run packages:distribution:self-test
+      - name: Audit npm workspaces and Rust dependencies
+        run: npm run packages:distribution
 
   secret-scan:
     name: Security / Secret Scan
