@@ -16,6 +16,7 @@ import { CryptoUtil } from '../common/crypto.util';
 import { ConfigService } from '@nestjs/config';
 import { LockoutService } from './lockout.service';
 import { StepUpService } from './step-up.service';
+import { RecoveryCodeService } from './recovery-code.service';
 import * as crypto from 'crypto';
 
 const hashToken = (token: string) =>
@@ -96,6 +97,7 @@ describe('Auth Integration Tests - Forgot Password Flow', () => {
             verifyStepUpToken: jest.fn(),
           },
         },
+        { provide: RecoveryCodeService, useValue: {} },
         {
           provide: getRepositoryToken(User),
           useValue: {

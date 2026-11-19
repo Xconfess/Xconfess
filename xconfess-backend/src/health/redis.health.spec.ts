@@ -68,11 +68,17 @@ describe('RedisHealthIndicator', () => {
     expect(result).toEqual({
       redis: {
         status: 'up',
-        host: 'localhost',
-        port: 6379,
+        state: 'up',
+        dependency: 'redis',
+        critical: false,
         latencyMs: expect.any(Number),
-        version: '7.2.0',
-        connectedClients: 5,
+        timeoutMs: 3000,
+        checkedAt: expect.any(String),
+        message: 'Redis is reachable',
+        details: {
+          version: '7.2.0',
+          connectedClients: 5,
+        },
       },
     });
     expect(mockConnect).toHaveBeenCalled();
@@ -154,12 +160,16 @@ describe('RedisHealthIndicator', () => {
     const ind = module.get<RedisHealthIndicator>(RedisHealthIndicator);
     const result = await ind.isHealthy('redis');
 
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       redis: {
         status: 'up',
-        mode: 'disabled',
-        reason: expect.stringContaining('intentionally disabled'),
-        severity: 'info',
+        state: 'disabled',
+        dependency: 'redis',
+        latencyMs: null,
+        details: {
+          reason: expect.stringContaining('intentionally disabled'),
+          severity: 'info',
+        },
       },
     });
     expect(mockConnect).not.toHaveBeenCalled();

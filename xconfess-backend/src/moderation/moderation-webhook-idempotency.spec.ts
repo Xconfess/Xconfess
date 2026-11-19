@@ -19,12 +19,15 @@ import { AuditLogService } from '../audit-log/audit-log.service';
 import { AuditActionType } from '../audit-log/audit-log.entity';
 import { UnauthorizedException, BadRequestException } from '@nestjs/common';
 import * as crypto from 'crypto';
+import { ModerationWebhookEventStore } from './moderation-webhook-event.store';
+import { FakeModerationWebhookEventStore } from '../../test/utils/moderation-webhook-event-store.fake';
 
 describe('ModerationWebhookController - Idempotency and Signature Safety', () => {
   let controller: ModerationWebhookController;
   let confessionRepo: Repository<AnonymousConfession>;
   let moderationRepoService: ModerationRepositoryService;
   let auditLogService: { log: jest.Mock };
+  let eventStore: FakeModerationWebhookEventStore;
 
   const mockWebhookSecret = 'test-webhook-secret';
 
@@ -75,6 +78,7 @@ describe('ModerationWebhookController - Idempotency and Signature Safety', () =>
 
   beforeEach(async () => {
     auditLogService = { log: jest.fn().mockResolvedValue(undefined) };
+    eventStore = new FakeModerationWebhookEventStore();
 
     const module: TestingModule = await Test.createTestingModule({
       controllers: [ModerationWebhookController],
@@ -108,6 +112,10 @@ describe('ModerationWebhookController - Idempotency and Signature Safety', () =>
         {
           provide: AuditLogService,
           useValue: auditLogService,
+        },
+        {
+          provide: ModerationWebhookEventStore,
+          useValue: eventStore,
         },
       ],
     }).compile();
@@ -284,7 +292,7 @@ describe('ModerationWebhookController - Idempotency and Signature Safety', () =>
               save: jest.fn().mockResolvedValue(mockConfession),
             }),
           };
-          return cb(manager);
+          return eventStore.runInTransaction(manager, cb);
         });
 
       jest.spyOn(moderationRepoService, 'syncWebhookResult').mockResolvedValue({
@@ -370,7 +378,7 @@ describe('ModerationWebhookController - Idempotency and Signature Safety', () =>
               save: jest.fn().mockResolvedValue(mockConfession),
             }),
           };
-          return cb(manager);
+          return eventStore.runInTransaction(manager, cb);
         });
 
       jest.spyOn(moderationRepoService, 'syncWebhookResult').mockResolvedValue({
@@ -420,7 +428,7 @@ describe('ModerationWebhookController - Idempotency and Signature Safety', () =>
               save: jest.fn().mockResolvedValue(mockConfession),
             }),
           };
-          return cb(manager);
+          return eventStore.runInTransaction(manager, cb);
         });
 
       jest.spyOn(moderationRepoService, 'syncWebhookResult').mockResolvedValue({
@@ -462,7 +470,7 @@ describe('ModerationWebhookController - Idempotency and Signature Safety', () =>
               save: jest.fn().mockResolvedValue(mockConfession),
             }),
           };
-          return cb(manager);
+          return eventStore.runInTransaction(manager, cb);
         });
 
       // First call - not idempotent
@@ -492,7 +500,7 @@ describe('ModerationWebhookController - Idempotency and Signature Safety', () =>
               save: jest.fn().mockResolvedValue(mockConfession),
             }),
           };
-          return cb(manager);
+          return eventStore.runInTransaction(manager, cb);
         });
 
       jest
@@ -558,7 +566,7 @@ describe('ModerationWebhookController - Idempotency and Signature Safety', () =>
               findOne: jest.fn().mockResolvedValue(null),
             }),
           };
-          return cb(manager);
+          return eventStore.runInTransaction(manager, cb);
         });
 
       const result = await controller.handleModerationResults(

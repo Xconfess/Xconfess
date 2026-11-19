@@ -1,6 +1,11 @@
 import { Injectable, OnModuleInit, Logger } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
+import {
+  formatMigrationDriftReport,
+  inspectMigrationDrift,
+  MigrationDriftResult,
+} from './migration-drift';
 
 /** Columns required on `anonymous_confessions` for search and analytics paths. */
 export const REQUIRED_CONFESSION_COLUMNS = [
@@ -106,6 +111,18 @@ export class MigrationVerificationService implements OnModuleInit {
     }
     const result = await this.checkConfessionSchema();
     this.logStartupOutcome(result);
+    const drift = await this.checkMigrationDrift();
+    if (drift.status === 'in_sync') {
+      this.logger.log(
+        `migration_drift_ok applied=${drift.appliedCount} shipped=${drift.expectedCount}`,
+      );
+    } else if (drift.status === 'skipped') {
+      this.logger.log(`migration_drift_skipped ${drift.skippedReason ?? ''}`);
+    } else {
+      this.logger.warn(
+        `migration_drift_detected\n${formatMigrationDriftReport(drift)}`,
+      );
+    }
     const foreignKeys = await this.checkForeignKeyIntegrity();
     if (foreignKeys.queryError) {
       this.logger.error(
@@ -167,6 +184,15 @@ export class MigrationVerificationService implements OnModuleInit {
         queryError: message,
       };
     }
+  }
+
+  /**
+   * Compare the migrations shipped with this build against the migrations
+   * table of the connected database. Used at startup and by the schema
+   * readiness indicator so pending migrations fail `/api/health/ready`.
+   */
+  async checkMigrationDrift(): Promise<MigrationDriftResult> {
+    return inspectMigrationDrift(this.dataSource);
   }
 
   /**

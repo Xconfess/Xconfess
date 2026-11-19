@@ -33,6 +33,20 @@ test('buildChecks keeps local readiness focused by default', () => {
   ]);
 });
 
+test('buildChecks runs migration drift detection before production deploys', () => {
+  const checks = buildChecks(parseOptions(['--production']));
+  const names = checks.map(([name]) => name);
+
+  assert.deepEqual(names.slice(0, 2), ['deploy preflight', 'migration drift']);
+  const drift = checks.find(([name]) => name === 'migration drift');
+  assert.deepEqual(drift.slice(1), ['npm', ['run', 'backend:migration:drift']]);
+  assert.equal(
+    buildChecks(parseOptions([])).some(([name]) => name === 'migration drift'),
+    false,
+    'local readiness must not require a database',
+  );
+});
+
 test('createScorecard returns a schema-versioned failure when any check fails', () => {
   const scorecard = createScorecard({
     mode: 'local',

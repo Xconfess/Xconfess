@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { StepUpService } from './step-up.service';
+import { RecoveryCodeService } from './recovery-code.service';
 import { AppException } from '../common/errors/app-exception';
 import { ErrorCode } from '../common/errors/error-codes';
 import { HttpStatus, HttpException } from '@nestjs/common';
@@ -24,6 +25,7 @@ describe('AuthController login', () => {
       providers: [
         { provide: AuthService, useValue: mockAuthService },
         { provide: StepUpService, useValue: {} },
+        { provide: RecoveryCodeService, useValue: {} },
       ],
     }).compile();
 
