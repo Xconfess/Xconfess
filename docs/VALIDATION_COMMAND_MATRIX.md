@@ -18,6 +18,10 @@ Copy-paste each command directly into your terminal from the repository root.
 | [Database Migration](#database-migration) | `npm run backend:lint` | `npm run backend:test` | `npm run backend:migration:run` | `npm run ci:backend` |
 | [Stellar / Soroban Contract](#stellar--soroban-contract) | `npm run contract:lint` | `npm run contract:test` | `npm run contract:build` | `npm run ci:contract` |
 | [Ops / Scripts](#ops--scripts) | _(none required)_ | _(manual smoke)_ | _(none required)_ | `npm run deploy:preflight` |
+| [Critical contract change](#critical-contract-change) | _(none required)_ | `npm run contract:review-delay:test` | _(none required)_ | `npm run contract:review-delay:test` |
+| [API contract change](#api-contract-change) | _(none required)_ | `npm run api:contract:test` | _(none required)_ | `npm run api:contract:check` |
+| [Fixtures / test data](#fixtures--test-data) | _(none required)_ | `npm run fixtures:test` | _(none required)_ | `npm run fixtures:validate` |
+| [Release artifacts / Docker](#release-artifacts--docker) | _(none required)_ | `npm run artifacts:test` | _(none required)_ | `npm run artifacts:scan` |
 
 ---
 
@@ -196,6 +200,75 @@ npm run deploy:smoke
 ```
 
 **Acceptance gate:** `npm run deploy:preflight` exits with code `0` and no secrets are flagged.
+
+---
+
+## Critical contract change
+
+Changes to deployment scripts, signer rotation, migrations, or governance actions that can
+affect a live contract. See
+[contract-review-delay-policy.md](contract-review-delay-policy.md).
+
+```bash
+npm run contract:review-delay:test
+npm run contract:review-delay -- list-actions
+npm run contract:review-delay -- schedule --action contract.deploy.mainnet \
+  --actor "$(git config user.name)" --reference <PR-or-ticket>
+npm run contract:review-delay -- status --action contract.deploy.mainnet
+```
+
+**Acceptance gate:** unit and integration tests pass; the target action has an elapsed window
+before any critical deploy. `--force` never bypasses the gate.
+
+---
+
+## API contract change
+
+New endpoints, DTO changes, or modified request/response shapes. See
+[api-contract-review-workflow.md](api-contract-review-workflow.md).
+
+```bash
+npm run api:contract:test
+# With the backend running:
+curl --fail --silent http://127.0.0.1:5000/api/docs-json > openapi.json
+npm run api:contract-drift -- --spec="$PWD/openapi.json"
+npm run api:contract:check -- --spec="$PWD/openapi.json"
+```
+
+**Acceptance gate:** no breaking changes, or an intentional baseline update committed in the
+same PR via `npm run api:contract:update -- --spec=openapi.json`.
+
+---
+
+## Fixtures / test data
+
+New or modified test data for backend, frontend, or contracts. See
+[fixture-authoring-guide.md](fixture-authoring-guide.md).
+
+```bash
+npm run fixtures:validate
+npm run fixtures:validate:self-test
+npm run fixtures:test
+```
+
+**Acceptance gate:** all identities use allowed synthetic prefixes/domains and no real
+credential or personal data appears in the diff.
+
+---
+
+## Release artifacts / Docker
+
+Changes to Dockerfiles, `compose.yaml`, `render.yaml`, build config, archives, or release
+scripts. See [release-artifact-secret-scanning.md](release-artifact-secret-scanning.md).
+
+```bash
+npm run artifacts:scan:self-test
+npm run artifacts:scan
+npm run artifacts:test
+```
+
+**Acceptance gate:** zero high-confidence findings. Any finding must be removed from its
+source, the artifact rebuilt, and a real credential rotated before merge.
 
 ---
 

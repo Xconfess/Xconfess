@@ -48,14 +48,27 @@ jobs:
       - run: npm install --global npm@10.9.3
       - run: npm ci --include=optional --no-audit --no-fund
       - run: npm run audit:ci
+      - name: Validate package distribution policy fixtures
+        run: npm run packages:distribution:self-test
+      - name: Audit npm workspaces and Rust dependencies
+        run: npm run packages:distribution
 
   secret-scan:
     name: Security / Secret Scan
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
       - run: ./scripts/secret-scanning-preflight.sh --self-test
       - run: ./scripts/secret-scanning-preflight.sh
+      - name: Validate synthetic fixture policy
+        run: npm run fixtures:validate
+      - name: Self-test release artifact scanner
+        run: npm run artifacts:scan:self-test
+      - name: Scan committed Docker context and release metadata
+        run: npm run artifacts:scan
 
   migration-smoke:
     name: Database / migration smoke (PostgreSQL 16)
@@ -190,9 +203,19 @@ jobs:
           done
           curl --fail --silent http://127.0.0.1:5000/api/docs-json > openapi.json
           npm run api:contract-drift -- --spec="$PWD/openapi.json"
+      - name: Generate normalized OpenAPI and compare against baseline
+        shell: bash
+        run: |
+          npm run api:contract:check -- \
+            --spec="$PWD/openapi.json" \
+            --output="$PWD/deployments/openapi.normalized.json" \
+            --report="$GITHUB_STEP_SUMMARY"
+          echo "Normalized spec: deployments/openapi.normalized.json" >> "$GITHUB_STEP_SUMMARY"
       - run: npx playwright install --with-deps chromium
       - run: npm run frontend:test:a11y
       - run: npm run ci:apps
+      - name: Scan built backend and frontend bundles for secrets
+        run: npm run artifacts:scan -- --path="$PWD"
 
   contracts:
     name: Contracts
@@ -231,3 +254,9 @@ jobs:
       - name: Test release manifest validation failures
         working-directory: .
         run: bash scripts/test-contract-release-metadata.sh
+      - name: Test critical-contract review delay gate
+        working-directory: ${{ github.workspace }}
+        run: npm run contract:review-delay:test
+      - name: Scan contract release artifacts for secrets
+        working-directory: ${{ github.workspace }}
+        run: npm run artifacts:scan -- --path="$PWD"
