@@ -12,6 +12,10 @@ import {
   IdempotencyStatus,
 } from './entities/confession-idempotency-record.entity';
 import { AnonymousConfession } from './entities/confession.entity';
+import {
+  computeScopedIdempotencyKey,
+  IdempotencyScope,
+} from './idempotency-scope';
 
 /** Max time to wait for a 'processing' lock to complete before timing out. */
 const PROCESSING_POLL_INTERVAL_MS = 100;
@@ -81,25 +85,44 @@ export class ConfessionIdempotencyService {
   }
 
   /**
+   * Derive the persisted idempotency key for a client key + scope.
+   *
+   * Exposed so callers can persist the same value on the created confession
+   * (whose unique `idempotency_key` column is a second line of defence).
+   */
+  computeScopedKey(clientKey: string, scope?: IdempotencyScope): string {
+    return computeScopedIdempotencyKey(clientKey, scope);
+  }
+
+  /**
    * Check (and acquire) idempotency for a confession creation request.
+   *
+   * The client-supplied key is scoped to `(operation, session)` before it is
+   * persisted, so identical keys from different sessions never collide and the
+   * same key may be reused across operations (Issue #2116). The stored
+   * `record.idempotencyKey` is the scoped SHA-256 digest.
    *
    * @param idempotencyKey  The client-supplied idempotency key.
    * @param payloadHash     SHA-256 of the canonicalised payload.
+   * @param scope           Operation + session the key belongs to.
    * @returns               IdempotencyCheckResult – see type for details.
    */
   async check(
     idempotencyKey: string,
     payloadHash: string,
+    scope?: IdempotencyScope,
   ): Promise<IdempotencyCheckResult> {
+    const scopedKey = this.computeScopedKey(idempotencyKey, scope);
+
     // Try to insert a 'processing' sentinel row.
-    const inserted = await this.tryInsert(idempotencyKey, payloadHash);
+    const inserted = await this.tryInsert(scopedKey, payloadHash);
 
     if (inserted) {
       return { isReplay: false, cachedResponse: null, cachedStatus: null, record: inserted };
     }
 
     // Row already exists – read the current state.
-    return this.handleExistingRecord(idempotencyKey, payloadHash);
+    return this.handleExistingRecord(scopedKey, payloadHash);
   }
 
   /**
@@ -203,12 +226,7 @@ export class ConfessionIdempotencyService {
 
     // ── Case: failed – allow retry with the same key ──────────────────────
     if (record.status === 'failed') {
-      // Reset to 'processing' so the current request can proceed.
-      await this.recordRepo.update(record.id, {
-        status: 'processing',
-        payloadHash,
-      });
-      return { isReplay: false, cachedResponse: null, cachedStatus: null, record };
+      return this.claimFailedRecord(record, payloadHash);
     }
 
     // ── Case: processing – wait for it to complete ────────────────────────
@@ -260,36 +278,32 @@ export class ConfessionIdempotencyService {
       }
 
       if (record.status === 'failed') {
-        // Concurrent request failed; allow this caller to retry.
-        await this.recordRepo.update(record.id, {
-          status: 'processing',
-          payloadHash,
-        });
-        return { isReplay: false, cachedResponse: null, cachedStatus: null, record };
+        const claimed = await this.claimFailedRecord(record, payloadHash);
+        if (!claimed.isReplay) return claimed;
       }
     }
 
-    // Timed out waiting – treat as a new attempt so the caller can proceed.
-    // The stale 'processing' row will be cleaned up by TTL / the failure
-    // commit path if the original request ever completes.
-    const staleRecord = await this.recordRepo.findOne({
-      where: { idempotencyKey },
-    });
+    throw new HttpException(
+      'The original request is still being processed. Retry with the same idempotency key.',
+      HttpStatus.SERVICE_UNAVAILABLE,
+    );
+  }
 
-    // If we couldn't find it, create a fresh one (rare path).
-    if (!staleRecord) {
-      const row = this.recordRepo.create({ idempotencyKey, payloadHash, status: 'processing' });
-      const saved = await this.recordRepo.save(row);
-      return { isReplay: false, cachedResponse: null, cachedStatus: null, record: saved };
+  /** Atomically let only one waiting request take over a failed attempt. */
+  private async claimFailedRecord(
+    record: ConfessionIdempotencyRecord,
+    payloadHash: string,
+  ): Promise<IdempotencyCheckResult> {
+    const claim = await this.recordRepo.update(
+      { id: record.id, status: 'failed' },
+      { status: 'processing', payloadHash },
+    );
+
+    if (claim.affected === 1) {
+      return { isReplay: false, cachedResponse: null, cachedStatus: null, record };
     }
 
-    // Reset the stale row so this request can take over.
-    await this.recordRepo.update(staleRecord.id, {
-      status: 'processing',
-      payloadHash,
-    });
-
-    return { isReplay: false, cachedResponse: null, cachedStatus: null, record: staleRecord };
+    return this.waitForProcessing(record.idempotencyKey, payloadHash);
   }
 }
 

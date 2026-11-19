@@ -31,6 +31,32 @@ forward cookies or authorization headers when present, and normalize failures th
 | `/api/health/ready` | `/api/health/ready` | Local readiness proxy; useful for frontend diagnostics. |
 | `/api/og` | Frontend-only Open Graph image route | Not a backend proxy. |
 
+## Compatibility policy (#2232)
+
+To keep the proxy layer and the backend from drifting apart:
+
+- **Non-breaking** (safe to ship without coordinating both sides): adding a new
+  optional request field, adding a new response field, adding a new route,
+  loosening a validation rule.
+- **Breaking** (requires updating the matching proxy route in the same PR, or a
+  deprecation period below): removing/renaming a response field a proxy reads,
+  changing a field's type or meaning, removing a route, narrowing validation
+  that a proxy already relies on passing through.
+- **Deprecation handling**: when a breaking change can't land atomically with
+  its proxy update, the backend route keeps serving the old shape, adds the new
+  shape under a new path or version, and the old shape is removed only after
+  every proxy route consuming it has migrated. Note the deprecation and its
+  removal target in this file's route family table.
+
+### Checklist for route changes
+
+- [ ] Does this change add, remove, or reshape a field a proxy route reads?
+- [ ] If breaking, is the matching proxy route (table above) updated in this PR?
+- [ ] If the proxy can't update yet, is the old response shape still served
+      and the deprecation noted in the table above?
+- [ ] Does `normalizeApiError`/`createApiErrorResponse` still cover the
+      route's error shape unchanged?
+
 ## Error normalization
 
 Client-side API modules should normalize failed `fetch` responses with
@@ -38,3 +64,26 @@ Client-side API modules should normalize failed `fetch` responses with
 proxy handlers should return JSON via `createApiErrorResponse` or the named
 helpers in `xconfess-frontend/app/lib/utils/proxyError.ts`; avoid new ad-hoc
 `new Response(JSON.stringify({ error }))` blocks.
+
+## Deployment smoke test
+
+The deployed smoke suite exercises the frontend readiness and public traction
+proxies, anonymous session handling, and the register route's method guard. It
+accepts the intentional readiness mapping (`200` when ready, `503` when a
+dependency is degraded) while requiring the public proxy to return JSON without
+sensitive fields.
+
+Run its deterministic local regression tests (no services or secrets required):
+
+```bash
+npm run deploy:smoke:test
+```
+
+To exercise a deployment, pass only public base URLs. The script does not print
+headers or credentials and skips mutations unless explicitly enabled:
+
+```bash
+SMOKE_FRONTEND_URL=https://frontend.example \
+SMOKE_BACKEND_URL=https://backend.example \
+npm run deploy:smoke
+```

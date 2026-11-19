@@ -22,9 +22,6 @@ const config = {
     "^server-only$": "<rootDir>/tests/mocks/server-only.js",
     "^rettime$": "<rootDir>/tests/mocks/__rettime-stub.js",
     "^@open-draft/deferred-promise$": "<rootDir>/tests/mocks/__deferred-promise-stub.js",
-    "^react$": "<rootDir>/../node_modules/react",
-    "^react-dom$": "<rootDir>/../node_modules/react-dom",
-    "^react-dom/(.*)$": "<rootDir>/../node_modules/react-dom/$1",
   },
   setupFilesAfterEnv: ["<rootDir>/jest.setup.ts"],
   transform: {

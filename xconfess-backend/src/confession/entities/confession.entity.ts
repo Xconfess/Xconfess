@@ -44,6 +44,7 @@ export class AnonymousConfession {
    * The confession entity defines owner relation as anonymousUser.
    * Always use confession.anonymousUser for ownership checks and relation loading.
    */
+  @Index()
   @Column({ name: 'anonymous_user_id' })
   anonymousUserId: string;
 
@@ -148,6 +149,9 @@ export class AnonymousConfession {
 
   @Column({ name: 'migration_status', type: 'varchar', length: 32, nullable: true })
   migrationStatus: string | null;
+
+  @Column({ name: 'search_score_tiebreaker', type: 'bigint', nullable: true })
+  searchScoreTiebreaker: number | null;
 
   @Column({ name: 'legacy_ciphertext', type: 'text', nullable: true })
   legacyCiphertext: string | null;

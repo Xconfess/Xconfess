@@ -17,7 +17,7 @@ export default function ForgotPasswordLoading() {
                     </div>
 
                     {/* Right Column Form Skeleton */}
-                    <div className="luxury-panel rounded-[34px] p-7 sm:p-8">
+                    <div className="luxury-panel rounded-xl p-7 sm:p-8">
                         <div className="space-y-3">
                             <Skeleton className="h-4 w-28 rounded-full" /> {/* eyebrow */}
                             <Skeleton className="h-9 w-48" />             {/* h2 reset request */}

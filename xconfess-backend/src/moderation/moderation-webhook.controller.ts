@@ -5,6 +5,7 @@ import {
   HttpCode,
   HttpStatus,
   Logger,
+  Optional,
   Post,
   UnauthorizedException,
   BadRequestException,
@@ -23,6 +24,8 @@ import {
 import { ModerationRepositoryService } from './moderation-repository.service';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { AuditActionType } from '../audit-log/audit-log.entity';
+import { CacheService } from '../cache/cache.service';
+import { ConfessionCacheKeys } from '../cache/cache-namespace';
 
 interface WebhookPayload {
   eventId: string;
@@ -32,6 +35,35 @@ interface WebhookPayload {
   moderationStatus: ModerationStatus;
   details: Record<string, number>;
   timestamp: string;
+}
+
+/** SHA-256 HMACs are rendered as 64 lowercase/uppercase hex characters. */
+const HMAC_SHA256_HEX_PATTERN = /^[0-9a-f]{64}$/i;
+
+/**
+ * Compares a supplied hex signature with the expected one in constant time.
+ *
+ * Both inputs are copied into equally sized buffers before
+ * `crypto.timingSafeEqual` runs, so an attacker cannot learn the expected
+ * signature length (or how many characters matched) from the comparison time.
+ * The length equality check is folded into the result *after* the constant-time
+ * comparison rather than returning early.
+ */
+function constantTimeSignatureEquals(
+  provided: string,
+  expected: string,
+): boolean {
+  const providedBuffer = Buffer.from(provided, 'utf8');
+  const expectedBuffer = Buffer.from(expected, 'utf8');
+  const maxLength = Math.max(providedBuffer.length, expectedBuffer.length, 1);
+
+  const providedPadded = Buffer.alloc(maxLength);
+  const expectedPadded = Buffer.alloc(maxLength);
+  providedBuffer.copy(providedPadded);
+  expectedBuffer.copy(expectedPadded);
+
+  const equal = crypto.timingSafeEqual(providedPadded, expectedPadded);
+  return equal && providedBuffer.length === expectedBuffer.length;
 }
 
 /**
@@ -81,6 +113,7 @@ export class ModerationWebhookController {
     private readonly confessionRepo: Repository<AnonymousConfession>,
     private readonly moderationRepoService: ModerationRepositoryService,
     private readonly auditLogService: AuditLogService,
+    @Optional() private readonly cacheService?: CacheService,
   ) {
     this.webhookSecret = this.configService.get<string>('WEBHOOK_SECRET', '');
     this.timestampToleranceSeconds = this.configService.get<number>(
@@ -305,6 +338,12 @@ export class ModerationWebhookController {
     // Mark event ID as processed
     this.processedEventIds.set(payload.eventId, Date.now());
 
+    // Status and visibility just changed, so any cached copy is now stale.
+    await this.cacheService?.del(
+      ConfessionCacheKeys.single(result.confessionId),
+    );
+    await this.cacheService?.delPattern(ConfessionCacheKeys.listPrefix);
+
     if (payload.moderationStatus === ModerationStatus.REJECTED) {
       this.eventEmitter.emit('moderation.high-severity', {
         confessionId: result.confessionId,
@@ -344,6 +383,11 @@ export class ModerationWebhookController {
    * Verifies a timestamped HMAC signature.
    * The signed message is "<timestamp>.<payload>" to bind the timestamp
    * cryptographically to the request body, preventing timestamp tampering.
+   *
+   * The comparison itself is constant-time: malformed (non-hex / wrong-length)
+   * signatures are rejected through a format flag rather than an early return,
+   * so the time taken is independent of how close the supplied value is to the
+   * expected signature.
    */
   private verifyTimestampedSignature(
     timestamp: string,
@@ -360,14 +404,12 @@ export class ModerationWebhookController {
       .update(signedMessage)
       .digest('hex');
 
-    if (signature.length !== expectedSignature.length) {
-      return false;
-    }
+    // The format check only inspects caller-supplied data; the expected value
+    // is never used to short-circuit verification.
+    const wellFormed = HMAC_SHA256_HEX_PATTERN.test(signature);
+    const matches = constantTimeSignatureEquals(signature, expectedSignature);
 
-    return crypto.timingSafeEqual(
-      Buffer.from(signature),
-      Buffer.from(expectedSignature),
-    );
+    return wellFormed && matches;
   }
 
   /**

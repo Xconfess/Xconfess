@@ -17,6 +17,23 @@ import { Filter } from "lucide-react";
 import { cn } from "@/app/lib/utils/cn";
 
 const DEBOUNCE_MS = 300;
+const MAX_QUERY_LENGTH = 200;
+const MAX_REACTIONS = 50;
+const VALID_GENDERS = new Set(["male", "female", "other"]);
+
+function isValidDate(value: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const [year, month, day] = value.split("-").map(Number);
+  const parsed = new Date(Date.UTC(year, month - 1, day));
+  return parsed.getUTCFullYear() === year &&
+    parsed.getUTCMonth() === month - 1 &&
+    parsed.getUTCDate() === day;
+}
+
+function parsePage(params: URLSearchParams): number {
+  const value = Number(params.get("page"));
+  return Number.isSafeInteger(value) && value > 0 ? value : 1;
+}
 
 function parseFiltersFromParams(params: URLSearchParams): SearchFilters {
   const sort = params.get("sort");
@@ -30,15 +47,15 @@ function parseFiltersFromParams(params: URLSearchParams): SearchFilters {
   if (sort && ["newest", "oldest", "reactions"].includes(sort)) {
     filters.sort = sort as SearchFilters["sort"];
   }
-  if (dateFrom) filters.dateFrom = dateFrom;
-  if (dateTo) filters.dateTo = dateTo;
+  if (dateFrom && isValidDate(dateFrom)) filters.dateFrom = dateFrom;
+  if (dateTo && isValidDate(dateTo)) filters.dateTo = dateTo;
   if (minReactions) {
     const parsed = Number(minReactions);
-    if (!Number.isNaN(parsed) && parsed >= 0) {
+    if (Number.isInteger(parsed) && parsed > 0 && parsed <= MAX_REACTIONS) {
       filters.minReactions = parsed;
     }
   }
-  if (gender) filters.gender = gender;
+  if (gender && VALID_GENDERS.has(gender)) filters.gender = gender;
 
   return filters;
 }
@@ -85,7 +102,7 @@ export default function SearchPage() {
 
   // Initialize from URL
   useEffect(() => {
-    const q = searchParams.get("q") || "";
+    const q = (searchParams.get("q") || "").slice(0, MAX_QUERY_LENGTH);
     const parsedFilters = parseFiltersFromParams(searchParams);
     setQuery(q);
     setFilters(parsedFilters);
@@ -93,7 +110,15 @@ export default function SearchPage() {
   }, [searchParams]);
 
   const debouncedQuery = useDebounce(query, DEBOUNCE_MS);
+  const initialPage = parsePage(searchParams);
   const runSearch = isInitialized && (debouncedQuery.trim().length > 0 || hasActiveFilters(filters));
+
+  const updateUrl = useCallback((newQuery: string, newFilters: SearchFilters, newPage = 1) => {
+    const params = filtersToSearchParams(newFilters, newQuery, newPage);
+    const queryString = params.toString();
+    const newUrl = queryString ? `${pathname}?${queryString}` : pathname;
+    router.push(newUrl, { scroll: false });
+  }, [pathname, router]);
 
   const {
     results,
@@ -111,6 +136,8 @@ export default function SearchPage() {
     filters,
     debouncedQuery,
     runSearch,
+    initialPage,
+    onPageChange: (nextPage) => updateUrl(query, filters, nextPage),
   });
 
   const hasSearched = runSearch;
@@ -120,14 +147,6 @@ export default function SearchPage() {
   const effectiveStatusMeta = error && results.length > 0
     ? { partial: false, degraded: true, message: error, warnings: [], searchType: "error" }
     : statusMeta;
-
-  // Update URL (core of the fix)
-  const updateUrl = useCallback((newQuery: string, newFilters: SearchFilters, newPage = 1) => {
-    const params = filtersToSearchParams(newFilters, newQuery, newPage);
-    const queryString = params.toString();
-    const newUrl = queryString ? `?${queryString}` : pathname;
-    router.push(newUrl, { scroll: false });
-  }, [pathname, router]);
 
   const handleSubmit = useCallback((q: string) => {
     const trimmed = q.trim();
@@ -194,7 +213,7 @@ export default function SearchPage() {
             type="button"
             variant="outline"
             onClick={() => setSidebarOpen((open) => !open)}
-            className="border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800"
+            className="border-[var(--border)] bg-[var(--surface)] text-[var(--foreground)] hover:bg-[var(--surface-muted)]"
           >
             <Filter className="h-4 w-4" />
             Filters
@@ -216,12 +235,12 @@ export default function SearchPage() {
             ) : (
               <>
                 {hasSearched && (
-                  <p className="text-sm text-zinc-400">
+                  <p className="text-sm text-[var(--text-muted)]">
                     {isLoading ? "Searching..." : `${total} result${total === 1 ? "" : "s"}`}
                   </p>
                 )}
                 {isEmpty && (
-                  <Card className="border-zinc-800 bg-zinc-900 p-6 text-sm text-zinc-400">
+                  <Card className="border-[var(--border)] bg-[var(--surface)] p-6 text-sm text-[var(--text-muted)]">
                     No confessions matched your search.
                   </Card>
                 )}

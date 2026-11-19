@@ -1,4 +1,4 @@
-﻿import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -27,7 +27,7 @@ export interface CleanupRunResult {
   omittedRequestIds: number;
 }
 
-const CLEANUP_ELIGIBLE_STATUSES = ['PENDING', 'PROCESSING', 'READY', 'FAILED'];
+const CLEANUP_ELIGIBLE_STATUSES = ['PENDING', 'PROCESSING', 'READY', 'FAILED', 'EXPIRED'];
 
 @Injectable()
 export class DataCleanupService {

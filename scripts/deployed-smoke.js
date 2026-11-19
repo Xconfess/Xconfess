@@ -133,6 +133,8 @@ async function main() {
   const healthStatus = await requestJson('backend health status', joinUrl(backendUrl, '/api/health/status'), {}, [200, 503]);
   assertObject('backend health status', healthStatus);
 
+  await requestJson('public confession feed', joinUrl(backendUrl, '/api/confessions?limit=5'));
+
   const traction = await requestJson('public traction API', joinUrl(backendUrl, '/api/public/traction'));
   assertObject('public traction API', traction);
   assertNoSensitiveKeys('public traction API', traction);
@@ -148,30 +150,54 @@ async function main() {
   }
 
   await request('frontend traction page', joinUrl(frontendUrl, '/traction'), {}, [200]);
+  const frontendHealth = await requestJson(
+    'frontend readiness proxy',
+    joinUrl(frontendUrl, '/api/health/ready'),
+    {},
+    [200, 503],
+  );
+  assertObject('frontend readiness proxy', frontendHealth);
+  const frontendTraction = await requestJson(
+    'frontend public traction proxy',
+    joinUrl(frontendUrl, '/api/public/traction'),
+  );
+  assertObject('frontend public traction proxy', frontendTraction);
+  assertNoSensitiveKeys('frontend public traction proxy', frontendTraction);
   await request('frontend session anonymous', joinUrl(frontendUrl, '/api/auth/session'), {}, [401]);
   await request('frontend register method guard', joinUrl(frontendUrl, '/api/users/register'), {}, [405]);
 
   if (runMutation) {
     const suffix = crypto.randomBytes(4).toString('hex');
+    const email = `smoke_${suffix}@example.com`;
+    const password = `SmokePass!${suffix}A1`;
     await request(
-      'frontend registration mutation',
-      joinUrl(frontendUrl, '/api/users/register'),
-      {
-        method: 'POST',
-        body: JSON.stringify({
-          username: `smoke_${suffix}`,
-          email: `smoke_${suffix}@example.com`,
-          password: `SmokePass!${suffix}A1`,
-        }),
-      },
+      'disposable backend registration',
+      joinUrl(backendUrl, '/api/users/register'),
+      { method: 'POST', body: JSON.stringify({ username: `smoke_${suffix}`, email, password }) },
       [200, 201, 409],
     );
+    await request(
+      'disposable backend login',
+      joinUrl(backendUrl, '/api/auth/login'),
+      { method: 'POST', body: JSON.stringify({ email, password }) },
+      [200, 201, 401],
+    );
   } else {
-    console.log('registration mutation skipped; set SMOKE_RUN_MUTATION=true to create a disposable account');
+    console.log('disposable registration/login skipped; set SMOKE_RUN_MUTATION=true to create disposable data');
   }
 }
 
-main().catch((error) => {
-  console.error(error.message || error);
-  process.exit(1);
-});
+if (require.main === module) {
+  main().catch((error) => {
+    console.error(error.message || error);
+    process.exit(1);
+  });
+}
+
+module.exports = {
+  assertNoSensitiveKeys,
+  assertObject,
+  joinUrl,
+  request,
+  requestJson,
+};

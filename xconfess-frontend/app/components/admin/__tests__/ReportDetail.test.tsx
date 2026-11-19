@@ -313,3 +313,160 @@ describe('ReportDetail — dialog cancel', () => {
     expect(adminApi.resolveReport).not.toHaveBeenCalled();
   });
 });
+
+describe('ReportDetail — destructive action confirmations', () => {
+  it('explains what happens before a confession is deleted', async () => {
+    const user = userEvent.setup();
+    renderDetail();
+
+    await user.click(screen.getByRole('button', { name: /delete confession/i }));
+
+    expect(screen.getByText('Delete confession?')).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        'Permanently delete the reported confession. This removes the content for every user.',
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        'The confession and its comments are permanently removed for everyone.',
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText('This cannot be undone — the content cannot be restored.'),
+    ).toBeInTheDocument();
+  });
+
+  it('deletes the confession only after the confirmation is accepted', async () => {
+    (adminApi.deleteConfession as jest.Mock).mockResolvedValue({});
+
+    const user = userEvent.setup();
+    const { onBack } = renderDetail();
+
+    await user.click(screen.getByRole('button', { name: /delete confession/i }));
+    expect(adminApi.deleteConfession).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole('button', { name: /^delete$/i }));
+
+    await waitFor(() =>
+      expect(adminApi.deleteConfession).toHaveBeenCalledWith(
+        'confession-1',
+        'Deleted via report resolution',
+      ),
+    );
+    expect(mockToast.success).toHaveBeenCalledWith(
+      'Confession deleted successfully',
+      undefined,
+    );
+    await waitFor(() => expect(onBack).toHaveBeenCalledTimes(1));
+  });
+
+  it('does not delete the confession when the confirmation is dismissed', async () => {
+    const user = userEvent.setup();
+    renderDetail();
+
+    await user.click(screen.getByRole('button', { name: /delete confession/i }));
+    await user.click(screen.getByRole('button', { name: /cancel/i }));
+
+    expect(adminApi.deleteConfession).not.toHaveBeenCalled();
+    expect(screen.queryByText('Delete confession?')).not.toBeInTheDocument();
+  });
+
+  it('explains what happens before a confession is hidden', async () => {
+    const user = userEvent.setup();
+    renderDetail();
+
+    await user.click(screen.getByRole('button', { name: /hide confession/i }));
+
+    expect(screen.getByText('Hide confession?')).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        'Hide the reported confession from the public feed. Moderators keep access to it.',
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        'The confession disappears from the feed and from search results.',
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText('It is kept for moderators and can be restored later.'),
+    ).toBeInTheDocument();
+  });
+
+  it('hides the confession only after the confirmation is accepted', async () => {
+    (adminApi.hideConfession as jest.Mock).mockResolvedValue({});
+
+    const user = userEvent.setup();
+    const { onBack } = renderDetail();
+
+    await user.click(screen.getByRole('button', { name: /hide confession/i }));
+    expect(adminApi.hideConfession).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole('button', { name: /^hide$/i }));
+
+    await waitFor(() =>
+      expect(adminApi.hideConfession).toHaveBeenCalledWith(
+        'confession-1',
+        'Hidden via report resolution',
+      ),
+    );
+    expect(mockToast.success).toHaveBeenCalledWith(
+      'Confession hidden successfully',
+      undefined,
+    );
+    await waitFor(() => expect(onBack).toHaveBeenCalledTimes(1));
+  });
+
+  it('does not hide the confession when the confirmation is dismissed', async () => {
+    const user = userEvent.setup();
+    renderDetail();
+
+    await user.click(screen.getByRole('button', { name: /hide confession/i }));
+    await user.click(screen.getByRole('button', { name: /cancel/i }));
+
+    expect(adminApi.hideConfession).not.toHaveBeenCalled();
+    expect(screen.queryByText('Hide confession?')).not.toBeInTheDocument();
+  });
+
+  it('lists the consequences of resolving a report', async () => {
+    const user = userEvent.setup();
+    renderDetail();
+
+    await user.click(screen.getByRole('button', { name: /resolve report/i }));
+
+    expect(
+      screen.getByText('The report is closed and leaves the pending queue.'),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText('Your moderation notes are saved to the audit log.'),
+    ).toBeInTheDocument();
+  });
+
+  it('lists the consequences of dismissing a report', async () => {
+    const user = userEvent.setup();
+    renderDetail();
+
+    await user.click(screen.getByRole('button', { name: /dismiss report/i }));
+
+    expect(
+      screen.getByText('The report is closed and leaves the pending queue.'),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText('The reported confession stays visible and unchanged.'),
+    ).toBeInTheDocument();
+  });
+
+  it('cancels a destructive confirmation with the keyboard without running the action', async () => {
+    const user = userEvent.setup();
+    renderDetail();
+
+    await user.click(screen.getByRole('button', { name: /delete confession/i }));
+    await user.keyboard('{Escape}');
+
+    await waitFor(() =>
+      expect(screen.queryByText('Delete confession?')).not.toBeInTheDocument(),
+    );
+    expect(adminApi.deleteConfession).not.toHaveBeenCalled();
+  });
+});

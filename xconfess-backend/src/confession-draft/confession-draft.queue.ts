@@ -3,6 +3,7 @@ import { InjectQueue } from '@nestjs/bullmq';
 import { Queue, Worker, Job } from 'bullmq';
 import { ConfigService } from '@nestjs/config';
 import { ConfessionDraftService } from './confession-draft.service';
+import { GracefulShutdownService } from '../common/graceful-shutdown.service';
 
 @Injectable()
 export class ConfessionDraftQueue implements OnModuleDestroy {
@@ -12,9 +13,12 @@ export class ConfessionDraftQueue implements OnModuleDestroy {
   constructor(
     private readonly configService: ConfigService,
     private readonly draftService: ConfessionDraftService,
+    private readonly gracefulShutdown: GracefulShutdownService,
     @InjectQueue('confession-draft-publisher')
     private readonly queue: Queue,
   ) {
+    this.gracefulShutdown.registerQueue('confession-draft-publisher', queue);
+
     if (this.configService.get<string>('ENABLE_BACKGROUND_JOBS') !== 'true') {
       this.logger.log(
         'Confession draft publisher is disabled; set ENABLE_BACKGROUND_JOBS=true to enable it.',

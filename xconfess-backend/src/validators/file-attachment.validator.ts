@@ -1,4 +1,5 @@
 import { BadRequestException } from '@nestjs/common';
+import * as crypto from 'crypto';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -11,8 +12,17 @@ export interface FileAttachment {
   mimeType: string;
   /** File size in bytes. */
   sizeBytes: number;
+  /** Server-generated safe storage path. Client filename cannot control this. */
+  storagePath?: string;
   /** Optional metadata for image dimensions, duration, etc. */
   metadata?: Record<string, unknown>;
+}
+
+export interface ValidationOptions {
+  attachmentsEnabled?: boolean;
+  maxSizeBytes?: number;
+  prefix?: string;
+  userId?: string;
 }
 
 export interface ValidationResult {
@@ -25,7 +35,7 @@ export interface ValidationResult {
 // Configuration
 // ---------------------------------------------------------------------------
 
-const ALLOWED_MIME_TYPES = new Set([
+export const ALLOWED_MIME_TYPES: ReadonlySet<string> = new Set([
   'image/jpeg',
   'image/png',
   'image/webp',
@@ -33,6 +43,15 @@ const ALLOWED_MIME_TYPES = new Set([
   'application/pdf',
   'text/plain',
 ]);
+
+export const MIME_EXTENSION_MAP: Readonly<Record<string, string>> = {
+  'image/jpeg': '.jpg',
+  'image/png': '.png',
+  'image/webp': '.webp',
+  'image/gif': '.gif',
+  'application/pdf': '.pdf',
+  'text/plain': '.txt',
+};
 
 export const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024; // 10 MB
 
@@ -49,6 +68,21 @@ const INVALID_FILENAME_CHARS = new Set(['<', '>', ':', '"', '/', '\\', '|', '?',
 
 function hasInvalidFilenameChar(char: string): boolean {
   return INVALID_FILENAME_CHARS.has(char) || char.charCodeAt(0) < 32;
+}
+
+/**
+ * Generate a server-controlled safe storage path.
+ * Client-provided filenames are completely discarded for storage paths.
+ */
+export function generateStoragePath(
+  attachment: FileAttachment,
+  options?: { prefix?: string; userId?: string },
+): string {
+  const prefix = options?.prefix?.replace(/^\/+|\/+$/g, '') || 'attachments';
+  const userSegment = options?.userId ? `${sanitizeFileName(options.userId)}/` : '';
+  const ext = MIME_EXTENSION_MAP[attachment.mimeType.toLowerCase()] || '';
+  const safeId = crypto.randomUUID();
+  return `${prefix}/${userSegment}${safeId}${ext}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -116,12 +150,20 @@ export function sanitizeFileName(filename: string): string {
 export function validateFileAttachment(
   attachment: FileAttachment,
   fileBuffer?: Buffer,
+  options?: ValidationOptions,
 ): ValidationResult {
   const errors: string[] = [];
+
+  // Check if attachment support is enabled
+  if (options?.attachmentsEnabled === false) {
+    errors.push('Attachment uploads are currently disabled');
+  }
+
   const sanitized: FileAttachment = {
     originalName: sanitizeFileName(attachment.originalName),
     mimeType: attachment.mimeType,
     sizeBytes: attachment.sizeBytes,
+    storagePath: generateStoragePath(attachment, options),
     metadata: attachment.metadata,
   };
 
@@ -131,7 +173,7 @@ export function validateFileAttachment(
   }
 
   // 2. Validate MIME type
-  const lowerMime = sanitized.mimeType.toLowerCase();
+  const lowerMime = (sanitized.mimeType || '').toLowerCase();
   if (!ALLOWED_MIME_TYPES.has(lowerMime)) {
     errors.push(`File type "${sanitized.mimeType}" is not allowed`);
   }
@@ -142,11 +184,12 @@ export function validateFileAttachment(
   }
 
   // 4. Validate file size
+  const maxLimit = options?.maxSizeBytes ?? MAX_FILE_SIZE_BYTES;
   if (sanitized.sizeBytes <= 0) {
     errors.push('File size must be greater than zero');
   }
-  if (sanitized.sizeBytes > MAX_FILE_SIZE_BYTES) {
-    errors.push(`File size exceeds the maximum allowed (${MAX_FILE_SIZE_BYTES / 1024 / 1024} MB)`);
+  if (sanitized.sizeBytes > maxLimit) {
+    errors.push(`File size exceeds the maximum allowed (${maxLimit / 1024 / 1024} MB)`);
   }
 
   // 5. Optional magic-byte content verification
@@ -168,14 +211,19 @@ export function validateFileAttachment(
 
 /**
  * Validates and throws on first error — for use in NestJS pipes/controllers.
+ * Returns a stable validation error structure.
  */
 export function validateFileAttachmentOrThrow(
   attachment: FileAttachment,
   fileBuffer?: Buffer,
+  options?: ValidationOptions,
 ): FileAttachment {
-  const result = validateFileAttachment(attachment, fileBuffer);
+  const result = validateFileAttachment(attachment, fileBuffer, options);
   if (!result.valid) {
     throw new BadRequestException({
+      statusCode: 400,
+      error: 'Bad Request',
+      code: 'ATTACHMENT_VALIDATION_FAILED',
       message: 'File attachment validation failed',
       errors: result.errors,
     });

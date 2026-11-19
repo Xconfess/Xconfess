@@ -21,7 +21,7 @@ export function FloatingComparisonBar() {
   };
 
   return (
-    <Card className="fixed bottom-4 right-4 z-50 p-4 shadow-lg">
+    <Card className="fixed bottom-4 right-4 z-50 p-4 shadow-[var(--shadow-popover)]">
       <div className="flex items-center gap-4">
         <div className="flex items-center gap-2">
           <BarChart3 className="h-4 w-4" />

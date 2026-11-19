@@ -1,0 +1,113 @@
+name: Soroban contract defect
+description: Report a defect in a Soroban smart contract (anchoring, tipping, reputation, etc.)
+title: "[Contract] "
+labels: ["Stellar Wave", "contracts", "bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **For contract defects, please provide as much detail as possible without exposing private keys, real user data, or production credentials.**
+
+  - type: input
+    id: contract
+    attributes:
+      label: Contract name / ID
+      description: The contract name (e.g., "confession-anchoring", "tipping") or the deployed contract ID (C... address)
+      placeholder: e.g., confession-anchoring or CABC123...
+    validations:
+      required: true
+
+  - type: input
+    id: function
+    attributes:
+      label: Contract function / entrypoint
+      description: The specific function that is failing or behaving unexpectedly
+      placeholder: e.g., anchor_confession, send_tip, claim_badge
+    validations:
+      required: true
+
+  - type: dropdown
+    id: network
+    attributes:
+      label: Network / environment
+      description: Where did you encounter the issue?
+      options:
+        - Local devnet (soroban-testnet / local sandbox)
+        - Testnet (https://soroban-rpc-testnet.stellar.org)
+        - Mainnet (https://soroban-rpc.mainnet.stellar.org)
+        - CI / GitHub Actions
+        - Other (specify in description)
+    validations:
+      required: true
+
+  - type: textarea
+    id: tx-details
+    attributes:
+      label: Transaction / simulation details
+      description: |
+        Provide transaction hash, simulation result, or error output where safe to share.
+        **Do not include private keys, signatures, or real user identifiers.**
+        If you have a failed transaction, include the tx hash so maintainers can inspect it on Stellar Expert / Steexp.
+      placeholder: |
+        Tx hash: abc123...
+        Error: "Transaction failed: insufficient balance"
+        Simulation result: { "auth": [...], "result": {...} }
+      render: markdown
+    validations:
+      required: false
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      description: Minimal steps to reproduce the issue (CLI commands, API calls, or UI flow)
+      placeholder: |
+        1. Start local sandbox: `soroban contract deploy ...`
+        2. Invoke function: `soroban contract invoke --id ... --fn anchor_confession ...`
+        3. Observe error: ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What should happen?
+      placeholder: The transaction should succeed and return a valid tx hash.
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: What actually happens? (error message, panic, wrong state, etc.)
+      placeholder: Transaction fails with "insufficient balance" even though account has 100 XLM.
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: |
+        Any other relevant information — contract version, deployment commit, related PRs, screenshots of explorer, etc.
+      placeholder: |
+        - Contract version: v1.2.3 (commit abc123)
+        - Related PR: #1234
+        - Explorer link: https://stellar.expert/explorer/testnet/tx/...
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Checklist
+      description: Confirm you have done the following
+      options:
+        - label: I have redacted all private keys, signatures, and real user data from this report
+          required: true
+        - label: I have tested against the latest contract code / deployment
+          required: false
+        - label: This issue is reproducible on a clean environment (new sandbox or fresh testnet account)
+          required: false

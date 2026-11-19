@@ -5,7 +5,10 @@
 import React from "react";
 import { render, screen, fireEvent } from "@testing-library/react";
 import "@testing-library/jest-dom";
+import { axe, toHaveNoViolations } from "jest-axe";
 import { ConfessionFeed } from "../ConfessionFeed";
+
+expect.extend(toHaveNoViolations);
 import { useInfiniteConfessions } from "../../../lib/hooks/useConfessionsQuery";
 
 const mockReplace = jest.fn();
@@ -187,5 +190,74 @@ describe("ConfessionFeed", () => {
       "/confessions?q=kept&sort=most_discussed",
       { scroll: false },
     );
+  });
+
+  describe("accessibility announcements", () => {
+    it("announces a background refresh via aria-live", () => {
+      mockFeedState({ isFetching: true });
+      const { container } = render(<ConfessionFeed />);
+
+      const liveRegion = container.querySelector('[aria-live="polite"]');
+      expect(liveRegion).toHaveTextContent("Updating feed contents...");
+    });
+
+    it("announces an error via aria-live alongside the error state", () => {
+      mockFeedState({ data: undefined, error: new Error("Network Error") });
+      const { container } = render(<ConfessionFeed />);
+
+      expect(screen.getByTestId("error-state")).toBeInTheDocument();
+      const liveRegion = container.querySelector('[aria-live="polite"]');
+      expect(liveRegion).toHaveTextContent(/unable to load feed/i);
+    });
+
+    it("does not announce anything when idle", () => {
+      mockFeedState();
+      const { container } = render(<ConfessionFeed />);
+
+      const liveRegion = container.querySelector('[aria-live="polite"]');
+      expect(liveRegion).toHaveTextContent("");
+    });
+  });
+    describe("loading state transitions", () => {
+    it("shows skeleton on initial load and not pagination spinner", () => {
+      mockFeedState({ data: undefined, isLoading: true });
+      render(<ConfessionFeed />);
+      expect(screen.getByTestId("loading-skeleton")).toBeInTheDocument();
+      expect(screen.queryByText("Loading more...")).not.toBeInTheDocument();
+    });
+
+    it("shows pagination spinner when fetching next page and not switching filter", () => {
+      mockFeedState({ isFetchingNextPage: true, isPlaceholderData: false });
+      render(<ConfessionFeed />);
+      expect(screen.queryByTestId("loading-skeleton")).not.toBeInTheDocument();
+      expect(screen.getByText("Loading more...")).toBeInTheDocument();
+    });
+
+    it("does not show pagination spinner when switching filter", () => {
+      mockFeedState({ isFetchingNextPage: true, isPlaceholderData: true, isFetching: true });
+      render(<ConfessionFeed />);
+      expect(screen.getByTestId("loading-skeleton")).toBeInTheDocument();
+      expect(screen.queryByText("Loading more...")).not.toBeInTheDocument();
+    });
+  });
+
+  describe("axe accessibility checks", () => {
+    it("has no violations in the loaded state", async () => {
+      mockFeedState();
+      const { container } = render(<ConfessionFeed />);
+      expect(await axe(container)).toHaveNoViolations();
+    });
+
+    it("has no violations in the error state", async () => {
+      mockFeedState({ data: undefined, error: new Error("Network Error") });
+      const { container } = render(<ConfessionFeed />);
+      expect(await axe(container)).toHaveNoViolations();
+    });
+
+    it("has no violations in the loading state", async () => {
+      mockFeedState({ data: undefined, isLoading: true });
+      const { container } = render(<ConfessionFeed />);
+      expect(await axe(container)).toHaveNoViolations();
+    });
   });
 });

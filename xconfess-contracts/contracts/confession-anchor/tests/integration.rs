@@ -22,6 +22,13 @@ use soroban_sdk::{
 fn setup() -> (Env, ConfessionAnchorClient<'static>, Address) {
     let env = Env::default();
     env.mock_all_auths();
+    // Each fixture owns a fresh, explicit ledger state; no test may inherit
+    // time or sequence values from another test's execution order.
+    env.ledger().set(LedgerInfo {
+        timestamp: 1_700_000_000,
+        sequence_number: 1,
+        ..env.ledger().get()
+    });
     let contract_id = env.register(ConfessionAnchor, ());
     let client = ConfessionAnchorClient::new(&env, &contract_id);
     let owner = Address::generate(&env);
@@ -93,6 +100,24 @@ fn duplicate_anchor_is_idempotent() {
     assert_eq!(status, soroban_sdk::symbol_short!("exists"));
     assert_eq!(client.verify_confession(&h), Some(1_000));
     assert_eq!(client.get_confession_count(), 1);
+}
+
+#[test]
+fn duplicate_anchor_preserves_state_and_emits_no_second_event() {
+    use soroban_sdk::testutils::Events;
+
+    let (env, client, _owner) = setup();
+    let h = hash(&env, 3);
+    client.anchor_confession(&h, &1_000);
+    let event_count = env.events().all().len();
+
+    assert_eq!(
+        client.anchor_confession(&h, &9_999),
+        soroban_sdk::symbol_short!("exists")
+    );
+    assert_eq!(client.verify_confession(&h), Some(1_000));
+    assert_eq!(client.get_confession_count(), 1);
+    assert_eq!(env.events().all().len(), event_count);
 }
 
 #[test]

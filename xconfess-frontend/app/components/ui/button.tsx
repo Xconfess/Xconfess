@@ -18,20 +18,20 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
         disabled={disabled || isLoading}
         aria-disabled={disabled || isLoading}
         className={cn(
-          "inline-flex items-center justify-center gap-2 rounded-xl font-medium transition-all duration-200",
-          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2",
-          "focus-visible:ring-[var(--primary)] focus-visible:ring-offset-[var(--background)] disabled:pointer-events-none disabled:opacity-50 cursor-pointer",
+          "inline-flex cursor-pointer items-center justify-center gap-2 whitespace-nowrap rounded-[var(--radius-control)] font-medium transition-colors duration-150",
+          "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--focus-ring)]",
+          "disabled:pointer-events-none disabled:opacity-50",
           {
-            "border border-[var(--accent-border)] bg-[image:var(--brand-gradient)] text-white shadow-[0_14px_32px_-18px_rgba(125,35,220,0.9)] hover:-translate-y-0.5 hover:brightness-110":
+            "bg-[var(--primary)] text-white hover:bg-[var(--primary-hover)]":
               variant === "default",
-            "border border-[var(--border)] bg-[var(--surface)] text-[var(--foreground)] hover:bg-[var(--surface-strong)]":
+            "border border-[var(--border)] bg-[var(--surface)] text-[var(--foreground)] hover:bg-[var(--surface-muted)]":
               variant === "outline",
             "text-[var(--secondary)] hover:bg-[var(--surface-muted)] hover:text-[var(--foreground)]":
               variant === "ghost",
-            "bg-red-600 text-white hover:bg-red-700": variant === "destructive",
-            "h-9 px-4 text-sm": size === "sm",
-            "h-11 px-5 text-[15px]": size === "md",
-            "h-12 px-7 text-base": size === "lg",
+            "bg-[var(--danger)] text-white hover:opacity-90": variant === "destructive",
+            "h-8 px-3 text-sm": size === "sm",
+            "h-9 px-4 text-sm": size === "md",
+            "h-10 px-5 text-sm": size === "lg",
           },
           className
         )}

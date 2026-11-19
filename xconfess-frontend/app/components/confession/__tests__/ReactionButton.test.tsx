@@ -249,6 +249,27 @@ describe("ReactionButton — optimistic count and active state", () => {
     });
   });
 
+  it("announces a successful reaction through the polite live region (#2195)", async () => {
+    mockAddReaction.mockResolvedValue({
+      ok: true,
+      data: { success: true, reactions: { like: 6, love: 0 } },
+    });
+
+    render(
+      <Wrapper>
+        <ReactionButton type="like" count={5} confessionId="c-6" />
+      </Wrapper>,
+    );
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button"));
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText("Reacted with like.")).toBeInTheDocument();
+    });
+  });
+
   it("reflects live websocket state in the reaction status indicator", async () => {
     mockAddReaction.mockReturnValue(new Promise(() => {}));
 

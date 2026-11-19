@@ -1,0 +1,33 @@
+name: Database Restore Verification
+
+on:
+  schedule:
+    - cron: '17 4 * * 0'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  restore-verification:
+    name: Disposable PostgreSQL restore
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - run: npm install --global npm@10.9.3
+      - run: npm ci --include=optional --no-audit --no-fund
+      - name: Verify disposable restore
+        run: npm run database:restore:verify
+      - name: Upload restore evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: database-restore-evidence-${{ github.run_id }}
+          path: artifacts/database-restore-verification.json
+          if-no-files-found: error
+          retention-days: 30

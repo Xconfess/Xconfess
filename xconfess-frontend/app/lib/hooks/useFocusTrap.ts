@@ -11,6 +11,13 @@ const FOCUSABLE_SELECTORS = [
   '[tabindex]:not([tabindex="-1"])',
 ].join(', ');
 
+function isVisible(element: HTMLElement): boolean {
+  const style = window.getComputedStyle(element);
+  return element.getAttribute('aria-hidden') !== 'true' &&
+    style.display !== 'none' &&
+    style.visibility !== 'hidden';
+}
+
 interface UseFocusTrapOptions {
   isOpen?: boolean;
   active?: boolean;
@@ -52,7 +59,7 @@ export function useFocusTrap({
     if (!containerRef.current) return [];
     return Array.from(
       containerRef.current.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTORS),
-    );
+    ).filter(isVisible);
   }, [containerRef]);
 
   useEffect(() => {
@@ -82,6 +89,7 @@ export function useFocusTrap({
       // Escape closes the dialog
       const close = onEscape ?? onClose;
       if (e.key === 'Escape' && close) {
+        e.preventDefault();
         e.stopPropagation();
         close();
         return;
@@ -122,7 +130,7 @@ export function useFocusTrap({
       document.removeEventListener('keydown', handleKeyDown, { capture: true } as EventListenerOptions);
       document.body.style.overflow = prevOverflow;
 
-      if (restoreTarget && (dialog || restoreFocusRef)) {
+      if (restoreTarget?.isConnected && (dialog || restoreFocusRef)) {
         restoreTarget.focus();
       }
     };

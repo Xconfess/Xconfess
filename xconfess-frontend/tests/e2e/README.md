@@ -46,6 +46,43 @@ Playwright starts the Next.js dev server on port 3000 (see `playwright.config.ts
 
 Run the same command in your pipeline after `npm ci`. Full browser matrix tests live in other `tests/e2e` specs; smoke uses the `smoke` project (desktop Chromium only).
 
+## Accessibility and keyboard smoke
+
+The axe-core suite scans the public home page, login page, and authenticated
+admin dashboard. The keyboard regression suite checks tab order and visible
+keyboard focus in registration, confession composition, messaging, and the
+messaging key-recovery dialog. Local API fixtures use fake identities and do
+not require live services or credentials. Encrypted message previews and
+generic key initialization errors are checked without exposing fixture content.
+
+From the repository root:
+
+```bash
+npm ci
+npx playwright install chromium
+npm run frontend:test:a11y
+```
+
+Or from `xconfess-frontend/` after installing the browser:
+
+```bash
+npm run test:a11y
+```
+
+Playwright starts the frontend on port 3000. On failure, the assertion lists the
+axe rule, impact, and affected selectors; use those selectors to locate the
+markup and reproduce the issue in a browser. The run also retains Playwright's
+failure trace as configured in `playwright.config.ts`.
+
+The gender field is one radio group: it has one Tab stop, and arrow keys move
+between its options according to native radio behavior. Tests intentionally do
+not expect a separate Tab stop for every option. There are no other accepted
+keyboard-navigation or critical/serious axe exceptions. Do not suppress a
+violation broadly: if a temporary exception is approved, record its route,
+rule, affected selector, rationale, owner, tracking issue, and remediation date
+in the root `A11Y_CHECKLIST.md`. Keep exclusions limited to that documented
+scope and remove them when the fix ships.
+
 ## Wave 5 seeded demo journey
 
 `wave-demo-journey.spec.ts` exercises the demo path with mocked browser data:

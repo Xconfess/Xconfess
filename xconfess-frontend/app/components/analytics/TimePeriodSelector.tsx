@@ -19,12 +19,12 @@ export const TimePeriodSelector: React.FC<TimePeriodSelectorProps> = ({
 }) => {
     return (
         <div className="inline-flex flex-col gap-2">
-            <div className="inline-flex items-center gap-2 bg-zinc-900/50 border border-zinc-800 rounded-xl p-1">
+            <div className="inline-flex items-center gap-2 bg-[var(--surface)]/50 border border-[var(--border)] rounded-xl p-1">
                 <button
                     onClick={() => onChange('7d')}
                     className={`px-4 py-2 rounded-lg text-sm font-medium transition-all cursor-pointer ${selected === '7d'
-                        ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20'
-                        : 'text-zinc-400 hover:text-white hover:bg-zinc-800/50'
+                        ? 'bg-[var(--primary)] text-white  shadow-blue-600/20'
+                        : 'text-[var(--text-muted)] hover:text-white hover:bg-[var(--surface-muted)]/50'
                         }`}
                     aria-label="Show 7 days data"
                 >
@@ -33,34 +33,34 @@ export const TimePeriodSelector: React.FC<TimePeriodSelectorProps> = ({
                 <button
                     onClick={() => onChange('30d')}
                     className={`px-4 py-2 rounded-lg text-sm font-medium transition-all cursor-pointer  ${selected === '30d'
-                        ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20'
-                        : 'text-zinc-400 hover:text-white hover:bg-zinc-800/50'
+                        ? 'bg-[var(--primary)] text-white  shadow-blue-600/20'
+                        : 'text-[var(--text-muted)] hover:text-white hover:bg-[var(--surface-muted)]/50'
                         }`}
                     aria-label="Show 30 days data"
                 >
                     30 Days
                 </button>
-                <span className="h-6 w-px bg-zinc-800" />
+                <span className="h-6 w-px bg-[var(--surface-muted)]" />
                 <button
                     type="button"
                     role="switch"
                     aria-checked={comparisonEnabled}
                     onClick={() => onComparisonChange?.(!comparisonEnabled)}
                     className={`inline-flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold transition-all ${comparisonEnabled
-                        ? 'bg-emerald-600/20 text-emerald-300 border border-emerald-500/40'
-                        : 'text-zinc-400 border border-zinc-800 hover:text-white hover:bg-zinc-800/50'
+                        ? 'bg-[var(--success)]/20 text-[var(--success)] border border-[var(--success)]/40'
+                        : 'text-[var(--text-muted)] border border-[var(--border)] hover:text-[var(--foreground)] hover:bg-[var(--surface-muted)]/50'
                         }`}
                     aria-label="Toggle comparison mode"
                 >
                     <span
-                        className={`h-1.5 w-1.5 rounded-full ${comparisonEnabled ? 'bg-emerald-300' : 'bg-zinc-500'
+                        className={`h-1.5 w-1.5 rounded-full ${comparisonEnabled ? 'bg-[var(--success)]' : 'bg-[var(--text-muted)]'
                             }`}
                     />
                     Compare
                 </button>
             </div>
             {comparisonNote && (
-                <p className="text-xs text-zinc-500 max-w-[22rem]">{comparisonNote}</p>
+                <p className="text-xs text-[var(--text-muted)] max-w-[22rem]">{comparisonNote}</p>
             )}
         </div>
     );

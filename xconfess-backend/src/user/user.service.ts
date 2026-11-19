@@ -12,7 +12,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User, UserRole } from './entities/user.entity';
 import * as bcrypt from 'bcryptjs';
-import { UpdateUserProfileDto } from './dto/updateProfile.dto';
+import { UpdateUserProfileDto } from './dto/update-profile.dto';
 import {
   PrivacySettingsResponseDto,
   UpdatePrivacySettingsDto,
@@ -662,6 +662,8 @@ export class UserService {
       .andWhere('confessions.isDeleted = false')
       .andWhere('confessions.isHidden = false')
       .orderBy('confessions.created_at', 'DESC')
+      // created_at ties are common; id keeps this feed page-stable (#2118)
+      .addOrderBy('confessions.id', 'DESC')
       .skip(skip)
       .take(limit)
       .getManyAndCount();
@@ -763,7 +765,7 @@ export class UserService {
         FROM reports rep
         WHERE rep."reporterId" = $1
       ) activity
-        ORDER BY "createdAt" DESC
+        ORDER BY "createdAt" DESC, type ASC, id ASC
         LIMIT $2 OFFSET $3
         `,
         [userId, limit, offset],

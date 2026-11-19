@@ -78,53 +78,53 @@ export default function AnalyticsDashboard({ analytics }: AnalyticsDashboardProp
       </div>
       {/* Overview Cards */}
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
-        <div className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg">
+        <div className="bg-[var(--surface)] overflow-hidden shadow rounded-lg">
           <div className="p-5">
             <div className="flex items-center">
               <div className="flex-shrink-0">
-                <div className="text-2xl font-bold text-gray-900 dark:text-white">
+                <div className="text-2xl font-semibold text-[var(--foreground)]">
                   {overview.totalUsers.toLocaleString()}
                 </div>
-                <div className="text-sm text-gray-500 dark:text-gray-400">Total Users</div>
+                <div className="text-sm text-[var(--text-muted)]">Total Users</div>
               </div>
             </div>
           </div>
         </div>
 
-        <div className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg">
+        <div className="bg-[var(--surface)] overflow-hidden shadow rounded-lg">
           <div className="p-5">
             <div className="flex items-center">
               <div className="flex-shrink-0">
-                <div className="text-2xl font-bold text-gray-900 dark:text-white">
+                <div className="text-2xl font-semibold text-[var(--foreground)]">
                   {overview.activeUsers.toLocaleString()}
                 </div>
-                <div className="text-sm text-gray-500 dark:text-gray-400">Active Users (30d)</div>
+                <div className="text-sm text-[var(--text-muted)]">Active Users (30d)</div>
               </div>
             </div>
           </div>
         </div>
 
-        <div className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg">
+        <div className="bg-[var(--surface)] overflow-hidden shadow rounded-lg">
           <div className="p-5">
             <div className="flex items-center">
               <div className="flex-shrink-0">
-                <div className="text-2xl font-bold text-gray-900 dark:text-white">
+                <div className="text-2xl font-semibold text-[var(--foreground)]">
                   {overview.totalConfessions.toLocaleString()}
                 </div>
-                <div className="text-sm text-gray-500 dark:text-gray-400">Total Confessions</div>
+                <div className="text-sm text-[var(--text-muted)]">Total Confessions</div>
               </div>
             </div>
           </div>
         </div>
 
-        <div className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg">
+        <div className="bg-[var(--surface)] overflow-hidden shadow rounded-lg">
           <div className="p-5">
             <div className="flex items-center">
               <div className="flex-shrink-0">
-                <div className="text-2xl font-bold text-gray-900 dark:text-white">
+                <div className="text-2xl font-semibold text-[var(--foreground)]">
                   {overview.totalReports.toLocaleString()}
                 </div>
-                <div className="text-sm text-gray-500 dark:text-gray-400">Total Reports</div>
+                <div className="text-sm text-[var(--text-muted)]">Total Reports</div>
               </div>
             </div>
           </div>
@@ -134,8 +134,8 @@ export default function AnalyticsDashboard({ analytics }: AnalyticsDashboardProp
       {/* Charts */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         {/* Confessions Over Time */}
-        <div className="bg-white dark:bg-gray-800 shadow rounded-lg p-6 flex flex-col min-h-[380px]">
-          <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">
+        <div className="border border-[var(--border)] bg-[var(--surface)] rounded-lg p-6 flex flex-col min-h-[380px]">
+          <h3 className="text-lg font-medium text-[var(--foreground)] mb-4">
             Confessions Over Time
           </h3>
           <div className="flex-grow">
@@ -160,8 +160,8 @@ export default function AnalyticsDashboard({ analytics }: AnalyticsDashboardProp
         </div>
 
         {/* Reports by Status */}
-        <div className="bg-white dark:bg-gray-800 shadow rounded-lg p-6 flex flex-col min-h-[380px]">
-          <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">
+        <div className="border border-[var(--border)] bg-[var(--surface)] rounded-lg p-6 flex flex-col min-h-[380px]">
+          <h3 className="text-lg font-medium text-[var(--foreground)] mb-4">
             Reports by Status
           </h3>
           <div className="flex-grow">
@@ -197,8 +197,8 @@ export default function AnalyticsDashboard({ analytics }: AnalyticsDashboardProp
         </div>
 
         {/* Reports by Type */}
-        <div className="bg-white dark:bg-gray-800 shadow rounded-lg p-6 flex flex-col min-h-[380px]">
-          <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">
+        <div className="border border-[var(--border)] bg-[var(--surface)] rounded-lg p-6 flex flex-col min-h-[380px]">
+          <h3 className="text-lg font-medium text-[var(--foreground)] mb-4">
             Reports by Type
           </h3>
           <div className="flex-grow">
@@ -223,26 +223,26 @@ export default function AnalyticsDashboard({ analytics }: AnalyticsDashboardProp
         </div>
 
         {/* Moderation Stats */}
-        <div className="bg-white dark:bg-gray-800 shadow rounded-lg p-6">
-          <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">
+        <div className="border border-[var(--border)] bg-[var(--surface)] rounded-lg p-6">
+          <h3 className="text-lg font-medium text-[var(--foreground)] mb-4">
             Moderation Statistics
           </h3>
           <div className="space-y-4">
             <div className="flex justify-between">
-              <span className="text-gray-600 dark:text-gray-400">Banned Users</span>
-              <span className="font-semibold text-gray-900 dark:text-white">
+              <span className="text-[var(--secondary)]">Banned Users</span>
+              <span className="font-semibold text-[var(--foreground)]">
                 {overview.bannedUsers}
               </span>
             </div>
             <div className="flex justify-between">
-              <span className="text-gray-600 dark:text-gray-400">Hidden Confessions</span>
-              <span className="font-semibold text-gray-900 dark:text-white">
+              <span className="text-[var(--secondary)]">Hidden Confessions</span>
+              <span className="font-semibold text-[var(--foreground)]">
                 {overview.hiddenConfessions}
               </span>
             </div>
             <div className="flex justify-between">
-              <span className="text-gray-600 dark:text-gray-400">Deleted Confessions</span>
-              <span className="font-semibold text-gray-900 dark:text-white">
+              <span className="text-[var(--secondary)]">Deleted Confessions</span>
+              <span className="font-semibold text-[var(--foreground)]">
                 {overview.deletedConfessions}
               </span>
             </div>

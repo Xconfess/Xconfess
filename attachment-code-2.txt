@@ -1,0 +1,152 @@
+﻿===== src\common\guards\ownership.guard.ts =====
+import {
+  CanActivate,
+  ExecutionContext,
+  ForbiddenException,
+  Injectable,
+  Logger,
+} from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { OWNERSHIP_META, OwnershipMeta } from '../decorators/ownership.decorator';
+
+/**
+ * OwnershipGuard â€” defense-in-depth IDOR prevention.
+ *
+ * Enforced directly at the NestJS handler level, independent of any
+ * Next.js proxy route checks. Even if the proxy is bypassed or
+ * misconfigured, this guard will reject cross-user access.
+ *
+ * Usage:
+ *   @UseGuards(JwtAuthGuard, OwnershipGuard)
+ *   @Ownership({ paramKey: 'userId', role: 'user' })
+ *   @Get(':userId/export')
+ *   getExport(@Param('userId') userId: string, @Req() req) { ... }
+ */
+@Injectable()
+export class OwnershipGuard implements CanActivate {
+  private readonly logger = new Logger(OwnershipGuard.name);
+
+  constructor(private readonly reflector: Reflector) {}
+
+  canActivate(context: ExecutionContext): boolean {
+    const meta = this.reflector.getAllAndOverride<OwnershipMeta>(OWNERSHIP_META, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
+
+    // No @Ownership() decorator â€” guard is a no-op for this handler.
+    if (!meta) return true;
+
+    const req = context.switchToHttp().getRequest();
+    const authedUser = req.user; // set by JwtAuthGuard
+
+    if (!authedUser) {
+      throw new ForbiddenException('Not authenticated');
+    }
+
+    const authedUserId = authedUser.id ?? authedUser.sub;
+    if (!authedUserId) {
+      throw new ForbiddenException('Not authenticated');
+    }
+
+    // Admins bypass ownership checks when meta allows it.
+    if (meta.adminBypass && authedUser.role === 'admin') {
+      return true;
+    }
+
+    const resourceOwnerId =
+      req.params?.[meta.paramKey] ??
+      req.body?.[meta.paramKey] ??
+      req.query?.[meta.paramKey];
+
+    if (!resourceOwnerId) {
+      // If we can't find the ID in the request, fail closed.
+      this.logger.warn(
+        `OwnershipGuard: paramKey "${meta.paramKey}" not found in request â€” denying.`,
+      );
+      throw new ForbiddenException('Ownership check failed: missing resource ID');
+    }
+
+    const isSelf = String(authedUserId) === String(resourceOwnerId);
+    if (!isSelf) {
+      this.logger.warn(
+        `IDOR attempt blocked: user ${authedUserId} tried to access resource owned by ${resourceOwnerId}`,
+      );
+      throw new ForbiddenException('Access denied: resource belongs to another user');
+    }
+
+    return true;
+  }
+}
+===== src\common\decorators\ownership.decorator.ts =====
+import { SetMetadata } from '@nestjs/common';
+
+export const OWNERSHIP_META = 'ownership_meta';
+
+export interface OwnershipMeta {
+  /** Request param / body / query key that holds the owner's user ID */
+  paramKey: string;
+  /** When true, admin-role users bypass the ownership check */
+  adminBypass?: boolean;
+}
+
+export const Ownership = (meta: OwnershipMeta) => SetMetadata(OWNERSHIP_META, meta);
+===== src\user\entities\anonymous-user.entity.ts =====
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  CreateDateColumn,
+  OneToMany,
+  Column,
+  Index,
+} from 'typeorm';
+import { AnonymousConfession } from '../../confession/entities/confession.entity';
+import { Comment } from '../../comment/entities/comment.entity';
+import { Reaction } from '../../reaction/entities/reaction.entity';
+import { UserAnonymousUser } from './user-anonymous-link.entity';
+
+@Entity()
+export class AnonymousUser {
+  @PrimaryGeneratedColumn('uuid')
+  id: string;
+
+  /** Keyed fingerprint of an optional Stellar wallet used for continuity. */
+  @Index({ unique: true })
+  @Column({ type: 'varchar', length: 64, nullable: true })
+  walletFingerprint: string | null;
+
+  @CreateDateColumn()
+  createdAt: Date;
+
+  /** X25519 public key (base64url) for E2E message encryption. */
+  @Column({ type: 'varchar', length: 128, nullable: true })
+  messagePublicKey: string | null;
+
+  /** Incremented when the client rotates keys (e.g. new device without backup). */
+  @Column({ type: 'int', default: 0 })
+  messageKeyVersion: number;
+
+  /** Passphrase-wrapped private key backup; server cannot decrypt. */
+  @Column({ type: 'text', nullable: true })
+  encryptedKeyBackup: string | null;
+
+  // Relations to anonymous actions
+  @OneToMany(
+    () => AnonymousConfession,
+    (confession) => confession.anonymousUser,
+  )
+  confessions: AnonymousConfession[];
+
+  @OneToMany(() => Comment, (comment) => comment.anonymousUser)
+  comments: Comment[];
+
+  @OneToMany(() => Reaction, (reaction) => reaction.anonymousUser)
+  reactions: Reaction[];
+
+  @OneToMany(() => UserAnonymousUser, (link) => link.anonymousUser)
+  userLinks: UserAnonymousUser[];
+}
+===== object storage client search =====
+===== anywhere attachments are streamed/downloaded =====

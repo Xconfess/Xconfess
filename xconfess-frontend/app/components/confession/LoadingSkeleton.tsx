@@ -3,7 +3,7 @@ function SkeletonPill({ className }: { className: string }) {
 }
 
 export const SkeletonCard = () => (
-  <div className="luxury-panel animate-pulse rounded-[30px] p-6 border border-[var(--border)] bg-[var(--surface)]">
+  <div className="luxury-panel animate-pulse rounded-xl p-6 border border-[var(--border)] bg-[var(--surface)]">
     <div className="mb-4 flex items-center justify-between border-b border-[var(--border)] pb-4">
       <div className="flex items-center gap-3">
         <div className="h-10 w-10 rounded-full bg-[var(--skeleton)]" />

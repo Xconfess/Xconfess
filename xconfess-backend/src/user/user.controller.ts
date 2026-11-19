@@ -13,6 +13,8 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { OwnershipGuard } from '../common/guards/ownership.guard';
 import { Ownership } from '../common/decorators/ownership.decorator';
 import { UserService } from './user.service';
+import { UserListQueryDto } from './dto/list-query.dto';
+import { PAGINATION } from '../common/pagination';
 
 @Controller('users')
 @UseGuards(JwtAuthGuard)
@@ -55,12 +57,13 @@ export class UserController {
   @Ownership({ paramKey: 'userId' })
   async getUserActivities(
     @Param('userId') userId: string,
-    @Query('page') page?: string,
-    @Query('limit') limit?: string,
+    @Query() query: UserListQueryDto,
   ) {
-    const p = page ? parseInt(page, 10) : 1;
-    const l = limit ? parseInt(limit, 10) : 10;
-    return this.userService.getUserActivitiesList(parseInt(userId, 10), p, l);
+    return this.userService.getUserActivitiesList(
+      parseInt(userId, 10),
+      query.page ?? PAGINATION.DEFAULT_PAGE,
+      query.limit ?? 10,
+    );
   }
 
   /** Get user's confessions list (with ownership check) */
@@ -69,12 +72,13 @@ export class UserController {
   @Ownership({ paramKey: 'userId' })
   async getUserConfessions(
     @Param('userId') userId: string,
-    @Query('page') page?: string,
-    @Query('limit') limit?: string,
+    @Query() query: UserListQueryDto,
   ) {
-    const p = page ? parseInt(page, 10) : 1;
-    const l = limit ? parseInt(limit, 10) : 10;
-    return this.userService.getUserConfessionsList(parseInt(userId, 10), p, l);
+    return this.userService.getUserConfessionsList(
+      parseInt(userId, 10),
+      query.page ?? PAGINATION.DEFAULT_PAGE,
+      query.limit ?? 10,
+    );
   }
 
   /**

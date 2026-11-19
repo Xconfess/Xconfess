@@ -16,10 +16,10 @@ export default function NotificationsPage() {
     <ErrorBoundary>
       <div className="space-y-6">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
+          <h2 className="text-2xl font-semibold text-[var(--foreground)]">
             Failed Notification Jobs
           </h2>
-          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+          <p className="mt-1 text-sm text-[var(--text-muted)]">
             Monitor and replay failed notification delivery attempts
           </p>
         </div>
@@ -193,16 +193,16 @@ function FailedJobsList() {
 
   if (error) {
     return (
-      <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
+      <div className="bg-[var(--danger)]/10 border border-[var(--danger)]/30 rounded-lg p-4">
         <div className="flex items-center gap-2">
-          <svg className="w-5 h-5 text-red-600 dark:text-red-400" fill="currentColor" viewBox="0 0 20 20">
+          <svg className="w-5 h-5 text-[var(--danger)]" fill="currentColor" viewBox="0 0 20 20">
             <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
           </svg>
-          <p className="text-sm font-medium text-red-800 dark:text-red-200">
+          <p className="text-sm font-medium text-[var(--foreground)]">
             Failed to load notification jobs. Please try again.
           </p>
         </div>
-        <button onClick={() => refetch()} className="mt-3 text-sm text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300 font-medium">
+        <button onClick={() => refetch()} className="mt-3 text-sm text-[var(--danger)] hover:text-[var(--foreground)] font-medium">
           Retry
         </button>
       </div>
@@ -212,30 +212,30 @@ function FailedJobsList() {
   return (
     <>
       {/* Filters */}
-      <div className="bg-white dark:bg-gray-800 shadow rounded-lg p-4">
+      <div className="border border-[var(--border)] bg-[var(--surface)] rounded-lg p-4">
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <div>
-            <label htmlFor="dlq-status" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Status</label>
+            <label htmlFor="dlq-status" className="block text-sm font-medium text-[var(--secondary)] mb-2">Status</label>
             <select id="dlq-status" value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value as 'failed' | 'all'); }}
-              className="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white dark:border-gray-600">
+              className="w-full rounded-md border-[var(--accent-border)] shadow-sm focus:border-[var(--focus-ring)] focus:ring-[var(--focus-ring)]">
               <option value="failed">Failed Only</option>
               <option value="all">All</option>
             </select>
           </div>
           <div>
-            <label htmlFor="dlq-start-date" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Start Date</label>
+            <label htmlFor="dlq-start-date" className="block text-sm font-medium text-[var(--secondary)] mb-2">Start Date</label>
             <input id="dlq-start-date" type="date" value={startDate} onChange={(e) => { setStartDate(e.target.value); }}
-              className="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white dark:border-gray-600" />
+              className="w-full rounded-md border-[var(--accent-border)] shadow-sm focus:border-[var(--focus-ring)] focus:ring-[var(--focus-ring)]" />
           </div>
           <div>
-            <label htmlFor="dlq-end-date" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">End Date</label>
+            <label htmlFor="dlq-end-date" className="block text-sm font-medium text-[var(--secondary)] mb-2">End Date</label>
             <input id="dlq-end-date" type="date" value={endDate} onChange={(e) => { setEndDate(e.target.value); }}
-              className="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white dark:border-gray-600" />
+              className="w-full rounded-md border-[var(--accent-border)] shadow-sm focus:border-[var(--focus-ring)] focus:ring-[var(--focus-ring)]" />
           </div>
           <div>
-            <label htmlFor="dlq-min-retries" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Min Retries</label>
+            <label htmlFor="dlq-min-retries" className="block text-sm font-medium text-[var(--secondary)] mb-2">Min Retries</label>
             <input id="dlq-min-retries" type="number" min="0" value={minRetries ?? ''} onChange={(e) => { const val = e.target.value ? parseInt(e.target.value, 10) : undefined; setMinRetries(val); }} placeholder="Any"
-              className="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white dark:border-gray-600" />
+              className="w-full rounded-md border-[var(--accent-border)] shadow-sm focus:border-[var(--focus-ring)] focus:ring-[var(--focus-ring)]" />
           </div>
         </div>
       </div>
@@ -243,7 +243,7 @@ function FailedJobsList() {
       {/* Bulk action toolbar */}
       {data && data.jobs.length > 0 && (
         <div className="flex items-center gap-3 flex-wrap">
-          <span className="text-sm text-gray-600 dark:text-gray-400">
+          <span className="text-sm text-[var(--secondary)]">
             {selectedJobIds.size > 0
               ? `${selectedJobIds.size} of ${data.jobs.length} selected`
               : `${data.jobs.length} job${data.jobs.length > 1 ? 's' : ''} on this page`}
@@ -251,7 +251,7 @@ function FailedJobsList() {
           <button
             onClick={handleBulkReplayClick}
             disabled={selectedJobIds.size === 0 || bulkReplayMutation.isPending}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-[var(--primary)] rounded-md hover:bg-[var(--primary-hover)] disabled:opacity-50 disabled:cursor-not-allowed transition"
           >
             {bulkReplayMutation.isPending ? (
               <>Replaying...</>
@@ -261,7 +261,7 @@ function FailedJobsList() {
           </button>
           <button
             onClick={handleExportCsv}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 dark:bg-gray-700 dark:text-gray-300 dark:border-gray-600 dark:hover:bg-gray-600 transition"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-[var(--secondary)] bg-[var(--surface)] border border-[var(--accent-border)] rounded-md hover:bg-[var(--surface-muted)] transition"
           >
             Export CSV
           </button>
@@ -270,92 +270,92 @@ function FailedJobsList() {
 
       {/* Bulk replay summary toast */}
       {bulkReplaySummary && (
-        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg px-4 py-3 text-sm text-blue-800 dark:text-blue-200">
+        <div className="bg-[var(--accent-soft)] border border-[var(--accent-border)] rounded-lg px-4 py-3 text-sm text-[var(--primary-deep)]">
           {bulkReplaySummary}
         </div>
       )}
 
       {/* Table */}
       {isLoading ? (
-        <div className="bg-white dark:bg-gray-800 shadow rounded-lg p-6">
+        <div className="border border-[var(--border)] bg-[var(--surface)] rounded-lg p-6">
           <TableSkeleton rows={5} cols={7} />
         </div>
       ) : !data || data.jobs.length === 0 ? (
-        <div className="bg-white dark:bg-gray-800 shadow rounded-lg p-12 text-center">
-          <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <div className="border border-[var(--border)] bg-[var(--surface)] rounded-lg p-12 text-center">
+          <svg className="mx-auto h-12 w-12 text-[var(--text-muted)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
           </svg>
-          <h3 className="mt-2 text-sm font-medium text-gray-900 dark:text-white">No failed jobs found</h3>
-          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">All notification jobs are processing successfully.</p>
+          <h3 className="mt-2 text-sm font-medium text-[var(--foreground)]">No failed jobs found</h3>
+          <p className="mt-1 text-sm text-[var(--text-muted)]">All notification jobs are processing successfully.</p>
         </div>
       ) : (
-        <div className="bg-white dark:bg-gray-800 shadow rounded-lg overflow-hidden">
+        <div className="bg-[var(--surface)] shadow rounded-lg overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-              <thead className="bg-gray-50 dark:bg-gray-700">
+            <table className="min-w-full divide-y divide-[var(--border)]">
+              <thead className="bg-[var(--surface-muted)]">
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider w-10">
+                  <th className="px-4 py-3 text-left text-xs font-medium text-[var(--text-muted)] uppercase tracking-wider w-10">
                     <input
                       type="checkbox"
                       checked={allSelected}
                       onChange={(e) => handleSelectAll(e.target.checked)}
-                      className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                      className="rounded border-[var(--accent-border)] text-[var(--primary-deep)] focus:ring-[var(--focus-ring)]"
                       aria-label="Select all on page"
                     />
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Job ID</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Channel</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Recipient</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Retries</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Failure Reason</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Failed At</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Actions</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-[var(--text-muted)] uppercase tracking-wider">Job ID</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-[var(--text-muted)] uppercase tracking-wider">Channel</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-[var(--text-muted)] uppercase tracking-wider">Recipient</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-[var(--text-muted)] uppercase tracking-wider">Retries</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-[var(--text-muted)] uppercase tracking-wider">Failure Reason</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-[var(--text-muted)] uppercase tracking-wider">Failed At</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-[var(--text-muted)] uppercase tracking-wider">Actions</th>
                 </tr>
               </thead>
-              <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+              <tbody className="bg-[var(--surface)] divide-y divide-[var(--border)]">
                 {data.jobs.map((job) => {
                   const isReplaying = pendingReplays.has(job.id);
                   const isSelected = selectedJobIds.has(job.id);
                   return (
-                    <tr key={job.id} className={`hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors ${isSelected ? 'bg-indigo-50 dark:bg-indigo-900/10' : ''}`}>
+                    <tr key={job.id} className={`hover:bg-[var(--surface-muted)] transition-colors ${isSelected ? 'bg-[var(--accent-soft)]' : ''}`}>
                       <td className="px-4 py-4 whitespace-nowrap">
                         <input
                           type="checkbox"
                           checked={isSelected}
                           onChange={(e) => handleSelectJob(job.id, e.target.checked)}
-                          className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                          className="rounded border-[var(--accent-border)] text-[var(--primary-deep)] focus:ring-[var(--focus-ring)]"
                           aria-label={`Select job ${job.id.substring(0, 12)}`}
                         />
                       </td>
-                      <td className="px-4 py-4 whitespace-nowrap text-sm font-mono text-gray-900 dark:text-white">
+                      <td className="px-4 py-4 whitespace-nowrap text-sm font-mono text-[var(--foreground)]">
                         {job.id.substring(0, 12)}...
                       </td>
-                      <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-200">{job.channel}</span>
+                      <td className="px-4 py-4 whitespace-nowrap text-sm text-[var(--foreground)]">
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-[var(--accent-soft)] text-[var(--primary-deep)]">{job.channel}</span>
                       </td>
-                      <td className="px-4 py-4 text-sm text-gray-900 dark:text-white max-w-xs truncate">
+                      <td className="px-4 py-4 text-sm text-[var(--foreground)] max-w-xs truncate">
                         {sanitizeEmail(job.recipientEmail)}
                       </td>
-                      <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                      <td className="px-4 py-4 whitespace-nowrap text-sm text-[var(--foreground)]">
                         <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
                           job.attemptsMade >= job.maxAttempts
-                            ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-200'
-                            : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-200'
+                            ? 'bg-[var(--danger)]/10 text-[var(--foreground)]'
+                            : 'bg-[var(--warning)]/10 text-[var(--foreground)]'
                         }`}>
                           {job.attemptsMade}/{job.maxAttempts}
                         </span>
                       </td>
-                      <td className="px-4 py-4 text-sm text-gray-900 dark:text-white max-w-md">
+                      <td className="px-4 py-4 text-sm text-[var(--foreground)] max-w-md">
                         <div className="truncate" title={job.failedReason || 'Unknown'}>{truncateText(job.failedReason || 'Unknown', 50)}</div>
                       </td>
-                      <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                      <td className="px-4 py-4 whitespace-nowrap text-sm text-[var(--text-muted)]">
                         {job.failedAt ? formatDate(job.failedAt) : 'N/A'}
                       </td>
                       <td className="px-4 py-4 whitespace-nowrap text-sm font-medium">
                         <button
                           onClick={() => handleReplayClick(job.id)}
                           disabled={isReplaying}
-                          className="text-indigo-600 hover:text-indigo-900 dark:text-indigo-400 dark:hover:text-indigo-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                          className="text-[var(--primary-deep)] hover:text-[var(--primary-deep)] disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           {isReplaying ? 'Replaying...' : 'Replay'}
                         </button>
@@ -371,18 +371,18 @@ function FailedJobsList() {
 
       {/* Pagination */}
       {data && totalPages > 1 && (
-        <div className="flex items-center justify-between bg-white dark:bg-gray-800 px-4 py-3 rounded-lg shadow">
-          <div className="text-sm text-gray-700 dark:text-gray-300">
+        <div className="flex items-center justify-between bg-[var(--surface)] px-4 py-3 rounded-lg shadow">
+          <div className="text-sm text-[var(--secondary)]">
             Showing {(page - 1) * (filter.limit || 20) + 1} to {Math.min(page * (filter.limit || 20), data.total)} of {data.total} results
           </div>
           <div className="flex gap-2">
             <button onClick={() => setPage(Math.max(1, page - 1))} disabled={page === 1}
-              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 dark:bg-gray-700 dark:text-gray-300 dark:border-gray-600 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed">
+              className="px-4 py-2 text-sm font-medium text-[var(--secondary)] bg-[var(--surface)] border border-[var(--accent-border)] rounded-md hover:bg-[var(--surface-muted)] disabled:opacity-50 disabled:cursor-not-allowed">
               Previous
             </button>
-            <span className="px-4 py-2 text-sm text-gray-700 dark:text-gray-300">Page {page} of {totalPages}</span>
+            <span className="px-4 py-2 text-sm text-[var(--secondary)]">Page {page} of {totalPages}</span>
             <button onClick={() => setPage(Math.min(totalPages, page + 1))} disabled={page === totalPages}
-              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 dark:bg-gray-700 dark:text-gray-300 dark:border-gray-600 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed">
+              className="px-4 py-2 text-sm font-medium text-[var(--secondary)] bg-[var(--surface)] border border-[var(--accent-border)] rounded-md hover:bg-[var(--surface-muted)] disabled:opacity-50 disabled:cursor-not-allowed">
               Next
             </button>
           </div>

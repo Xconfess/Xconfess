@@ -361,3 +361,110 @@ describe("useNotifications — markAsRead (single)", () => {
     expect(result.current.unreadCount).toBe(0);
   });
 });
+
+// ---------------------------------------------------------------------------
+describe("useNotifications — unread count transitions and synchronization", () => {
+  it("increments count on new incoming unread socket notification", async () => {
+    const { result } = renderHook(() => useNotifications("user-1"));
+
+    await act(async () => {
+      triggerSocketEvent("connect");
+    });
+    expect(result.current.unreadCount).toBe(0);
+
+    await act(async () => {
+      triggerSocketEvent("notification", makeNotification({ id: "live-1", isRead: false }));
+    });
+
+    expect(result.current.unreadCount).toBe(1);
+    expect(result.current.notifications[0].id).toBe("live-1");
+  });
+
+  it("does not increment count when receiving an already read notification", async () => {
+    const { result } = renderHook(() => useNotifications("user-1"));
+
+    await act(async () => {
+      triggerSocketEvent("connect");
+    });
+
+    await act(async () => {
+      triggerSocketEvent("notification", makeNotification({ id: "read-1", isRead: true }));
+    });
+
+    expect(result.current.unreadCount).toBe(0);
+  });
+
+  it("does not double-count duplicate socket events or events already loaded", async () => {
+    const n1 = makeNotification({ id: "existing-1", isRead: false });
+    mockGetNotifications.mockResolvedValue(makePaginatedResponse([n1], 1));
+
+    const { result } = renderHook(() => useNotifications("user-1"));
+
+    await act(async () => {
+      triggerSocketEvent("connect");
+      await result.current.fetchNotifications();
+    });
+
+    expect(result.current.unreadCount).toBe(1);
+
+    // Simulate same event pushed again via socket
+    await act(async () => {
+      triggerSocketEvent("notification", n1);
+    });
+
+    expect(result.current.unreadCount).toBe(1);
+    expect(result.current.notifications).toHaveLength(1);
+  });
+
+  it("reconnect does not double-count events previously delivered over socket", async () => {
+    const liveNotif = makeNotification({ id: "live-streamed-1", isRead: false });
+
+    const { result } = renderHook(() => useNotifications("user-1"));
+
+    await act(async () => {
+      triggerSocketEvent("connect");
+    });
+
+    // Receive socket event while connected
+    await act(async () => {
+      triggerSocketEvent("notification", liveNotif);
+    });
+    expect(result.current.unreadCount).toBe(1);
+
+    // Reconnect occurs, backend returns the same notification with unreadCount=1
+    mockGetNotifications.mockResolvedValue(makePaginatedResponse([liveNotif], 1));
+
+    await act(async () => {
+      triggerSocketEvent("disconnect");
+      triggerSocketEvent("connect");
+    });
+
+    await waitFor(() => {
+      expect(result.current.unreadCount).toBe(1);
+      expect(result.current.notifications).toHaveLength(1);
+    });
+  });
+
+  it("decrements count when deleting an unread notification and rolls back on failure", async () => {
+    const n1 = makeNotification({ id: "n-del", isRead: false });
+    mockGetNotifications.mockResolvedValue(makePaginatedResponse([n1], 1));
+    (notificationApi.deleteNotification as jest.Mock).mockRejectedValueOnce(new Error("delete failed"));
+
+    const { result } = renderHook(() => useNotifications("user-1"));
+
+    await act(async () => {
+      await result.current.fetchNotifications();
+    });
+    expect(result.current.unreadCount).toBe(1);
+
+    // Attempt delete with API failure
+    await act(async () => {
+      await result.current.deleteNotification("n-del");
+    });
+
+    // Rolled back
+    expect(result.current.unreadCount).toBe(1);
+    expect(result.current.notifications).toHaveLength(1);
+  });
+});
+

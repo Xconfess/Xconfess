@@ -1,27 +1,44 @@
 import { Processor, OnWorkerEvent, InjectQueue, WorkerHost } from '@nestjs/bullmq';
 import { Logger } from '@nestjs/common';
 import { Job, Queue } from 'bullmq';
+import type { Redis } from 'ioredis';
+import { createHash, randomUUID } from 'node:crypto';
+import type Redis from 'ioredis';
 import { EmailNotificationService } from '../services/email-notification.service';
 import { NotificationType } from '../entities/notification.entity';
 import { AppLogger } from '../../logger/logger.service';
 
 export const NOTIFICATION_QUEUE = 'notifications';
 export const NOTIFICATION_DLQ = 'notifications-dlq';
+export const NOTIFICATION_JOB_OPTIONS: JobsOptions = {
+  attempts: 5,
+  backoff: { type: 'exponential', delay: 2000 },
+  removeOnComplete: { count: 500 },
+  removeOnFail: false,
+};
 
 export interface NotificationJobData {
   userId: string;
   type: string; // Unified with NotificationType or string
   title: string;
   message: string;
+  /** Stable idempotency key — prevents duplicate delivery across retries (#1980). */
+  idempotencyKey?: string;
+  notificationId?: string;
+  /** Correlation ID from originating request — links background jobs to initiating operation. */
+  requestId?: string;
   metadata?: any;
   _meta?: {
     originalJobId: string | undefined;
     failedAt: string;
     attemptsMade: number;
     lastError: string;
+    lastErrorClass?: string;
     replayJobId?: string;
     replayedAt?: string;
     replayOutcome?: 'replayed' | 'deduplicated';
+    /** Number of times this job has been replayed from the DLQ (#1981). */
+    replayCount?: number;
   };
 }
 
@@ -33,6 +50,8 @@ export class NotificationProcessor extends WorkerHost {
     private readonly emailNotificationService: EmailNotificationService,
     @InjectQueue(NOTIFICATION_DLQ)
     private readonly dlq: Queue<NotificationJobData>,
+    @InjectQueue(NOTIFICATION_QUEUE)
+    private readonly notificationQueue: Queue<NotificationJobData>,
     private readonly appLogger: AppLogger,
   ) {
     super();
@@ -41,9 +60,12 @@ export class NotificationProcessor extends WorkerHost {
   // ------------------------------------------------------------------ process
   async process(job: Job<NotificationJobData>): Promise<void> {
     if (job.name === 'send-notification') {
+      const idempotencyKey = job.data.idempotencyKey;
+
       this.logger.log(
         `Processing notification job ${job.id} (attempt ${job.attemptsMade + 1})` +
-          ` → userId: ${job.data.userId}`,
+          ` → userId: ${job.data.userId}` +
+          `${job.data.requestId ? ` requestId: ${job.data.requestId}` : ''}`,
       );
 
       this.appLogger.incrementCounter('notification_queue_processing_total', 1, {
@@ -52,7 +74,18 @@ export class NotificationProcessor extends WorkerHost {
       });
 
       const startedAt = Date.now();
-      await this.emailNotificationService.sendEmail(job.data);
+      if (idempotencyKey) {
+        const delivered = await this.deliverIdempotently(
+          idempotencyKey,
+          () => this.emailNotificationService.sendEmail(job.data),
+        );
+        if (!delivered) {
+          this.logger.log(`Skipping duplicate notification job ${job.id}`);
+          return;
+        }
+      } else {
+        await this.emailNotificationService.sendEmail(job.data);
+      }
       this.appLogger.observeTimer(
         'notification_queue_processing_duration_ms',
         Date.now() - startedAt,
@@ -79,8 +112,15 @@ export class NotificationProcessor extends WorkerHost {
 
     const maxAttempts = (job.opts as any)?.attempts ?? 1;
 
+    // SMTP error text can contain credentials, recipients and private content.
+    // Persist only an allowlisted classification in logs and DLQ metadata.
+    const code = (error as Error & { code?: string }).code;
+    const safeError = code && [
+      'ETIMEDOUT', 'ECONNECTION', 'ECONNREFUSED', 'EAUTH',
+      'EENVELOPE', 'EMESSAGE', 'ESOCKET',
+    ].includes(code) ? code : 'DELIVERY_FAILED';
     this.logger.warn(
-      `Job ${job.id} failed (attempt ${job.attemptsMade}/${maxAttempts}): ${error.message}`,
+      `Job ${job.id} failed (attempt ${job.attemptsMade}/${maxAttempts}): ${safeError}`,
     );
 
     const isExhausted = job.attemptsMade >= maxAttempts;
@@ -103,7 +143,6 @@ export class NotificationProcessor extends WorkerHost {
 
       this.logger.error(
         `Job ${job.id} exhausted all retries — moving to DLQ`,
-        error.stack,
       );
 
       await this.dlq.add(
@@ -114,10 +153,12 @@ export class NotificationProcessor extends WorkerHost {
             originalJobId: String(job.id),
             failedAt: new Date().toISOString(),
             attemptsMade: job.attemptsMade,
-            lastError: error.message,
+            lastError: safeError,
+            lastErrorClass: 'Error',
           },
         },
         {
+          jobId: `notification-${createHash('sha256').update(String(job.id)).digest('hex')}`,
           removeOnComplete: false,
           removeOnFail: false,
         },
@@ -130,6 +171,48 @@ export class NotificationProcessor extends WorkerHost {
   onCompleted(job: Job<NotificationJobData> | undefined): void {
     if (job) {
       this.logger.log(`Job ${job.id} completed successfully`);
+    }
+  }
+
+  // --------------------------------------------------------- idempotency (#2000)
+  /**
+   * A Redis lock serializes duplicate event jobs across worker processes. The
+   * delivered marker is written only after sendEmail succeeds, so a transient
+   * delivery failure releases the lock and remains retryable.
+   */
+  private async deliverIdempotently(
+    idempotencyKey: string,
+    deliver: () => Promise<unknown>,
+  ): Promise<boolean> {
+    const digest = createHash('sha256').update(idempotencyKey).digest('hex');
+    const deliveredKey = `notification:delivered:${digest}`;
+    const lockKey = `notification:processing:${digest}`;
+    // This queue uses BullMQ's ioredis adapter, which forwards native commands.
+    const redis = (await this.notificationQueue.client) as Awaited<
+      Queue['client']
+    > & Pick<Redis, 'set' | 'eval'>;
+
+    if (await redis.get(deliveredKey)) return false;
+
+    const lockToken = randomUUID();
+    const lock = await redis.set(lockKey, lockToken, 'PX', 5 * 60 * 1000, 'NX');
+    if (lock !== 'OK') {
+      if (await redis.get(deliveredKey)) return false;
+      // Let BullMQ retry this job after the active worker releases the lock.
+      throw new Error('Notification with this event key is already being delivered.');
+    }
+
+    try {
+      await deliver();
+      await redis.set(deliveredKey, '1', 'EX', 30 * 24 * 60 * 60);
+      return true;
+    } finally {
+      await redis.eval(
+        'if redis.call("get", KEYS[1]) == ARGV[1] then return redis.call("del", KEYS[1]) else return 0 end',
+        1,
+        lockKey,
+        lockToken,
+      );
     }
   }
 }

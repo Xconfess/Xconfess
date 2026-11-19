@@ -100,6 +100,9 @@ Target surfaces (adjust list as pages are confirmed):
 - [ ] Automated scan run (axe, Lighthouse, or equivalent) against confession
       feed, confession detail, and profile pages — zero critical/serious
       issues outstanding
+- [x] CI axe-core smoke scans the public home, login, and authenticated admin
+      dashboard routes; there are currently no accepted critical/serious
+      exceptions. Local reproduction: `npm run frontend:test:a11y`.
 - [ ] Manual keyboard-only pass completed on all target surfaces above
 - [ ] Manual screen reader pass (VoiceOver or NVDA) completed on confession
       submission flow and profile edit flow at minimum

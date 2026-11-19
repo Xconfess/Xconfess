@@ -18,6 +18,7 @@ import { encryptConfession } from '../utils/confession-encryption';
 import { encodeCursor } from '../common/pagination';
 import { AnomalyDetectionService } from '../anomaly/anomaly-detection.service';
 import { ConfessionIdempotencyService } from './confession-idempotency.service';
+import { DataSource } from 'typeorm';
 
 jest.mock('../utils/confession-encryption', () => ({
   decryptConfession: jest.fn((value: string) => value ?? ''),
@@ -87,6 +88,7 @@ function buildProviders(qb: any, cacheService: any) {
     { provide: TagService, useValue: { validateTags: jest.fn() } },
     anomalyDetectionProvider,
     idempotencyServiceProvider,
+    { provide: DataSource, useValue: {} },
   ];
 }
 
@@ -171,10 +173,47 @@ describe('ConfessionService — feed pagination', () => {
 
       expect(qb.andWhere).toHaveBeenCalledWith(
         expect.stringContaining('confession.created_at'),
-        expect.objectContaining({ createdAt: cursorDate, id: 'c1' }),
+        expect.objectContaining({ createdAt: new Date(cursorDate), id: 'c1' }),
       );
       expect(result.data).toHaveLength(2);
     });
+  });
+
+  it('continues across identical-timestamp rows using the unique id boundary', async () => {
+    const timestamp = new Date('2026-01-01T00:00:00.000Z');
+    qb.getMany
+      .mockResolvedValueOnce([
+        makeConfession('00000000-0000-0000-0000-000000000003', 'newest', timestamp),
+        makeConfession('00000000-0000-0000-0000-000000000002', 'boundary', timestamp),
+        makeConfession('00000000-0000-0000-0000-000000000001', 'probe', timestamp),
+      ])
+      .mockResolvedValueOnce([
+        makeConfession('00000000-0000-0000-0000-000000000001', 'older id', timestamp),
+      ]);
+
+    const firstPage = await service.getConfessions({ limit: 2, sort: SortOrder.NEWEST });
+    const secondPage = await service.getConfessions({
+      limit: 2,
+      sort: SortOrder.NEWEST,
+      cursor: firstPage.nextCursor!,
+    });
+
+    expect(firstPage.data.map(({ id }) => id)).toEqual([
+      '00000000-0000-0000-0000-000000000003',
+      '00000000-0000-0000-0000-000000000002',
+    ]);
+    expect(secondPage.data.map(({ id }) => id)).toEqual([
+      '00000000-0000-0000-0000-000000000001',
+    ]);
+    expect(qb.orderBy).toHaveBeenCalledWith('confession.created_at', 'DESC');
+    expect(qb.addOrderBy).toHaveBeenCalledWith('confession.id', 'DESC');
+    expect(qb.andWhere).toHaveBeenCalledWith(
+      '(confession.created_at, confession.id) < (:createdAt, :id)',
+      {
+        createdAt: timestamp,
+        id: '00000000-0000-0000-0000-000000000002',
+      },
+    );
   });
 
   describe('middle page via offset', () => {
@@ -362,6 +401,7 @@ function buildSearchProviders(repoValue: any) {
     { provide: TagService, useValue: { validateTags: jest.fn() } },
     anomalyDetectionProvider,
     idempotencyServiceProvider,
+    { provide: DataSource, useValue: {} },
   ];
 }
 
@@ -412,7 +452,7 @@ describe('ConfessionService — search pagination', () => {
 
       await service.search({ q: 'test', page: 2, limit: 10 });
 
-      expect(repository.hybridSearch).toHaveBeenCalledWith('test', 2, 10, expect.any(Object));
+      expect(repository.hybridSearch).toHaveBeenCalledWith('test', 2, 10, expect.any(Object), expect.objectContaining({ timeoutMs: 5000 }));
     });
 
     it('empty page: data=[], meta.total=0, meta.totalPages=0', async () => {
@@ -481,7 +521,7 @@ describe('ConfessionService — search pagination', () => {
 
       await service.fullTextSearch({ q: 'work', page: 2, limit: 10 });
 
-      expect(repository.fullTextSearch).toHaveBeenCalledWith('work', 2, 10, expect.any(Object));
+      expect(repository.fullTextSearch).toHaveBeenCalledWith('work', 2, 10, expect.any(Object), expect.objectContaining({ timeoutMs: 5000 }));
     });
 
     it('empty page: data=[], total=0', async () => {

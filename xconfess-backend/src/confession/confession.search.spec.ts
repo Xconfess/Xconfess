@@ -17,6 +17,8 @@ import { TagService } from './tag.service';
 import { AnomalyDetectionService } from '../anomaly/anomaly-detection.service';
 import { ConfessionIdempotencyService } from './confession-idempotency.service';
 import { encryptConfession } from '../utils/confession-encryption';
+import { RequestTimeoutException } from '@nestjs/common';
+import { SEARCH_TIMEOUT_MESSAGE } from './search-query-timeout';
 
 jest.mock('../utils/confession-encryption', () => ({
   decryptConfession: jest.fn((value: string) => value ?? ''),
@@ -75,6 +77,7 @@ describe('ConfessionService - Search Functionality', () => {
             observeTimer: jest.fn(),
             logSlowSearch: jest.fn(),
             logSampledSearch: jest.fn(),
+            logSearchTimeout: jest.fn(),
           },
         },
         {
@@ -197,6 +200,7 @@ describe('ConfessionService - Search Functionality', () => {
         1,
         10,
         searchDto,
+        expect.objectContaining({ timeoutMs: 5000 }),
       );
     });
 
@@ -220,6 +224,7 @@ describe('ConfessionService - Search Functionality', () => {
         1,
         10,
         searchDto,
+        expect.objectContaining({ timeoutMs: 5000 }),
       );
     });
   });
@@ -276,6 +281,7 @@ describe('ConfessionService - Search Functionality', () => {
         1,
         10,
         searchDto,
+        expect.objectContaining({ timeoutMs: 5000 }),
       );
     });
 
@@ -310,7 +316,76 @@ describe('ConfessionService - Search Functionality', () => {
         1,
         10,
         searchDto,
+        expect.objectContaining({ timeoutMs: 5000 }),
       );
+    });
+  });
+
+  // ── Query timeout ──────────────────────────────────────────────────────────
+
+  describe('search query timeout', () => {
+    const statementTimeout = Object.assign(
+      new Error('canceling statement due to statement timeout'),
+      { code: '57014' },
+    );
+
+    it('returns a generic 408 and logs the redacted term shape when hybrid search times out', async () => {
+      jest.spyOn(repository, 'hybridSearch').mockRejectedValue(statementTimeout);
+
+      const search = service.search({ q: 'private words', page: 1, limit: 10 });
+
+      await expect(search).rejects.toBeInstanceOf(RequestTimeoutException);
+      await expect(search).rejects.toThrow(SEARCH_TIMEOUT_MESSAGE);
+      expect(logger.logSearchTimeout).toHaveBeenCalledWith(
+        expect.objectContaining({
+          rawTerm: 'private words',
+          searchType: 'hybrid',
+          page: 1,
+          limit: 10,
+          timeoutMs: 5000,
+        }),
+      );
+    });
+
+    it('maps a full-text statement timeout the same way', async () => {
+      jest.spyOn(repository, 'fullTextSearch').mockRejectedValue(statementTimeout);
+
+      await expect(
+        service.fullTextSearch({ q: 'slow', page: 2, limit: 5 }),
+      ).rejects.toBeInstanceOf(RequestTimeoutException);
+      expect(logger.logSearchTimeout).toHaveBeenCalledWith(
+        expect.objectContaining({ searchType: 'fulltext', page: 2, limit: 5 }),
+      );
+    });
+
+    it('passes the configured timeout to the repository', async () => {
+      (configService.get as jest.Mock).mockImplementation((key: string) =>
+        key === 'app.searchQueryTimeoutMs' ? 1500 : undefined,
+      );
+      jest.spyOn(repository, 'hybridSearch').mockResolvedValue({
+        confessions: [],
+        total: 0,
+      } as any);
+
+      await service.search({ q: 'anything', page: 1, limit: 10 });
+
+      expect(repository.hybridSearch).toHaveBeenCalledWith(
+        'anything',
+        1,
+        10,
+        expect.any(Object),
+        { timeoutMs: 1500 },
+      );
+    });
+
+    it('rethrows errors that are not statement timeouts unchanged', async () => {
+      const failure = new Error('connection reset');
+      jest.spyOn(repository, 'hybridSearch').mockRejectedValue(failure);
+
+      await expect(
+        service.search({ q: 'anything', page: 1, limit: 10 }),
+      ).rejects.toBe(failure);
+      expect(logger.logSearchTimeout).not.toHaveBeenCalled();
     });
   });
 

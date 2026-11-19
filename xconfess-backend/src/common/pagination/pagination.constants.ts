@@ -20,4 +20,25 @@ export const PAGINATION = {
 
   /** Pages are 1-indexed throughout the API. */
   MIN_PAGE: 1,
+
+  /**
+   * Highest page number any offset-paginated endpoint will accept. Together
+   * with MAX_LIMIT this bounds how deep (and therefore how expensive) an
+   * offset scan may be: at most MAX_PAGE * MAX_LIMIT rows are ever skipped.
+   */
+  MAX_PAGE: 1000,
+} as const;
+
+/**
+ * Canonical validation messages for pagination params. Every list endpoint
+ * must use these so `limit`/`page` rejections read identically regardless of
+ * which endpoint produced them (Issue #2117).
+ */
+export const PAGINATION_MESSAGES = {
+  PAGE_INTEGER: 'page must be an integer.',
+  PAGE_MIN: `page must be at least ${PAGINATION.MIN_PAGE}.`,
+  PAGE_MAX: `page must not exceed ${PAGINATION.MAX_PAGE}.`,
+  LIMIT_INTEGER: 'limit must be an integer.',
+  LIMIT_MIN: `limit must be at least ${PAGINATION.MIN_LIMIT}.`,
+  LIMIT_MAX: `limit must not exceed ${PAGINATION.MAX_LIMIT}.`,
 } as const;

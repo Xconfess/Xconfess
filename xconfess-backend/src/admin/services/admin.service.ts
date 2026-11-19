@@ -305,6 +305,9 @@ export class AdminService {
       }
 
       if (toSave.length > 0) {
+        for (const report of toSave) {
+          report.version = (report.version || 0) + 1;
+        }
         await reportRepo.save(toSave);
       }
 

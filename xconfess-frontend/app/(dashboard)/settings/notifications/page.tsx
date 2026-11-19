@@ -141,7 +141,7 @@ export default function NotificationSettingsPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600" />
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--accent-border)]" />
       </div>
     );
   }
@@ -149,9 +149,9 @@ export default function NotificationSettingsPage() {
   if (error) {
     return (
       <div className="max-w-2xl mx-auto p-6">
-        <div className="bg-red-900/20 border border-red-800 rounded-xl p-6 text-center">
-          <p className="text-red-200 mb-4">{error}</p>
-          <button onClick={loadPreferences} className="px-4 py-2 bg-red-600 hover:bg-red-700 rounded-lg text-white">
+        <div className="bg-[var(--danger)]/10 border border-[var(--danger)]/30 rounded-xl p-6 text-center">
+          <p className="text-[var(--danger)] mb-4">{error}</p>
+          <button onClick={loadPreferences} className="px-4 py-2 bg-[var(--danger)] hover:opacity-90 rounded-lg text-white">
             Retry
           </button>
         </div>
@@ -162,24 +162,24 @@ export default function NotificationSettingsPage() {
   return (
     <div className="max-w-4xl mx-auto p-6">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-white flex items-center gap-3">
-          <Bell className="w-8 h-8 text-purple-500" />
+        <h1 className="text-3xl font-semibold text-[var(--foreground)] flex items-center gap-3">
+          <Bell className="w-8 h-8 text-[var(--primary-deep)]" />
           Notification Preferences
         </h1>
-        <p className="text-gray-400 mt-2">
+        <p className="text-[var(--text-muted)] mt-2">
           Control which notifications you receive and how they are delivered
         </p>
       </div>
 
       {/* Category × Channel Matrix */}
-      <div className="bg-zinc-900 rounded-xl border border-zinc-800 overflow-hidden mb-6">
+      <div className="bg-[var(--surface)] rounded-xl border border-[var(--border)] overflow-hidden mb-6">
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
-              <tr className="border-b border-zinc-800">
-                <th className="text-left p-4 text-gray-400 font-medium">Category</th>
+              <tr className="border-b border-[var(--border)]">
+                <th className="text-left p-4 text-[var(--text-muted)] font-medium">Category</th>
                 {CHANNELS.map((ch) => (
-                  <th key={ch.key} className="p-4 text-gray-400 font-medium text-center">
+                  <th key={ch.key} className="p-4 text-[var(--text-muted)] font-medium text-center">
                     <div className="flex items-center justify-center gap-1">
                       {ch.icon}
                       <span className="hidden sm:inline">{ch.label}</span>
@@ -190,21 +190,21 @@ export default function NotificationSettingsPage() {
             </thead>
             <tbody>
               {CATEGORIES.map((cat) => (
-                <tr key={cat.key} className="border-b border-zinc-800 last:border-0 hover:bg-zinc-800/50">
+                <tr key={cat.key} className="border-b border-[var(--border)] last:border-0 hover:bg-[var(--surface-muted)]/50">
                   <td className="p-4">
-                    <p className="text-white font-medium">{cat.label}</p>
-                    <p className="text-gray-500 text-sm">{cat.description}</p>
+                    <p className="text-[var(--foreground)] font-medium">{cat.label}</p>
+                    <p className="text-[var(--text-muted)] text-sm">{cat.description}</p>
                   </td>
                   {CHANNELS.map((ch) => (
                     <td key={ch.key} className="p-4 text-center">
                       <button
                         onClick={() => toggleChannel(cat.key, ch.key)}
                         className={`w-10 h-6 rounded-full transition-colors relative ${
-                          preferences[cat.key][ch.key] ? 'bg-purple-600' : 'bg-zinc-700'
+                          preferences[cat.key][ch.key] ? 'bg-[var(--primary)]' : 'bg-[var(--surface-elevated)]'
                         }`}
                       >
                         <span
-                          className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${
+                          className={`absolute top-0.5 w-5 h-5 bg-[var(--surface)] rounded-full shadow transition-transform ${
                             preferences[cat.key][ch.key] ? 'translate-x-[18px]' : 'translate-x-0.5'
                           }`}
                         />
@@ -219,23 +219,23 @@ export default function NotificationSettingsPage() {
       </div>
 
       {/* Quiet Hours */}
-      <div className="bg-zinc-900 rounded-xl border border-zinc-800 p-6 mb-6">
+      <div className="bg-[var(--surface)] rounded-xl border border-[var(--border)] p-6 mb-6">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-3">
-            <Moon className="w-6 h-6 text-indigo-400" />
+            <Moon className="w-6 h-6 text-[var(--primary-deep)]" />
             <div>
-              <h2 className="text-lg font-semibold text-white">Quiet Hours</h2>
-              <p className="text-sm text-gray-400">Suppress notifications during specified hours</p>
+              <h2 className="text-lg font-semibold text-[var(--foreground)]">Quiet Hours</h2>
+              <p className="text-sm text-[var(--text-muted)]">Suppress notifications during specified hours</p>
             </div>
           </div>
           <button
             onClick={() => setPreferences((p) => ({ ...p, enableQuietHours: !p.enableQuietHours }))}
             className={`w-12 h-7 rounded-full transition-colors relative ${
-              preferences.enableQuietHours ? 'bg-purple-600' : 'bg-zinc-700'
+              preferences.enableQuietHours ? 'bg-[var(--primary)]' : 'bg-[var(--surface-elevated)]'
             }`}
           >
             <span
-              className={`absolute top-0.5 w-6 h-6 bg-white rounded-full shadow transition-transform ${
+              className={`absolute top-0.5 w-6 h-6 bg-[var(--surface)] rounded-full shadow transition-transform ${
                 preferences.enableQuietHours ? 'translate-x-[22px]' : 'translate-x-0.5'
               }`}
             />
@@ -245,23 +245,23 @@ export default function NotificationSettingsPage() {
         {preferences.enableQuietHours && (
           <div className="flex flex-wrap gap-4 mt-4">
             <div className="flex items-center gap-2">
-              <Clock className="w-4 h-4 text-gray-400" />
-              <label className="text-sm text-gray-300">From:</label>
+              <Clock className="w-4 h-4 text-[var(--text-muted)]" />
+              <label className="text-sm text-[var(--secondary)]">From:</label>
               <input
                 type="time"
                 value={preferences.quietHoursStart || '22:00'}
                 onChange={(e) => setPreferences((p) => ({ ...p, quietHoursStart: e.target.value }))}
-                className="bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-white text-sm"
+                className="bg-[var(--surface-muted)] border border-[var(--border)] rounded-lg px-3 py-2 text-[var(--foreground)] text-sm"
               />
             </div>
             <div className="flex items-center gap-2">
-              <Clock className="w-4 h-4 text-gray-400" />
-              <label className="text-sm text-gray-300">To:</label>
+              <Clock className="w-4 h-4 text-[var(--text-muted)]" />
+              <label className="text-sm text-[var(--secondary)]">To:</label>
               <input
                 type="time"
                 value={preferences.quietHoursEnd || '08:00'}
                 onChange={(e) => setPreferences((p) => ({ ...p, quietHoursEnd: e.target.value }))}
-                className="bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-white text-sm"
+                className="bg-[var(--surface-muted)] border border-[var(--border)] rounded-lg px-3 py-2 text-[var(--foreground)] text-sm"
               />
             </div>
           </div>
@@ -272,7 +272,7 @@ export default function NotificationSettingsPage() {
       <button
         onClick={handleSave}
         disabled={saving}
-        className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 rounded-xl text-white font-medium transition-colors"
+        className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-[var(--primary)] hover:bg-[var(--primary-hover)] disabled:opacity-50 rounded-xl text-white font-medium transition-colors"
       >
         {saving ? (
           <>

@@ -2,8 +2,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 export default function RegisterLoading() {
     return (
-        <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900 px-4">
-            <div className="w-full max-w-md bg-white dark:bg-gray-800 rounded-lg shadow p-6 space-y-4">
+        <div className="min-h-screen flex items-center justify-center bg-[var(--surface-muted)] px-4">
+            <div className="border border-[var(--border)] w-full max-w-md bg-[var(--surface)] rounded-lg p-6 space-y-4">
                 {/* Header Title & Link Skeleton */}
                 <div className="space-y-2">
                     <Skeleton className="h-7 w-44" />

@@ -246,6 +246,9 @@ export function useReactions(options: UseReactionsOptions = {}): UseReactionsRet
     useState<ReactionConnectionState>("disconnected");
   const hasConnectedRef = useRef(false);
   const localEventKeysRef = useRef(new Set<string>());
+  // Requests still awaiting the server, keyed by confession and reaction type.
+  // A repeat click joins the request already in flight instead of counting twice.
+  const inFlightReactionsRef = useRef(new Map<string, Promise<AddReactionResponse>>());
 
   const initialLike = initialCounts?.like ?? 0;
   const initialLove = initialCounts?.love ?? 0;
@@ -430,9 +433,13 @@ export function useReactions(options: UseReactionsOptions = {}): UseReactionsRet
         }),
       );
 
-      // Set optimistic state for hook consumers
-      const newCounts = incrementReactionCount(initialCounts, variables.type);
+      // Build on the counts the user currently sees (they may include gateway
+      // updates), not the initial prop snapshot, so the optimistic step never
+      // reverts a newer count.
+      const previousLiveCounts = normalizeCounts(liveCounts);
+      const newCounts = incrementReactionCount(previousLiveCounts, variables.type);
 
+      // Set optimistic state for hook consumers
       setOptimisticState({
         counts: newCounts,
         userReaction: variables.type,
@@ -443,6 +450,7 @@ export function useReactions(options: UseReactionsOptions = {}): UseReactionsRet
       // Return context with previous values for rollback
       return {
         previousConfessionQueries,
+        previousLiveCounts,
       };
     },
 
@@ -456,7 +464,9 @@ export function useReactions(options: UseReactionsOptions = {}): UseReactionsRet
 
       // Clear optimistic state
       setOptimisticState(null);
-      setLiveCounts(normalizeCounts(initialCounts));
+      // Restore the counts captured before this attempt, so a rejected write
+      // does not wipe out a count the user was already seeing.
+      setLiveCounts(context?.previousLiveCounts ?? normalizeCounts(initialCounts));
 
       // Call error callback
       if (onError) {
@@ -499,7 +509,7 @@ export function useReactions(options: UseReactionsOptions = {}): UseReactionsRet
     },
   });
 
-  const handleAddReaction = useCallback(async (
+  const submitReaction = useCallback(async (
     confessionId: string,
     type: ReactionType
   ): Promise<AddReactionResponse> => {
@@ -547,6 +557,24 @@ export function useReactions(options: UseReactionsOptions = {}): UseReactionsRet
       };
     }
   }, [mutation, onSuccess, initialUserReaction, patchReactionCounts]);
+
+  const handleAddReaction = useCallback((
+    confessionId: string,
+    type: ReactionType
+  ): Promise<AddReactionResponse> => {
+    const requestKey = `${confessionId}:${type}`;
+    const inFlight = inFlightReactionsRef.current.get(requestKey);
+    if (inFlight) {
+      // Duplicate click while the first request is pending: share its outcome.
+      return inFlight;
+    }
+
+    const request = submitReaction(confessionId, type).finally(() => {
+      inFlightReactionsRef.current.delete(requestKey);
+    });
+    inFlightReactionsRef.current.set(requestKey, request);
+    return request;
+  }, [submitReaction]);
 
   const handleRemoveReaction = useCallback(async (
     _confessionId: string,

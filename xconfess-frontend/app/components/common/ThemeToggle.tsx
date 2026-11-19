@@ -11,7 +11,7 @@ export function ThemeToggle() {
   useEffect(() => setMounted(true), []);
 
   if (!mounted) {
-    return <div className="h-10 w-10 rounded-full border border-[var(--border)] bg-[var(--surface-muted)]" aria-hidden="true" />;
+    return <div className="h-9 w-9" aria-hidden="true" />;
   }
 
   const Icon = theme === "system" ? Laptop : resolvedTheme === "dark" ? Moon : Sun;
@@ -21,7 +21,7 @@ export function ThemeToggle() {
     <button
       type="button"
       onClick={() => setTheme(nextTheme)}
-      className="flex h-10 w-10 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--accent-soft)] text-[var(--primary-deep)] transition-colors hover:bg-[var(--surface-muted)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--focus-ring)]"
+      className="flex h-9 w-9 items-center justify-center rounded-[var(--radius-control)] text-[var(--secondary)] transition-colors hover:bg-[var(--surface-muted)] hover:text-[var(--foreground)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--focus-ring)]"
       aria-label={theme === "system" ? "Theme: system preference" : "Theme: " + theme}
       title={"Switch to " + nextTheme + " theme"}
     >

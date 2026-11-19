@@ -102,6 +102,18 @@ Any change to a Soroban event schema (e.g., adding a field, changing a type) mus
 ### Compatibility Validation
 The backend Stellar event tests rely on these fixtures. If the backend fails to parse the new fixtures, the contract changes cannot be safely deployed without accompanying backend updates.
 
+## Cross-layer parity command
+
+Run the generated fixture comparison locally before a contract, backend, or frontend release:
+
+```bash
+npm run contracts:fixtures:verify
+```
+
+The validator compares the Soroban event registry, backend parser fixtures, and frontend contract fixtures. It fails on missing or renamed events/topics, category or event-version drift, field-name/field-count incompatibility, and missing numeric error codes. Output identifies the affected contract and consumer.
+
+Use `npm run contracts:fixtures:inventory` to regenerate the machine-readable inventory at `deployments/contract-event-error-inventory.json`.
+
 ## References
 * **[Event version bump checklist](./contract-event-version-bump-checklist.md)** — contract files, backend fixture tests, changelog template, and version increment rules.
 * Backend fixture tests: [`xconfess-backend/src/stellar/__tests__/contract-event-fixtures.spec.ts`](../xconfess-backend/src/stellar/__tests__/contract-event-fixtures.spec.ts), [`xconfess-backend/src/tipping/contract-fixtures.spec.ts`](../xconfess-backend/src/tipping/contract-fixtures.spec.ts)

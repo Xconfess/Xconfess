@@ -1,26 +1,35 @@
+# Cargo workspace root: lets all the Soroban contracts build together
+# and share one lockfile and one set of build settings.
 [workspace]
+# Use Cargo's newer dependency resolver (needed for modern edition-2021 crates).
 resolver = "2"
+# Each folder below is its own contract crate with its own Cargo.toml.
 members = [
-  "contracts/confession-anchor",
-  "contracts/confession-registry",
-  "contracts/anonymous-tipping",
-  "contracts/reputation-badges"
+  "contracts/confession-anchor",    # anchors confession hashes on-chain
+  "contracts/confession-registry",  # registry of confessions
+  "contracts/anonymous-tipping",    # anonymous tipping logic
+  "contracts/reputation-badges"     # reputation badge logic
 ]
 
+# Shared dependency versions. Member crates can reference these with
+# `soroban-sdk = { workspace = true }` so everyone stays on the same version.
 [workspace.dependencies]
 soroban-sdk = "23"
 
+# Settings for `cargo build --release`, tuned for small WASM contract size
+# (smaller contracts are cheaper to deploy on Stellar).
 [profile.release]
-opt-level = "z"
-overflow-checks = true
-debug = 0
-strip = "symbols"
-debug-assertions = false
-panic = "abort"
-codegen-units = 1
-lto = true
+opt-level = "z"           # optimize for the smallest binary size
+overflow-checks = true    # panic on integer overflow instead of silently wrapping (safer for contracts)
+debug = 0                 # no debug info in the output
+strip = "symbols"         # remove symbol names to shrink the binary
+debug-assertions = false  # disable debug_assert! checks in release builds
+panic = "abort"           # abort on panic instead of unwinding (smaller WASM)
+codegen-units = 1         # compile as one unit so the optimizer can shrink code further (slower build)
+lto = true                # link-time optimization across crates for a smaller, faster binary
 
 # For more information about this profile see https://soroban.stellar.org/docs/basic-tutorials/logging#cargotoml-profile
+# Same as release, but with logging enabled so you can debug contracts.
 [profile.release-with-logs]
-inherits = "release"
-debug-assertions = true
+inherits = "release"      # start from all the release settings above
+debug-assertions = true   # re-enable debug assertions so log output works

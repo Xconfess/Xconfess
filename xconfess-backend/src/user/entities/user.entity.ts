@@ -33,8 +33,8 @@ export interface PrivacySettings {
 }
 
 @Entity()
-@Unique(['username'])
-@Unique(['emailHash'])
+@Unique('UQ_user_username', ['username'])
+@Unique('UQ_user_email_hash', ['emailHash'])
 export class User {
   @PrimaryGeneratedColumn()
   id!: number;
@@ -54,7 +54,7 @@ export class User {
   @Column({ name: 'email_tag', type: 'varchar', length: 32 })
   emailTag!: string;
 
-  @Column({ name: 'email_hash', type: 'varchar', length: 64, unique: true })
+  @Column({ name: 'email_hash', type: 'varchar', length: 64 })
   emailHash!: string;
 
   @Column({ type: 'enum', enum: UserRole, default: UserRole.USER })
@@ -91,10 +91,20 @@ export class User {
   @Column({ name: 'totp_secret_encrypted', type: 'text', nullable: true })
   totpSecretEncrypted!: string | null;
 
-  @Column({ name: 'totp_secret_iv', type: 'varchar', length: 64, nullable: true })
+  @Column({
+    name: 'totp_secret_iv',
+    type: 'varchar',
+    length: 64,
+    nullable: true,
+  })
   totpSecretIv!: string | null;
 
-  @Column({ name: 'totp_secret_tag', type: 'varchar', length: 64, nullable: true })
+  @Column({
+    name: 'totp_secret_tag',
+    type: 'varchar',
+    length: 64,
+    nullable: true,
+  })
   totpSecretTag!: string | null;
 
   /**
@@ -103,10 +113,20 @@ export class User {
   @Column({ name: 'recovery_codes_encrypted', type: 'text', nullable: true })
   recoveryCodesEncrypted!: string | null;
 
-  @Column({ name: 'recovery_codes_iv', type: 'varchar', length: 64, nullable: true })
+  @Column({
+    name: 'recovery_codes_iv',
+    type: 'varchar',
+    length: 64,
+    nullable: true,
+  })
   recoveryCodesIv!: string | null;
 
-  @Column({ name: 'recovery_codes_tag', type: 'varchar', length: 64, nullable: true })
+  @Column({
+    name: 'recovery_codes_tag',
+    type: 'varchar',
+    length: 64,
+    nullable: true,
+  })
   recoveryCodesTag!: string | null;
 
   isNotificationEnabled(category: NotificationCategory): boolean {

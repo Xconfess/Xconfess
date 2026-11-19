@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { ConfigService } from '@nestjs/config';
@@ -34,6 +34,13 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
 
     if (!user) {
       throw new Error('User not found');
+    }
+
+    // #2235 — login already rejects deactivated accounts, but an existing
+    // session's JWT kept working against every other route until it
+    // expired, since this guard never re-checked the live account status.
+    if (!user.is_active) {
+      throw new UnauthorizedException('Account is deactivated');
     }
 
     // Return canonical RequestUser shape

@@ -12,6 +12,7 @@ import {
   NotificationProcessor,
   NOTIFICATION_QUEUE,
   NOTIFICATION_DLQ,
+  NOTIFICATION_JOB_OPTIONS,
 } from './processors/notification.processor';
 import { NotificationGateway } from './gateways/notification.gateway';
 import { DlqAdminController } from './dlq-admin.controller';
@@ -24,6 +25,7 @@ import { User } from '../user/entities/user.entity';
 import { AuditLogModule } from '../audit-log/audit-log.module';
 import { LoggerModule } from '../logger/logger.module';
 import { EmailModule } from '../email/email.module';
+import { NotificationsQueueRegistrar } from './queue-registrar';
 
 const jobsEnabled = process.env.ENABLE_BACKGROUND_JOBS === 'true';
 
@@ -37,15 +39,7 @@ const jobsEnabled = process.env.ENABLE_BACKGROUND_JOBS === 'true';
     ]),
     BullModule.registerQueue({
       name: NOTIFICATION_QUEUE,
-      defaultJobOptions: {
-        attempts: 5,
-        backoff: {
-          type: 'exponential',
-          delay: 2000,
-        },
-        removeOnComplete: { count: 500 },
-        removeOnFail: false,
-      },
+      defaultJobOptions: NOTIFICATION_JOB_OPTIONS,
     }),
     BullModule.registerQueue({
       name: NOTIFICATION_DLQ,
@@ -77,6 +71,7 @@ const jobsEnabled = process.env.ENABLE_BACKGROUND_JOBS === 'true';
     OutboxDispatcherService,
     RecipientResolver,
     JobManagementService,
+    NotificationsQueueRegistrar,
   ],
   exports: [NotificationService, RecipientResolver, JobManagementService],
 })

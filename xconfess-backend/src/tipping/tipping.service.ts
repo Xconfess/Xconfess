@@ -24,6 +24,11 @@ import {
   MAX_TIP_AMOUNT,
   MIN_TIP_AMOUNT,
   TIP_PRECISION,
+  SUPPORTED_TIP_ASSETS,
+  DEFAULT_TIP_ASSET,
+  validateTipAsset,
+  validateTipPrecision,
+  validateTipAmountBounds,
 } from './tipping.constants';
 
 export interface TipStats {
@@ -374,49 +379,6 @@ export class TippingService {
       }
 
       const processedData = await this.processTransactionData(txData, dto.txId);
-
-      // ── 7. Amount bounds validation ─────────────────────────────────────
-      if (processedData.amount < MIN_TIP_AMOUNT) {
-        await this.updateRetryMetadata(sentinelTip.id, 'invalid_amount', {
-          amount: processedData.amount,
-          minRequired: MIN_TIP_AMOUNT,
-          maxAllowed: MAX_TIP_AMOUNT,
-          reason: 'below_minimum',
-        });
-        await this.releaseProcessingLock(sentinelTip.id);
-        throw new BadRequestException(
-          `Tip amount ${processedData.amount} XLM is below minimum of ${MIN_TIP_AMOUNT} XLM`,
-        );
-      }
-
-      if (processedData.amount > MAX_TIP_AMOUNT) {
-        await this.updateRetryMetadata(sentinelTip.id, 'invalid_amount', {
-          amount: processedData.amount,
-          minRequired: MIN_TIP_AMOUNT,
-          maxAllowed: MAX_TIP_AMOUNT,
-          reason: 'above_maximum',
-        });
-        await this.releaseProcessingLock(sentinelTip.id);
-        throw new BadRequestException(
-          `Tip amount ${processedData.amount} XLM exceeds maximum of ${MAX_TIP_AMOUNT} XLM`,
-        );
-      }
-
-      // Validate precision: no more than TIP_PRECISION decimal places
-      const amountStr = processedData.amount.toString();
-      const decimalPart = amountStr.includes('.') ? amountStr.split('.')[1] : '';
-      if (decimalPart.length > TIP_PRECISION) {
-        await this.updateRetryMetadata(sentinelTip.id, 'invalid_amount', {
-          amount: processedData.amount,
-          decimalPlaces: decimalPart.length,
-          maxPrecision: TIP_PRECISION,
-          reason: 'excess_precision',
-        });
-        await this.releaseProcessingLock(sentinelTip.id);
-        throw new BadRequestException(
-          `Tip amount has ${decimalPart.length} decimal places, maximum allowed is ${TIP_PRECISION}`,
-        );
-      }
 
       // ── 8. Finalise the sentinel row as VERIFIED (single write) ────────
       const reconciliationMetadata = {
@@ -773,17 +735,36 @@ export class TippingService {
     try {
       const operations = txData._embedded?.operations ?? [];
       const paymentOps = operations.filter(
-        (op: any) => op.type === 'payment' && op.asset_type === 'native',
+        (op: any) => op.type === 'payment',
       );
 
       if (!paymentOps || paymentOps.length === 0) {
         throw new BadRequestException(
-          'Transaction does not contain XLM payment',
+          'Transaction does not contain a payment operation',
         );
       }
 
       const paymentOp = paymentOps[0];
+
+      // Validate supported asset before processing
+      const assetCode = paymentOp.asset_code ?? 'XLM';
+      const assetIssuer = paymentOp.asset_issuer ?? null;
+      const assetType = paymentOp.asset_type;
+
+      const supportedAsset = validateTipAsset(
+        assetCode,
+        assetIssuer,
+        assetType,
+      );
+
       const amount = parseFloat(paymentOp.amount);
+
+      // Validate amount bounds (zero/negative, min, max)
+      validateTipAmountBounds(amount);
+
+      // Validate precision against asset configuration
+      validateTipPrecision(amount, supportedAsset.precision);
+
       const receiptMetadata = this.extractSettlementReceiptMetadata(txData);
       const senderAddress = receiptMetadata.anonymousSender
         ? null

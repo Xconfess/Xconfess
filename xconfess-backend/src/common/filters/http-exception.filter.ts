@@ -29,40 +29,47 @@ export class HttpExceptionFilter implements ExceptionFilter {
       response.setHeader('Retry-After', retryAfter.toString());
       response.setHeader('X-Request-Id', requestId);
       this.logger.warn(
-        `RATE_LIMIT_EXCEEDED method=${request.method} path=${request.url} ip=${request.ip} requestId=${requestId} retryAfter=${retryAfter}`,
+        `RATE_LIMIT_EXCEEDED method=${request.method} path=${request.path} requestId=${requestId} retryAfter=${retryAfter}`,
       );
       response.status(status).json({
+        schemaVersion: 1,
+        status,
         statusCode: status,
         code: exceptionResponse.code || ErrorCode.RATE_LIMIT_EXCEEDED,
         message:
-          exceptionResponse.message ||
-          'Too many requests. Please wait a moment and try again.',
+          status >= HttpStatus.INTERNAL_SERVER_ERROR
+            ? 'An unexpected error occurred'
+            : exceptionResponse.message ||
+              'Too many requests. Please wait a moment and try again.',
         retryAfter,
         requestId,
         timestamp: new Date().toISOString(),
-        path: request.url,
+        path: request.path,
       });
       return;
     }
 
     const errorResponse = {
+      schemaVersion: 1,
       status,
       code: exceptionResponse.code || ErrorCode.INTERNAL_SERVER_ERROR,
-      message: exceptionResponse.message || 'An unexpected error occurred',
+      message:
+        status >= HttpStatus.INTERNAL_SERVER_ERROR
+          ? 'An unexpected error occurred'
+          : exceptionResponse.message || 'An unexpected error occurred',
       details: exceptionResponse.details,
       timestamp: new Date().toISOString(),
-      path: request.url,
+      path: request.path,
       requestId,
     };
 
     if (status >= HttpStatus.INTERNAL_SERVER_ERROR) {
       this.logger.error(
-        `${request.method} ${request.url} - ${status} [${errorResponse.code}]: ${errorResponse.message}`,
-        exception.stack,
+        `${request.method} ${request.path} - ${status} [${errorResponse.code}]`,
       );
     } else {
       this.logger.warn(
-        `${request.method} ${request.url} - ${status} [${errorResponse.code}]: ${errorResponse.message}`,
+        `${request.method} ${request.path} - ${status} [${errorResponse.code}]`,
       );
     }
 
