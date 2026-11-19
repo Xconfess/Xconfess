@@ -33,12 +33,53 @@ export class QueryError extends Error {
 }
 
 /**
+ * Codes the backend returns when an infinite-scroll cursor is stale or
+ * malformed (#2311). The frontend treats all of them the same way: stop
+ * retrying, surface a refresh path, keep filters.
+ */
+const PAGINATION_CURSOR_EXPIRED_CODES = new Set([
+  "PAGINATION_CURSOR_EXPIRED",
+  "BAD_CURSOR",
+  "INVALID_CURSOR",
+  "PAGINATION_INVALID_PAGE",
+]);
+
+function getErrorCode(error: unknown): string | undefined {
+  if (error && typeof error === "object" && "code" in error) {
+    const code = (error as { code?: unknown }).code;
+    if (typeof code === "string") return code;
+  }
+  return undefined;
+}
+
+/**
+ * True when a failure means the paging cursor is no longer accepted by the
+ * server: either an explicit cursor-expired code, or a 400 that looks like
+ * a malformed cursor. A 404 is treated as a lost page for the same reason
+ * — the next cursor the client would try is already wrong.
+ */
+export function isPaginationCursorExpired(error: unknown): boolean {
+  const code = getErrorCode(error);
+  if (code && PAGINATION_CURSOR_EXPIRED_CODES.has(code)) return true;
+  const status = getErrorStatus(error);
+  if (status === 410) return true;
+  if (status === 404) return true;
+  if (status === 400 && code && /CURSOR/i.test(code)) return true;
+  return false;
+}
+
+/**
  * Returns true when a failure is worth retrying: network errors (no status),
  * request timeouts, rate limiting, and server errors. 4xx client errors
  * (other than 408/429) indicate the request itself is invalid and retrying
  * won't help.
  */
 export function isRetryableError(error: unknown): boolean {
+  // An expired cursor is a permanent-until-we-change-it signal; never retry
+  // because the server answer will be the same until the caller resets the
+  // cursor — that is #2311's explicit refresh path, not an auto-retry.
+  if (isPaginationCursorExpired(error)) return false;
+
   const status = getErrorStatus(error);
 
   if (status === undefined) {

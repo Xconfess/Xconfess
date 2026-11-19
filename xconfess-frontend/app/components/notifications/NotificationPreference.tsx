@@ -2,10 +2,54 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { ArrowLeft, Save, Bell, Mail } from "lucide-react";
+import { ArrowLeft, Save, Bell, Mail, ShieldAlert } from "lucide-react";
 import { NotificationPreferences as Preferences } from "@/app/types/notifications";
 import { notificationApi } from "@/app/lib/api/notification";
 import { useGlobalToast } from "@/app/components/common/Toast";
+
+/**
+ * Where a notification originates (backend scope) and how urgent its
+ * content is. Surfaced to the user next to each toggle so they can tell
+ * at a glance which backend behaviour each preference controls and which
+ * messages still arrive even when a toggle is off (security-critical ones
+ * are never silenced — see the per-row note).
+ */
+type NotificationScope = "content" | "social" | "financial" | "achievement" | "security";
+
+interface ScopeMeta {
+  label: string;
+  description: string;
+  securityCritical: boolean;
+}
+
+const SCOPE_META: Record<NotificationScope, ScopeMeta> = {
+  content: {
+    label: "Content activity",
+    description: "Actions on confessions and comments you posted.",
+    securityCritical: false,
+  },
+  social: {
+    label: "Social activity",
+    description: "What other users do that names you.",
+    securityCritical: false,
+  },
+  financial: {
+    label: "Financial activity",
+    description: "Tip receipts and balances.",
+    securityCritical: false,
+  },
+  achievement: {
+    label: "Achievements",
+    description: "Badges, milestones, and progress.",
+    securityCritical: false,
+  },
+  security: {
+    label: "Security",
+    description:
+      "Authentication, device changes and alerts. These are sent even when their category toggle is off, because silencing them would hide account takeover.",
+    securityCritical: true,
+  },
+};
 
 interface NotificationPreferencesProps {
   onClose: () => void;
@@ -73,50 +117,79 @@ export function NotificationPreferences({
     }));
   };
 
-  const notificationTypes = [
+  // Each entry maps the UI toggle to the backend notification job name and
+  // records its scope (#2310). Adding a new job type here means both the
+  // user-visible label and the backend behaviour it gates are described in
+  // one place, which is what the issue's "labels map to backend behavior"
+  // acceptance criterion asks for.
+  const notificationTypes: Array<{
+    key: keyof Preferences;
+    label: string;
+    description: string;
+    scope: NotificationScope;
+  }> = [
     {
       key: "reaction" as keyof Preferences,
       label: "Reactions",
-      description: "When someone reacts to your confession",
+      description:
+        "Fires when another user adds or removes a reaction on your confession. Sent through the delivery methods below.",
+      scope: "content",
     },
     {
       key: "comment" as keyof Preferences,
       label: "Comments",
-      description: "When someone comments on your confession",
+      description:
+        "Fires when someone comments on your confession or replies in a thread you started.",
+      scope: "content",
     },
     {
       key: "tip" as keyof Preferences,
       label: "Tips",
-      description: "When someone sends you a tip",
+      description:
+        "Fires when a tip hits your account. The on-chain receipt is still recorded whether this toggle is on or off.",
+      scope: "financial",
     },
     {
       key: "badge" as keyof Preferences,
       label: "Badges",
-      description: "When you earn a new badge",
+      description:
+        "Fires when you earn a new badge or reach a listed milestone. Purely celebratory — no alerts beyond this toggle.",
+      scope: "achievement",
     },
     {
       key: "mention" as keyof Preferences,
       label: "Mentions",
-      description: "When someone mentions you",
+      description:
+        "Fires when another user names your handle in a confession or comment. Does not fire on direct messages.",
+      scope: "social",
     },
     {
       key: "follow" as keyof Preferences,
       label: "Follows",
-      description: "When someone follows you",
+      description:
+        "Fires when someone starts following your profile. No notification is sent on unfollow.",
+      scope: "social",
     },
   ];
 
-  const deliveryMethods = [
+  const deliveryMethods: Array<{
+    key: keyof Preferences;
+    label: string;
+    description: string;
+    icon: typeof Bell;
+  }> = [
     {
       key: "pushNotifications" as keyof Preferences,
       label: "Push Notifications",
-      description: "Receive in-app push notifications",
+      description:
+        "Delivered as a browser push notification. Requires browser permission and only reaches signed-in sessions.",
       icon: Bell,
     },
     {
       key: "emailNotifications" as keyof Preferences,
       label: "Email Notifications",
-      description: "Receive notifications via email",
+      description:
+        "Delivered to the address on your account. Security alerts are still emailed even if this is off.",
       icon: Mail,
     },
   ];
@@ -157,28 +230,60 @@ export function NotificationPreferences({
           <h3 className="text-sm font-semibold text-[var(--foreground)] mb-3">
             Notification Types
           </h3>
-          <div className="space-y-3">
-            {notificationTypes.map((type) => (
-              <label
-                key={type.key as string}
-                className="flex items-start gap-3 p-3 rounded-lg border border-[var(--border)] hover:bg-[var(--surface-muted)] cursor-pointer transition-colors"
-              >
-                <input
-                  type="checkbox"
-                  checked={preferences[type.key] as boolean}
-                  onChange={() => handleToggle(type.key)}
-                  className="w-5 h-5 text-[var(--primary-deep)] rounded focus:ring-[var(--focus-ring)] mt-0.5"
-                />
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-[var(--foreground)]">
-                    {type.label}
-                  </p>
-                  <p className="text-xs text-[var(--text-muted)] mt-0.5">
-                    {type.description}
-                  </p>
-                </div>
-              </label>
-            ))}
+          <p
+            id="notification-scope-help"
+            className="text-xs text-[var(--text-muted)] mb-3"
+          >
+            Each toggle controls one backend notification scope. Security
+            alerts (sign-ins, device changes, password resets) are always
+            delivered and cannot be turned off here — see the badge below.
+          </p>
+          <div className="space-y-3" aria-describedby="notification-scope-help">
+            {notificationTypes.map((type) => {
+              const scope = SCOPE_META[type.scope];
+              return (
+                <label
+                  key={type.key as string}
+                  data-notification-scope={type.scope}
+                  className="flex items-start gap-3 p-3 rounded-lg border border-[var(--border)] hover:bg-[var(--surface-muted)] cursor-pointer transition-colors"
+                >
+                  <input
+                    type="checkbox"
+                    checked={preferences[type.key] as boolean}
+                    onChange={() => handleToggle(type.key)}
+                    className="w-5 h-5 text-[var(--primary-deep)] rounded focus:ring-[var(--focus-ring)] mt-0.5"
+                    aria-describedby={`notification-${String(type.key)}-desc`}
+                  />
+                  <div className="flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="text-sm font-medium text-[var(--foreground)]">
+                        {type.label}
+                      </p>
+                      <span
+                        className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide ${
+                          scope.securityCritical
+                            ? "border-[var(--danger)]/40 bg-[var(--danger)]/10 text-[var(--danger)]"
+                            : "border-[var(--border)] bg-[var(--surface-muted)] text-[var(--text-muted)]"
+                        }`}
+                        aria-label={`Scope: ${scope.label}`}
+                        title={scope.description}
+                      >
+                        {scope.securityCritical && (
+                          <ShieldAlert className="h-3 w-3" aria-hidden="true" />
+                        )}
+                        {scope.label}
+                      </span>
+                    </div>
+                    <p
+                      id={`notification-${String(type.key)}-desc`}
+                      className="text-xs text-[var(--text-muted)] mt-0.5"
+                    >
+                      {type.description}
+                    </p>
+                  </div>
+                </label>
+              );
+            })}
           </div>
         </div>
 
