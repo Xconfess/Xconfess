@@ -19,6 +19,16 @@ import { ENCRYPTED_PREVIEW } from '@/app/lib/crypto/messageE2E';
 import { ConfirmDialog } from '@/app/components/admin/ConfirmDialog';
 import { MessageComposer } from '@/app/components/messages/MessageComposer';
 import { ThreadListEmptyState, ThreadMessagesEmptyState } from '@/app/components/messages/MessagesEmptyState';
+import { useNetwork } from '@/app/lib/providers/NetworkStatusProvider';
+
+function newIdempotencyKey(): string {
+  const cryptoObj =
+    typeof globalThis !== 'undefined' ? (globalThis.crypto as Crypto | undefined) : undefined;
+  if (cryptoObj && typeof cryptoObj.randomUUID === 'function') {
+    return cryptoObj.randomUUID();
+  }
+  return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
 
 function extractPageData<T>(payload: unknown): T[] {
   if (!payload || typeof payload !== 'object') return [];
@@ -241,6 +251,12 @@ export default function MessagesPage() {
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const isSendingRef = useRef(false);
+  const { isOnline } = useNetwork();
+  // Per-conversation idempotency key for the pending send. A manual retry of
+  // the SAME unsent draft reuses the key so the backend can dedupe, while a
+  // successful send (or explicit discard) drops it so the next message starts
+  // a new attempt.
+  const pendingIdempotencyKeysRef = useRef<Map<string, string>>(new Map());
   const [threadsError, setThreadsError] = useState<string | null>(null);
   const [messagesError, setMessagesError] = useState<string | null>(null);
   const [showMobileList, setShowMobileList] = useState(true);
@@ -421,8 +437,25 @@ export default function MessagesPage() {
       toast.error('Cannot encrypt: missing author identity for this thread.');
       return;
     }
+    // Defence in depth: the composer already blocks send while offline, but
+    // a race between an in-flight disconnect event and the send handler could
+    // still fire this path. Refuse to attempt the network call so the user
+    // never sees a success state while disconnected.
+    if (!isOnline) {
+      toast.warning(
+        "You're offline — your message can't be sent right now. The draft is saved.",
+      );
+      return;
+    }
 
     const text = newMessage;
+    const threadKeyStr = activeThreadKey ?? threadKey(selectedThread);
+    let idempotencyKey =
+      pendingIdempotencyKeysRef.current.get(threadKeyStr);
+    if (!idempotencyKey) {
+      idempotencyKey = newIdempotencyKey();
+      pendingIdempotencyKeysRef.current.set(threadKeyStr, idempotencyKey);
+    }
     try {
       isSendingRef.current = true;
       setIsSending(true);
@@ -446,15 +479,21 @@ export default function MessagesPage() {
           return;
         }
       } else {
-        await apiClient.post('/messages', {
-          confession_id: selectedThread.confessionId,
-          content: ciphertext,
-        });
+        await apiClient.post(
+          '/messages',
+          {
+            confession_id: selectedThread.confessionId,
+            content: ciphertext,
+          },
+          { headers: { 'Idempotency-Key': idempotencyKey } },
+        );
       }
 
-      // The message went through, so the draft for this conversation is no
-      // longer needed. Any other conversation keeps its own draft.
+      // The message went through, so the draft and its idempotency key for
+      // this conversation are no longer needed. Any other conversation keeps
+      // its own draft.
       if (activeThreadKey) clearDraft(activeThreadKey);
+      pendingIdempotencyKeysRef.current.delete(threadKeyStr);
       fetchMessages(selectedThread);
       fetchThreads();
     } catch (error) {
@@ -531,6 +570,10 @@ export default function MessagesPage() {
   const handleDiscardDraft = () => {
     if (!activeThreadKey) return;
     clearDraft(activeThreadKey);
+    // Discarding the draft is the user's explicit intent to abandon that
+    // send, so the pending idempotency key must be dropped too — a future
+    // message in the same conversation starts a new attempt.
+    pendingIdempotencyKeysRef.current.delete(activeThreadKey);
   };
 
   return (
@@ -763,6 +806,7 @@ export default function MessagesPage() {
                   hasDraft={hasDraft(activeThreadKey ?? '')}
                   disabled={!e2eReady}
                   isSending={isSending}
+                  isOffline={!isOnline}
                   placeholder={selectedThread.isAuthor ? 'Type an encrypted reply...' : 'Send encrypted message...'}
                   label={selectedThread.isAuthor ? 'Type an encrypted reply' : 'Send encrypted message'}
                 />
@@ -970,6 +1014,7 @@ export default function MessagesPage() {
                     hasDraft={hasDraft(activeThreadKey ?? '')}
                     disabled={!e2eReady}
                     isSending={isSending}
+                    isOffline={!isOnline}
                     placeholder={selectedThread.isAuthor ? 'Type an encrypted reply...' : 'Send encrypted message...'}
                     label={selectedThread.isAuthor ? 'Type an encrypted reply' : 'Send encrypted message'}
                   />
