@@ -15,6 +15,10 @@ if [[ -z "${PYTHON_BIN:-}" ]]; then
   fi
 fi
 
+NODE_BIN="${XCONFESS_NODE_BIN:-node}"
+REVIEW_DELAY_CLI="$SCRIPT_DIR/contract-review-delay.js"
+CRITICAL_ACTION_ID=""
+
 CONTRACT_CRATES=(
   "confession-anchor"
   "confession-registry"
@@ -238,6 +242,32 @@ verify_only() {
   echo "Verification complete. Manifest: $manifest_file"
 }
 
+enforce_review_delay() {
+  local network="$1"
+  local action
+  action="$("$NODE_BIN" "$REVIEW_DELAY_CLI" action-for-network "$network" 2>/dev/null || true)"
+  if [[ -z "$action" ]]; then
+    echo "Review window: network '$network' is not classified as critical; no delay required."
+    return 0
+  fi
+
+  echo "Review window: '$action' requires an approved, elapsed review delay."
+  if ! "$NODE_BIN" "$REVIEW_DELAY_CLI" check \
+      --action "$action" \
+      --actor "${XCONFESS_REVIEW_ACTOR:-unknown}" \
+      --reference "${XCONFESS_REVIEW_REFERENCE:-$network}"; then
+    echo "" >&2
+    echo "Blocked: critical contract change cannot execute before its review delay expires." >&2
+    echo "Schedule the window with:" >&2
+    echo "  $NODE_BIN $REVIEW_DELAY_CLI schedule --action '$action' --actor <you> --reference <PR-or-ticket>" >&2
+    echo "Inspect it with:" >&2
+    echo "  $NODE_BIN $REVIEW_DELAY_CLI status --action '$action'" >&2
+    echo "Abort a pending window with 'cancel' or 'clear' (see docs/contract-review-delay-policy.md)." >&2
+    exit 1
+  fi
+  CRITICAL_ACTION_ID="$action"
+}
+
 deploy_all() {
   local network="$1"
   local source_key="$2"
@@ -268,6 +298,10 @@ deploy_all() {
     echo "No contracts were deployed. To execute the deployment, rerun without --dry-run."
     return 0
   fi
+
+  # Critical networks are gated by an elapsed review window. --force never
+  # bypasses this gate; it only relaxes the first-deployment rollback guard.
+  enforce_review_delay "$network"
 
   local generated_at
   generated_at="$(timestamp_utc)"
@@ -356,6 +390,15 @@ PY
 
   rm -f "$ids_file"
   echo "Deployment metadata written to: $output_file"
+
+  if [[ -n "$CRITICAL_ACTION_ID" ]]; then
+    if ! "$NODE_BIN" "$REVIEW_DELAY_CLI" record \
+        --action "$CRITICAL_ACTION_ID" \
+        --actor "${XCONFESS_REVIEW_ACTOR:-unknown}" \
+        --reference "$network"; then
+      echo "Warning: could not record the review-delay execution event." >&2
+    fi
+  fi
 }
 
 print_help() {
@@ -375,6 +418,14 @@ Commands:
 Options:
   --dry-run  Verify build artifacts and deployment readiness without deploying contracts
   --force    Allow deploy to proceed even when no prior deployment metadata exists
+
+Review delay:
+  Deployments to public/mainnet networks are gated by
+  scripts/contract-review-delay.js. Schedule a window first:
+    node scripts/contract-review-delay.js schedule --action contract.deploy.mainnet \\
+      --actor <you> --reference <PR-or-ticket>
+  Use 'status', 'cancel', 'clear', and 'events' to manage or inspect the window.
+  See docs/contract-review-delay-policy.md for the full policy.
 EOF
 }
 

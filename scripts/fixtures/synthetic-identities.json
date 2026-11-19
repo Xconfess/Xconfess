@@ -1,0 +1,101 @@
+{
+  "version": 1,
+  "policy_name": "xConfess synthetic fixture policy",
+  "summary": "Canonical safe identities and placeholder values for backend, frontend, and contract fixtures. Every value here is public documentation, not a credential.",
+  "allowed_email_domains": ["example.test", "example.com", "localhost", "invalid"],
+  "username_prefixes": ["seed_", "fixture_", "test_"],
+  "synthetic_users": [
+    {
+      "username": "seed_alice",
+      "email": "seed_alice@example.test",
+      "display_name": "Fixture Alice",
+      "role": "user",
+      "note": "Ordinary user used in happy-path tests."
+    },
+    {
+      "username": "seed_bob",
+      "email": "seed_bob@example.test",
+      "display_name": "Fixture Bob",
+      "role": "user",
+      "note": "Second party for message and reaction tests."
+    },
+    {
+      "username": "fixture_moderator",
+      "email": "fixture_moderator@example.test",
+      "display_name": "Fixture Moderator",
+      "role": "moderator",
+      "note": "Moderator role only; never use a real staff address."
+    },
+    {
+      "username": "fixture_admin",
+      "email": "fixture_admin@example.test",
+      "display_name": "Fixture Admin",
+      "role": "admin",
+      "note": "Admin role for authorization tests; password is a documented dummy value."
+    }
+  ],
+  "synthetic_contracts": [
+    {
+      "name": "confession-anchor",
+      "contract_id": "CXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+      "source_alias": "fixture-deployer",
+      "note": "All-X contract IDs are placeholders, never real deployed addresses."
+    },
+    {
+      "name": "confession-registry",
+      "contract_id": "CXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+      "source_alias": "fixture-deployer",
+      "note": "All-X contract IDs are placeholders, never real deployed addresses."
+    }
+  ],
+  "content_patterns": [
+    {
+      "id": "confession-body",
+      "template": "Fixture confession {{n}}: synthetic content for local tests only.",
+      "rules": ["No real names, handles, or addresses", "No quotes from private conversations", "No production URLs or IPs"]
+    },
+    {
+      "id": "message-body",
+      "template": "Fixture message {{n}}: lorem ipsum for E2E encryption tests.",
+      "rules": ["Use fixed strings so assertions are deterministic", "Never paste real user messages into a fixture"]
+    },
+    {
+      "id": "display-name",
+      "template": "Fixture {{role}} {{n}}",
+      "rules": ["Prefix with 'Fixture' or 'Test'", "Avoid real names and initials"]
+    }
+  ],
+  "allowed_placeholder_values": [
+    "SXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+    "GXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+    "CXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+    "0000000000000000000000000000000000000000000000000000000000000000",
+    "1111111111111111111111111111111111111111111111111111111111111111",
+    "2222222222222222222222222222222222222222222222222222222222222222",
+    "sk-proj-REDACTED",
+    "ghp-REDACTED",
+    "sk_live-REDACTED",
+    "[REDACTED_JWT]",
+    "local-dev-jwt-secret",
+    "local-dev-app-secret",
+    "fixture-password-not-a-real-secret"
+  ],
+  "prohibited_patterns": [
+    {
+      "id": "real-email",
+      "pattern": "[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}",
+      "guidance": "Use a username in an allowed test domain such as example.test or example.com."
+    },
+    {
+      "id": "real-credential",
+      "pattern": "sk_live_|ghp_|-----BEGIN .*PRIVATE KEY-----|eyJ[A-Za-z0-9_-]{10,}\\.",
+      "guidance": "Replace credentials with an allowlisted placeholder; rotate any value that was ever real."
+    },
+    {
+      "id": "real-address",
+      "pattern": "(street|avenue|road|suite)\\s+\\d|\\b\\d+\\s+([A-Za-z]+\\s+){0,2}(street|avenue|road|suite)\\b|\\b\\d{5}(-\\d{4})?\\b",
+      "guidance": "Use obviously fake values such as '1 Fixture Way' or omit address fields entirely."
+    }
+  ],
+  "validation_command": "npm run fixtures:validate"
+}
