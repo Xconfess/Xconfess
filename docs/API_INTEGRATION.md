@@ -537,6 +537,7 @@ This endpoint is not authenticated via JWT. Instead it requires HMAC signature v
 
 ```json
 {
+  "eventId": "evt_01HZX9Q7P4",
   "confessionId": "conf-123",
   "moderationScore": 0.71,
   "moderationFlags": ["harassment"],
@@ -560,13 +561,39 @@ message, and `<hex-encoded-hmac-sha256>` with the 64-character hex digest.
 
 ### Delivery rules
 
-- The `timestamp` must be present and parse as a valid Unix timestamp in seconds.
+- The `timestamp` must be present and be a positive integer number of Unix
+  seconds (digits only).
 - The payload must be received within 300 seconds of the timestamp
-  (`WEBHOOK_TIMESTAMP_TOLERANCE_SECONDS` overrides the window).
+  (`WEBHOOK_TIMESTAMP_TOLERANCE_SECONDS` overrides the window; it is clamped
+  to 30–900 seconds). Timestamps more than 60 seconds in the future are
+  rejected (`WEBHOOK_MAX_CLOCK_SKEW_SECONDS`, never larger than the tolerance).
 - Signatures are compared in constant time, so missing, malformed (non-hex or
   wrong-length) and stale signatures are rejected with a generic error that does
   not reveal which check failed.
-- Duplicate deliveries are treated as idempotent and ignored safely.
+- Every payload must carry a unique `eventId`: 1–128 characters of
+  `A-Z a-z 0-9 . _ : -`.
+
+### Replay protection and retries
+
+Processed event IDs are stored durably in `moderation_webhook_events` together
+with a SHA-256 hash of the signed payload. The row is written in the same
+database transaction that applies the moderation result, so:
+
+| Delivery | Response |
+|---|---|
+| New `eventId` | `200`, applied once, `isIdempotent: false` |
+| Same `eventId`, same payload (provider retry or replay, even re-signed) | `200`, nothing re-applied, `isIdempotent: true` |
+| Same `eventId`, different payload | `409 Conflict`, nothing applied |
+| Delivery that failed mid-processing (`5xx`) | Nothing is recorded; retry with the same `eventId` |
+| Confession not found | `200` with `success: false`; nothing is recorded, so a later retry is applied |
+
+Concurrent duplicate deliveries on several instances are safe: only one
+transaction can insert the event row. Event IDs are kept for
+`WEBHOOK_EVENT_RETENTION_HOURS` (default 72, never less than twice the
+timestamp tolerance) and pruned opportunistically. Every rejection is written
+to the audit log with a reason (`stale_timestamp`, `future_timestamp`,
+`invalid_event_id`, `replayed_event_id`, `event_id_conflict`, ...) but never
+the signature or the payload body.
 
 ### Success response
 

@@ -9,6 +9,7 @@ import {
   Post,
   UnauthorizedException,
   BadRequestException,
+  ConflictException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { EventEmitter2 } from '@nestjs/event-emitter';
@@ -26,6 +27,7 @@ import { AuditLogService } from '../audit-log/audit-log.service';
 import { AuditActionType } from '../audit-log/audit-log.entity';
 import { CacheService } from '../cache/cache.service';
 import { ConfessionCacheKeys } from '../cache/cache-namespace';
+import { ModerationWebhookEventStore } from './moderation-webhook-event.store';
 
 interface WebhookPayload {
   eventId: string;
@@ -35,6 +37,40 @@ interface WebhookPayload {
   moderationStatus: ModerationStatus;
   details: Record<string, number>;
   timestamp: string;
+}
+
+/**
+ * Event identifiers must be bounded and unambiguous so they can be stored and
+ * compared safely: 1-128 characters of letters, digits and `._:-`.
+ */
+const EVENT_ID_PATTERN = /^[A-Za-z0-9._:-]{1,128}$/;
+
+/** Unix seconds, digits only (rejects "1e9", " 12", "12.5", ...). */
+const UNIX_SECONDS_PATTERN = /^\d{1,12}$/;
+
+/** Bounds for WEBHOOK_TIMESTAMP_TOLERANCE_SECONDS. */
+const MIN_TOLERANCE_SECONDS = 30;
+const MAX_TOLERANCE_SECONDS = 900;
+const DEFAULT_TOLERANCE_SECONDS = 300;
+
+/** Signatures dated in the future are only accepted within this clock skew. */
+const DEFAULT_MAX_CLOCK_SKEW_SECONDS = 60;
+
+/** Processed event IDs are kept at least this long (and >= 2x tolerance). */
+const DEFAULT_EVENT_RETENTION_HOURS = 72;
+const PRUNE_INTERVAL_MS = 10 * 60 * 1000;
+
+function clampNumber(
+  raw: unknown,
+  fallback: number,
+  min: number,
+  max: number,
+): number {
+  const value = Number(raw);
+  if (raw === undefined || raw === null || raw === '' || !Number.isFinite(value)) {
+    return fallback;
+  }
+  return Math.min(max, Math.max(min, value));
 }
 
 /** SHA-256 HMACs are rendered as 64 lowercase/uppercase hex characters. */
@@ -98,13 +134,9 @@ export class ModerationWebhookController {
   private readonly logger = new Logger(ModerationWebhookController.name);
   private readonly webhookSecret: string;
   private readonly timestampToleranceSeconds: number;
-
-  /**
-   * In-memory set of recently processed event IDs for fast replay rejection.
-   * Entries are TTL-evicted after the timestamp tolerance window.
-   */
-  private readonly processedEventIds = new Map<string, number>();
-  private readonly eventIdTtlMs: number;
+  private readonly maxClockSkewSeconds: number;
+  private readonly eventRetentionMs: number;
+  private lastPruneAt = 0;
 
   constructor(
     private readonly configService: ConfigService,
@@ -113,14 +145,38 @@ export class ModerationWebhookController {
     private readonly confessionRepo: Repository<AnonymousConfession>,
     private readonly moderationRepoService: ModerationRepositoryService,
     private readonly auditLogService: AuditLogService,
+    private readonly eventStore: ModerationWebhookEventStore,
     @Optional() private readonly cacheService?: CacheService,
   ) {
     this.webhookSecret = this.configService.get<string>('WEBHOOK_SECRET', '');
-    this.timestampToleranceSeconds = this.configService.get<number>(
-      'WEBHOOK_TIMESTAMP_TOLERANCE_SECONDS',
-      300,
+    // Bounded so a misconfiguration cannot open an unbounded replay window.
+    this.timestampToleranceSeconds = clampNumber(
+      this.configService.get('WEBHOOK_TIMESTAMP_TOLERANCE_SECONDS'),
+      DEFAULT_TOLERANCE_SECONDS,
+      MIN_TOLERANCE_SECONDS,
+      MAX_TOLERANCE_SECONDS,
     );
-    this.eventIdTtlMs = this.timestampToleranceSeconds * 2 * 1000;
+    this.maxClockSkewSeconds = Math.min(
+      this.timestampToleranceSeconds,
+      clampNumber(
+        this.configService.get('WEBHOOK_MAX_CLOCK_SKEW_SECONDS'),
+        DEFAULT_MAX_CLOCK_SKEW_SECONDS,
+        0,
+        MAX_TOLERANCE_SECONDS,
+      ),
+    );
+    // Event IDs must outlive the window in which a signature is still fresh,
+    // otherwise a captured delivery could be replayed after its row expired.
+    const retentionHours = clampNumber(
+      this.configService.get('WEBHOOK_EVENT_RETENTION_HOURS'),
+      DEFAULT_EVENT_RETENTION_HOURS,
+      1,
+      24 * 90,
+    );
+    this.eventRetentionMs = Math.max(
+      retentionHours * 3600 * 1000,
+      this.timestampToleranceSeconds * 2 * 1000,
+    );
   }
 
   @Post('results')
@@ -156,7 +212,9 @@ export class ModerationWebhookController {
     }
 
     // ─── 3. Validate timestamp freshness ────────────────────────────────
-    const sigTimestamp = Number(parsed.timestamp);
+    const sigTimestamp = UNIX_SECONDS_PATTERN.test(parsed.timestamp)
+      ? Number(parsed.timestamp)
+      : NaN;
     if (isNaN(sigTimestamp) || sigTimestamp <= 0) {
       this.auditReject(
         correlationId,
@@ -168,7 +226,18 @@ export class ModerationWebhookController {
     }
 
     const nowMs = Date.now();
-    const ageSeconds = Math.abs(nowMs - sigTimestamp * 1000) / 1000;
+    const skewSeconds = (sigTimestamp * 1000 - nowMs) / 1000;
+    if (skewSeconds > this.maxClockSkewSeconds) {
+      this.auditReject(
+        correlationId,
+        payload,
+        'future_timestamp',
+        `Webhook timestamp is ${Math.round(skewSeconds)}s in the future`,
+      );
+      throw new UnauthorizedException('Webhook timestamp is in the future');
+    }
+
+    const ageSeconds = (nowMs - sigTimestamp * 1000) / 1000;
     if (ageSeconds > this.timestampToleranceSeconds) {
       // Audit stale webhook attempt
       this.auditReject(
@@ -244,23 +313,29 @@ export class ModerationWebhookController {
       throw new BadRequestException('Malformed payload: missing eventId');
     }
 
-    this.evictStaleEventIds();
-    if (this.processedEventIds.has(payload.eventId)) {
+    if (
+      typeof payload.eventId !== 'string' ||
+      !EVENT_ID_PATTERN.test(payload.eventId)
+    ) {
       this.auditReject(
         correlationId,
         payload,
-        'replayed_event_id',
-        `Event ${payload.eventId} already processed`,
+        'invalid_event_id',
+        'eventId must be 1-128 characters of [A-Za-z0-9._:-]',
       );
-      this.logger.warn(
-        `Rejected replayed moderation webhook event ${payload.eventId}`,
+      throw new BadRequestException('Malformed payload: invalid eventId');
+    }
+
+    const deliveryHash = this.buildDeliveryHash(serializedPayload);
+
+    // Fast path: the event was already applied (provider retry or replay).
+    const existing = await this.eventStore.find(payload.eventId);
+    if (existing) {
+      return this.handleAlreadyProcessed(
+        correlationId,
+        payload,
+        existing.payloadHash === deliveryHash,
       );
-      return {
-        success: true,
-        confessionId: payload.confessionId,
-        status: payload.moderationStatus,
-        isIdempotent: true,
-      };
     }
 
     // ─── 7. Process the webhook ────────────────────────────────────────
@@ -274,7 +349,6 @@ export class ModerationWebhookController {
       details: payload.details,
       requiresReview,
     };
-    const deliveryHash = this.buildDeliveryHash(serializedPayload);
 
     const result = await this.confessionRepo.manager.transaction(
       async (manager) => {
@@ -284,8 +358,21 @@ export class ModerationWebhookController {
         });
 
         if (!confession) {
+          // Nothing is recorded, so a retry after the confession exists works.
           return { status: 'not_found' as const };
         }
+
+        // Claim the event in the same transaction as the update: it commits
+        // only if the moderation result is applied, so failures stay retryable
+        // and concurrent duplicates cannot both apply it.
+        const claim = await this.eventStore.claim(manager, {
+          eventId: payload.eventId,
+          payloadHash: deliveryHash,
+          confessionId: confession.id,
+          signedAt: new Date(sigTimestamp * 1000),
+        });
+        if (claim === 'duplicate') return { status: 'duplicate' as const };
+        if (claim === 'conflict') return { status: 'conflict' as const };
 
         const { isIdempotent } =
           await this.moderationRepoService.syncWebhookResult(
@@ -323,6 +410,14 @@ export class ModerationWebhookController {
       return { success: false, error: 'Confession not found' };
     }
 
+    if (result.status === 'duplicate' || result.status === 'conflict') {
+      return this.handleAlreadyProcessed(
+        correlationId,
+        payload,
+        result.status === 'duplicate',
+      );
+    }
+
     if (result.status === 'idempotent') {
       this.logger.log(
         `Ignoring duplicate moderation webhook for confession ${payload.confessionId}`,
@@ -335,8 +430,7 @@ export class ModerationWebhookController {
       };
     }
 
-    // Mark event ID as processed
-    this.processedEventIds.set(payload.eventId, Date.now());
+    this.schedulePrune();
 
     // Status and visibility just changed, so any cached copy is now stale.
     await this.cacheService?.del(
@@ -413,15 +507,55 @@ export class ModerationWebhookController {
   }
 
   /**
-   * Evicts event IDs older than the TTL window to prevent unbounded memory growth.
+   * A previously applied event arrived again. The same payload is a provider
+   * retry or a replay: acknowledge it without re-applying anything. A
+   * different payload under the same event ID is rejected outright.
    */
-  private evictStaleEventIds(): void {
-    const cutoff = Date.now() - this.eventIdTtlMs;
-    for (const [eventId, ts] of this.processedEventIds) {
-      if (ts < cutoff) {
-        this.processedEventIds.delete(eventId);
-      }
+  private handleAlreadyProcessed(
+    correlationId: string,
+    payload: WebhookPayload,
+    samePayload: boolean,
+  ) {
+    if (!samePayload) {
+      this.auditReject(
+        correlationId,
+        payload,
+        'event_id_conflict',
+        'eventId was already used for a different payload',
+      );
+      throw new ConflictException('eventId already used for a different payload');
     }
+
+    this.auditReject(
+      correlationId,
+      payload,
+      'replayed_event_id',
+      'Event already processed',
+    );
+    this.logger.warn(
+      `Ignored replayed moderation webhook event ${payload.eventId}`,
+    );
+    return {
+      success: true,
+      confessionId: payload.confessionId,
+      status: payload.moderationStatus,
+      isIdempotent: true,
+    };
+  }
+
+  /**
+   * Opportunistically delete expired event records, at most once per
+   * PRUNE_INTERVAL_MS per instance. Never blocks or fails the request.
+   */
+  private schedulePrune(): void {
+    const now = Date.now();
+    if (now - this.lastPruneAt < PRUNE_INTERVAL_MS) return;
+    this.lastPruneAt = now;
+    this.eventStore
+      .pruneOlderThan(new Date(now - this.eventRetentionMs))
+      .catch((err) => {
+        this.logger.error('Failed to prune moderation webhook events', err);
+      });
   }
 
   /**

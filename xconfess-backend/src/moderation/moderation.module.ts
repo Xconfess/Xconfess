@@ -12,10 +12,17 @@ import { ModerationLog } from './entities/moderation-log.entity';
 import { AnonymousConfession } from '../confession/entities/confession.entity';
 import { NotificationsModule as InAppNotificationModule } from '../notifications/notifications.module';
 import { AuditLogModule } from '../audit-log/audit-log.module';
+import { ModerationWebhookEvent } from './entities/moderation-webhook-event.entity';
+import { ModerationWebhookEventStore } from './moderation-webhook-event.store';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([ModerationLog, AnonymousConfession, User]),
+    TypeOrmModule.forFeature([
+      ModerationLog,
+      AnonymousConfession,
+      User,
+      ModerationWebhookEvent,
+    ]),
     ConfigModule,
     InAppNotificationModule,
     AuditLogModule,
@@ -25,6 +32,7 @@ import { AuditLogModule } from '../audit-log/audit-log.module';
     AiModerationService,
     ModerationRepositoryService,
     ModerationEventsListener,
+    ModerationWebhookEventStore,
   ],
   exports: [AiModerationService, ModerationRepositoryService],
 })
