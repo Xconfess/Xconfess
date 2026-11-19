@@ -6,7 +6,7 @@ import { Anchor, Eye, MessageSquare, ShieldAlert } from "lucide-react";
 import { ScrollRestorationLink } from "@/app/components/common/ScrollRestorationLink";
 import { cn } from "@/app/lib/utils/cn";
 import { focusVisible } from "@/app/lib/utils/focusStyles";
-import { ReactionButton } from "./ReactionButtons";
+import { ReactionPicker } from "./ReactionPicker";
 import { AnchorButton } from "./AnchorButton";
 import { TipButton } from "./TipButton";
 import { ShareButton } from "./ShareButton";
@@ -98,7 +98,13 @@ export const ConfessionCard = memo(({ confession }: Props) => {
           <TipButton confessionId={confession.id} recipientAddress={confession.author?.stellarAddress} initialStats={tipStats || undefined} />
           <AnchorButton confessionId={confession.id} confessionContent={confession.content} isAnchored={isAnchored} stellarTxHash={txHash} onAnchorSuccess={(newTxHash) => { setIsAnchored(true); setTxHash(newTxHash); }} />
           <ShareButton confessionId={confession.id} title="A confession from xConfess" variant="dropdown" />
-          <div className="flex gap-1.5"><ReactionButton type="like" count={confession.reactions.like} confessionId={confession.id} /><ReactionButton type="love" count={confession.reactions.love} confessionId={confession.id} /></div>
+          <ReactionPicker
+            confessionId={confession.id}
+            reactions={[
+              { type: "like", count: confession.reactions.like },
+              { type: "love", count: confession.reactions.love },
+            ]}
+          />
         </div>
       </footer>
     </article>

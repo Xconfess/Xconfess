@@ -25,6 +25,13 @@ export interface MessageComposerProps {
    * reconnect confirmation. Defaults to false (assume online).
    */
   isOffline?: boolean;
+  /**
+   * Minimum length of the draft, in trimmed characters, that triggers the
+   * discard-confirmation prompt (#2309). Discards below this threshold are
+   * fired directly through `onDiscard`. Set to `0` to always confirm; set
+   * to `Infinity` to never confirm. Defaults to {@link DEFAULT_DISCARD_CONFIRM_THRESHOLD}.
+   */
+  discardConfirmThreshold?: number;
   placeholder: string;
   /** Accessible name for the text field. */
   label: string;
@@ -33,6 +40,13 @@ export interface MessageComposerProps {
 }
 
 const RECONNECT_CONFIRMATION_MS = 3000;
+/**
+ * Chars above which discarding a draft asks for confirmation (#2309). A
+ * short draft is usually a typo the user wants gone; a substantial draft
+ * is private content the user likely did not mean to lose, so the discard
+ * control gates on a short prompt instead of firing through.
+ */
+export const DEFAULT_DISCARD_CONFIRM_THRESHOLD = 140;
 
 /**
  * The inbox composer.
@@ -57,6 +71,7 @@ export function MessageComposer({
   disabled = false,
   isSending = false,
   isOffline = false,
+  discardConfirmThreshold = DEFAULT_DISCARD_CONFIRM_THRESHOLD,
   placeholder,
   label,
   inputRef,
@@ -64,6 +79,40 @@ export function MessageComposer({
 }: MessageComposerProps) {
   const canSend =
     !disabled && !isSending && !isOffline && value.trim().length > 0;
+
+  const [pendingDiscard, setPendingDiscard] = React.useState(false);
+
+  const handleDiscardClick = () => {
+    if (!onDiscard) return;
+    if (value.trim().length >= discardConfirmThreshold) {
+      setPendingDiscard(true);
+      return;
+    }
+    onDiscard();
+  };
+
+  const confirmDiscard = () => {
+    setPendingDiscard(false);
+    onDiscard?.();
+  };
+
+  const cancelDiscard = () => {
+    setPendingDiscard(false);
+  };
+
+  // Dismiss on Escape — a mis-clicked trash button must never destroy a
+  // long draft just because the user hit any key while the prompt is open.
+  React.useEffect(() => {
+    if (!pendingDiscard) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setPendingDiscard(false);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [pendingDiscard]);
 
   // Remember whether the composer was offline on the previous render so the
   // transition offline -> online can briefly show a reassurance that the
@@ -92,7 +141,7 @@ export function MessageComposer({
             type="button"
             variant="ghost"
             size="sm"
-            onClick={onDiscard}
+            onClick={handleDiscardClick}
             disabled={disabled || isSending}
             aria-label="Discard unsent message"
             title="Discard unsent message"
@@ -151,7 +200,7 @@ export function MessageComposer({
           <span>Back online. You can send your message now.</span>
         </p>
       )}
-      {hasDraft && !isOffline && !showReconnected && (
+      {hasDraft && !isOffline && !showReconnected && !pendingDiscard && (
         <p
           role="status"
           aria-live="polite"
@@ -159,6 +208,52 @@ export function MessageComposer({
         >
           Draft saved for this conversation.
         </p>
+      )}
+      {pendingDiscard && (
+        <div
+          role="alertdialog"
+          aria-modal="true"
+          aria-labelledby="composer-discard-title"
+          aria-describedby="composer-discard-body"
+          data-testid="composer-discard-confirm"
+          className="mt-2 rounded-lg border border-[var(--warning)]/40 bg-[var(--surface)] p-3 shadow-sm"
+        >
+          <p
+            id="composer-discard-title"
+            className="text-sm font-semibold text-[var(--foreground)]"
+          >
+            Discard this draft?
+          </p>
+          <p
+            id="composer-discard-body"
+            className="mt-1 text-xs text-[var(--text-muted)]"
+          >
+            This message is {value.trim().length} characters long. Discarding
+            it can&apos;t be undone — the draft will be erased for this
+            conversation.
+          </p>
+          <div className="mt-2 flex justify-end gap-2">
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={cancelDiscard}
+              aria-label="Keep draft"
+              autoFocus
+            >
+              Keep draft
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              size="sm"
+              onClick={confirmDiscard}
+              aria-label="Discard draft permanently"
+            >
+              Discard draft
+            </Button>
+          </div>
+        </div>
       )}
     </div>
   );

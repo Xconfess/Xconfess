@@ -318,3 +318,119 @@ describe('MessageComposer — reconnect flow', () => {
     ).not.toBeInTheDocument();
   });
 });
+
+describe('MessageComposer — discard confirmation (#2309)', () => {
+  const longDraft = 'x'.repeat(200);
+  const shortDraft = 'oops';
+
+  it('short drafts discard immediately without a prompt', () => {
+    const { onDiscard } = renderComposer({
+      value: shortDraft,
+      hasDraft: true,
+    });
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Discard unsent message' }),
+    );
+
+    expect(onDiscard).toHaveBeenCalledTimes(1);
+    expect(
+      screen.queryByTestId('composer-discard-confirm'),
+    ).not.toBeInTheDocument();
+  });
+
+  it('long drafts open an accessible confirm dialog instead of firing onDiscard', () => {
+    const { onDiscard } = renderComposer({
+      value: longDraft,
+      hasDraft: true,
+    });
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Discard unsent message' }),
+    );
+
+    const dialog = screen.getByRole('alertdialog', { name: /discard this draft/i });
+    expect(dialog).toBeInTheDocument();
+    expect(onDiscard).not.toHaveBeenCalled();
+    expect(
+      screen.getByRole('button', { name: /keep draft/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: /discard draft permanently/i }),
+    ).toBeInTheDocument();
+  });
+
+  it('Keep draft closes the prompt and never calls onDiscard', () => {
+    const { onDiscard } = renderComposer({
+      value: longDraft,
+      hasDraft: true,
+    });
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Discard unsent message' }),
+    );
+    fireEvent.click(screen.getByRole('button', { name: /keep draft/i }));
+
+    expect(onDiscard).not.toHaveBeenCalled();
+    expect(
+      screen.queryByTestId('composer-discard-confirm'),
+    ).not.toBeInTheDocument();
+  });
+
+  it('Discard draft permanently fires onDiscard and closes the prompt', () => {
+    const { onDiscard } = renderComposer({
+      value: longDraft,
+      hasDraft: true,
+    });
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Discard unsent message' }),
+    );
+    fireEvent.click(
+      screen.getByRole('button', { name: /discard draft permanently/i }),
+    );
+
+    expect(onDiscard).toHaveBeenCalledTimes(1);
+    expect(
+      screen.queryByTestId('composer-discard-confirm'),
+    ).not.toBeInTheDocument();
+  });
+
+  it('Escape closes the prompt without discarding', () => {
+    const { onDiscard } = renderComposer({
+      value: longDraft,
+      hasDraft: true,
+    });
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Discard unsent message' }),
+    );
+    expect(
+      screen.getByTestId('composer-discard-confirm'),
+    ).toBeInTheDocument();
+
+    fireEvent.keyDown(window, { key: 'Escape' });
+
+    expect(
+      screen.queryByTestId('composer-discard-confirm'),
+    ).not.toBeInTheDocument();
+    expect(onDiscard).not.toHaveBeenCalled();
+  });
+
+  it('discardConfirmThreshold can be overridden to always prompt', () => {
+    const { onDiscard } = renderComposer({
+      value: 'x',
+      hasDraft: true,
+      discardConfirmThreshold: 0,
+    });
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Discard unsent message' }),
+    );
+
+    expect(
+      screen.getByTestId('composer-discard-confirm'),
+    ).toBeInTheDocument();
+    expect(onDiscard).not.toHaveBeenCalled();
+  });
+});
