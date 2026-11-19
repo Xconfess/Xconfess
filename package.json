@@ -91,6 +91,10 @@
     "secret-scan:self-test": "node scripts/run-secret-scanning-preflight.js --self-test",
     "audit:ci": "npx audit-ci --config audit-ci.json",
     "audit:report": "npm audit --json > audit-report.json 2>&1 || true",
+    "contracts:fixtures:verify": "node scripts/verify-contract-fixtures.js",
+    "contracts:fixtures:inventory": "node scripts/verify-contract-fixtures.js --write",
+    "database:restore:verify": "node scripts/verify-database-restore.js",
+    "sbom:generate": "node scripts/generate-release-sboms.js"
     "packages:distribution": "node scripts/check-package-distribution.js",
     "packages:distribution:self-test": "node scripts/check-package-distribution.js --self-test",
     "contracts:manifest-check": "node scripts/check-contract-manifest-drift.js",

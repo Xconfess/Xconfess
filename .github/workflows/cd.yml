@@ -122,6 +122,16 @@ jobs:
           NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL }}
         run: npm run build --workspace=xconfess-frontend
 
+      - name: Generate release SBOMs
+        run: npm run sbom:generate
+
+      - name: Upload release SBOMs
+        uses: actions/upload-artifact@v4
+        with:
+          name: xconfess-release-sboms-${{ github.run_id }}
+          path: artifacts/sbom
+          retention-days: 30
+
       - name: Upload backend artifact
         uses: actions/upload-artifact@v4
         with:
@@ -289,5 +299,6 @@ jobs:
             echo ""
             echo "### Rollback"
             echo "Re-run this workflow against the previous commit SHA to roll back, or SSH to the host and restore the previous \`dist/\` and \`.next/\` directories."
+            echo "Follow docs/incident-rollback-runbook.md for frontend, backend, database, and contract boundaries and irreversible Stellar actions."
             echo "Backend artifacts are retained for 7 days under Actions run IDs."
           } >> "$GITHUB_STEP_SUMMARY"
