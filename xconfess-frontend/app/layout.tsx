@@ -79,6 +79,12 @@ export default function RootLayout({
         <meta name="theme-color" content="#050505" />
       </head>
       <body className="antialiased">
+        <a
+          href="#main-content"
+          className="sr-only focus:not-sr-only focus:fixed focus:top-0 focus:left-0 focus:z-50 focus:p-2 focus:bg-[var(--primary)] focus:text-white focus:rounded-md"
+        >
+          Skip to main content
+        </a>
         <Script
           id="sw-register"
           strategy="afterInteractive"
@@ -94,15 +100,19 @@ export default function RootLayout({
                 <QueryProvider>
                   <ToastProvider>
                     <ShortcutsProvider>
-                    <NetworkBanner />
-                    <WebSocketIndicator />
-                    {children}
-
+                    <div role="banner">
+                      <NetworkBanner />
+                      <WebSocketIndicator />
+                    </div>
+                    <main id="main-content" role="main">
+                      {children}
+                    </main>
                     </ShortcutsProvider>
 
-                    {/* Onboarding system */}
-                    <OnboardingFlow />
-                    <HelpButton />
+                    <div role="complementary" aria-label="Help and onboarding">
+                      <OnboardingFlow />
+                      <HelpButton />
+                    </div>
                   </ToastProvider>
                 </QueryProvider>
               </NetworkStatusProvider>

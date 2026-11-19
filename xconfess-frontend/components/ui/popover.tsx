@@ -5,9 +5,28 @@ import * as PopoverPrimitive from '@radix-ui/react-popover'
 
 import { cn } from '@/lib/utils'
 
+interface PopoverProps extends React.ComponentProps<typeof PopoverPrimitive.Root> {
+  restoreFocus?: boolean
+}
+
 function Popover({
+  restoreFocus = true,
   ...props
-}: React.ComponentProps<typeof PopoverPrimitive.Root>) {
+}: PopoverProps) {
+  const previousFocusRef = React.useRef<HTMLElement | null>(null)
+
+  React.useEffect(() => {
+    if (!restoreFocus) return
+
+    previousFocusRef.current = document.activeElement as HTMLElement
+
+    return () => {
+      if (previousFocusRef.current?.isConnected) {
+        previousFocusRef.current.focus()
+      }
+    }
+  }, [restoreFocus])
+
   return <PopoverPrimitive.Root data-slot="popover" {...props} />
 }
 

@@ -500,9 +500,10 @@ export function useReactions(options: UseReactionsOptions = {}): UseReactionsRet
       }
     },
 
-    // Called after mutation settles (success or error)
-    onSettled: () => {
-      // Clear optimistic state after invalidation (keep for a moment for smooth UI)
+    onSettled: (result, error) => {
+      if (error || !result?.ok) {
+        return;
+      }
       setTimeout(() => {
         setOptimisticState(null);
       }, 100);
@@ -513,14 +514,10 @@ export function useReactions(options: UseReactionsOptions = {}): UseReactionsRet
     confessionId: string,
     type: ReactionType
   ): Promise<AddReactionResponse> => {
-    // If user already has this reaction, skip optimistic update (no count change expected)
     const alreadyReacted = initialUserReaction === type;
     if (alreadyReacted) {
-      // Still call the API to get the latest state, but don't optimistically update
       const result = await addReaction(confessionId, type);
 
-      // Backend returns success with existing reaction (no change)
-      // We don't need to do anything special here - the UI already shows the correct state
       if (result.ok && result.data.reactions) {
         const serverCounts = normalizeCounts(result.data.reactions);
         setLiveCounts(serverCounts);
@@ -543,7 +540,6 @@ export function useReactions(options: UseReactionsOptions = {}): UseReactionsRet
 
       return result;
     } catch (error) {
-      // Error is already handled in onError callback
       const apiError = (error as ReactionMutationError).apiError;
       return {
         ok: false,

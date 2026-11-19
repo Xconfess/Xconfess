@@ -6,9 +6,28 @@ import { XIcon } from 'lucide-react'
 
 import { cn } from '@/lib/utils'
 
+interface DialogProps extends React.ComponentProps<typeof DialogPrimitive.Root> {
+  restoreFocus?: boolean
+}
+
 function Dialog({
+  restoreFocus = true,
   ...props
-}: React.ComponentProps<typeof DialogPrimitive.Root>) {
+}: DialogProps) {
+  const previousFocusRef = React.useRef<HTMLElement | null>(null)
+
+  React.useEffect(() => {
+    if (!restoreFocus) return
+
+    previousFocusRef.current = document.activeElement as HTMLElement
+
+    return () => {
+      if (previousFocusRef.current?.isConnected) {
+        previousFocusRef.current.focus()
+      }
+    }
+  }, [restoreFocus])
+
   return <DialogPrimitive.Root data-slot="dialog" {...props} />
 }
 
