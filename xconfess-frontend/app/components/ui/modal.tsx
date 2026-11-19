@@ -22,7 +22,20 @@ export const Modal: React.FC<ModalProps> = ({
   className,
 }) => {
   const titleId = React.useId();
-  const { containerRef } = useFocusTrap({ isOpen, onClose, dialog: true });
+  const previousFocusRef = React.useRef<HTMLElement | null>(null);
+
+  React.useEffect(() => {
+    if (isOpen) {
+      previousFocusRef.current = document.activeElement as HTMLElement;
+    }
+  }, [isOpen]);
+
+  const { containerRef } = useFocusTrap({
+    isOpen,
+    onClose,
+    dialog: true,
+    restoreFocusRef: previousFocusRef,
+  });
 
   if (!isOpen) return null;
 

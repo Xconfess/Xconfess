@@ -12,9 +12,11 @@ interface Props {
 
 interface State {
   hasError: boolean;
-  error: any | null; // Changed to any to allow accessing custom properties
+  error: any | null;
   errorCount: number;
   correlationId?: string;
+  lastResetTime?: number;
+  consecutiveResets?: number;
 }
 
 export class ErrorBoundary extends Component<Props, State> {
@@ -24,6 +26,8 @@ export class ErrorBoundary extends Component<Props, State> {
     hasError: false,
     error: null,
     errorCount: 0,
+    lastResetTime: undefined,
+    consecutiveResets: 0,
   };
 
   static getDerivedStateFromError(error: Error): Partial<State> {
@@ -33,7 +37,6 @@ export class ErrorBoundary extends Component<Props, State> {
   componentDidCatch(error: any, errorInfo: React.ErrorInfo) {
     const errorCount = this.state.errorCount + 1;
 
-    // Extract correlationId if available (from AxiosError or AppError)
     const correlationId = error.config?.correlationId || error.details?.correlationId || error.correlationId;
 
     logError(error, 'ErrorBoundary', {
@@ -42,7 +45,11 @@ export class ErrorBoundary extends Component<Props, State> {
       correlationId,
     });
 
-    this.setState({ errorCount, correlationId });
+    this.setState({
+      errorCount,
+      correlationId,
+      consecutiveResets: 0,
+    });
 
     if (errorCount > 3) {
       console.error('Critical: Too many consecutive errors detected');
@@ -57,8 +64,30 @@ export class ErrorBoundary extends Component<Props, State> {
   };
 
   handleReset = () => {
+    const now = Date.now();
+    const lastReset = this.state.lastResetTime || 0;
+    const timeSinceLastReset = now - lastReset;
+    const baseDelay = 1000;
+    const maxConsecutiveResets = 3;
+    const minTimeBetweenResets = baseDelay * Math.pow(2, this.state.consecutiveResets || 0);
+
+    if (timeSinceLastReset < minTimeBetweenResets) {
+      return;
+    }
+
+    if ((this.state.consecutiveResets || 0) >= maxConsecutiveResets) {
+      return;
+    }
+
     this.props.onReset?.();
-    this.setState({ hasError: false, error: null, errorCount: 0, correlationId: undefined });
+    this.setState({
+      hasError: false,
+      error: null,
+      errorCount: 0,
+      correlationId: undefined,
+      lastResetTime: now,
+      consecutiveResets: (this.state.consecutiveResets || 0) + 1,
+    });
   };
 
   render() {
@@ -109,10 +138,18 @@ export class ErrorBoundary extends Component<Props, State> {
               </details>
             )}
 
+            {(this.state.consecutiveResets || 0) >= 3 && (
+              <div className="mb-4 p-3 bg-[var(--danger)]/10 border border-[var(--danger)]/20 rounded-lg">
+                <p className="text-xs text-[var(--danger)] font-medium">
+                  Too many recovery attempts. Please reload the page or navigate away.
+                </p>
+              </div>
+            )}
             <div className="flex flex-col gap-3">
               <button
                 onClick={this.handleReset}
-                className="w-full bg-[var(--surface)] text-[var(--foreground)] hover:bg-[var(--skeleton)] py-3 rounded-lg text-sm transition-all font-semibold flex items-center justify-center gap-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--border)]"
+                disabled={(this.state.consecutiveResets || 0) >= 3}
+                className="w-full bg-[var(--surface)] text-[var(--foreground)] hover:bg-[var(--skeleton)] py-3 rounded-lg text-sm transition-all font-semibold flex items-center justify-center gap-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--border)] disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <RotateCcw aria-hidden="true" size={16} /> REBOOT CONSOLE
               </button>
