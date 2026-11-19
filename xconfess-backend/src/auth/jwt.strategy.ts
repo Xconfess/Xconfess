@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { Injectable, Optional, UnauthorizedException } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { ConfigService } from '@nestjs/config';
@@ -6,12 +6,15 @@ import { UserService } from '../user/user.service';
 import { UserRole } from '../user/entities/user.entity';
 import { JwtPayload, RequestUser } from './interfaces/jwt-payload.interface';
 import { STEP_UP_TOKEN_PURPOSE } from './step-up.service';
+import { SessionRevocationService } from './session-revocation.service';
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
   constructor(
     private configService: ConfigService,
     private userService: UserService,
+    @Optional()
+    private readonly sessionRevocationService?: SessionRevocationService,
   ) {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
@@ -41,6 +44,19 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
     // expired, since this guard never re-checked the live account status.
     if (!user.is_active) {
       throw new UnauthorizedException('Account is deactivated');
+    }
+
+    if (this.sessionRevocationService) {
+      if (typeof payload.iat !== 'number') {
+        throw new Error('Invalid token');
+      }
+      const sessionValid = await this.sessionRevocationService.isSessionValid(
+        payload.sub,
+        payload.iat,
+      );
+      if (!sessionValid) {
+        throw new UnauthorizedException('Session revoked');
+      }
     }
 
     // Return canonical RequestUser shape

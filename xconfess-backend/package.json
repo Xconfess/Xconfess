@@ -20,6 +20,7 @@
     "migration:smoke": "ts-node -r tsconfig-paths/register scripts/migration-smoke.ts",
     "migration:drift": "ts-node -r tsconfig-paths/register scripts/migration-drift.ts",
     "test": "jest --config jest.config.js --runInBand",
+    "test:contracts": "jest --config jest.config.js --runInBand --runTestsByPath src/auth/auth-identity.contract.spec.ts src/api/duplicate-operations.contract.spec.ts src/api/sort-allowlist.contract.spec.ts src/api/notification-response.contract.spec.ts",
     "test:watch": "jest --watch",
     "test:cov": "jest --config ./jest.admin.config.js --coverage",
     "test:cov:critical": "jest --config ./jest.critical-coverage.config.js --runInBand --coverage",

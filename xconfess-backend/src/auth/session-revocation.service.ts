@@ -59,7 +59,6 @@ export class SessionRevocationService {
         return true;
       }
 
-      // Token issued after revocation = invalid
       return issuedAt * 1000 > revocationTime;
     } catch (error) {
       this.logger.warn('Session validation unavailable');

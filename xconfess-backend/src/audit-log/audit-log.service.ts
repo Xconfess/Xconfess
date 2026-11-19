@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { AuditLog, AuditActionType } from './audit-log.entity';
 import { AuditLogRedactionService } from './audit-log-redaction.service';
+import { resolveAuditLogSortColumn } from '../common/validation/sort-allowlist';
 
 export interface AuditLogContext {
   userId?: string | number | null;
@@ -1015,14 +1016,7 @@ async logModerationStateTransition(
       }
 
       const sortOrder = options.sortOrder === 'ASC' ? 'ASC' : 'DESC';
-      const sortColumn =
-        options.sortBy === 'actor'
-          ? 'admin.username'
-          : options.sortBy === 'action'
-            ? 'audit_log.action'
-            : options.sortBy === 'target'
-              ? 'audit_log.entity_type'
-              : 'audit_log.createdAt';
+      const sortColumn = resolveAuditLogSortColumn(options.sortBy);
       query.orderBy(sortColumn, sortOrder);
       if (options.sortBy === 'target') {
         query.addOrderBy('audit_log.entity_id', sortOrder);

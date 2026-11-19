@@ -2,7 +2,6 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
-  ConflictException,
   GatewayTimeoutException,
   Logger,
   Optional,
@@ -20,6 +19,7 @@ import { AuditActionType } from '../audit-log/audit-log.entity';
 import * as crypto from 'crypto';
 import { AnalyticsEventService } from '../analytics/analytics-event.service';
 import { AnalyticsNetwork } from '../analytics/entities/analytics-event.entity';
+import { ErrorUtils } from '../common/errors/error-utils';
 import {
   MAX_TIP_AMOUNT,
   MIN_TIP_AMOUNT,
@@ -258,11 +258,11 @@ export class TippingService {
       if (!canonical) {
         // Extremely unlikely — row was deleted between our INSERT failure and
         // this read.  Let the caller retry.
-        throw new ConflictException({
+        throw ErrorUtils.operationConflict('tip', 'ALREADY_PROCESSING', {
           message: `Transaction ${dto.txId} is currently being processed. Please retry in a moment.`,
           state: 'pending' as TipResponseState,
-          conflictReason: 'ALREADY_PROCESSING',
           canRetry: true,
+          retryAfter: 2,
         });
       }
 
@@ -299,12 +299,11 @@ export class TippingService {
         originalConfessionId: tipByTxId.confessionId,
       });
 
-      throw new ConflictException({
+      throw ErrorUtils.operationConflict('tip', 'DIFFERENT_CONFESSION', {
         message: `Transaction ${dto.txId} was already used for a different confession`,
         state: 'conflict' as TipResponseState,
-        conflictReason: 'DIFFERENT_CONFESSION',
-        originalConfessionId: tipByTxId.confessionId,
         canRetry: false,
+        details: { originalConfessionId: tipByTxId.confessionId },
       });
     }
 
@@ -329,11 +328,11 @@ export class TippingService {
           attemptedAt: new Date().toISOString(),
         });
         await this.releaseProcessingLock(sentinelTip.id);
-        throw new ConflictException({
+        throw ErrorUtils.operationConflict('tip', 'NETWORK_ERROR', {
           message: `Transaction ${dto.txId} verification temporarily failed due to network error. Will be retried.`,
           state: 'failed' as TipResponseState,
-          conflictReason: 'NETWORK_ERROR',
           canRetry: true,
+          retryAfter: 5,
         });
       }
 
@@ -368,11 +367,11 @@ export class TippingService {
             attemptedAt: new Date().toISOString(),
           });
           await this.releaseProcessingLock(sentinelTip.id);
-          throw new ConflictException({
+          throw ErrorUtils.operationConflict('tip', 'NETWORK_ERROR', {
             message: `Transaction ${dto.txId} data fetch failed temporarily. Will be retried.`,
             state: 'failed' as TipResponseState,
-            conflictReason: 'NETWORK_ERROR',
             canRetry: true,
+            retryAfter: 5,
           });
         }
         throw fetchError;
@@ -573,19 +572,19 @@ export class TippingService {
         return { tip, isNew: false, isIdempotent: true, state: 'duplicate' };
 
       case TipVerificationStatus.PENDING:
-        throw new ConflictException({
+        throw ErrorUtils.operationConflict('tip', 'ALREADY_PROCESSING', {
           message: `Transaction ${tip.txId} is currently being processed. Please retry in a moment.`,
           state: 'pending' as TipResponseState,
-          conflictReason: 'ALREADY_PROCESSING',
           canRetry: true,
+          retryAfter: 2,
         });
 
       case TipVerificationStatus.STALE_PENDING:
-        throw new ConflictException({
+        throw ErrorUtils.operationConflict('tip', 'STALE_PENDING', {
           message: `Transaction ${tip.txId} verification has exceeded the expected processing time and is under review. It has not failed — check back shortly or contact support with this reference.`,
           state: 'stale' as TipResponseState,
-          conflictReason: 'ALREADY_PROCESSING',
           canRetry: true,
+          retryAfter: 30,
         });
 
       case TipVerificationStatus.REJECTED:
@@ -597,10 +596,9 @@ export class TippingService {
 
       case TipVerificationStatus.CONFLICT:
       default:
-        throw new ConflictException({
+        throw ErrorUtils.operationConflict('tip', 'DIFFERENT_CONFESSION', {
           message: `Transaction ${tip.txId} could not be processed due to a conflicting prior record.`,
           state: 'conflict' as TipResponseState,
-          conflictReason: 'DIFFERENT_CONFESSION',
           canRetry: false,
         });
     }

@@ -8,6 +8,13 @@ whether another page exists. The shared limit range is 1 to 100; the default is
 clients: return the exact `nextCursor` with the same filters and sort options.
 Changing filters or sort order while continuing a cursor is unsupported.
 
+Sort keys are allowlisted. `GET /api/admin/audit-logs` accepts `sortBy=createdAt`
+(default), `actor`, `action`, or `target`; `GET /api/admin/reports` accepts
+`sortBy=id`, `createdAt` (default), `status`, or `reason`. Unknown keys and
+non-`ASC`/`DESC` directions return `400 VALIDATION_FAILED` with an
+`allowedValues` list. Internal query builders map these values to fixed SQL
+fragments and never interpolate request text into an `ORDER BY` clause.
+
 ## Supported feeds
 
 | Endpoint | Sort and order | Cursor boundary |

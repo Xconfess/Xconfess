@@ -1,7 +1,6 @@
 import { Processor, OnWorkerEvent, InjectQueue, WorkerHost } from '@nestjs/bullmq';
 import { Logger } from '@nestjs/common';
-import { Job, Queue } from 'bullmq';
-import type { Redis } from 'ioredis';
+import { Job, JobsOptions, Queue } from 'bullmq';
 import { createHash, randomUUID } from 'node:crypto';
 import type Redis from 'ioredis';
 import { EmailNotificationService } from '../services/email-notification.service';

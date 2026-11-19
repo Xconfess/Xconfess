@@ -1,9 +1,5 @@
-import {
-  Injectable,
-  ConflictException,
-  HttpException,
-  HttpStatus,
-} from '@nestjs/common';
+import { Injectable, HttpException, HttpStatus } from '@nestjs/common';
+import { ErrorUtils } from '../common/errors/error-utils';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
 import * as crypto from 'crypto';
@@ -202,8 +198,15 @@ export class ConfessionIdempotencyService {
 
     // ── Case: different payload ───────────────────────────────────────────
     if (record.payloadHash !== payloadHash) {
-      throw new ConflictException(
-        'Idempotency key replay conflict: the request body does not match the original submission.',
+      throw ErrorUtils.operationConflict(
+        'confession_submission',
+        'IDEMPOTENCY_KEY_REUSE',
+        {
+          message:
+            'Idempotency key replay conflict: the request body does not match the original submission.',
+          canRetry: false,
+          retryWith: 'a new idempotency key',
+        },
       );
     }
 
@@ -256,8 +259,15 @@ export class ConfessionIdempotencyService {
       }
 
       if (record.payloadHash !== payloadHash) {
-        throw new ConflictException(
-          'Idempotency key replay conflict: the request body does not match the original submission.',
+        throw ErrorUtils.operationConflict(
+          'confession_submission',
+          'IDEMPOTENCY_KEY_REUSE',
+          {
+            message:
+              'Idempotency key replay conflict: the request body does not match the original submission.',
+            canRetry: false,
+            retryWith: 'a new idempotency key',
+          },
         );
       }
 

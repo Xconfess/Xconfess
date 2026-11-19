@@ -183,6 +183,8 @@ jobs:
         run: npm run services:wait
         env:
           SERVICE_WAIT_TIMEOUT_MS: 60000
+      - name: Run API contract hardening tests
+        run: npm run backend:test:contracts
       - name: Verify Redis outages, feed properties, message races and notification failures
         run: npm run test:reliability --workspace=xconfess-backend
       - run: npm run backend:test:critical-coverage

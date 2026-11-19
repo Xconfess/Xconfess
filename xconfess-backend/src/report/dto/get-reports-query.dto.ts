@@ -7,6 +7,7 @@ import {
 } from 'class-validator';
 import { Transform } from 'class-transformer';
 import { ReportStatus, ReportType } from '../../admin/entities/report.entity';
+import { REPORT_SORT_FIELDS, SORT_DIRECTIONS } from '../../common/validation/sort-allowlist';
 
 export enum SortOrder {
   ASC = 'ASC',
@@ -41,10 +42,10 @@ export class GetReportsQueryDto {
   limit?: number = 10;
 
   @IsOptional()
-  @IsIn(['id', 'createdAt', 'status', 'reason'])
+  @IsIn([...REPORT_SORT_FIELDS])
   sortBy?: string = 'createdAt';
 
   @IsOptional()
-  @IsIn(['ASC', 'DESC'])
+  @IsIn([...SORT_DIRECTIONS])
   sortOrder?: SortOrder = SortOrder.DESC;
 }

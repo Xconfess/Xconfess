@@ -5,6 +5,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { AuthService } from './auth.service';
 import { LockoutService } from './lockout.service';
+import { SessionRevocationService } from './session-revocation.service';
 import { CacheModule } from '../cache/cache.module';
 import { AuthController } from './auth.controller';
 import { JwtStrategy } from './jwt.strategy';
@@ -49,6 +50,7 @@ import {
   providers: [
     LockoutService,
     AuthService,
+    SessionRevocationService,
     JwtStrategy,
     PasswordResetService,
     StepUpService,
@@ -60,6 +62,7 @@ import {
     RecoveryCodeService,
     AuthService,
     LockoutService,
+    SessionRevocationService,
     JwtModule,
     StepUpService,
     StepUpGuard,

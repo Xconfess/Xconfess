@@ -25,7 +25,7 @@ identity references, see the [identity terminology in the glossary](GLOSSARY.md#
 - `POST /api/auth/login` — alternative login endpoint (same payload)
 - `GET /api/auth/me` — get profile for current JWT user
 - `GET /api/auth/session` — get authenticated session information
-- `POST /api/auth/logout` — acknowledge logout
+- `POST /api/auth/logout` — revoke all JWT sessions for the current user
 - `POST /api/auth/forgot-password` — request password reset
 - `POST /api/auth/reset-password` — complete password reset
 
@@ -84,6 +84,16 @@ Successful response:
 ```
 
 > Tip: `POST /api/users/login` is equivalent for login flows and can be used interchangeably.
+> `POST /api/auth/2fa/login` returns the same three top-level fields after TOTP
+> or recovery-code verification. No response includes a password hash, TOTP
+> secret, or recovery code.
+
+### Logout
+
+`POST /api/auth/logout` requires `Authorization: Bearer <access_token>` and
+revokes the user's active sessions. Subsequent requests using a token issued
+before the logout return `401` with code `AUTH_SESSION_REVOKED`; discard the
+token immediately after logout.
 
 ### Use the JWT
 
@@ -422,6 +432,7 @@ Common values include:
 - `AUTH_FORBIDDEN` — insufficient permissions
 - `AUTH_INVALID_CREDENTIALS` — login failed
 - `AUTH_SESSION_EXPIRED` — JWT has expired
+- `AUTH_SESSION_REVOKED` — JWT was issued before logout or session revocation
 - `AUTH_TOKEN_INVALID` — JWT is malformed or invalid
 - `BAD_REQUEST` — malformed request or missing parameters
 - `VALIDATION_FAILED` — schema validation failed
