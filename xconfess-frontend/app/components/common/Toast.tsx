@@ -21,11 +21,11 @@ const ToastItem: React.FC<ToastProps> = ({ toast, onRemove }) => {
   const getBackgroundColor = () => {
     switch (toast.type) {
       case 'success':
-        return 'bg-[var(--surface)] border-[var(--border)] border-l-4 border-l-emerald-500';
+        return 'bg-[var(--surface)] border-[var(--border)] border-l-4 border-l-[var(--success)]/30';
       case 'error':
-        return 'bg-[var(--surface)] border-[var(--border)] border-l-4 border-l-rose-500';
+        return 'bg-[var(--surface)] border-[var(--border)] border-l-4 border-l-[var(--danger)]/30';
       case 'warning':
-        return 'bg-[var(--surface)] border-[var(--border)] border-l-4 border-l-amber-500';
+        return 'bg-[var(--surface)] border-[var(--border)] border-l-4 border-l-[var(--warning)]/30';
       case 'info':
       default:
         return 'bg-[var(--surface)] border-[var(--border)] border-l-4 border-l-[var(--primary)]';
@@ -35,11 +35,11 @@ const ToastItem: React.FC<ToastProps> = ({ toast, onRemove }) => {
   const getTextColor = () => {
     switch (toast.type) {
       case 'success':
-        return 'text-emerald-700 dark:text-emerald-300';
+        return 'text-[var(--success)]';
       case 'error':
-        return 'text-rose-700 dark:text-rose-300';
+        return 'text-[var(--danger)]';
       case 'warning':
-        return 'text-amber-700 dark:text-amber-300';
+        return 'text-[var(--warning)]';
       case 'info':
       default:
         return 'text-[var(--secondary)]';
@@ -136,7 +136,7 @@ const ToastItem: React.FC<ToastProps> = ({ toast, onRemove }) => {
             onRemove(toast.id);
           }}
           className={`
-            flex-shrink-0 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider
+            flex-shrink-0 px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wider
             border border-[var(--border)] bg-[var(--surface-muted)] hover:bg-[var(--surface-strong)] transition-colors duration-200
             ${getTextColor()}
           `}

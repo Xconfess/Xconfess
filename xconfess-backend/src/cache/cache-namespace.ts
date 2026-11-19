@@ -179,6 +179,20 @@ export const ViewsCacheKeys = {
 };
 
 /**
+ * Confession cache keys. Single-confession entries are keyed by id; feed and
+ * tag listings all share the `confessions:` prefix so one pattern delete
+ * evicts every cached page after a content, status, or visibility change.
+ */
+export const ConfessionCacheKeys = {
+  /** Single confession: confession:<uuid> */
+  single: (confessionId: string): string =>
+    `${CacheNamespace.CONFESSION}:${confessionId}`,
+
+  /** Every cached feed and tag listing: confessions:* */
+  listPrefix: 'confessions:',
+};
+
+/**
  * Pre-built key generators for user
  */
 export const UserCacheKeys = {

@@ -13,7 +13,7 @@ export default function NotificationCenterPreviewPage() {
   if (process.env.NODE_ENV === "production") {
     return (
       <main className="flex min-h-screen items-center justify-center p-8">
-        <p className="text-sm text-gray-500">
+        <p className="text-sm text-[var(--text-muted)]">
           Notification center preview is only available in development.
         </p>
       </main>
@@ -21,7 +21,7 @@ export default function NotificationCenterPreviewPage() {
   }
 
   return (
-    <main className="flex min-h-screen items-start justify-center bg-gray-100 p-8">
+    <main className="flex min-h-screen items-start justify-center bg-[var(--surface-muted)] p-8">
       <ToastProvider>
         <NotificationCenter />
       </ToastProvider>

@@ -218,6 +218,28 @@ describe("ConfessionFeed", () => {
       expect(liveRegion).toHaveTextContent("");
     });
   });
+    describe("loading state transitions", () => {
+    it("shows skeleton on initial load and not pagination spinner", () => {
+      mockFeedState({ data: undefined, isLoading: true });
+      render(<ConfessionFeed />);
+      expect(screen.getByTestId("loading-skeleton")).toBeInTheDocument();
+      expect(screen.queryByText("Loading more...")).not.toBeInTheDocument();
+    });
+
+    it("shows pagination spinner when fetching next page and not switching filter", () => {
+      mockFeedState({ isFetchingNextPage: true, isPlaceholderData: false });
+      render(<ConfessionFeed />);
+      expect(screen.queryByTestId("loading-skeleton")).not.toBeInTheDocument();
+      expect(screen.getByText("Loading more...")).toBeInTheDocument();
+    });
+
+    it("does not show pagination spinner when switching filter", () => {
+      mockFeedState({ isFetchingNextPage: true, isPlaceholderData: true, isFetching: true });
+      render(<ConfessionFeed />);
+      expect(screen.getByTestId("loading-skeleton")).toBeInTheDocument();
+      expect(screen.queryByText("Loading more...")).not.toBeInTheDocument();
+    });
+  });
 
   describe("axe accessibility checks", () => {
     it("has no violations in the loaded state", async () => {

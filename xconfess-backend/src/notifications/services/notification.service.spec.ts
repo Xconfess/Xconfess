@@ -11,6 +11,7 @@ import { NOTIFICATION_QUEUE } from '../processors/notification.processor';
 import { AppLogger } from '../../logger/logger.service';
 import { ConfigService } from '@nestjs/config';
 import { User } from '../../user/entities/user.entity';
+import { RequestContextStorage } from '../../common/request-context';
 
 describe('NotificationService', () => {
   let service: NotificationService;
@@ -85,6 +86,14 @@ describe('NotificationService', () => {
             ),
           },
         },
+        {
+          provide: RequestContextStorage,
+          useValue: {
+            getRequestId: jest.fn().mockReturnValue(undefined),
+            setRequestId: jest.fn(),
+            clear: jest.fn(),
+          },
+        },
       ],
     }).compile();
 
@@ -120,6 +129,11 @@ describe('NotificationService', () => {
         {
           notificationId: 'notif-1',
           userId: 'user-1',
+          type: NotificationType.NEW_MESSAGE,
+          title: 'Title',
+          message: 'Message',
+          metadata: undefined,
+          idempotencyKey: 'notif-1',
         },
         { jobId: 'email-notif-1' },
       );
@@ -359,4 +373,3 @@ describe('NotificationService', () => {
     });
   });
 });
-

@@ -18,6 +18,7 @@ import {
   NotificationDeliveryState,
 } from '../delivery-state';
 import { RequestContextStorage } from '../../common/request-context';
+import { createHash } from 'node:crypto';
 
 interface ChannelPreferences {
   inApp?: boolean;
@@ -89,14 +90,28 @@ export class NotificationService {
     }
 
     const requestId = this.requestContextStorage.getRequestId();
+    const eventKey =
+      payload?.idempotencyKey ||
+      payload?.sourceKey ||
+      payload?.notificationId ||
+      payload?.messageId ||
+      jobId;
+    const stableJobId =
+      jobId ||
+      (eventKey
+        ? `notification-${createHash('sha256')
+            .update(`${userId || 'unknown'}:${type}:${String(eventKey)}`)
+            .digest('hex')}`
+        : undefined);
     await this.notificationQueue.add(
       'send-notification',
       {
         ...payload,
         type,
+        ...(eventKey && { idempotencyKey: String(eventKey) }),
         ...(requestId && { requestId }),
       },
-      { jobId },
+      { jobId: stableJobId },
     );
 
     this.appLogger.incrementCounter('notification_queue_enqueued_total', 1, {
@@ -198,39 +213,41 @@ export class NotificationService {
     }
 
     const sourceKey = dto.sourceKey ?? this.buildSourceKey(dto);
-    if (sourceKey) {
-      const existing = await this.notificationRepository.findOne({
-        where: { sourceKey },
-      });
-      if (existing) {
-        this.appLogger.incrementCounter('notification_duplicate_suppressed_total', 1, {
-          notificationType: dto.type,
-        });
-        return existing;
-      }
-    }
-
-    const notification = this.notificationRepository.create({
-      ...dto,
-      sourceKey: sourceKey ?? undefined,
-    });
-    try {
-      await this.notificationRepository.save(notification);
-    } catch (error) {
-      if (sourceKey && this.isUniqueViolation(error)) {
-        const existing = await this.notificationRepository.findOne({
+    let notification = sourceKey
+      ? await this.notificationRepository.findOne({
           where: { sourceKey },
-        });
-        if (existing) {
-          this.appLogger.incrementCounter(
-            'notification_duplicate_suppressed_total',
-            1,
-            { notificationType: dto.type },
-          );
-          return existing;
+        })
+      : null;
+    if (notification) {
+      this.appLogger.incrementCounter('notification_duplicate_suppressed_total', 1, {
+        notificationType: dto.type,
+      });
+    } else {
+      notification = this.notificationRepository.create({
+        ...dto,
+        sourceKey: sourceKey ?? undefined,
+      });
+      try {
+        await this.notificationRepository.save(notification);
+      } catch (error) {
+        if (sourceKey && this.isUniqueViolation(error)) {
+          const existing = await this.notificationRepository.findOne({
+            where: { sourceKey },
+          });
+          if (existing) {
+            this.appLogger.incrementCounter(
+              'notification_duplicate_suppressed_total',
+              1,
+              { notificationType: dto.type },
+            );
+            notification = existing;
+          } else {
+            throw error;
+          }
+        } else {
+          throw error;
         }
       }
-      throw error;
     }
 
     // Queue for email notification if enabled and background jobs are active
@@ -245,6 +262,11 @@ export class NotificationService {
         {
           notificationId: notification.id,
           userId: dto.userId,
+          type: dto.type,
+          title: notification.title,
+          message: notification.message,
+          metadata: notification.metadata,
+          idempotencyKey: sourceKey ?? notification.id,
         },
         { jobId: `email-${notification.id}` },
       );

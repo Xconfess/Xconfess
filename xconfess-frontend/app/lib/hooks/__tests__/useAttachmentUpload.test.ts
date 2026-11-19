@@ -159,4 +159,27 @@ describe("useAttachmentUpload", () => {
     expect(result.current.uploads).toHaveLength(2);
     expect(MockXHR.instances).toHaveLength(2);
   });
+
+  it("ignores retry for an unknown upload id", () => {
+    const { result } = renderHook(() => useAttachmentUpload());
+
+    act(() => {
+      result.current.retryUpload("missing-id");
+    });
+
+    expect(MockXHR.instances).toHaveLength(0);
+    expect(result.current.uploads).toHaveLength(0);
+  });
+
+  it("aborts in-flight uploads when the consumer unmounts", () => {
+    const { result, unmount } = renderHook(() => useAttachmentUpload());
+
+    act(() => {
+      result.current.addFiles([makeFile("a.png"), makeFile("b.png")]);
+    });
+
+    unmount();
+
+    expect(MockXHR.instances.every((xhr) => xhr.aborted)).toBe(true);
+  });
 });

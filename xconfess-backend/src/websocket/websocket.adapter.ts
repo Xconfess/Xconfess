@@ -2,6 +2,7 @@ import { IoAdapter } from '@nestjs/platform-socket.io';
 import { ServerOptions, Server as SocketIOServer, Socket } from 'socket.io';
 import { ConfigService } from '@nestjs/config';
 import { INestApplicationContext, Logger } from '@nestjs/common';
+import { WebSocketLogger } from './websocket.logger';
 
 const logger = new Logger('WebSocketAdapter');
 
@@ -38,12 +39,23 @@ export function buildWebSocketServerOptions(
 
 export class WebSocketAdapter extends IoAdapter {
   private ioServer: SocketIOServer | null = null;
+  private wsLogger: WebSocketLogger | null = null;
 
   constructor(
     private app: INestApplicationContext,
     private configService: ConfigService,
+    wsLogger?: WebSocketLogger,
   ) {
     super(app);
+    if (wsLogger) {
+      this.wsLogger = wsLogger;
+    } else {
+      try {
+        this.wsLogger = app.get(WebSocketLogger, { strict: false });
+      } catch {
+        this.wsLogger = null;
+      }
+    }
   }
 
   createIOServer(port: number, options?: ServerOptions): any {
@@ -105,6 +117,14 @@ export class WebSocketAdapter extends IoAdapter {
           msg: `Unauthenticated connection attempt on sensitive namespace ${namespace} from ${ip}`,
         });
       }
+
+      if (socket.recovered) {
+        this.wsLogger?.recordReconnection();
+      }
+
+      socket.on('disconnect', (reason: string) => {
+        this.wsLogger?.recordDisconnection(reason);
+      });
 
       next();
     });

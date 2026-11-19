@@ -168,7 +168,7 @@ export function SearchInput({
       <form onSubmit={handleSubmit}>
         <div className="relative flex items-center">
           <Search
-            className="absolute left-3 h-4 w-4 text-zinc-500 pointer-events-none"
+            className="absolute left-3 h-4 w-4 text-[var(--text-muted)] pointer-events-none"
             aria-hidden
           />
           <Input
@@ -190,7 +190,7 @@ export function SearchInput({
             role="combobox"
             autoComplete="off"
             data-search-input
-            className="pl-10 pr-10 rounded-xl border-zinc-700 bg-zinc-900 text-white placeholder:text-zinc-500"
+            className="pl-10 pr-10 rounded-xl border-[var(--border)] bg-[var(--surface)] text-[var(--foreground)] placeholder:text-[var(--text-muted)]"
           />
           {value.length > 0 && (
             <button
@@ -199,7 +199,7 @@ export function SearchInput({
                 onChange("");
                 inputRef.current?.focus();
               }}
-              className="absolute right-3 p-1 rounded-md text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors"
+              className="absolute right-3 p-1 rounded-md text-[var(--text-muted)] hover:text-[var(--foreground)] hover:bg-[var(--surface-muted)] transition-colors"
               aria-label="Clear search"
             >
               <X className="h-4 w-4" />

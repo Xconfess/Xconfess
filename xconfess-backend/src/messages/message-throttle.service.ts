@@ -1,4 +1,4 @@
-import { Injectable, TooManyRequestsException, Logger } from '@nestjs/common';
+import { Injectable, HttpException, HttpStatus, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, LessThan } from 'typeorm';
 import { Message } from './entities/message.entity';
@@ -48,7 +48,7 @@ export class MessageThrottleService {
     const count = await this.messageRepository.count({
       where: {
         throttleKey,
-        rateLimitWindow: new Date(now.getTime() - config.windowMs),
+        rateLimitWindow: windowStart,
       },
     });
 
@@ -85,8 +85,9 @@ export class MessageThrottleService {
         ? Math.ceil((status.resetTime.getTime() - Date.now()) / 1000)
         : 60;
 
-      throw new TooManyRequestsException(
+      throw new HttpException(
         `Too many messages. Please try again in ${resetTime} seconds.`,
+        HttpStatus.TOO_MANY_REQUESTS,
       );
     }
   }
@@ -123,7 +124,7 @@ export class MessageThrottleService {
       rateLimitWindow: LessThan(oneHourAgo),
     });
 
-    if (result.affected > 0) {
+    if (result.affected && result.affected > 0) {
       this.logger.debug(
         `Cleaned up ${result.affected} expired throttle window records`,
       );

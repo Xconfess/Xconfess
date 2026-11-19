@@ -1,0 +1,784 @@
+﻿===== src\attachment\entities\attachment.entity.ts =====
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  CreateDateColumn,
+  UpdateDateColumn,
+  Index,
+  ManyToOne,
+  JoinColumn,
+} from 'typeorm';
+import { AnonymousUser } from '../../user/entities/anonymous-user.entity';
+
+export enum AttachmentStatus {
+  UPLOADING = 'uploading',
+  COMPLETED = 'completed',
+  FAILED = 'failed',
+  ABANDONED = 'abandoned',
+}
+
+export enum AttachmentType {
+  IMAGE = 'image',
+  DOCUMENT = 'document',
+  AUDIO = 'audio',
+  VIDEO = 'video',
+  OTHER = 'other',
+}
+
+@Entity('attachments')
+@Index(['status', 'createdAt'])
+@Index(['objectKey'])
+@Index(['anonymousUserId', 'status'])
+export class Attachment {
+  @PrimaryGeneratedColumn('uuid')
+  id: string;
+
+  @Column({ type: 'varchar', length: 255 })
+  objectKey: string;
+
+  @Column({ type: 'varchar', length: 255 })
+  originalName: string;
+
+  @Column({ type: 'bigint' })
+  size: number;
+
+  @Column({ type: 'varchar', length: 100 })
+  mimeType: string;
+
+  @Column({
+    type: 'enum',
+    enum: AttachmentType,
+    default: AttachmentType.OTHER,
+  })
+  type: AttachmentType;
+
+  @Column({
+    type: 'enum',
+    enum: AttachmentStatus,
+    default: AttachmentStatus.UPLOADING,
+  })
+  status: AttachmentStatus;
+
+  @Column({ type: 'varchar', length: 500, nullable: true })
+  checksum: string | null;
+
+  @Column({ type: 'json', nullable: true })
+  metadata: Record<string, any> | null;
+
+  @ManyToOne(() => AnonymousUser, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'anonymous_user_id' })
+  anonymousUser: AnonymousUser | null;
+
+  @Column({ name: 'anonymous_user_id', type: 'uuid', nullable: true })
+  anonymousUserId: string | null;
+
+  @Column({ name: 'confession_id', type: 'uuid', nullable: true })
+  confessionId: string | null;
+
+  @Column({ name: 'message_id', type: 'int', nullable: true })
+  messageId: number | null;
+
+  @Column({ name: 'expires_at', type: 'timestamp', nullable: true })
+  expiresAt: Date | null;
+
+  @CreateDateColumn({ name: 'created_at' })
+  createdAt: Date;
+
+  @UpdateDateColumn({ name: 'updated_at' })
+  updatedAt: Date;
+
+  @Column({ name: 'completed_at', type: 'timestamp', nullable: true })
+  completedAt: Date | null;
+
+  @Column({ name: 'failed_at', type: 'timestamp', nullable: true })
+  failedAt: Date | null;
+
+  @Column({ name: 'failure_reason', type: 'text', nullable: true })
+  failureReason: string | null;
+}
+===== src\attachment\repository\attachment.repository.ts =====
+import { Injectable } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository, LessThan, In, IsNull, Not, MoreThan } from 'typeorm';
+import { Attachment, AttachmentStatus } from '../entities/attachment.entity';
+
+@Injectable()
+export class AttachmentRepository {
+  constructor(
+    @InjectRepository(Attachment)
+    private readonly attachmentRepository: Repository<Attachment>,
+  ) {}
+
+  /**
+   * Find attachments that are not referenced by any confession or message
+   * and are older than the grace period.
+   */
+  async findUnreferencedAttachments(gracePeriodMs: number): Promise<Attachment[]> {
+    const cutoff = new Date(Date.now() - gracePeriodMs);
+    return this.attachmentRepository
+      .createQueryBuilder('attachment')
+      .where('attachment.confessionId IS NULL')
+      .andWhere('attachment.messageId IS NULL')
+      .andWhere('attachment.createdAt < :cutoff', { cutoff })
+      .andWhere('attachment.status IN (:...statuses)', {
+        statuses: [AttachmentStatus.UPLOADING, AttachmentStatus.FAILED, AttachmentStatus.ABANDONED],
+      })
+      .getMany();
+  }
+
+  /**
+   * Find attachments with UPLOADING status that have expired (stuck uploads)
+   */
+  async findStuckUploads(gracePeriodMs: number): Promise<Attachment[]> {
+    const cutoff = new Date(Date.now() - gracePeriodMs);
+    return this.attachmentRepository.find({
+      where: {
+        status: AttachmentStatus.UPLOADING,
+        createdAt: LessThan(cutoff),
+      },
+    });
+  }
+
+  /**
+   * Find all attachments that are candidates for cleanup
+   */
+  async findCleanupCandidates(gracePeriodMs: number): Promise<Attachment[]> {
+    const cutoff = new Date(Date.now() - gracePeriodMs);
+    
+    // Find unreferenced attachments
+    const unreferenced = await this.findUnreferencedAttachments(gracePeriodMs);
+    
+    // Find stuck uploads
+    const stuck = await this.findStuckUploads(gracePeriodMs);
+    
+    // Combine and deduplicate by ID
+    const all = [...unreferenced, ...stuck];
+    const seen = new Set<string>();
+    return all.filter((a) => {
+      if (seen.has(a.id)) return false;
+      seen.add(a.id);
+      return true;
+    });
+  }
+
+  /**
+   * Mark attachments as abandoned (idempotent)
+   */
+  async markAsAbandoned(ids: string[]): Promise<number> {
+    if (ids.length === 0) return 0;
+    const result = await this.attachmentRepository
+      .createQueryBuilder()
+      .update(Attachment)
+      .set({ 
+        status: AttachmentStatus.ABANDONED,
+        updatedAt: () => 'CURRENT_TIMESTAMP',
+      })
+      .where('id IN (:...ids)', { ids })
+      .andWhere('status != :abandoned', { abandoned: AttachmentStatus.ABANDONED })
+      .execute();
+    return result.affected ?? 0;
+  }
+
+  /**
+   * Delete abandoned attachments (idempotent - only deletes ABANDONED status)
+   */
+  async deleteAbandonedAttachments(ids: string[]): Promise<number> {
+    if (ids.length === 0) return 0;
+    const result = await this.attachmentRepository
+      .createQueryBuilder()
+      .delete()
+      .from(Attachment)
+      .where('id IN (:...ids)', { ids })
+      .andWhere('status = :abandoned', { abandoned: AttachmentStatus.ABANDONED })
+      .execute();
+    return result.affected ?? 0;
+  }
+
+  /**
+   * Check if an attachment is referenced (has confessionId or messageId)
+   */
+  async isReferenced(id: string): Promise<boolean> {
+    const attachment = await this.attachmentRepository.findOne({
+      where: { id },
+      select: ['confessionId', 'messageId'],
+    });
+    return !!(attachment?.confessionId || attachment?.messageId);
+  }
+
+  /**
+   * Get attachment by ID
+   */
+  async findById(id: string): Promise<Attachment | null> {
+    return this.attachmentRepository.findOne({ where: { id } });
+  }
+
+  /**
+   * Create a new attachment record
+   */
+  async create(attachment: Partial<Attachment>): Promise<Attachment> {
+    return this.attachmentRepository.save(this.attachmentRepository.create(attachment));
+  }
+
+  /**
+   * Update attachment status
+   */
+  async updateStatus(
+    id: string,
+    status: AttachmentStatus,
+    additionalData?: Partial<Attachment>,
+  ): Promise<void> {
+    await this.attachmentRepository.update(id, {
+      status,
+      ...additionalData,
+      updatedAt: new Date(),
+    });
+  }
+
+  /**
+   * Find attachments by criteria
+   */
+  async find(options: { where: { status: AttachmentStatus } }): Promise<Attachment[]> {
+    return this.attachmentRepository.find(options);
+  }
+}
+===== src\attachment\attachment.controller.ts =====
+import {
+  Controller,
+  Post,
+  Get,
+  Put,
+  Delete,
+  Param,
+  Body,
+  Query,
+  Req,
+  UseGuards,
+  HttpStatus,
+} from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiParam, ApiResponse, ApiQuery } from '@nestjs/swagger';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { OwnershipGuard } from '../common/guards/ownership.guard';
+import { Ownership } from '../common/decorators/ownership.decorator';
+import { AttachmentCleanupService } from './attachment-cleanup.service';
+import { AttachmentRepository } from './repository/attachment.repository';
+import { Attachment, AttachmentStatus } from './entities/attachment.entity';
+import { CreateAttachmentDto, CompleteAttachmentDto, AssociateAttachmentDto } from './dto/attachment.dto';
+
+@ApiTags('Attachments')
+@Controller('attachments')
+@UseGuards(JwtAuthGuard)
+export class AttachmentController {
+  constructor(
+    private readonly cleanupService: AttachmentCleanupService,
+    private readonly attachmentRepository: AttachmentRepository,
+  ) {}
+
+  /**
+   * POST /attachments
+   * Create a new attachment record for an upload.
+   */
+  @Post()
+  @ApiOperation({ summary: 'Create attachment record for upload' })
+  @ApiResponse({ status: 201, description: 'Attachment record created' })
+  async createAttachment(@Body() dto: CreateAttachmentDto, @Req() req: any) {
+    // Use the authenticated user's anonymous ID if not provided
+    const anonymousUserId = dto.anonymousUserId ?? (await this.getUserAnonymousId(req.user.sub));
+    
+    const attachment = await this.cleanupService.createAttachment({
+      ...dto,
+      anonymousUserId,
+    });
+
+    return attachment;
+  }
+
+  /**
+   * PUT /attachments/:id/complete
+   * Mark an attachment as completed after successful upload.
+   */
+  @Put(':id/complete')
+  @ApiOperation({ summary: 'Mark attachment as completed' })
+  @ApiParam({ name: 'id', description: 'Attachment UUID' })
+  @ApiResponse({ status: 200, description: 'Attachment marked as completed' })
+  @ApiResponse({ status: 404, description: 'Attachment not found' })
+  async completeAttachment(
+    @Param('id') id: string,
+    @Body() dto: CompleteAttachmentDto,
+  ) {
+    const attachment = await this.attachmentRepository.findById(id);
+    if (!attachment) {
+      return { success: false, error: 'Attachment not found' };
+    }
+
+    await this.cleanupService.completeAttachment(id, dto.checksum);
+    return { success: true };
+  }
+
+  /**
+   * PUT /attachments/:id/associate
+   * Associate an attachment with a confession or message after successful transaction.
+   */
+  @Put(':id/associate')
+  @ApiOperation({ summary: 'Associate attachment with confession or message' })
+  @ApiParam({ name: 'id', description: 'Attachment UUID' })
+  @ApiResponse({ status: 200, description: 'Attachment associated successfully' })
+  @ApiResponse({ status: 404, description: 'Attachment not found' })
+  async associateAttachment(
+    @Param('id') id: string,
+    @Body() dto: AssociateAttachmentDto,
+  ) {
+    const attachment = await this.attachmentRepository.findById(id);
+    if (!attachment) {
+      return { success: false, error: 'Attachment not found' };
+    }
+
+    await this.cleanupService.associateAttachment(id, {
+      confessionId: dto.confessionId,
+      messageId: dto.messageId,
+    });
+
+    return { success: true };
+  }
+
+  /**
+   * GET /attachments/:id
+   * Get attachment details.
+   */
+  @Get(':id')
+  @ApiOperation({ summary: 'Get attachment details' })
+  @ApiParam({ name: 'id', description: 'Attachment UUID' })
+  @ApiResponse({ status: 200, description: 'Attachment details' })
+  @ApiResponse({ status: 404, description: 'Attachment not found' })
+  async getAttachment(@Param('id') id: string) {
+    const attachment = await this.attachmentRepository.findById(id);
+    if (!attachment) {
+      return { success: false, error: 'Attachment not found' };
+    }
+    return attachment;
+  }
+
+  /**
+   * DELETE /attachments/:id
+   * Delete an attachment (only if not referenced).
+   */
+  @Delete(':id')
+  @ApiOperation({ summary: 'Delete attachment if not referenced' })
+  @ApiParam({ name: 'id', description: 'Attachment UUID' })
+  @ApiResponse({ status: 200, description: 'Attachment deleted' })
+  @ApiResponse({ status: 404, description: 'Attachment not found' })
+  @ApiResponse({ status: 409, description: 'Attachment is still referenced' })
+  async deleteAttachment(@Param('id') id: string) {
+    const result = await this.cleanupService.cleanupAttachment(id);
+    return result;
+  }
+
+  /**
+   * POST /attachments/cleanup
+   * Manually trigger cleanup job (admin only).
+   */
+  @Post('cleanup')
+  @ApiOperation({ summary: 'Trigger attachment cleanup job' })
+  @ApiResponse({ status: 200, description: 'Cleanup completed' })
+  async triggerCleanup() {
+    const result = await this.cleanupService.runCleanup();
+    return result;
+  }
+
+  /**
+   * GET /attachments/stats
+   * Get attachment statistics.
+   */
+  @Get('stats')
+  @ApiOperation({ summary: 'Get attachment statistics' })
+  @ApiResponse({ status: 200, description: 'Attachment statistics' })
+  async getStats() {
+    const statuses = Object.values(AttachmentStatus);
+    const stats: Record<string, number> = {};
+
+    for (const status of statuses) {
+      const count = await this.attachmentRepository.find({
+        where: { status },
+      });
+      stats[status] = count.length;
+    }
+
+    const total = Object.values(stats).reduce((a, b) => a + b, 0);
+    return { total, byStatus: stats };
+  }
+
+  private async getUserAnonymousId(userId: number): Promise<string> {
+    // This would typically use the AnonymousUserService
+    // For now, we'll return a placeholder - the service should be injected
+    return `user-${userId}`;
+  }
+}
+===== src\attachment\attachment.module.ts =====
+import { Module } from '@nestjs/common';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { Attachment } from './entities/attachment.entity';
+import { AttachmentRepository } from './repository/attachment.repository';
+import { AttachmentCleanupService } from './attachment-cleanup.service';
+
+@Module({
+  imports: [TypeOrmModule.forFeature([Attachment])],
+  providers: [AttachmentRepository, AttachmentCleanupService],
+  exports: [AttachmentRepository, AttachmentCleanupService],
+})
+export class AttachmentModule {}
+===== src\attachment\dto\attachment.dto.ts =====
+import { IsString, IsNumber, IsOptional, IsUUID, IsEnum, MaxLength, Min } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { AttachmentType } from '../entities/attachment.entity';
+
+export class CreateAttachmentDto {
+  @ApiProperty({ description: 'Object key in storage' })
+  @IsString()
+  @MaxLength(255)
+  objectKey: string;
+
+  @ApiProperty({ description: 'Original file name' })
+  @IsString()
+  @MaxLength(255)
+  originalName: string;
+
+  @ApiProperty({ description: 'File size in bytes' })
+  @IsNumber()
+  @Min(0)
+  size: number;
+
+  @ApiProperty({ description: 'MIME type' })
+  @IsString()
+  @MaxLength(100)
+  mimeType: string;
+
+  @ApiPropertyOptional({ enum: AttachmentType, default: AttachmentType.OTHER })
+  @IsOptional()
+  @IsEnum(AttachmentType)
+  type?: AttachmentType = AttachmentType.OTHER;
+
+  @ApiPropertyOptional({ description: 'File checksum (e.g., SHA-256)' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  checksum?: string;
+
+  @ApiPropertyOptional({ description: 'Additional metadata' })
+  @IsOptional()
+  metadata?: Record<string, any>;
+
+  @ApiPropertyOptional({ description: 'Anonymous user ID' })
+  @IsOptional()
+  @IsUUID()
+  anonymousUserId?: string;
+
+  @ApiPropertyOptional({ description: 'Associated confession ID' })
+  @IsOptional()
+  @IsUUID()
+  confessionId?: string;
+
+  @ApiPropertyOptional({ description: 'Associated message ID' })
+  @IsOptional()
+  @IsNumber()
+  messageId?: number;
+
+  @ApiPropertyOptional({ description: 'Expiration date' })
+  @IsOptional()
+  expiresAt?: Date;
+}
+
+export class CompleteAttachmentDto {
+  @ApiPropertyOptional({ description: 'File checksum' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  checksum?: string;
+}
+
+export class AssociateAttachmentDto {
+  @ApiPropertyOptional({ description: 'Confession ID to associate with' })
+  @IsOptional()
+  @IsUUID()
+  confessionId?: string;
+
+  @ApiPropertyOptional({ description: 'Message ID to associate with' })
+  @IsOptional()
+  @IsNumber()
+  messageId?: number;
+}
+===== src\attachment\attachment-cleanup.service.ts =====
+import { Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { Cron, CronExpression } from '@nestjs/schedule';
+import { AttachmentRepository } from './repository/attachment.repository';
+import { Attachment, AttachmentStatus, AttachmentType } from './entities/attachment.entity';
+
+export interface CleanupResult {
+  abandonedCount: number;
+  deletedCount: number;
+  errors: string[];
+}
+
+@Injectable()
+export class AttachmentCleanupService {
+  private readonly logger = new Logger(AttachmentCleanupService.name);
+
+  constructor(
+    private readonly attachmentRepository: AttachmentRepository,
+    private readonly configService: ConfigService,
+  ) {}
+
+  /**
+   * Grace period in milliseconds before considering an attachment abandoned.
+   * Default: 24 hours.
+   */
+  private get gracePeriodMs(): number {
+    return this.configService.get<number>('ATTACHMENT_CLEANUP_GRACE_PERIOD_MS') ?? 24 * 60 * 60 * 1000;
+  }
+
+  /**
+   * Maximum number of attachments to process in a single cleanup run.
+   * Default: 1000.
+   */
+  private get batchSize(): number {
+    return this.configService.get<number>('ATTACHMENT_CLEANUP_BATCH_SIZE') ?? 1000;
+  }
+
+  /**
+   * Run the cleanup job.
+   * This is idempotent and safe to run multiple times.
+   */
+  async runCleanup(): Promise<CleanupResult> {
+    this.logger.log('Starting attachment cleanup job');
+    const errors: string[] = [];
+    let abandonedCount = 0;
+    let deletedCount = 0;
+
+    try {
+      // Find candidates for cleanup
+      const candidates = await this.attachmentRepository.findCleanupCandidates(this.gracePeriodMs);
+      this.logger.log(`Found ${candidates.length} attachment(s) eligible for cleanup`);
+
+      if (candidates.length === 0) {
+        return { abandonedCount: 0, deletedCount: 0, errors: [] };
+      }
+
+      // Process in batches
+      for (let i = 0; i < candidates.length; i += this.batchSize) {
+        const batch = candidates.slice(i, i + this.batchSize);
+        const ids = batch.map((a) => a.id);
+
+        try {
+          // First, mark as abandoned (idempotent)
+          const marked = await this.attachmentRepository.markAsAbandoned(ids);
+          abandonedCount += marked;
+          this.logger.log(`Marked ${marked} attachment(s) as abandoned in batch ${i / this.batchSize + 1}`);
+
+          // Then, delete abandoned attachments (idempotent)
+          const deleted = await this.attachmentRepository.deleteAbandonedAttachments(ids);
+          deletedCount += deleted;
+          this.logger.log(`Deleted ${deleted} abandoned attachment(s) in batch ${i / this.batchSize + 1}`);
+        } catch (error) {
+          const errorMsg = `Batch ${i / this.batchSize + 1} failed: ${error instanceof Error ? error.message : String(error)}`;
+          this.logger.error(errorMsg);
+          errors.push(errorMsg);
+        }
+      }
+
+      this.logger.log(
+        `Attachment cleanup completed: ${abandonedCount} marked abandoned, ${deletedCount} deleted, ${errors.length} errors`,
+      );
+    } catch (error) {
+      const errorMsg = `Cleanup job failed: ${error instanceof Error ? error.message : String(error)}`;
+      this.logger.error(errorMsg, error instanceof Error ? error.stack : undefined);
+      errors.push(errorMsg);
+    }
+
+    return { abandonedCount, deletedCount, errors };
+  }
+
+  /**
+   * Scheduled cleanup job - runs daily at 3 AM.
+   */
+  @Cron(CronExpression.EVERY_DAY_AT_3AM)
+  async scheduledCleanup(): Promise<void> {
+    this.logger.log('Running scheduled attachment cleanup');
+    const result = await this.runCleanup();
+    
+    if (result.errors.length > 0) {
+      this.logger.warn(`Scheduled cleanup completed with errors: ${result.errors.join('; ')}`);
+    }
+  }
+
+  /**
+   * Manually trigger cleanup for a specific attachment (e.g., after failed transaction).
+   */
+  async cleanupAttachment(id: string): Promise<{ success: boolean; error?: string }> {
+    try {
+      const attachment = await this.attachmentRepository.findById(id);
+      if (!attachment) {
+        return { success: false, error: 'Attachment not found' };
+      }
+
+      // Only clean up if not referenced
+      if (await this.attachmentRepository.isReferenced(id)) {
+        return { success: false, error: 'Attachment is still referenced' };
+      }
+
+      // Mark as abandoned
+      await this.attachmentRepository.markAsAbandoned([id]);
+      
+      // Delete if already abandoned or failed
+      if (attachment.status === AttachmentStatus.ABANDONED || attachment.status === AttachmentStatus.FAILED) {
+        await this.attachmentRepository.deleteAbandonedAttachments([id]);
+      }
+
+      return { success: true };
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      this.logger.error(`Failed to cleanup attachment ${id}: ${errorMsg}`);
+      return { success: false, error: errorMsg };
+    }
+  }
+
+  /**
+   * Create an attachment record for a new upload.
+   */
+  async createAttachment(data: {
+    objectKey: string;
+    originalName: string;
+    size: number;
+    mimeType: string;
+    type?: AttachmentType;
+    checksum?: string;
+    metadata?: Record<string, any>;
+    anonymousUserId?: string;
+    confessionId?: string;
+    messageId?: number;
+    expiresAt?: Date;
+  }): Promise<Attachment> {
+    return this.attachmentRepository.create({
+      ...data,
+      status: AttachmentStatus.UPLOADING,
+      type: data.type ?? AttachmentType.OTHER,
+    });
+  }
+
+  /**
+   * Mark attachment as completed after successful upload.
+   */
+  async completeAttachment(id: string, checksum?: string): Promise<void> {
+    await this.attachmentRepository.updateStatus(id, AttachmentStatus.COMPLETED, {
+      completedAt: new Date(),
+      checksum,
+    });
+  }
+
+  /**
+   * Mark attachment as failed.
+   */
+  async failAttachment(id: string, reason: string): Promise<void> {
+    await this.attachmentRepository.updateStatus(id, AttachmentStatus.FAILED, {
+      failedAt: new Date(),
+      failureReason: reason,
+    });
+  }
+
+  /**
+   * Associate attachment with a confession or message after successful transaction.
+   */
+  async associateAttachment(
+    id: string,
+    association: { confessionId?: string; messageId?: number },
+  ): Promise<void> {
+    await this.attachmentRepository.updateStatus(id, AttachmentStatus.COMPLETED, association);
+  }
+}
+===== jest.config.js =====
+module.exports = {
+  preset: 'ts-jest',
+  testEnvironment: 'node',
+  setupFiles: ['<rootDir>/jest.setup.ts'],
+  transform: {
+    '^.+\\.tsx?$': [
+      'ts-jest',
+      {
+        diagnostics: false,
+      },
+    ],
+    '^.+\\.m?js$': [
+      'babel-jest',
+      {
+        presets: [['@babel/preset-env', { targets: { node: 'current' } }]],
+      },
+    ],
+  },
+  // Jest 30 ships nested ESM-only packages (ansi-styles v6, chalk v5, etc.)
+  // that must be transformed by ts-jest/babel rather than executed as-is.
+  testMatch: ['<rootDir>/src/**/*.spec.ts', '<rootDir>/test/**/*.spec.ts'],
+  transformIgnorePatterns: [
+    '/node_modules/(?!(ansi-styles|sanitize-html|htmlparser2|domhandler|domutils|dom-serializer|domelementtype|entities)/)',
+  ],
+  testPathIgnorePatterns: [
+    '/node_modules/',
+    '<rootDir>/xconfess-backend/',
+    '<rootDir>/e2e/',
+  ],
+  watchPathIgnorePatterns: ['<rootDir>/xconfess-backend/'],
+  modulePathIgnorePatterns: ['<rootDir>/xconfess-backend/'],
+  moduleNameMapper: {
+    '^src/(.*)$': '<rootDir>/src/$1',
+    '^@nestjs/bull$': '@nestjs/bullmq',
+    '^bull$': 'bullmq',
+    '^bcrypt$': 'bcryptjs',
+    '^@faker-js/faker$': '<rootDir>/test/utils/faker-stub.ts',
+    '^@faker-js/faker/\\.$': '<rootDir>/test/utils/faker-stub.ts',
+    // ansi-styles v6+ is ESM-only; Jest (CJS) cannot parse `export`.
+    // Point to a CJS shim that provides the minimal surface packages need.
+    '^ansi-styles$': '<rootDir>/test/utils/ansi-styles-shim.js',
+  },
+  // Some specs intentionally exercise queues, sockets, and failed transports.
+  // Disable Jest's one-second open-handle warning while the suite tears down.
+  openHandlesTimeout: 0,
+};
+===== test folder =====
+interface
+utils
+admin-rbac.e2e-spec.ts
+admin-step-up.e2e-spec.ts
+anonymous-context.middleware.spec.ts
+anonymous-identity-ownership.e2e-spec.ts
+api-error-contract.e2e-spec.ts
+app.e2e-spec.ts
+auth-contract.e2e-spec.ts
+auth-logging-pii.e2e-spec.ts
+backend-improvements.e2e-spec.ts
+comment-admin-moderation.e2e-spec.ts
+confession-module.e2e-spec.ts
+core-journey.e2e-spec.ts
+data-export-privacy-compliance.e2e-spec.ts
+dlq-admin-security.enhanced.e2e-spec.ts
+jest-e2e.json
+jwt-user-interface.e2e-spec.ts
+login-profile-route-parity.e2e-spec.ts
+message-e2e-key-exchange.e2e-spec.ts
+message-flow.e2e-spec.ts
+notification-template-canary.e2e-spec.ts
+notifications-dlq-security.e2e-spec.ts
+reactions-gateway-boot.spec.ts
+reactions.gateway.spec.ts
+report-endpoint.e2e-spec.ts
+sanitization.middleware.spec.ts
+user-confessions.e2e-spec.ts
+user-notification-preferences-security.e2e-spec.ts
+user-privacy-settings-security.e2e-spec.ts
+interface\confession-data.ts
+utils\factories
+utils\anonymous-ownership.factory.ts
+utils\ansi-styles-shim.js
+utils\faker-stub.ts
+utils\README.md
+utils\test-helper.ts
+utils\factories\anchor-factory.ts
+utils\factories\confession-factory.ts
+utils\factories\index.ts

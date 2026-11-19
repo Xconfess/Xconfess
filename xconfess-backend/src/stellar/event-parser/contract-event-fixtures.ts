@@ -51,6 +51,21 @@ export const CONTRACT_EVENT_FIXTURES: ContractEventFixture[] = [
     description: 'Tipping contract paused',
   },
   {
+    eventName: 'PausedEvent', category: 'pause', topic: 'paused', eventVersion: 1,
+    values: ['incident_response'],
+    description: 'Legacy V1 emergency pause event (decode-only)',
+  },
+  {
+    eventName: 'UnpausedEvent', category: 'pause', topic: 'unpaused', eventVersion: 1,
+    values: ['incident_resolved'],
+    description: 'Legacy V1 emergency unpause event (decode-only)',
+  },
+  {
+    eventName: 'PauseStateChangedEvent', category: 'pause', topic: 'pause_state_changed', eventVersion: 2,
+    values: [2, ADDR_A, 'incident_response', 1, true, 1_700_000_000_005],
+    description: 'Versioned pause event with actor, reason and monotonic nonce',
+  },
+  {
     eventName: 'ReportEvent', category: 'report', topic: 'report', eventVersion: 1,
     values: [1, 42, ADDR_B, 'spam', 1, 1_700_000_000_010, 'corr1234'],
     description: 'Confession reported for spam',

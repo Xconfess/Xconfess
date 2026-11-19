@@ -14,6 +14,12 @@ import type { Gender } from "./validation";
 
 const SESSION_DRAFT_KEY = "xconfess.sessionDraft.v1";
 
+/**
+ * A tab can stay open for days; a draft older than this is dropped on load so
+ * it is never restored indefinitely.
+ */
+export const SESSION_DRAFT_TTL_MS = 24 * 60 * 60 * 1000;
+
 export interface SessionDraft {
   title: string;
   body: string;
@@ -56,6 +62,13 @@ export function loadSessionDraft(): SessionDraft | null {
   try {
     const parsed = JSON.parse(raw) as SessionDraft;
     if (!parsed.body?.trim() && !parsed.title?.trim()) {
+      clearSessionDraft();
+      return null;
+    }
+    if (
+      typeof parsed.savedAt !== "number" ||
+      Date.now() - parsed.savedAt > SESSION_DRAFT_TTL_MS
+    ) {
       clearSessionDraft();
       return null;
     }

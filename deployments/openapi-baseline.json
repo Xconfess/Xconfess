@@ -1,0 +1,272 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "xConfess API contract baseline (seed)",
+    "version": "0.0.0"
+  },
+  "paths": {
+    "/analytics/stats": {
+      "get": {
+        "responses": {}
+      }
+    },
+    "/analytics/trending": {
+      "get": {
+        "responses": {}
+      }
+    },
+    "/analytics/reactions": {
+      "get": {
+        "responses": {}
+      }
+    },
+    "/analytics/users": {
+      "get": {
+        "responses": {}
+      }
+    },
+    "/analytics/growth": {
+      "get": {
+        "responses": {}
+      }
+    },
+    "/auth/login": {
+      "post": {
+        "responses": {}
+      }
+    },
+    "/auth/session": {
+      "get": {
+        "responses": {}
+      }
+    },
+    "/auth/me": {
+      "get": {
+        "responses": {}
+      }
+    },
+    "/comments/{confessionId}": {
+      "post": {
+        "responses": {}
+      }
+    },
+    "/confessions/{confessionId}/comments": {
+      "get": {
+        "responses": {}
+      }
+    },
+    "/confessions/{id}/anchor": {
+      "post": {
+        "responses": {}
+      }
+    },
+    "/reactions": {
+      "post": {
+        "responses": {}
+      }
+    },
+    "/confessions/{id}": {
+      "get": {
+        "responses": {}
+      }
+    },
+    "/confessions/{id}/report": {
+      "post": {
+        "responses": {}
+      }
+    },
+    "/confessions/{id}/tips/stats": {
+      "get": {
+        "responses": {}
+      }
+    },
+    "/confessions/{id}/tips/verify": {
+      "post": {
+        "responses": {}
+      }
+    },
+    "/confessions/drafts/{id}": {
+      "patch": {
+        "responses": {}
+      },
+      "delete": {
+        "responses": {}
+      }
+    },
+    "/confessions/drafts/{id}/autosave": {
+      "patch": {
+        "responses": {}
+      }
+    },
+    "/confessions/drafts": {
+      "get": {
+        "responses": {}
+      },
+      "post": {
+        "responses": {}
+      },
+      "delete": {
+        "responses": {}
+      }
+    },
+    "/confessions": {
+      "post": {
+        "responses": {}
+      },
+      "get": {
+        "responses": {}
+      }
+    },
+    "/confessions/search": {
+      "get": {
+        "responses": {}
+      }
+    },
+    "/data-export/{id}/redownload": {
+      "post": {
+        "responses": {}
+      }
+    },
+    "/data-export/history": {
+      "get": {
+        "responses": {}
+      }
+    },
+    "/data-export/request": {
+      "post": {
+        "responses": {}
+      }
+    },
+    "/messages/{userId}/inbox": {
+      "get": {
+        "responses": {}
+      }
+    },
+    "/messages/{userId}/thread/{threadId}": {
+      "delete": {
+        "responses": {}
+      }
+    },
+    "/export/jobs/{userId}": {
+      "get": {
+        "responses": {}
+      }
+    },
+    "/feature-flags/{name}/rollback": {
+      "post": {
+        "responses": {}
+      }
+    },
+    "/feature-flags/{name}": {
+      "put": {
+        "responses": {}
+      },
+      "delete": {
+        "responses": {}
+      }
+    },
+    "/feature-flags/check/{name}": {
+      "get": {
+        "responses": {}
+      }
+    },
+    "/feature-flags": {
+      "get": {
+        "responses": {}
+      },
+      "post": {
+        "responses": {}
+      }
+    },
+    "/health/ready": {
+      "get": {
+        "responses": {}
+      }
+    },
+    "/notifications/{id}/read": {
+      "patch": {
+        "responses": {}
+      }
+    },
+    "/notifications/preferences": {
+      "get": {
+        "responses": {}
+      },
+      "put": {
+        "responses": {}
+      }
+    },
+    "/notifications/read-all": {
+      "patch": {
+        "responses": {}
+      }
+    },
+    "/notifications": {
+      "get": {
+        "responses": {}
+      }
+    },
+    "/public/traction": {
+      "get": {
+        "responses": {}
+      }
+    },
+    "/users/{id}/activities": {
+      "get": {
+        "responses": {}
+      }
+    },
+    "/users/{id}/confessions": {
+      "get": {
+        "responses": {}
+      }
+    },
+    "/users/{id}/public-profile": {
+      "get": {
+        "responses": {}
+      }
+    },
+    "/users/privacy-settings": {
+      "get": {
+        "responses": {}
+      },
+      "patch": {
+        "responses": {}
+      }
+    },
+    "/users/profile": {
+      "get": {
+        "responses": {}
+      },
+      "patch": {
+        "responses": {}
+      }
+    },
+    "/users/profile/summary": {
+      "get": {
+        "responses": {}
+      }
+    },
+    "/users/register": {
+      "post": {
+        "responses": {}
+      }
+    },
+    "/users/stats": {
+      "get": {
+        "responses": {}
+      }
+    },
+    "/wallet": {
+      "get": {
+        "responses": {}
+      }
+    }
+  },
+  "x-baseline-metadata": {
+    "updated_at_utc": "2026-11-18T15:45:13.708Z",
+    "source": "npm run api:contract:seed",
+    "seed": true,
+    "note": "Derived from frontend proxy routes. Capture the full normalized contract with npm run api:contract:update once the backend is running."
+  }
+}

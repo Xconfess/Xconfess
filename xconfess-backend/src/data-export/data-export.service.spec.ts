@@ -493,13 +493,15 @@ describe('DataExportService', () => {
       mockExportRepository.findOne.mockResolvedValue(null);
       await expect(
         service.getExportChunk('req-1', 'user-1', 0),
-      ).rejects.toThrow('Export request not found or unauthorized');
+      ).rejects.toThrow('Export request not found or expired');
     });
 
     it('should return the chunk if it exists and user owns the request', async () => {
       mockExportRepository.findOne.mockResolvedValue({
         id: 'req-1',
         userId: 'user-1',
+        status: 'READY',
+        createdAt: new Date(),
       });
       const mockChunk = { id: 'chunk-1', chunkIndex: 0 };
       mockChunkRepository.findOne.mockResolvedValue(mockChunk);
@@ -508,6 +510,7 @@ describe('DataExportService', () => {
       expect(result).toEqual(mockChunk);
       expect(mockExportRepository.findOne).toHaveBeenCalledWith({
         where: { id: 'req-1', userId: 'user-1' },
+        select: ['id', 'status', 'createdAt'],
       });
       expect(mockChunkRepository.findOne).toHaveBeenCalledWith({
         where: { exportRequestId: 'req-1', chunkIndex: 0 },
@@ -855,6 +858,30 @@ describe('DataExportService', () => {
     const userId = 'user-token-test';
     const validToken = 'abc123';
     const validTokenHash = hashToken(validToken);
+
+    it('rejects an explicitly invalidated token even while its export is fresh', async () => {
+      const record = {
+        downloadTokenHash: validTokenHash as string | null,
+        downloadedAt: null as Date | null,
+        createdAt: new Date(),
+        status: 'READY',
+      };
+      mockExportRepository.findOne.mockResolvedValue(record);
+      mockExportRepository.update.mockImplementationOnce(async (_id, changes) => {
+        Object.assign(record, changes);
+        return { affected: 1 };
+      });
+
+      await service.invalidateDownloadToken(requestId);
+
+      expect(await service.validateAndConsumeToken(requestId, userId, validToken)).toBe(false);
+      expect(mockAuditLogService.logExportLifecycleEvent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'download_failed',
+          metadata: { reason: 'invalid_or_used' },
+        }),
+      );
+    });
 
     it('returns true and invalidates a fresh, unconsumed token within TTL', async () => {
       mockExportRepository.findOne.mockResolvedValueOnce({

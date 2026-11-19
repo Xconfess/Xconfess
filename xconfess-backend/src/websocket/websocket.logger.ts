@@ -1,7 +1,26 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+
+export interface DisconnectAlertConfig {
+  windowSeconds: number;
+  threshold: number;
+}
+
+export interface AggregateDisconnectMetrics {
+  totalDisconnects: number;
+  totalReconnects: number;
+  recentDisconnectCount: number;
+  recentReconnectCount: number;
+  disconnectRatePerMinute: number;
+  windowSeconds: number;
+  threshold: number;
+  sustainedRateExceeded: boolean;
+}
 
 interface ConnectionMetrics {
   totalConnections: number;
+  totalDisconnects: number;
+  totalReconnects: number;
   activeRooms: number;
   totalEvents: number;
   eventsByType: Record<string, number>;
@@ -25,6 +44,8 @@ export class WebSocketLogger {
   private readonly logger = new Logger(WebSocketLogger.name);
   private metrics: ConnectionMetrics = {
     totalConnections: 0,
+    totalDisconnects: 0,
+    totalReconnects: 0,
     activeRooms: 0,
     totalEvents: 0,
     eventsByType: {},
@@ -37,11 +58,134 @@ export class WebSocketLogger {
   private readonly maxLogs = 1000; // Keep last 1000 events
   private latencies: number[] = [];
 
+  // Sustained disconnect alerting state & sliding windows
+  private totalDisconnects = 0;
+  private totalReconnects = 0;
+  private disconnectTimestamps: number[] = [];
+  private reconnectTimestamps: number[] = [];
+  private alertWindowSeconds = 60;
+  private disconnectThreshold = 10;
+  private lastAlertTimestamp = 0;
+  private readonly alertCooldownMs = 30000;
+
+  constructor(@Optional() private readonly configService?: ConfigService) {
+    if (this.configService) {
+      const configuredThreshold = this.configService.get<number>(
+        'WS_DISCONNECT_RATE_THRESHOLD',
+      );
+      if (configuredThreshold !== undefined) {
+        this.disconnectThreshold = Number(configuredThreshold);
+      }
+      const configuredWindow = this.configService.get<number>(
+        'WS_DISCONNECT_WINDOW_SECONDS',
+      );
+      if (configuredWindow !== undefined) {
+        this.alertWindowSeconds = Number(configuredWindow);
+      }
+    }
+  }
+
+  /**
+   * Configure alerting window and threshold dynamically
+   */
+  configureAlerting(config: Partial<DisconnectAlertConfig>) {
+    if (config.windowSeconds !== undefined && config.windowSeconds > 0) {
+      this.alertWindowSeconds = config.windowSeconds;
+    }
+    if (config.threshold !== undefined && config.threshold > 0) {
+      this.disconnectThreshold = config.threshold;
+    }
+  }
+
+  /**
+   * Prune sliding windows older than alertWindowSeconds
+   */
+  private pruneWindows(now: number = Date.now()) {
+    const windowMs = this.alertWindowSeconds * 1000;
+    const cutoff = now - windowMs;
+    while (
+      this.disconnectTimestamps.length > 0 &&
+      this.disconnectTimestamps[0] < cutoff
+    ) {
+      this.disconnectTimestamps.shift();
+    }
+    while (
+      this.reconnectTimestamps.length > 0 &&
+      this.reconnectTimestamps[0] < cutoff
+    ) {
+      this.reconnectTimestamps.shift();
+    }
+  }
+
+  /**
+   * Record a disconnection event in aggregate sliding window.
+   * If sustained disconnect rate exceeds threshold within window, emits alert.
+   * Excludes all user identifiers from metric and alert labels.
+   */
+  recordDisconnection(reason?: string, timestamp: number = Date.now()) {
+    this.totalDisconnects++;
+    this.metrics.totalDisconnects = this.totalDisconnects;
+    this.disconnectTimestamps.push(timestamp);
+    this.pruneWindows(timestamp);
+
+    const recentCount = this.disconnectTimestamps.length;
+    if (recentCount >= this.disconnectThreshold) {
+      if (timestamp - this.lastAlertTimestamp >= this.alertCooldownMs) {
+        this.lastAlertTimestamp = timestamp;
+        this.logger.warn({
+          event: 'WS_SUSTAINED_DISCONNECT_RATE',
+          disconnectCount: recentCount,
+          windowSeconds: this.alertWindowSeconds,
+          threshold: this.disconnectThreshold,
+          reconnectCount: this.reconnectTimestamps.length,
+          msg: `High sustained WebSocket disconnect rate detected: ${recentCount} disconnects in ${this.alertWindowSeconds}s (threshold: ${this.disconnectThreshold})`,
+        });
+      }
+    }
+  }
+
+  /**
+   * Record a reconnection event in aggregate sliding window.
+   * Excludes all user identifiers from metric labels.
+   */
+  recordReconnection(timestamp: number = Date.now()) {
+    this.totalReconnects++;
+    this.metrics.totalReconnects = this.totalReconnects;
+    this.reconnectTimestamps.push(timestamp);
+    this.pruneWindows(timestamp);
+  }
+
+  /**
+   * Get aggregate disconnect and reconnect metrics without user identifiers.
+   */
+  getDisconnectMetrics(now: number = Date.now()): AggregateDisconnectMetrics {
+    this.pruneWindows(now);
+    const recentDisconnectCount = this.disconnectTimestamps.length;
+    const recentReconnectCount = this.reconnectTimestamps.length;
+    const disconnectRatePerMinute = Math.round(
+      (recentDisconnectCount / this.alertWindowSeconds) * 60,
+    );
+
+    return {
+      totalDisconnects: this.totalDisconnects,
+      totalReconnects: this.totalReconnects,
+      recentDisconnectCount,
+      recentReconnectCount,
+      disconnectRatePerMinute,
+      windowSeconds: this.alertWindowSeconds,
+      threshold: this.disconnectThreshold,
+      sustainedRateExceeded: recentDisconnectCount >= this.disconnectThreshold,
+    };
+  }
+
   /**
    * Log a new connection
    */
-  logConnection(socketId: string, ip: string) {
+  logConnection(socketId: string, ip: string, isReconnect: boolean = false) {
     this.metrics.totalConnections++;
+    if (isReconnect) {
+      this.recordReconnection();
+    }
     this.logger.log(
       `[CONNECT] Socket: ${socketId}, IP: ${ip}, Total: ${this.metrics.totalConnections}`,
     );
@@ -50,8 +194,9 @@ export class WebSocketLogger {
   /**
    * Log a disconnection
    */
-  logDisconnection(socketId: string, ip: string) {
-    this.metrics.totalConnections--;
+  logDisconnection(socketId: string, ip: string, reason?: string) {
+    this.metrics.totalConnections = Math.max(0, this.metrics.totalConnections - 1);
+    this.recordDisconnection(reason);
     this.logger.log(
       `[DISCONNECT] Socket: ${socketId}, IP: ${ip}, Total: ${this.metrics.totalConnections}`,
     );
@@ -282,6 +427,8 @@ export class WebSocketLogger {
   resetMetrics() {
     this.metrics = {
       totalConnections: 0,
+      totalDisconnects: 0,
+      totalReconnects: 0,
       activeRooms: 0,
       totalEvents: 0,
       eventsByType: {},
@@ -291,6 +438,11 @@ export class WebSocketLogger {
     };
     this.eventLogs = [];
     this.latencies = [];
+    this.totalDisconnects = 0;
+    this.totalReconnects = 0;
+    this.disconnectTimestamps = [];
+    this.reconnectTimestamps = [];
+    this.lastAlertTimestamp = 0;
     this.logger.log('[RESET] Metrics reset');
   }
 
@@ -309,6 +461,8 @@ export class WebSocketLogger {
 ║           WebSocket Performance Report                     ║
 ╠════════════════════════════════════════════════════════════╣
 ║ Total Connections:  ${metrics.totalConnections.toString().padEnd(36)} ║
+║ Total Disconnects:  ${metrics.totalDisconnects.toString().padEnd(36)} ║
+║ Total Reconnects:   ${metrics.totalReconnects.toString().padEnd(36)} ║
 ║ Active Rooms:       ${metrics.activeRooms.toString().padEnd(36)} ║
 ║ Total Events:       ${metrics.totalEvents.toString().padEnd(36)} ║
 ║ Average Latency:    ${metrics.avgLatency}ms${' '.repeat(32 - metrics.avgLatency.toString().length)} ║

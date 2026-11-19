@@ -3,12 +3,29 @@ import {
   Repository,
   FindOptionsWhere,
   ILike,
+  QueryRunner,
   SelectQueryBuilder,
 } from 'typeorm';
 import { Injectable } from '@nestjs/common';
 import { AnonymousConfession } from '../entities/confession.entity';
 import { SearchConfessionDto } from '../dto/search-confession.dto';
-import { decodeCursor, encodeCursor } from '../../common/pagination';
+import { normalizeSearchQuery } from '../search-query-normalizer';
+import { isSearchQueryTimeoutError } from '../search-query-timeout';
+import { decodeCursor } from '../../common/pagination';
+import {
+  applyNewestFeedOrder,
+  encodeFeedCursor,
+  feedKeysetPredicate,
+  toFeedCursorPosition,
+} from '../../common/pagination/feed-ordering';
+
+/**
+ * Per-call options for search queries.
+ * `timeoutMs` becomes a PostgreSQL statement_timeout for that query only.
+ */
+export interface SearchQueryOptions {
+  timeoutMs?: number;
+}
 
 /**
  * Repository for handling database operations related to anonymous confessions.
@@ -18,6 +35,39 @@ import { decodeCursor, encodeCursor } from '../../common/pagination';
 export class AnonymousConfessionRepository extends Repository<AnonymousConfession> {
   constructor(private dataSource: DataSource) {
     super(AnonymousConfession, dataSource.createEntityManager());
+  }
+
+  /**
+   * Runs search queries on one connection inside a transaction. When a timeout
+   * is given, `SET LOCAL statement_timeout` makes PostgreSQL cancel the query
+   * server-side, so it stops using database resources once the caller gives up.
+   */
+  private async runInSearchTransaction<T>(
+    timeoutMs: number | undefined,
+    work: (queryRunner: QueryRunner) => Promise<T>,
+  ): Promise<T> {
+    const queryRunner = this.dataSource.createQueryRunner();
+    try {
+      await queryRunner.connect();
+      await queryRunner.startTransaction();
+      if (timeoutMs !== undefined) {
+        // SET LOCAL does not accept bind parameters. The value is a validated
+        // integer from configuration, so interpolating it is safe.
+        await queryRunner.query(
+          `SET LOCAL statement_timeout = ${Math.trunc(timeoutMs)}`,
+        );
+      }
+      const result = await work(queryRunner);
+      await queryRunner.commitTransaction();
+      return result;
+    } catch (err) {
+      if (queryRunner.isTransactionActive) {
+        await queryRunner.rollbackTransaction();
+      }
+      throw err;
+    } finally {
+      await queryRunner.release();
+    }
   }
 
   /**
@@ -63,7 +113,10 @@ export class AnonymousConfessionRepository extends Repository<AnonymousConfessio
       .andWhere(
         "(anonymousUser.userLinks IS NULL OR anonymousUser.userLinks = '{}' OR user.privacy_settings IS NULL OR user.privacy_settings->>'isDiscoverable' = 'true' OR JSON_TYPE(user.privacy_settings, '$.isDiscoverable') IS NULL)",
       );
-    return this.excludeDeleted(qb).orderBy('confession.created_at', 'DESC').getMany();
+    return this.excludeDeleted(qb)
+      .orderBy('confession.created_at', 'DESC')
+      .addOrderBy('confession.id', 'DESC')
+      .getMany();
   }
 
   /**
@@ -73,13 +126,16 @@ export class AnonymousConfessionRepository extends Repository<AnonymousConfessio
    * @param page Page number for pagination
    * @param limit Number of results per page
    * @param dto Optional search filters including anonymousOnly
+   * @param options Optional query options, such as the statement timeout
    * @returns Array of confessions ranked by relevance
+   * @throws The original error when the statement timeout cancels the query
    */
   async fullTextSearch(
     searchTerm: string,
     page: number = 1,
     limit: number = 10,
     dto?: Partial<SearchConfessionDto>,
+    options?: SearchQueryOptions,
   ): Promise<{
     confessions: AnonymousConfession[];
     total: number;
@@ -87,10 +143,8 @@ export class AnonymousConfessionRepository extends Repository<AnonymousConfessio
     const safeLimit = typeof limit === 'number' ? limit : 10;
     const offset = (page - 1) * safeLimit;
 
-    const sanitizedTerm = searchTerm
-      .replace(/[^\w\s]/g, ' ')
-      .trim()
-      .split(/\s+/)
+    const sanitizedTerm = normalizeSearchQuery(searchTerm)
+      .split(' ')
       .filter((term) => term.length > 0)
       .join(' & ');
 
@@ -153,6 +207,8 @@ export class AnonymousConfessionRepository extends Repository<AnonymousConfessio
       )
       .orderBy('rank', 'DESC')
       .addOrderBy('confession.created_at', 'DESC')
+      // unique tie-breaker so equal relevance scores never reorder pages
+      .addOrderBy('confession.id', 'DESC')
       .skip(offset)
       .take(limit);
 
@@ -177,18 +233,23 @@ export class AnonymousConfessionRepository extends Repository<AnonymousConfessio
       totalQuery.andWhere('userLinks.id IS NULL');
     }
 
-    let confessions: AnonymousConfession[] = [];
-    let total = 0;
     try {
-      [confessions, total] = await Promise.all([
-        queryBuilder.getMany(),
-        totalQuery.getCount(),
-      ]);
+      return await this.runInSearchTransaction(
+        options?.timeoutMs,
+        async (queryRunner) => {
+          queryBuilder.setQueryRunner(queryRunner);
+          totalQuery.setQueryRunner(queryRunner);
+          const confessions = await queryBuilder.getMany();
+          const total = await totalQuery.getCount();
+          return { confessions, total };
+        },
+      );
     } catch (err) {
+      // A timeout must reach the caller so it can answer safely. Other
+      // failures keep the existing empty-result behaviour.
+      if (isSearchQueryTimeoutError(err)) throw err;
       return { confessions: [], total: 0 };
     }
-
-    return { confessions, total };
   }
 
   /**
@@ -205,6 +266,7 @@ export class AnonymousConfessionRepository extends Repository<AnonymousConfessio
     page: number = 1,
     limit: number = 10,
     dto?: Partial<SearchConfessionDto>,
+    options?: SearchQueryOptions,
   ): Promise<{
     confessions: AnonymousConfession[];
     total: number;
@@ -215,6 +277,7 @@ export class AnonymousConfessionRepository extends Repository<AnonymousConfessio
       page,
       safeLimit,
       dto,
+      options,
     );
 
     if (fullTextResult.total > 0) {
@@ -260,6 +323,7 @@ export class AnonymousConfessionRepository extends Repository<AnonymousConfessio
 
     queryBuilder
       .orderBy('confession.created_at', 'DESC')
+      .addOrderBy('confession.id', 'DESC')
       .skip(offset)
       .take(safeLimit);
 
@@ -283,12 +347,13 @@ export class AnonymousConfessionRepository extends Repository<AnonymousConfessio
       totalQuery.andWhere('userLinks.id IS NULL');
     }
 
-    const [confessions, total] = await Promise.all([
-      queryBuilder.getMany(),
-      totalQuery.getCount(),
-    ]);
-
-    return { confessions, total };
+    return this.runInSearchTransaction(options?.timeoutMs, async (queryRunner) => {
+      queryBuilder.setQueryRunner(queryRunner);
+      totalQuery.setQueryRunner(queryRunner);
+      const confessions = await queryBuilder.getMany();
+      const total = await totalQuery.getCount();
+      return { confessions, total };
+    });
   }
 
   /**
@@ -397,6 +462,9 @@ export class AnonymousConfessionRepository extends Repository<AnonymousConfessio
       )
       .groupBy('confession.id')
       .orderBy('trending_score', 'DESC')
+      // Trending scores tie frequently; keep the feed deterministic (Issue #2118).
+      .addOrderBy('confession.created_at', 'DESC')
+      .addOrderBy('confession.id', 'DESC')
       .limit(limit)
       .setParameter('startAt', resolvedStartAt.toISOString())
       .setParameter('endAt', resolvedEndAt.toISOString())
@@ -458,19 +526,20 @@ export class AnonymousConfessionRepository extends Repository<AnonymousConfessio
       ]);
 
     if (parsedCursor) {
-      queryBuilder.andWhere(
-        '(confession.created_at < :createdAt OR (confession.created_at = :createdAt AND confession.id < :id))',
-        { createdAt: parsedCursor.created_at, id: parsedCursor.id },
+      // Same row-value keyset predicate the main feed uses, so tag pages
+      // consume exactly the ordering below (Issue #2118).
+      const keyset = feedKeysetPredicate(
+        toFeedCursorPosition(parsedCursor),
+        'confession',
       );
+      queryBuilder.andWhere(keyset.sql, keyset.params);
     } else if (page > 1) {
       const offset = (page - 1) * safeLimit;
       queryBuilder.skip(offset);
     }
 
-    queryBuilder
-      .orderBy('confession.created_at', 'DESC')
-      .addOrderBy('confession.id', 'DESC')
-      .take(safeLimit + 1);
+    // Newest-first with the shared created_at/id ordering.
+    applyNewestFeedOrder(queryBuilder, 'confession').take(safeLimit + 1);
 
     const totalQuery = this.createQueryBuilder('confession')
       .innerJoin('confession.confessionTags', 'confessionTag')
@@ -499,9 +568,9 @@ export class AnonymousConfessionRepository extends Repository<AnonymousConfessio
     let nextCursor: string | undefined;
     if (hasMore && confessions.length > 0) {
       const lastItem = confessions[confessions.length - 1];
-      nextCursor = encodeCursor({
+      nextCursor = encodeFeedCursor({
         id: lastItem.id,
-        created_at: lastItem.created_at.toISOString(),
+        created_at: lastItem.created_at,
       });
     }
 

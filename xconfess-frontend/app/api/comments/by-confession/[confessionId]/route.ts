@@ -15,18 +15,20 @@ export async function GET(
         { status: 400, headers: { "Content-Type": "application/json" } },
       );
     }
-    // forward pagination params if provided
+    // forward pagination params if provided; a cursor takes precedence over page
     const requestUrl = new URL((_request as Request).url);
+    const cursor = requestUrl.searchParams.get("cursor");
     const page = requestUrl.searchParams.get("page");
     const limit = requestUrl.searchParams.get("limit");
 
     const qs = new URLSearchParams();
-    if (page) qs.set("page", page);
+    if (cursor) qs.set("cursor", cursor);
+    else if (page) qs.set("page", page);
     if (limit) qs.set("limit", limit);
 
     const backend = resolveBackendRoute(
       _request,
-      `/comments/by-confession/${confessionId}${qs.toString() ? `?${qs.toString()}` : ""}`,
+      `/confessions/${confessionId}/comments${qs.toString() ? `?${qs.toString()}` : ""}`,
     );
     const response = await fetch(backend.url, {
       method: "GET",

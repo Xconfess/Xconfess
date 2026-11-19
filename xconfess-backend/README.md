@@ -124,6 +124,23 @@ npm run test:e2e
 npm run test:cov
 ```
 
+### Critical module coverage
+
+CI enforces per-file coverage thresholds for the authentication service,
+moderation state machine, data export service, and tipping service. Other
+backend modules are not included in these thresholds.
+
+Run the focused suite locally:
+
+```bash
+npm run backend:test:critical-coverage
+```
+
+The text coverage report lists uncovered line numbers for each critical file.
+The command exits non-zero if a threshold is missed; use the reported lines to
+identify gaps, then rerun the same command after adding or updating tests. No
+backend services or credentials are required.
+
 ### Intentionally Test-Light Directories
 
 Some backend directories are expected to have few or no dedicated `*.spec.ts` files:
@@ -201,3 +218,11 @@ Quick check after `npm run start:dev`:
 curl -s http://localhost:3000/api/health/live   # {"status":"ok"}
 curl -s http://localhost:3000/api/health/ready  # {"status":"ok",...}
 ```
+
+## Operational Metrics
+
+Privacy-safe latency, status and feed-query metrics are exposed to admins at
+`GET /api/metrics` (Prometheus text format). Labels are restricted to closed,
+low-cardinality lists and never contain user or confession identifiers.
+See [docs/observability-metrics.md](./docs/observability-metrics.md) for the
+metric list and the label privacy rules.

@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { validateAttachment } from "../utils/attachmentValidation";
 
 // NOTE: `/api/attachments/upload` is a placeholder endpoint — there is no
 // attachments backend yet. Swap this for the real endpoint once it exists.
@@ -14,6 +15,8 @@ export interface PendingUpload {
   status: UploadStatus;
   progress: number;
   error?: string;
+  /** True when client-side validation rejected the file; it was never sent. */
+  rejected?: boolean;
 }
 
 function createId() {
@@ -31,6 +34,19 @@ function createId() {
 export function useAttachmentUpload() {
   const [uploads, setUploads] = useState<PendingUpload[]>([]);
   const xhrsRef = useRef<Map<string, XMLHttpRequest>>(new Map());
+  // Keeps each File by upload id so retry does not need to read `uploads`
+  // state (starting a request from inside a setState updater is a side effect).
+  const filesRef = useRef<Map<string, File>>(new Map());
+
+  // Abort anything still in flight when the consumer unmounts so partial
+  // uploads do not keep running or report back into an unmounted component.
+  useEffect(() => {
+    const xhrs = xhrsRef.current;
+    return () => {
+      xhrs.forEach((xhr) => xhr.abort());
+      xhrs.clear();
+    };
+  }, []);
 
   const updateUpload = useCallback((id: string, patch: Partial<PendingUpload>) => {
     setUploads((prev) =>
@@ -39,6 +55,19 @@ export function useAttachmentUpload() {
   }, []);
 
   const startUpload = useCallback((id: string, file: File) => {
+    // Client-side pre-check for fast feedback. This is a UX convenience only:
+    // the backend re-validates every upload and remains the security boundary.
+    const validation = validateAttachment(file);
+    if (!validation.valid) {
+      updateUpload(id, {
+        status: "error",
+        progress: 0,
+        rejected: true,
+        error: validation.errors.map((e) => e.message).join(" "),
+      });
+      return;
+    }
+
     const xhr = new XMLHttpRequest();
     xhrsRef.current.set(id, xhr);
 
@@ -53,6 +82,7 @@ export function useAttachmentUpload() {
     xhr.onload = () => {
       xhrsRef.current.delete(id);
       if (xhr.status >= 200 && xhr.status < 300) {
+        filesRef.current.delete(id);
         updateUpload(id, { status: "success", progress: 100 });
       } else {
         updateUpload(id, {
@@ -90,6 +120,7 @@ export function useAttachmentUpload() {
         progress: 0,
       }));
 
+      newUploads.forEach((upload) => filesRef.current.set(upload.id, upload.file));
       setUploads((prev) => [...prev, ...newUploads]);
       newUploads.forEach((upload) => startUpload(upload.id, upload.file));
 
@@ -98,37 +129,29 @@ export function useAttachmentUpload() {
     [startUpload],
   );
 
-  const cancelUpload = useCallback((id: string) => {
+  const dropUpload = useCallback((id: string) => {
     const xhr = xhrsRef.current.get(id);
     if (xhr) {
       xhr.abort();
       xhrsRef.current.delete(id);
     }
-    // Cancelled uploads are removed from pending state entirely, per spec.
+    filesRef.current.delete(id);
     setUploads((prev) => prev.filter((upload) => upload.id !== id));
   }, []);
 
+  // Cancelled uploads are removed from pending state entirely, per spec.
+  const cancelUpload = dropUpload;
+
   const retryUpload = useCallback(
     (id: string) => {
-      setUploads((prev) => {
-        const upload = prev.find((item) => item.id === id);
-        if (upload) {
-          startUpload(upload.id, upload.file);
-        }
-        return prev;
-      });
+      const file = filesRef.current.get(id);
+      if (!file) return;
+      startUpload(id, file);
     },
     [startUpload],
   );
 
-  const removeUpload = useCallback((id: string) => {
-    const xhr = xhrsRef.current.get(id);
-    if (xhr) {
-      xhr.abort();
-      xhrsRef.current.delete(id);
-    }
-    setUploads((prev) => prev.filter((upload) => upload.id !== id));
-  }, []);
+  const removeUpload = dropUpload;
 
   return {
     uploads,

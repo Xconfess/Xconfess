@@ -92,6 +92,51 @@ describe("NotificationCenter", () => {
     ).toBeInTheDocument();
   });
 
+  test("exposes the first-use empty state as a heading inside a status region", () => {
+    setState([]);
+    renderCenter();
+
+    expect(
+      screen.getByRole("heading", { name: "No notifications yet" }),
+    ).toBeInTheDocument();
+    expect(
+      screen
+        .getByText("Activity on your confessions will show up here")
+        .closest('[role="status"]'),
+    ).not.toBeNull();
+  });
+
+  test("shows caught-up copy when unread-only has nothing unread", () => {
+    setState([makeNotification({ id: "n-1", isRead: true })]);
+    renderCenter();
+
+    fireEvent.click(screen.getByLabelText("Show unread only"));
+
+    expect(
+      screen.getByRole("heading", { name: "All caught up!" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("You've read all your notifications."),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("No notifications yet"),
+    ).not.toBeInTheDocument();
+  });
+
+  test("shows filter copy when a type filter matches nothing", () => {
+    setState([makeNotification({ id: "n-1", type: NotificationType.REACTION })]);
+    renderCenter();
+
+    fireEvent.click(screen.getByRole("button", { name: "Tips" }));
+
+    expect(
+      screen.getByRole("heading", { name: "No notifications match these filters" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("No notifications yet"),
+    ).not.toBeInTheDocument();
+  });
+
   test("renders the unread state with a mark-all-read control", () => {
     setState([
       makeNotification({ id: "n-1", isRead: false }),

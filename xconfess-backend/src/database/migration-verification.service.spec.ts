@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getDataSourceToken } from '@nestjs/typeorm';
 import { Logger } from '@nestjs/common';
+import { DataSource } from 'typeorm';
 import {
   MigrationVerificationService,
   REQUIRED_CONFESSION_COLUMNS,
@@ -18,7 +19,7 @@ describe('MigrationVerificationService', () => {
         MigrationVerificationService,
         {
           provide: getDataSourceToken(),
-          useValue: { query },
+          useValue: { query, entityMetadatas: [] },
         },
       ],
     }).compile();
@@ -85,10 +86,7 @@ describe('MigrationVerificationService', () => {
       const result = await service.checkConfessionSchema();
 
       expect(result.ok).toBe(false);
-      expect(result.missingColumns).toEqual([
-        'search_vector',
-        'view_count',
-      ]);
+      expect(result.missingColumns).toEqual(['search_vector', 'view_count']);
       expect(result.missingIndexes).toEqual([]);
     });
 
@@ -97,9 +95,7 @@ describe('MigrationVerificationService', () => {
         .mockResolvedValueOnce(
           REQUIRED_CONFESSION_COLUMNS.map((column_name) => ({ column_name })),
         )
-        .mockResolvedValueOnce([
-          { indexname: 'idx_confession_search_vector' },
-        ]);
+        .mockResolvedValueOnce([{ indexname: 'idx_confession_search_vector' }]);
 
       const result = await service.checkConfessionSchema();
 
@@ -140,9 +136,7 @@ describe('MigrationVerificationService', () => {
     });
 
     it('returns degraded when both columns and both indexes are missing', async () => {
-      query
-        .mockResolvedValueOnce([])
-        .mockResolvedValueOnce([]);
+      query.mockResolvedValueOnce([]).mockResolvedValueOnce([]);
 
       const result = await service.checkConfessionSchema();
 
@@ -199,6 +193,76 @@ describe('MigrationVerificationService', () => {
       await service.checkConfessionSchema();
 
       expect(query).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  describe('checkForeignKeyIntegrity', () => {
+    const relation = {
+      isOwning: true,
+      joinColumns: [
+        {
+          databaseName: 'anonymous_user_id',
+          referencedColumn: { databaseName: 'id' },
+        },
+      ],
+      inverseEntityMetadata: { tableName: 'anonymous_users' },
+      onDelete: 'CASCADE',
+      onUpdate: undefined,
+    };
+
+    beforeEach(() => {
+      (service as any).dataSource.entityMetadatas = [
+        { tableName: 'anonymous_confessions', relations: [relation] },
+      ];
+    });
+
+    it('validates foreign-key columns, actions, and a leading-column index', async () => {
+      query
+        .mockResolvedValueOnce([
+          {
+            table_name: 'anonymous_confessions',
+            referenced_table: 'anonymous_users',
+            columns: ['anonymous_user_id'],
+            referenced_columns: ['id'],
+            delete_action: 'c',
+            update_action: 'a',
+          },
+        ])
+        .mockResolvedValueOnce([
+          {
+            table_name: 'anonymous_confessions',
+            columns: ['anonymous_user_id', 'created_at'],
+          },
+        ]);
+
+      await expect(service.checkForeignKeyIntegrity()).resolves.toEqual({
+        ok: true,
+        missingForeignKeys: [],
+        missingIndexes: [],
+      });
+    });
+
+    it('reports missing or incorrectly configured foreign keys and indexes', async () => {
+      query.mockResolvedValueOnce([]).mockResolvedValueOnce([]);
+
+      const result = await service.checkForeignKeyIntegrity();
+
+      expect(result.ok).toBe(false);
+      expect(result.missingForeignKeys).toEqual([
+        'anonymous_confessions(anonymous_user_id) -> anonymous_users(id)',
+      ]);
+      expect(result.missingIndexes).toEqual([
+        'anonymous_confessions(anonymous_user_id)',
+      ]);
+    });
+
+    it('returns query errors without throwing', async () => {
+      query.mockRejectedValueOnce(new Error('catalog unavailable'));
+
+      await expect(service.checkForeignKeyIntegrity()).resolves.toMatchObject({
+        ok: false,
+        queryError: 'catalog unavailable',
+      });
     });
   });
 
@@ -259,9 +323,7 @@ describe('MigrationVerificationService', () => {
       const origEnv = process.env.NODE_ENV;
       process.env.NODE_ENV = 'development';
 
-      query
-        .mockResolvedValueOnce([])
-        .mockResolvedValueOnce([]);
+      query.mockResolvedValueOnce([]).mockResolvedValueOnce([]);
 
       await service.onModuleInit();
 
@@ -306,9 +368,145 @@ describe('MigrationVerificationService', () => {
   // ── verifyMigrations ──────────────────────────────────────────────────
 
   describe('verifyMigrations', () => {
-    it('returns empty array when no duplicate timestamps or names', async () => {
+    it('reports duplicate migration timestamps across migration directories', async () => {
       const issues = await service.verifyMigrations();
-      expect(issues).toEqual([]);
+      expect(issues).toEqual(
+        expect.arrayContaining([
+          expect.stringContaining('Duplicate migration timestamp:'),
+        ]),
+      );
+      expect(
+        issues.some((issue) =>
+          issue.startsWith('Migration has no rollback method:'),
+        ),
+      ).toBe(false);
+    });
+  });
+
+  // ── checkEntityColumnCompatibility ──────────────────────────────────────────
+
+  describe('checkEntityColumnCompatibility', () => {
+    type ColumnSpec = [databaseName: string, isNullable: boolean];
+
+    function entity(tableName: string, columns: ColumnSpec[]) {
+      return {
+        tableName,
+        columns: columns.map(([databaseName, isNullable]) => ({
+          databaseName,
+          isNullable,
+        })),
+      };
+    }
+
+    function catalogRow(
+      table_name: string,
+      column_name: string,
+      nullable: boolean,
+    ) {
+      return { table_name, column_name, is_nullable: nullable ? 'YES' : 'NO' };
+    }
+
+    function serviceWith(entities: unknown[], rows: unknown, error?: Error) {
+      const queryFn = error
+        ? jest.fn().mockRejectedValue(error)
+        : jest.fn().mockResolvedValue(rows);
+      return new MigrationVerificationService({
+        query: queryFn,
+        entityMetadatas: entities,
+      } as unknown as DataSource);
+    }
+
+    it('returns ok when every entity column exists with a matching nullability', async () => {
+      const svc = serviceWith(
+        [entity('users', [['id', false], ['nickname', true]])],
+        [
+          catalogRow('users', 'id', false),
+          catalogRow('users', 'nickname', true),
+        ],
+      );
+
+      await expect(svc.checkEntityColumnCompatibility()).resolves.toEqual({
+        ok: true,
+        missingTables: [],
+        missingColumns: [],
+        nullabilityMismatches: [],
+      });
+    });
+
+    it('reports an entity whose table does not exist', async () => {
+      const svc = serviceWith(
+        [entity('reports', [['id', false]])],
+        [catalogRow('users', 'id', false)],
+      );
+
+      const result = await svc.checkEntityColumnCompatibility();
+      expect(result.ok).toBe(false);
+      expect(result.missingTables).toEqual(['reports']);
+      expect(result.missingColumns).toEqual([]);
+    });
+
+    it('reports a column declared on the entity but absent from the table', async () => {
+      const svc = serviceWith(
+        [entity('users', [['id', false], ['deleted_at', true]])],
+        [catalogRow('users', 'id', false)],
+      );
+
+      const result = await svc.checkEntityColumnCompatibility();
+      expect(result.ok).toBe(false);
+      expect(result.missingColumns).toEqual(['users.deleted_at']);
+    });
+
+    it('reports NULL / NOT NULL drift in both directions with both sides named', async () => {
+      const svc = serviceWith(
+        [entity('users', [['email', false], ['bio', true]])],
+        [catalogRow('users', 'email', true), catalogRow('users', 'bio', false)],
+      );
+
+      const result = await svc.checkEntityColumnCompatibility();
+      expect(result.ok).toBe(false);
+      expect(result.nullabilityMismatches).toEqual([
+        'users.email (entity NOT NULL, database NULL)',
+        'users.bio (entity NULL, database NOT NULL)',
+      ]);
+    });
+
+    it('lists a missing table once even when several entities map to it', async () => {
+      const svc = serviceWith(
+        [
+          entity('reports', [['id', false]]),
+          entity('reports', [['id', false], ['reason', true]]),
+        ],
+        [],
+      );
+
+      const result = await svc.checkEntityColumnCompatibility();
+      expect(result.missingTables).toEqual(['reports']);
+    });
+
+    it('matches tables and columns case-sensitively, as PostgreSQL stores them', async () => {
+      const svc = serviceWith(
+        [entity('users', [['createdAt', false]])],
+        [catalogRow('users', 'created_at', false)],
+      );
+
+      const result = await svc.checkEntityColumnCompatibility();
+      expect(result.missingColumns).toEqual(['users.createdAt']);
+    });
+
+    it('returns queryError instead of throwing when the catalog query fails', async () => {
+      const svc = serviceWith(
+        [entity('users', [['id', false]])],
+        undefined,
+        new Error('connection refused'),
+      );
+
+      await expect(svc.checkEntityColumnCompatibility()).resolves.toEqual({
+        ok: false,
+        missingTables: [],
+        missingColumns: [],
+        nullabilityMismatches: [],
+        queryError: 'connection refused',
+      });
     });
   });
 

@@ -6,6 +6,8 @@ Issue: #1694
 
 XConfess separates real account identity from anonymous identities. Any anonymous identity linked through `user_anonymous_users` is private account state. A caller must not be able to infer, use, mutate, export, message, report as, or moderate through another account's linked anonymous identity.
 
+This audit uses the shared terms in the [glossary](GLOSSARY.md#anonymous-identity-terminology); those terms describe application identifiers and do not promise that activity is unlinked from accounts, devices, networks, or wallets.
+
 The default rule is:
 
 - Linked anonymous identity: usable only by the linked authenticated account.
@@ -59,3 +61,7 @@ The default rule is:
 npm run test --workspace=xconfess-backend -- src/common/security/anonymous-identity-ownership.spec.ts src/reaction/reaction.service.spec.ts src/report/reports.service.spec.ts
 npm run build --workspace=xconfess-backend
 ```
+
+## See Also
+
+- [Privacy Data-Flow Map for Anonymous Interactions](privacy-data-flow-map.md) — Comprehensive boundary map for identity, content, and metadata.

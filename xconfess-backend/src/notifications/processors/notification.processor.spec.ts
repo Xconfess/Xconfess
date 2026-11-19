@@ -2,11 +2,15 @@ import { NotificationProcessor, NOTIFICATION_DLQ, NOTIFICATION_QUEUE, Notificati
 import { EmailNotificationService } from '../services/email-notification.service';
 import { AppLogger } from '../../logger/logger.service';
 import { Queue, Job } from 'bullmq';
+import { createHash } from 'node:crypto';
 
 describe('NotificationProcessor', () => {
   let processor: NotificationProcessor;
   let emailNotificationService: { sendEmail: jest.Mock };
   let dlqQueue: { add: jest.Mock };
+  let notificationQueue: { client: Promise<any> };
+  let redisValues: Map<string, string>;
+  let redisAvailable: boolean;
   let appLogger: { incrementCounter: jest.Mock; observeTimer: jest.Mock };
 
   beforeEach(() => {
@@ -18,6 +22,27 @@ describe('NotificationProcessor', () => {
       add: jest.fn().mockResolvedValue(undefined),
     };
 
+    redisValues = new Map();
+    redisAvailable = true;
+    const redis = {
+      get: jest.fn(async (key: string) => {
+        if (!redisAvailable) throw new Error('Redis connection unavailable');
+        return redisValues.get(key) ?? null;
+      }),
+      set: jest.fn(async (key: string, value: string, ...options: unknown[]) => {
+        if (!redisAvailable) throw new Error('Redis connection unavailable');
+        if (options.includes('NX') && redisValues.has(key)) return null;
+        redisValues.set(key, value);
+        return 'OK';
+      }),
+      eval: jest.fn(async (_script: string, _numKeys: number, key: string, token: string) => {
+        if (!redisAvailable) throw new Error('Redis connection unavailable');
+        if (redisValues.get(key) === token) redisValues.delete(key);
+        return 1;
+      }),
+    };
+    notificationQueue = { client: Promise.resolve(redis) };
+
     appLogger = {
       incrementCounter: jest.fn(),
       observeTimer: jest.fn(),
@@ -26,6 +51,7 @@ describe('NotificationProcessor', () => {
     processor = new NotificationProcessor(
       emailNotificationService as unknown as EmailNotificationService,
       dlqQueue as unknown as Queue<NotificationJobData>,
+      notificationQueue as unknown as Queue<NotificationJobData>,
       appLogger as unknown as AppLogger,
     );
   });
@@ -111,9 +137,14 @@ describe('NotificationProcessor', () => {
       'dead-letter',
       expect.objectContaining({
         ...job.data,
-        _meta: expect.objectContaining({ originalJobId: String(job.id), attemptsMade: job.attemptsMade, lastError: 'terminal failure' }),
+        _meta: expect.objectContaining({ originalJobId: String(job.id), attemptsMade: job.attemptsMade, lastError: 'DELIVERY_FAILED' }),
       }),
       expect.objectContaining({ removeOnComplete: false, removeOnFail: false }),
+    );
+    expect(dlqQueue.add.mock.calls[0][2]).toEqual(
+      expect.objectContaining({
+        jobId: `notification-${createHash('sha256').update('job-789').digest('hex')}`,
+      }),
     );
   });
 
@@ -206,7 +237,7 @@ describe('NotificationProcessor', () => {
         _meta: expect.objectContaining({
           originalJobId: 'job-dlq-meta',
           attemptsMade: 3,
-          lastError: 'perm fail',
+          lastError: 'DELIVERY_FAILED',
           failedAt: expect.any(String),
         }),
       }),
@@ -261,6 +292,111 @@ describe('NotificationProcessor', () => {
     );
     // observeTimer is only called on success — when sendEmail throws, the timer is not observed
     expect(appLogger.observeTimer).not.toHaveBeenCalled();
+  });
+
+  it('does not mark a notification delivered when sending fails, so retry can deliver it', async () => {
+    const job = {
+      name: 'send-notification',
+      id: 'job-idempotent-retry',
+      attemptsMade: 0,
+      data: { userId: 'user-retry', type: 'test', title: 'T', message: 'M', idempotencyKey: 'event-42' },
+      opts: { attempts: 3 },
+    } as unknown as Job<NotificationJobData>;
+    emailNotificationService.sendEmail
+      .mockRejectedValueOnce(new Error('temporary SMTP failure'))
+      .mockResolvedValueOnce(undefined);
+
+    await expect(processor.process(job)).rejects.toThrow('temporary SMTP failure');
+    await expect(processor.process(job)).resolves.toBeUndefined();
+
+    expect(emailNotificationService.sendEmail).toHaveBeenCalledTimes(2);
+  });
+
+  it('skips duplicate event jobs across workers sharing Redis', async () => {
+    const job = {
+      name: 'send-notification',
+      id: 'job-idempotent-duplicate',
+      attemptsMade: 0,
+      data: { userId: 'user-duplicate', type: 'test', title: 'T', message: 'M', idempotencyKey: 'event-99' },
+      opts: { attempts: 3 },
+    } as unknown as Job<NotificationJobData>;
+
+    const secondWorker = new NotificationProcessor(
+      emailNotificationService as unknown as EmailNotificationService,
+      dlqQueue as unknown as Queue<NotificationJobData>,
+      notificationQueue as unknown as Queue<NotificationJobData>,
+      appLogger as unknown as AppLogger,
+    );
+    const duplicateJob = { ...job, id: 'job-idempotent-duplicate-2' } as Job<NotificationJobData>;
+    const outcomes = await Promise.allSettled([
+      processor.process(job),
+      secondWorker.process(duplicateJob),
+    ]);
+    if (outcomes.some((outcome) => outcome.status === 'rejected')) {
+      await secondWorker.process(duplicateJob);
+    }
+
+    expect(emailNotificationService.sendEmail).toHaveBeenCalledTimes(1);
+  });
+
+  it('retries after a temporary Redis outage and delivers exactly once after reconnect', async () => {
+    const job = {
+      name: 'send-notification',
+      id: 'job-redis-recovery',
+      attemptsMade: 0,
+      data: {
+        userId: 'user-recovery',
+        type: 'test',
+        title: 'T',
+        message: 'M',
+        idempotencyKey: 'redis-outage-event',
+      },
+      opts: { attempts: 5 },
+    } as unknown as Job<NotificationJobData>;
+
+    redisAvailable = false;
+    await expect(processor.process(job)).rejects.toThrow(
+      'Redis connection unavailable',
+    );
+    expect(emailNotificationService.sendEmail).not.toHaveBeenCalled();
+
+    redisAvailable = true;
+    await expect(processor.process(job)).resolves.toBeUndefined();
+    await expect(processor.process(job)).resolves.toBeUndefined();
+
+    expect(emailNotificationService.sendEmail).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not leave a stale delivery lock when Redis drops after delivery fails', async () => {
+    const job = {
+      name: 'send-notification',
+      id: 'job-redis-mid-delivery',
+      attemptsMade: 0,
+      data: {
+        userId: 'user-mid-delivery',
+        type: 'test',
+        title: 'T',
+        message: 'M',
+        idempotencyKey: 'redis-mid-delivery-event',
+      },
+      opts: { attempts: 5 },
+    } as unknown as Job<NotificationJobData>;
+    emailNotificationService.sendEmail
+      .mockImplementationOnce(async () => {
+        redisAvailable = false;
+        throw new Error('temporary delivery failure');
+      })
+      .mockResolvedValueOnce(undefined);
+
+    await expect(processor.process(job)).rejects.toThrow();
+
+    // Redis TTLs recover abandoned locks in production. Simulate expiry before
+    // BullMQ retries after the connection has returned.
+    redisValues.clear();
+    redisAvailable = true;
+    await expect(processor.process(job)).resolves.toBeUndefined();
+
+    expect(emailNotificationService.sendEmail).toHaveBeenCalledTimes(2);
   });
 
   it('should process multiple jobs sequentially with independent retry tracking', async () => {

@@ -17,7 +17,7 @@ export class AddMessageThrottlingAndReportPriority1695000000 implements Migratio
       new TableColumn({
         name: 'throttle_key',
         type: 'varchar',
-        length: 255,
+        length: '255',
         isNullable: true,
       }),
     );
@@ -55,7 +55,7 @@ export class AddMessageThrottlingAndReportPriority1695000000 implements Migratio
       new TableColumn({
         name: 'priority_reason',
         type: 'varchar',
-        length: 255,
+        length: '255',
         isNullable: true,
       }),
     );

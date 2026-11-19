@@ -37,6 +37,9 @@ in `contract-event-parser.spec.ts`):
 | `ConfessionEvent` | confession | `confess` | 1 | event_version, confession_id, author, content_hash, nonce, timestamp, correlation_id |
 | `ReactionEvent` | reaction | `react` | 1 | event_version, confession_id, reactor, reaction_type, nonce, timestamp, correlation_id |
 | `PauseChangedEvent` | pause | `tip_pause` | 1 | actor, paused, reason, timestamp |
+| `PausedEvent` | pause | `paused` | 1 | reason |
+| `UnpausedEvent` | pause | `unpaused` | 1 | reason |
+| `PauseStateChangedEvent` | pause | `pause_state_changed` | 2 | event_version, actor, reason, nonce, paused, timestamp |
 | `ReportEvent` | report | `report` | 1 | event_version, confession_id, reporter, reason, nonce, timestamp, correlation_id |
 | `ReportSubmittedLedgerEvent` | report | `report` | 1 | confession_id, actor, reason, event_version, nonce, timestamp |
 | `RoleEvent` | role | `role` | 1 | event_version, user, role, granted, nonce, timestamp, correlation_id |

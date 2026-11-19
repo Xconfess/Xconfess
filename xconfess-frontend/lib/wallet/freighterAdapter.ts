@@ -33,6 +33,41 @@ let mobileWalletKit: MobileWalletKit | null = null;
 let mobileWalletConnected = false;
 let walletStateCheckInterval: ReturnType<typeof setInterval> | null = null;
 
+function stopWalletStateMonitoring(): void {
+  if (walletStateCheckInterval !== null) {
+    clearInterval(walletStateCheckInterval);
+    walletStateCheckInterval = null;
+  }
+}
+
+function startWalletStateMonitoring(): void {
+  stopWalletStateMonitoring();
+  let checking = false;
+  const interval = setInterval(async () => {
+    if (checking) return;
+    checking = true;
+    try {
+      // Read the existing connection; polling must never open an access modal.
+      const publicKey = await freighterGetPublicKey();
+      const network = await freighterGetNetworkLabel();
+      if (walletStateCheckInterval !== interval) return;
+      if (walletStateManager.getState().publicKey !== publicKey) {
+        walletStateManager.clearState();
+        stopWalletStateMonitoring();
+        return;
+      }
+      walletStateManager.setConnected(publicKey, network);
+    } catch {
+      if (walletStateCheckInterval !== interval) return;
+      walletStateManager.clearState();
+      stopWalletStateMonitoring();
+    } finally {
+      checking = false;
+    }
+  }, walletStateManager.getStateCheckInterval());
+  walletStateCheckInterval = interval;
+}
+
 function isMobileWalletBrowser(): boolean {
   if (typeof window === "undefined") return false;
   if (window.stellar?.platform === "mobile") return true;
@@ -304,6 +339,7 @@ export async function freighterConnect(): Promise<{
         const publicKey = await freighterGetPublicKey();
         const network = await freighterGetNetworkLabel();
         walletStateManager.setConnected(publicKey, network);
+        startWalletStateMonitoring();
         return { publicKey, network };
       }
     }
@@ -349,7 +385,8 @@ export async function freighterGetWalletInfo(): Promise<{
       return address
         ? { publicKey: address, network: await freighterGetNetworkLabel() }
         : null;
-    } catch {
+    } catch (e) {
+      mobileWalletConnected = false;
       return null;
     }
   }
@@ -363,37 +400,15 @@ export async function freighterGetWalletInfo(): Promise<{
   }
 }
 
-function startWalletStateMonitoring(): void {
-  if (walletStateCheckInterval) return;
-
-  walletStateCheckInterval = setInterval(async () => {
-    try {
-      const state = walletStateManager.getState();
-      if (!state.isConnected) {
-        stopWalletStateMonitoring();
-        return;
-      }
-
-      const currentKey = await freighterGetPublicKey().catch(() => null);
-      if (!currentKey) {
-        walletStateManager.clearState();
-        stopWalletStateMonitoring();
-        return;
-      }
-
-      const { changed } = await walletStateManager.detectAccountChange(currentKey);
-      if (changed) {
-        console.warn("Wallet account changed, clearing state");
-      }
-    } catch (error) {
-      console.error("Wallet state monitoring error:", error);
-    }
-  }, walletStateManager.getStateCheckInterval());
-}
-
-function stopWalletStateMonitoring(): void {
-  if (walletStateCheckInterval) {
-    clearInterval(walletStateCheckInterval);
-    walletStateCheckInterval = null;
+export async function freighterValidateConnection(
+  expectedPublicKey?: string,
+): Promise<boolean> {
+  try {
+    const info = await freighterGetWalletInfo();
+    if (!info) return false;
+    if (expectedPublicKey && info.publicKey !== expectedPublicKey) return false;
+    return true;
+  } catch {
+    return false;
   }
 }

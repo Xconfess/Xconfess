@@ -36,8 +36,8 @@ function ComparisonToolContent() {
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-2xl font-bold">Confession Comparison</h2>
-          <p className="text-sm text-zinc-400 max-w-2xl">
+          <h2 className="text-2xl font-semibold">Confession Comparison</h2>
+          <p className="text-sm text-[var(--text-muted)] max-w-2xl">
             Compare confession metrics side by side. Use the share link once you have a selection.
           </p>
         </div>
@@ -55,21 +55,21 @@ function ComparisonToolContent() {
         </div>
       </div>
 
-      <div className="rounded-3xl border border-zinc-800 bg-zinc-950 p-6 min-h-[320px]">
+      <div className="rounded-3xl border border-[var(--border)] bg-[var(--background)] p-6 min-h-[320px]">
         {isLoading || isFetching ? (
-          <div className="flex h-full flex-col items-center justify-center gap-3 text-zinc-400">
-            <div className="h-4 w-48 rounded-full bg-zinc-800 animate-pulse" />
-            <div className="h-3 w-36 rounded-full bg-zinc-800 animate-pulse" />
+          <div className="flex h-full flex-col items-center justify-center gap-3 text-[var(--text-muted)]">
+            <div className="h-4 w-48 rounded-full bg-[var(--surface-muted)] animate-pulse" />
+            <div className="h-3 w-36 rounded-full bg-[var(--surface-muted)] animate-pulse" />
             <div className="mt-10 grid w-full gap-4">
               {[1, 2, 3].map((item) => (
-                <div key={item} className="h-16 rounded-2xl bg-zinc-900" />
+                <div key={item} className="h-16 rounded-2xl bg-[var(--surface)]" />
               ))}
             </div>
           </div>
         ) : error ? (
-          <div className="flex h-full flex-col items-center justify-center gap-3 text-center text-red-300">
+          <div className="flex h-full flex-col items-center justify-center gap-3 text-center text-[var(--danger)]">
             <p className="text-lg font-semibold">Unable to load comparison data</p>
-            <p className="max-w-xl text-sm text-zinc-400">
+            <p className="max-w-xl text-sm text-[var(--text-muted)]">
               A network or server error occurred while loading the selected confessions. Please try again.
             </p>
             <Button onClick={() => void refetch()}>
@@ -77,15 +77,15 @@ function ComparisonToolContent() {
             </Button>
           </div>
         ) : showEmptySelection ? (
-          <div className="flex h-full flex-col items-center justify-center gap-3 text-center text-zinc-400">
-            <p className="text-lg font-semibold text-white">No confessions selected for comparison.</p>
+          <div className="flex h-full flex-col items-center justify-center gap-3 text-center text-[var(--text-muted)]">
+            <p className="text-lg font-semibold text-[var(--foreground)]">No confessions selected for comparison.</p>
             <p className="max-w-xl text-sm">
               Select two or more confessions from the feed and use the comparison link to compare engagement side by side.
             </p>
           </div>
         ) : !hasLoadedData ? (
-          <div className="flex h-full flex-col items-center justify-center gap-3 text-center text-zinc-400">
-            <p className="text-lg font-semibold text-white">Comparison data is unavailable.</p>
+          <div className="flex h-full flex-col items-center justify-center gap-3 text-center text-[var(--text-muted)]">
+            <p className="text-lg font-semibold text-[var(--foreground)]">Comparison data is unavailable.</p>
             <p className="max-w-xl text-sm">
               The selected confessions do not contain comparable metrics. Try a different selection or refresh.
             </p>
@@ -102,9 +102,9 @@ export function ComparisonTool() {
   return (
     <Suspense
       fallback={
-        <div className="rounded-3xl border border-zinc-800 bg-zinc-950 p-6 min-h-[320px] flex flex-col items-center justify-center gap-2">
-          <div className="h-5 w-5 animate-spin rounded-full border-2 border-zinc-700 border-t-amber-500" />
-          <p className="text-xs text-zinc-500">Initializing layout context...</p>
+        <div className="rounded-3xl border border-[var(--border)] bg-[var(--background)] p-6 min-h-[320px] flex flex-col items-center justify-center gap-2">
+          <div className="h-5 w-5 animate-spin rounded-full border-2 border-[var(--border)] border-t-[var(--warning)]/30" />
+          <p className="text-xs text-[var(--text-muted)]">Initializing layout context...</p>
         </div>
       }
     >

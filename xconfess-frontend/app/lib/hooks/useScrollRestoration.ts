@@ -1,28 +1,24 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
+import {
+  captureScrollAnchor,
+  isPositionRestored,
+  readScrollPositions,
+  resolveRestoreTarget,
+  writeScrollPositions,
+  type ScrollPosition,
+} from '@/app/lib/utils/scrollPositions';
 
-const STORAGE_KEY = 'xconfess_scroll_positions';
+const MAX_RESTORE_FRAMES = 60;
 
-interface ScrollState {
-  [path: string]: number;
-}
-
-function readPositions(): ScrollState {
-  if (typeof sessionStorage === 'undefined') return {};
-  try {
-    return JSON.parse(sessionStorage.getItem(STORAGE_KEY) || '{}');
-  } catch {
-    return {};
-  }
-}
-
-function writePositions(positions: ScrollState) {
-  try {
-    sessionStorage.setItem(STORAGE_KEY, JSON.stringify(positions));
-  } catch {
-    // quota exceeded — silently ignore
-  }
+interface UseScrollRestorationOptions {
+  /**
+   * Signals that the content the position refers to is on screen. Cached
+   * feed pages render over several frames, so restoring before the content
+   * exists would scroll to a position that is not reachable yet.
+   */
+  contentReady?: boolean;
 }
 
 /**
@@ -31,18 +27,31 @@ function writePositions(positions: ScrollState) {
  * - Saves on scroll (debounced 300ms), beforeunload, and visibility change
  * - Restores saved position on mount, retrying per frame while content renders
  *
+ * The saved position is anchored to the list item that was at the top of the
+ * viewport (see `app/lib/utils/scrollPositions`), so returning to a feed
+ * whose contents were refreshed still lands on the same item.
+ *
  * Usage in a feed/list page:
  *   useScrollRestoration('feed');
  */
-export function useScrollRestoration(key: string) {
+export function useScrollRestoration(
+  key: string,
+  options: UseScrollRestorationOptions = {},
+) {
+  const { contentReady = true } = options;
   const restoredRef = useRef(false);
 
   useEffect(() => {
     if (restoredRef.current) return;
-    restoredRef.current = true;
+    if (!contentReady) return;
 
-    const saved = readPositions()[key];
-    if (typeof saved !== 'number' || saved <= 0) return;
+    const saved = readScrollPositions()[key];
+    if (!saved || !(saved.y > 0)) {
+      restoredRef.current = true;
+      return;
+    }
+
+    restoredRef.current = true;
 
     // Cached feed pages render and virtualized rows get measured over a few
     // frames, so the page may be too short on the first try. Retry each frame
@@ -57,8 +66,8 @@ export function useScrollRestoration(key: string) {
       window.removeEventListener('keydown', cancel);
     };
     const attempt = () => {
-      window.scrollTo(0, saved);
-      if (Math.abs(window.scrollY - saved) <= 2 || ++frame >= 60) {
+      window.scrollTo(0, resolveRestoreTarget(saved));
+      if (isPositionRestored(saved) || ++frame >= MAX_RESTORE_FRAMES) {
         cancel();
         return;
       }
@@ -69,15 +78,18 @@ export function useScrollRestoration(key: string) {
     window.addEventListener('keydown', cancel);
     rafId = requestAnimationFrame(attempt);
     return cancel;
-  }, [key]);
+  }, [key, contentReady]);
 
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout>;
 
     const save = () => {
-      const positions = readPositions();
-      positions[key] = window.scrollY;
-      writePositions(positions);
+      const positions = readScrollPositions();
+      positions[key] = {
+        y: window.scrollY,
+        anchor: captureScrollAnchor(),
+      };
+      writeScrollPositions(positions);
     };
 
     const handleScroll = () => {
@@ -101,3 +113,5 @@ export function useScrollRestoration(key: string) {
     };
   }, [key]);
 }
+
+export type { ScrollPosition };

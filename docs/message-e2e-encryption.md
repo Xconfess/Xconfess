@@ -12,13 +12,13 @@ This document describes the E2E encryption protocol for Xconfess anonymous direc
 | Participant with valid private key | **Yes** |
 | Participant who lost private key (no backup) | **No** — by design |
 
-The server never receives private keys. Public keys are published per anonymous session identity.
+The server never receives private keys. Public keys are published per anonymous user record; see the [glossary](GLOSSARY.md#anonymous-identity-terminology) for how that identifier is created and reused.
 
 ## Cryptographic design
 
 ### Identity keys
 
-Each anonymous session identity (`anonymous_user`) has an **X25519 key pair**:
+Each anonymous user record (`anonymous_user`) has an **X25519 key pair**:
 
 - **Private key**: generated in the browser, stored in **IndexedDB** (`xconfess-message-keys`).
 - **Public key**: registered via `PUT /api/messages/keys`.
@@ -94,10 +94,10 @@ sequenceDiagram
 
 1. When a session first opens Messages, the client requests its key status from
    `GET /api/messages/keys/me`.
-2. If neither the server nor IndexedDB has a key for that anonymous identity,
+2. If neither the server nor IndexedDB has a key for that anonymous user record,
    the browser generates an X25519 pair, saves it locally, and registers only
    its public key with `PUT /api/messages/keys`.
-3. Subsequent visits use the private key stored under that anonymous identity
+3. Subsequent visits use the private key stored under that anonymous user record
    in IndexedDB. The server stores the current public key, its version, and an
    optional encrypted backup; it never receives the private key or recovery
    passphrase.
@@ -147,8 +147,8 @@ Restore on a new device:
 
 ### Key rotation
 
-- Registering a different `publicKey` for the same anonymous identity increments `messageKeyVersion`.
-- The current API keeps one public key per anonymous identity. It does not
+- Registering a different `publicKey` for the same anonymous user record increments `messageKeyVersion`.
+- The current API keeps one public key per anonymous user record. It does not
   retain previous public keys or attach a key version to individual message
   envelopes.
 - Messages encrypted to an older key remain decryptable only with the matching
@@ -180,18 +180,101 @@ explicit destructive **Start fresh** action.
 | `GET` | `/api/messages/keys/backup` | Download wrapped private key backup |
 | `GET` | `/api/messages/keys/:anonymousUserId` | Fetch participant public key |
 
-## Tests
+## Local test guide
+
+The crypto tests generate fresh X25519 key pairs in memory for every run. They
+do not need environment variables, a database, Redis, or a checked-in fixture
+key. Never copy a real user private key, recovery passphrase, ciphertext, or
+message body into a test fixture. The UUIDs used below and in the suite are
+synthetic thread identifiers only.
+
+### Fast crypto regression suite
+
+From the repository root:
+
+```bash
+npm test --workspace=xconfess-backend -- \
+  src/messages/crypto/message-e2e.crypto.spec.ts --runInBand
+```
+
+This creates two ephemeral participants, derives both directions of the thread
+key, checks encrypt/decrypt and recovery wrapping, and discards all generated
+private material when Jest exits.
+
+### HTTP key-exchange flow
+
+The HTTP-layer fixture replaces authentication, persistence, and notification
+queues with local mocks. It still exercises validation, key registration,
+public-key lookup, encrypted send, and encrypted reply through the Nest
+controller:
+
+```bash
+npm run test:e2e --workspace=xconfess-backend -- \
+  --runInBand test/message-e2e-key-exchange.e2e-spec.ts
+```
+
+No `.env` file or live service is required. Test identities are fixed numeric
+IDs and UUIDs; key pairs are generated at runtime with
+`generateMessageKeyPair()`.
+
+### Frontend key lifecycle
+
+```bash
+npm test --workspace=xconfess-frontend -- \
+  app/lib/hooks/__tests__/useMessageE2E.test.ts --runInBand
+```
+
+The browser storage layer is mocked. These cases cover first-use generation,
+recovery mode when local storage is empty, backup restore, and explicit
+start-fresh confirmation.
+
+### Expected failure cases
+
+The suite must continue to reject:
+
+- plaintext or malformed JSON submitted as a message envelope;
+- unsupported versions/algorithms, extra fields, invalid base64url, a nonce
+  other than 12 bytes, or ciphertext shorter than the GCM tag;
+- ciphertext modified after encryption;
+- a valid envelope replayed against a different thread ID;
+- decryption with the wrong participant key;
+- recovery with the wrong passphrase;
+- silent key replacement when a known identity has lost its local private key.
+
+An authentication `401`, peer-key `404`, validation `400`, or cryptographic
+decryption error is expected for the corresponding negative fixture. A failed
+negative assertion, plaintext accepted by the API, or any private material in
+logs is a regression.
+
+### Safe fixture pattern
+
+Generate keys inside the test and keep plaintext obviously synthetic:
+
+```ts
+const sender = await generateMessageKeyPair();
+const author = await generateMessageKeyPair();
+const threadId = buildThreadId(
+  '11111111-1111-4111-8111-111111111111',
+  '22222222-2222-4222-8222-222222222222',
+);
+const envelope = await encryptMessage(
+  'synthetic local test message',
+  sender.privateKey,
+  author.publicKey,
+  threadId,
+);
+```
+
+Do not log `sender.privateKey`, the recovery passphrase, or decrypted content.
+Assertions should inspect validation outcomes or compare a locally generated
+value in memory.
+
+## Test inventory
 
 - **Unit**: `xconfess-backend/src/messages/crypto/message-e2e.crypto.spec.ts` — ECDH, encrypt/decrypt, tampering, malformed/replayed envelope rejection, backup wrap/unwrap, lost-key simulation.
 - **Unit**: `xconfess-backend/src/messages/messages.service.spec.ts` — rejects plaintext and malformed envelopes on `create`, persists valid envelopes.
 - **E2E**: `xconfess-backend/test/message-e2e-key-exchange.e2e-spec.ts` — key registration, encrypted send/reply through the HTTP layer.
 - **Frontend**: `xconfess-frontend/app/lib/hooks/__tests__/useMessageE2E.test.ts` — first-run key generation, lost-key recovery prompt (no silent overwrite), restore-from-backup, start-fresh confirmation, and that the recovery passphrase is never logged.
-
-Run:
-
-```bash
-npm run test --workspace=xconfess-backend -- message-e2e
-```
 
 ## Implementation files
 

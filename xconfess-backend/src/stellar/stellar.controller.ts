@@ -30,7 +30,7 @@ import {
   buildStellarInvocationAuditMetadata,
 } from './stellar-invocation-audit';
 import { redactSecretStrings } from '../utils/redact-secrets';
-import { StellarValidator } from './stellar-validator';
+import { StellarAddressValidator } from './validators/stellar-address.validator';
 
 @ApiTags('Stellar')
 @Controller('stellar')
@@ -42,6 +42,7 @@ export class StellarController {
     private contractService: ContractService,
     private configService: ConfigService,
     private auditLogService: AuditLogService,
+    private addressValidator: StellarAddressValidator,
   ) {}
 
   @Get('anchors')
@@ -96,13 +97,13 @@ export class StellarController {
       confessionHash,
     });
 
-    StellarValidator.validateConfessionHash(confessionHash);
+    const validatedHash = this.addressValidator.validateTransactionHash(confessionHash);
 
-    const timestamp = await this.contractService.verifyConfession(confessionHash);
+    const timestamp = await this.contractService.verifyConfession(validatedHash);
     this.logger.log({
       message: 'Anchor verify completed',
       requestId,
-      confessionHash,
+      confessionHash: validatedHash,
       isAnchored: timestamp !== null,
     });
     return {
@@ -115,8 +116,8 @@ export class StellarController {
   @ApiOperation({ summary: 'Get account balance' })
   @ApiResponse({ status: 200, description: 'Account balance' })
   async getBalance(@Param('address') address: string) {
-    StellarValidator.validatePublicKey(address, 'address');
-    return this.stellarService.getAccountBalance(address);
+    const validatedAddress = this.addressValidator.validateAccountId(address);
+    return this.stellarService.getAccountBalance(validatedAddress);
   }
 
   @Post('verify')
@@ -124,16 +125,16 @@ export class StellarController {
   @ApiResponse({ status: 200, description: 'Transaction verification result' })
   async verifyTransaction(@Body() dto: VerifyTransactionDto, @Req() req: any) {
     const requestId = req.requestId as string | undefined;
-    this.logger.log({ message: 'Stellar tx verify started', requestId, txHash: dto.txHash });
-    StellarValidator.validateTransactionHash(dto.txHash);
-    return this.stellarService.verifyTransaction(dto.txHash, requestId);
+    const validatedTxHash = this.addressValidator.validateTransactionHash(dto.txHash);
+    this.logger.log({ message: 'Stellar tx verify started', requestId, txHash: validatedTxHash });
+    return this.stellarService.verifyTransaction(validatedTxHash, requestId);
   }
 
   @Get('account-exists/:address')
   @ApiOperation({ summary: 'Check if account exists' })
   async accountExists(@Param('address') address: string) {
-    StellarValidator.validatePublicKey(address, 'address');
-    const exists = await this.stellarService.accountExists(address);
+    const validatedAddress = this.addressValidator.validateAccountId(address);
+    const exists = await this.stellarService.accountExists(validatedAddress);
     return { exists };
   }
 

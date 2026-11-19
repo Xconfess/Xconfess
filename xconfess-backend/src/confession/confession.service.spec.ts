@@ -1,7 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { AnonymousConfession } from './entities/confession.entity';
 import { ConfessionService } from './confession.service';
-import { SelectQueryBuilder, Repository } from 'typeorm';
+import { DataSource, SelectQueryBuilder, Repository } from 'typeorm';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { AnonymousConfessionRepository } from './repository/confession.repository';
 import { ConfessionViewCacheService } from './confession-view-cache.service';
@@ -27,6 +27,10 @@ describe('ConfessionService', () => {
   let qb: Partial<SelectQueryBuilder<AnonymousConfession>> & any;
   let anonUserService: any;
   let cacheServiceMock: any;
+  let dataSourceMock: { transaction: jest.Mock };
+  let eventEmitterMock: { emit: jest.Mock };
+  let moderationMock: { moderateContent: jest.Mock };
+  let tagServiceMock: { validateTags: jest.Mock };
 
   beforeEach(async () => {
     qb = {
@@ -50,6 +54,10 @@ describe('ConfessionService', () => {
       createQueryBuilder: jest.fn().mockReturnValue(qb),
       update: jest.fn(),
     } as any;
+    dataSourceMock = { transaction: jest.fn() };
+    eventEmitterMock = { emit: jest.fn() };
+    moderationMock = { moderateContent: jest.fn() };
+    tagServiceMock = { validateTags: jest.fn() };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -61,7 +69,7 @@ describe('ConfessionService', () => {
         },
         {
           provide: AiModerationService,
-          useValue: { moderateContent: jest.fn() },
+          useValue: moderationMock,
         },
         {
           provide: ModerationRepositoryService,
@@ -71,7 +79,7 @@ describe('ConfessionService', () => {
             updateReview: jest.fn(),
           },
         },
-        { provide: EventEmitter2, useValue: { emit: jest.fn() } },
+        { provide: EventEmitter2, useValue: eventEmitterMock },
         {
           provide: AnonymousUserService,
           useValue: { create: jest.fn(), getAnonIdsForUser: jest.fn() },
@@ -105,10 +113,12 @@ describe('ConfessionService', () => {
             buildKey: jest.fn((...parts: string[]) => parts.join(':')),
             get: jest.fn().mockResolvedValue(null),
             set: jest.fn(),
+            del: jest.fn(),
             delPattern: jest.fn(),
           },
         },
-        { provide: TagService, useValue: { validateTags: jest.fn() } },
+        { provide: TagService, useValue: tagServiceMock },
+        { provide: DataSource, useValue: dataSourceMock },
         {
           provide: AnomalyDetectionService,
           useValue: { getAdjustmentFactor: jest.fn().mockResolvedValue(1) },
@@ -128,6 +138,55 @@ describe('ConfessionService', () => {
     service = module.get(ConfessionService);
     anonUserService = module.get(AnonymousUserService);
     cacheServiceMock = module.get(CacheService);
+  });
+
+  describe('confession creation atomicity (#2003)', () => {
+    it('does not publish notifications or invalidate caches when a dependent write fails', async () => {
+      const failure = new Error('tag persistence failed');
+      const userRepo = {
+        create: jest.fn(() => ({})),
+        save: jest.fn().mockResolvedValue({ id: 'anonymous-1' }),
+      };
+      const confessionRepo = {
+        create: jest.fn((value) => value),
+        save: jest
+          .fn()
+          .mockResolvedValue({ id: 'confession-1', created_at: new Date() }),
+      };
+      const tagRepo = {
+        create: jest.fn((value) => value),
+        save: jest.fn().mockRejectedValue(failure),
+      };
+      const manager = {
+        getRepository: jest.fn((entity) => {
+          if (entity.name === 'AnonymousUser') return userRepo;
+          if (entity.name === 'AnonymousConfession') return confessionRepo;
+          return tagRepo;
+        }),
+      };
+      dataSourceMock.transaction.mockImplementation((callback) =>
+        callback(manager),
+      );
+      tagServiceMock.validateTags.mockResolvedValue([{ id: 'tag-1' }]);
+      moderationMock.moderateContent.mockResolvedValue({
+        score: 0,
+        flags: [],
+        status: 'approved',
+        requiresReview: false,
+        details: {},
+      });
+
+      await expect(
+        service.create({
+          message: 'private confession',
+          tags: ['test'],
+        } as any),
+      ).rejects.toBe(failure);
+
+      expect(dataSourceMock.transaction).toHaveBeenCalledTimes(1);
+      expect(eventEmitterMock.emit).not.toHaveBeenCalled();
+      expect(cacheServiceMock.delPattern).not.toHaveBeenCalled();
+    });
   });
 
   it('remove() soft‑deletes existing', async () => {
@@ -261,6 +320,114 @@ describe('ConfessionService', () => {
       expect(cacheServiceMock.delPattern).toHaveBeenCalledWith('confessions:');
     });
   });
+
+  describe('Cache invalidation on confession writes (#2168)', () => {
+    const CONFESSION_ID = 'conf-cache-1';
+    const SINGLE_KEY = `confession:${CONFESSION_ID}`;
+    const mockReq = { ip: '127.0.0.1', headers: {} } as any;
+
+    it('serves a cached confession, then evicts it and the listings after an edit', async () => {
+      cacheServiceMock.get.mockResolvedValueOnce({
+        id: CONFESSION_ID,
+        message: 'stale copy',
+      });
+
+      const hit = await service.getConfessionByIdWithViewCount(
+        CONFESSION_ID,
+        mockReq,
+      );
+      expect(hit).toEqual({ id: CONFESSION_ID, message: 'stale copy' });
+      expect(repo.findOne).not.toHaveBeenCalled();
+
+      repo.findOne
+        .mockResolvedValueOnce({ id: CONFESSION_ID, isDeleted: false } as any)
+        .mockResolvedValueOnce({
+          id: CONFESSION_ID,
+          message: encryptConfession(
+            'fresh copy',
+            '12345678901234567890123456789012',
+          ),
+        } as any);
+      repo.update.mockResolvedValue({ affected: 1 } as any);
+
+      await service.update(CONFESSION_ID, { gender: 'female' } as any);
+
+      expect(cacheServiceMock.del).toHaveBeenCalledWith(SINGLE_KEY);
+      expect(cacheServiceMock.delPattern).toHaveBeenCalledWith('confessions:');
+    });
+
+    it('evicts the cached entry when a confession is soft-deleted by an admin', async () => {
+      repo.findOne.mockResolvedValue({
+        id: CONFESSION_ID,
+        isDeleted: false,
+      } as any);
+      repo.update.mockResolvedValue({ affected: 1 } as any);
+
+      await service.remove(CONFESSION_ID, 'admin-1');
+
+      expect(cacheServiceMock.del).toHaveBeenCalledWith(SINGLE_KEY);
+      expect(cacheServiceMock.delPattern).toHaveBeenCalledWith('confessions:');
+    });
+
+    it('evicts the cached entry when a deleted confession is restored', async () => {
+      repo.findOne.mockResolvedValue({
+        id: CONFESSION_ID,
+        isDeleted: true,
+      } as any);
+      repo.update.mockResolvedValue({ affected: 1 } as any);
+
+      await service.restore(CONFESSION_ID);
+
+      expect(cacheServiceMock.del).toHaveBeenCalledWith(SINGLE_KEY);
+      expect(cacheServiceMock.delPattern).toHaveBeenCalledWith('confessions:');
+    });
+
+    it('evicts the cached entry when a moderation status changes', async () => {
+      repo.findOne.mockResolvedValue({
+        id: CONFESSION_ID,
+        moderationStatus: 'flagged',
+      } as any);
+      repo.save.mockResolvedValue({
+        id: CONFESSION_ID,
+        moderationStatus: 'rejected',
+      } as any);
+      (service as any).moderationRepoService.getLogsByConfession.mockResolvedValue(
+        [],
+      );
+
+      await service.updateModerationStatus(
+        CONFESSION_ID,
+        'rejected' as any,
+        'mod-1',
+      );
+
+      expect(cacheServiceMock.del).toHaveBeenCalledWith(SINGLE_KEY);
+      expect(cacheServiceMock.delPattern).toHaveBeenCalledWith('confessions:');
+    });
+
+    it('evicts the cached entry when the author soft-deletes a confession', async () => {
+      repo.findOne.mockResolvedValue({
+        id: CONFESSION_ID,
+        isDeleted: false,
+      } as any);
+      repo.update.mockResolvedValue({ affected: 1 } as any);
+
+      await service.deleteConfession(CONFESSION_ID, 'user-1');
+
+      expect(cacheServiceMock.del).toHaveBeenCalledWith(SINGLE_KEY);
+    });
+
+    it('does not evict anything when the confession is not found', async () => {
+      repo.findOne.mockResolvedValue(null);
+
+      await expect(
+        service.update(CONFESSION_ID, { gender: 'female' } as any),
+      ).rejects.toThrow('not found');
+
+      expect(cacheServiceMock.del).not.toHaveBeenCalled();
+      expect(cacheServiceMock.delPattern).not.toHaveBeenCalled();
+    });
+  });
 });
 
 describe('ConfessionService — anchor pending-state guard (#776)', () => {
@@ -268,6 +435,8 @@ describe('ConfessionService — anchor pending-state guard (#776)', () => {
   let confessionRepo: any;
   let stellarService: any;
   let contractService: any;
+  let aiModerationService: any;
+  let queryBuilder: any;
 
   beforeEach(async () => {
     confessionRepo = {
@@ -277,6 +446,51 @@ describe('ConfessionService — anchor pending-state guard (#776)', () => {
       save: jest.fn(),
       createQueryBuilder: jest.fn(),
     };
+    aiModerationService = { moderateContent: jest.fn() };
+    queryBuilder = {
+      where: jest.fn().mockReturnThis(),
+      andWhere: jest.fn().mockReturnThis(),
+      orWhere: jest.fn().mockReturnThis(),
+      leftJoin: jest.fn().mockReturnThis(),
+      leftJoinAndSelect: jest.fn().mockReturnThis(),
+      select: jest.fn().mockReturnThis(),
+      addSelect: jest.fn().mockReturnThis(),
+      orderBy: jest.fn().mockReturnThis(),
+      addOrderBy: jest.fn().mockReturnThis(),
+      skip: jest.fn().mockReturnThis(),
+      take: jest.fn().mockReturnThis(),
+      getMany: jest.fn().mockResolvedValue([]),
+    };
+    confessionRepo.createQueryBuilder.mockReturnValue(queryBuilder);
+    confessionRepo.create.mockImplementation((value: unknown) => value);
+    confessionRepo.save.mockResolvedValue({
+      id: 'conf-created',
+      anonymousUser: { id: 'anonymous-created' },
+      created_at: new Date(),
+    });
+    const anonymousUserRepo = {
+      create: jest.fn(() => ({})),
+      save: jest.fn().mockResolvedValue({ id: 'anonymous-created' }),
+    };
+    const confessionTagRepo = {
+      create: jest.fn((value: unknown) => value),
+      save: jest.fn().mockResolvedValue([]),
+    };
+    const transactionManager = {
+      getRepository: jest.fn((entity: { name: string }) =>
+        entity.name === 'AnonymousUser'
+          ? anonymousUserRepo
+          : entity.name === 'AnonymousConfession'
+            ? confessionRepo
+            : confessionTagRepo,
+      ),
+    };
+    const idempotencyService = {
+      computePayloadHash: jest.fn().mockReturnValue('hash'),
+      check: jest.fn().mockResolvedValue({ isReplay: false, record: {} }),
+      commitSuccess: jest.fn().mockResolvedValue(undefined),
+      commitFailure: jest.fn().mockResolvedValue(undefined),
+    };
 
     stellarService = {
       isValidTxHash: jest.fn().mockReturnValue(true),
@@ -285,7 +499,9 @@ describe('ConfessionService — anchor pending-state guard (#776)', () => {
         stellarHash: 'b'.repeat(64),
         anchoredAt: new Date(),
       }),
-      getExplorerUrl: jest.fn().mockReturnValue('https://stellar.expert/testnet/tx/aaa'),
+      getExplorerUrl: jest
+        .fn()
+        .mockReturnValue('https://stellar.expert/testnet/tx/aaa'),
       verifyTransaction: jest.fn().mockResolvedValue(true),
     };
 
@@ -299,17 +515,41 @@ describe('ConfessionService — anchor pending-state guard (#776)', () => {
       providers: [
         ConfessionService,
         { provide: AnonymousConfessionRepository, useValue: confessionRepo },
-        { provide: ConfessionViewCacheService, useValue: { checkAndMarkView: jest.fn() } },
-        { provide: AiModerationService, useValue: { moderateContent: jest.fn() } },
+        {
+          provide: ConfessionViewCacheService,
+          useValue: { checkAndMarkView: jest.fn() },
+        },
+        {
+          provide: AiModerationService,
+          useValue: aiModerationService,
+        },
         {
           provide: ModerationRepositoryService,
-          useValue: { createLog: jest.fn(), getLogsByConfession: jest.fn(), updateReview: jest.fn() },
+          useValue: {
+            createLog: jest.fn(),
+            getLogsByConfession: jest.fn(),
+            updateReview: jest.fn(),
+          },
         },
         { provide: EventEmitter2, useValue: { emit: jest.fn() } },
-        { provide: AnonymousUserService, useValue: { create: jest.fn(), getAnonIdsForUser: jest.fn() } },
-        { provide: ConfigService, useValue: { get: jest.fn().mockReturnValue('12345678901234567890123456789012') } },
-        { provide: AppLogger, useValue: { log: jest.fn(), error: jest.fn(), warn: jest.fn() } },
-        { provide: EncryptionService, useValue: { encrypt: jest.fn(), decrypt: jest.fn() } },
+        {
+          provide: AnonymousUserService,
+          useValue: { create: jest.fn(), getAnonIdsForUser: jest.fn() },
+        },
+        {
+          provide: ConfigService,
+          useValue: {
+            get: jest.fn().mockReturnValue('12345678901234567890123456789012'),
+          },
+        },
+        {
+          provide: AppLogger,
+          useValue: { log: jest.fn(), error: jest.fn(), warn: jest.fn() },
+        },
+        {
+          provide: EncryptionService,
+          useValue: { encrypt: jest.fn(), decrypt: jest.fn() },
+        },
         { provide: StellarService, useValue: stellarService },
         { provide: ContractService, useValue: contractService },
         {
@@ -324,17 +564,20 @@ describe('ConfessionService — anchor pending-state guard (#776)', () => {
         },
         { provide: TagService, useValue: { validateTags: jest.fn() } },
         {
+          provide: DataSource,
+          useValue: {
+            transaction: jest.fn((callback: (manager: any) => unknown) =>
+              callback(transactionManager),
+            ),
+          },
+        },
+        {
           provide: AnomalyDetectionService,
           useValue: { getAdjustmentFactor: jest.fn().mockResolvedValue(1) },
         },
         {
           provide: ConfessionIdempotencyService,
-          useValue: {
-            computePayloadHash: jest.fn(),
-            check: jest.fn(),
-            commitSuccess: jest.fn(),
-            commitFailure: jest.fn(),
-          },
+          useValue: idempotencyService,
         },
       ],
     }).compile();
@@ -354,7 +597,9 @@ describe('ConfessionService — anchor pending-state guard (#776)', () => {
         isDeleted: false,
       });
 
-      const result = await service.anchorConfession('conf-p1', { stellarTxHash: 'e'.repeat(64) });
+      const result = await service.anchorConfession('conf-p1', {
+        stellarTxHash: 'e'.repeat(64),
+      });
 
       expect(result).toMatchObject({ anchorPending: true, isAnchored: false });
       expect(confessionRepo.update).toHaveBeenCalledWith(
@@ -367,14 +612,19 @@ describe('ConfessionService — anchor pending-state guard (#776)', () => {
       const existingTx = 'f'.repeat(64);
       confessionRepo.findOne.mockResolvedValue({
         id: 'conf-p2',
-        message: encryptConfession('secret', '12345678901234567890123456789012'),
+        message: encryptConfession(
+          'secret',
+          '12345678901234567890123456789012',
+        ),
         isAnchored: false,
         stellarTxHash: existingTx,
         stellarHash: 'g'.repeat(64),
         isDeleted: false,
       });
 
-      const result = await service.anchorConfession('conf-p2', { stellarTxHash: 'h'.repeat(64) });
+      const result = await service.anchorConfession('conf-p2', {
+        stellarTxHash: 'h'.repeat(64),
+      });
 
       expect(result.stellarTxHash).toBe(existingTx);
     });
@@ -397,20 +647,28 @@ describe('ConfessionService — anchor pending-state guard (#776)', () => {
       confessionRepo.findOne
         .mockResolvedValueOnce({
           id: 'conf-p4',
-          message: encryptConfession('my secret', '12345678901234567890123456789012'),
+          message: encryptConfession(
+            'my secret',
+            '12345678901234567890123456789012',
+          ),
           isAnchored: false,
           stellarTxHash: null,
           isDeleted: false,
         })
         .mockResolvedValueOnce({
           id: 'conf-p4',
-          message: encryptConfession('my secret', '12345678901234567890123456789012'),
+          message: encryptConfession(
+            'my secret',
+            '12345678901234567890123456789012',
+          ),
           isAnchored: false,
           stellarTxHash: 'a'.repeat(64),
           stellarHash: 'b'.repeat(64),
         });
 
-      const result = await service.anchorConfession('conf-p4', { stellarTxHash: 'a'.repeat(64) });
+      const result = await service.anchorConfession('conf-p4', {
+        stellarTxHash: 'a'.repeat(64),
+      });
 
       expect(confessionRepo.update).toHaveBeenCalledWith(
         'conf-p4',
@@ -493,7 +751,9 @@ describe('ConfessionService — anchor pending-state guard (#776)', () => {
 
       const result = await service.verifyStellarAnchor('conf-v4');
 
-      expect(contractService.verifyConfession).toHaveBeenCalledWith('p'.repeat(64));
+      expect(contractService.verifyConfession).toHaveBeenCalledWith(
+        'p'.repeat(64),
+      );
       expect(result.isAnchored).toBe(false);
       expect(result.anchorPending).toBe(true);
       expect(result.isVerified).toBe(false);
@@ -548,13 +808,19 @@ describe('ConfessionService — anchor pending-state guard (#776)', () => {
         });
 
         confessionRepo.create.mockReturnValue({
-          message: encryptConfession(maxLengthMessage, '12345678901234567890123456789012'),
+          message: encryptConfession(
+            maxLengthMessage,
+            '12345678901234567890123456789012',
+          ),
           idempotencyKey: 'boundary-test-key',
         } as any);
 
         confessionRepo.save.mockResolvedValue({
           id: 'conf-max-length',
-          message: encryptConfession(maxLengthMessage, '12345678901234567890123456789012'),
+          message: encryptConfession(
+            maxLengthMessage,
+            '12345678901234567890123456789012',
+          ),
           idempotencyKey: 'boundary-test-key',
           created_at: new Date(),
         } as any);
@@ -569,16 +835,15 @@ describe('ConfessionService — anchor pending-state guard (#776)', () => {
         const tooLongMessage = 'a'.repeat(1001);
         const dto = { message: tooLongMessage, gender: null };
 
-        const error = await service
-          .create(dto as any)
-          .catch((e) => e);
+        const error = await service.create(dto as any).catch((e) => e);
 
         expect(error).toBeInstanceOf(BadRequestException);
         expect(error.message).toContain('1000 characters');
       });
 
       it('should accept valid-length confessions', async () => {
-        const validMessage = 'This is a valid confession under 1000 characters.';
+        const validMessage =
+          'This is a valid confession under 1000 characters.';
         const dto = {
           message: validMessage,
           gender: null,
@@ -594,13 +859,19 @@ describe('ConfessionService — anchor pending-state guard (#776)', () => {
         });
 
         confessionRepo.create.mockReturnValue({
-          message: encryptConfession(validMessage, '12345678901234567890123456789012'),
+          message: encryptConfession(
+            validMessage,
+            '12345678901234567890123456789012',
+          ),
           idempotencyKey: 'valid-msg-key',
         } as any);
 
         confessionRepo.save.mockResolvedValue({
           id: 'conf-valid',
-          message: encryptConfession(validMessage, '12345678901234567890123456789012'),
+          message: encryptConfession(
+            validMessage,
+            '12345678901234567890123456789012',
+          ),
           idempotencyKey: 'valid-msg-key',
           created_at: new Date(),
         } as any);
@@ -612,8 +883,8 @@ describe('ConfessionService — anchor pending-state guard (#776)', () => {
 
     describe('Issue #1929: Soft-delete semantics for user-owned confessions', () => {
       it('should exclude deleted confessions from public reads', async () => {
-        await service.getPublicFeed({ limit: 10 });
-        const calls = qb.andWhere.mock.calls;
+        await service.getConfessions({ limit: 10 });
+        const calls = queryBuilder.andWhere.mock.calls;
         const hasDeletedFilter = calls.some((call) =>
           String(call[0]).includes('isDeleted'),
         );
@@ -674,13 +945,19 @@ describe('ConfessionService — anchor pending-state guard (#776)', () => {
         });
 
         confessionRepo.create.mockReturnValue({
-          message: encryptConfession(dto.message, '12345678901234567890123456789012'),
+          message: encryptConfession(
+            dto.message,
+            '12345678901234567890123456789012',
+          ),
           idempotencyKey: 'retry-safe-key-001',
         } as any);
 
         confessionRepo.save.mockResolvedValue({
           id: 'conf-retry-safe',
-          message: encryptConfession(dto.message, '12345678901234567890123456789012'),
+          message: encryptConfession(
+            dto.message,
+            '12345678901234567890123456789012',
+          ),
           idempotencyKey: 'retry-safe-key-001',
           created_at: new Date(),
         } as any);

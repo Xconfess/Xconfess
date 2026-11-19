@@ -4,10 +4,12 @@ import {
   NotFoundException,
   BadRequestException,
   Optional,
+  ConflictException,
 } from '@nestjs/common';
+import { createHash } from 'node:crypto';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In, DataSource } from 'typeorm';
-import { Message } from './entities/message.entity';
+import { Message, MessageDeliveryStatus } from './entities/message.entity';
 import { CreateMessageDto, ReplyMessageDto } from './dto/message.dto';
 import { User } from '../user/entities/user.entity';
 import { AnonymousConfession } from '../confession/entities/confession.entity';
@@ -74,7 +76,21 @@ export class MessagesService {
   async create(
     createMessageDto: CreateMessageDto,
     user: User,
+    idempotencyKey?: string,
   ): Promise<Message> {
+    if (
+      idempotencyKey !== undefined &&
+      (!idempotencyKey.trim() || idempotencyKey.length > 128)
+    ) {
+      throw new BadRequestException(
+        'Idempotency-Key must contain 1 to 128 characters',
+      );
+    }
+    const scopedKey = idempotencyKey === undefined
+      ? null
+      : createHash('sha256')
+          .update(JSON.stringify([user.id, idempotencyKey]))
+          .digest('hex');
     if (!isEncryptedPayload(createMessageDto.content)) {
       throw new BadRequestException(
         'Message content must be an E2E ciphertext envelope',
@@ -105,11 +121,40 @@ export class MessagesService {
       const messageRepo = manager.getRepository(Message);
       const outboxRepo = manager.getRepository(OutboxEvent);
 
+      if (scopedKey) {
+        // Serialize only retries of the same user's request. The lock is
+        // released with the transaction, including on an outbox write failure.
+        await manager.query(
+          'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
+          [scopedKey],
+        );
+        const existing = await messageRepo.findOne({
+          where: { idempotencyKey: scopedKey },
+          relations: ['confession'],
+        });
+        if (existing) {
+          if (
+            existing.confession.id !== createMessageDto.confession_id ||
+            existing.content !== createMessageDto.content
+          ) {
+            throw new ConflictException(
+              'Idempotency-Key was already used for a different message',
+            );
+          }
+          return existing;
+        }
+      }
+
       const message = messageRepo.create({
         sender,
         confession,
         content: createMessageDto.content,
         isEncrypted: true,
+        deliveryStatus: MessageDeliveryStatus.SENT,
+        idempotencyKey: scopedKey,
+        // Cursor timestamps have millisecond precision. Persist the same
+        // precision so a later page cannot include the last row again.
+        createdAt: new Date(),
       });
 
       const savedMessage = await messageRepo.save(message);
@@ -182,11 +227,20 @@ export class MessagesService {
       throw new NotFoundException('Thread not found');
     }
 
+    // Mark thread as read for the participant
     await this.customMessageRepository.markThreadRead(
       confessionId,
       senderId,
       viewerRole,
     );
+
+    // Also mark messages as delivered if user is the sender (recipient of messages)
+    if (viewerRole === 'SENDER') {
+      await this.customMessageRepository.markMessagesDelivered(
+        confessionId,
+        senderId,
+      );
+    }
 
     const limit = query?.limit || 20;
 
@@ -201,9 +255,9 @@ export class MessagesService {
       );
       if (parsedCursor) {
         qb.andWhere(
-          'message.createdAt > :cursorDate OR (message.createdAt = :cursorDate AND message.id > :cursorId)',
+          '(message.createdAt > :cursorDate OR (message.createdAt = :cursorDate AND message.id > :cursorId))',
           {
-            cursorDate: parsedCursor.createdAt,
+            cursorDate: new Date(parsedCursor.createdAt),
             cursorId: parsedCursor.id,
           },
         );
@@ -214,11 +268,25 @@ export class MessagesService {
 
     const messages = await qb
       .orderBy('message.createdAt', 'ASC')
+      .addOrderBy('message.id', 'ASC')
       .take(limit + 1)
       .getMany();
 
     const hasMore = messages.length > limit;
     const resultMessages = hasMore ? messages.slice(0, limit) : messages;
+
+    // A conversation is only addressable through messages that actually exist.
+    // Reject forged/unknown sender IDs on the initial request with the same
+    // non-disclosing 404 used for unauthorized viewers, rather than returning
+    // an empty (but successful) thread. This prevents an author from probing
+    // arbitrary anonymous identities and keeps the response indistinguishable
+    // from a non-existent thread. Cursor/paged follow-ups may legitimately
+    // return an empty page once the history is exhausted.
+    const isInitialRequest =
+      !query?.cursor && (!query?.page || query.page <= 1);
+    if (isInitialRequest && resultMessages.length === 0) {
+      throw new NotFoundException('Thread not found');
+    }
 
     let nextCursor: string | null = null;
     if (hasMore && resultMessages.length > 0) {
@@ -297,8 +365,8 @@ export class MessagesService {
           role === 'AUTHOR'
             ? !m.authorReadAt
             : role === 'SENDER'
-              ? !!m.hasReply && !m.senderReadAt
-              : false;
+            ? !!m.hasReply && !m.senderReadAt
+            : false;
 
         threadsMap.set(threadId, {
           confessionId: m.confession.id,
@@ -313,6 +381,12 @@ export class MessagesService {
           hasUnread: hasUnreadForRole,
           unreadCount: hasUnreadForRole ? 1 : 0,
           isAuthor: role === 'AUTHOR',
+          // Include delivery status for sender-side threads
+          ...(role === 'SENDER' && {
+            deliveryStatus: m.deliveryStatus,
+            deliveredAt: m.deliveredAt,
+            readAt: m.readAt,
+          }),
         });
       } else {
         const existing = threadsMap.get(threadId);
@@ -325,8 +399,8 @@ export class MessagesService {
           role === 'AUTHOR'
             ? !m.authorReadAt
             : role === 'SENDER'
-              ? !!m.hasReply && !m.senderReadAt
-              : false;
+            ? !!m.hasReply && !m.senderReadAt
+            : false;
         if (messageUnread) {
           existing.hasUnread = true;
           existing.unreadCount += 1;
@@ -386,7 +460,9 @@ export class MessagesService {
     const anonIds = userAnons.map((ua) => ua.anonymousUserId);
     const confessionAuthorId = message.confession?.anonymousUser?.id;
     if (!confessionAuthorId || !anonIds.includes(confessionAuthorId)) {
-      throw new ForbiddenException('You are not the author of this confession');
+      // Never disclose that the message exists to a caller who is not the
+      // confession author: respond exactly like an unknown message id.
+      throw new NotFoundException('Message not found');
     }
 
     // Use a transaction to ensure atomicity
@@ -398,6 +474,7 @@ export class MessagesService {
       message.replyContent = dto.reply.trim();
       message.isEncrypted = true;
       message.repliedAt = new Date();
+      message.senderReadAt = null; // Reset sender read state since new reply
       const savedReply = await messageRepo.save(message);
 
       // Create Outbox Event for notification to the original sender
@@ -480,6 +557,40 @@ export class MessagesService {
 
     const user = { id: userId } as User;
     return this.findForConfessionThread(confessionId, senderId, user, query);
+  }
+
+  /**
+   * Mark messages as read for the sender (recipient of replies).
+   * Idempotent: repeated calls have no additional effect.
+   * Only the sender (recipient) can mark their messages as read.
+   */
+  async markMessagesAsRead(
+    confessionId: string,
+    senderId: string,
+    userId: number,
+  ): Promise<{ success: boolean; updatedCount: number }> {
+    const confession = await this.confessionRepository.findOne({
+      where: { id: confessionId },
+      relations: ['anonymousUser'],
+    });
+    if (!confession) throw new NotFoundException('Thread not found');
+
+    const userAnons = await this.userAnonRepo.find({
+      where: { userId },
+    });
+    const anonIds = userAnons.map((ua) => ua.anonymousUserId);
+
+    // Only the sender can mark their messages as read
+    if (!anonIds.includes(senderId)) {
+      throw new NotFoundException('Thread not found');
+    }
+
+    const updatedCount = await this.customMessageRepository.markMessagesRead(
+      confessionId,
+      senderId,
+    );
+
+    return { success: true, updatedCount };
   }
 
   /**

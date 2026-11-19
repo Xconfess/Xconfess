@@ -7,6 +7,9 @@ function makeExecutionContext(overrides: Partial<{
   url: string;
   requestId: string;
   user: any;
+  path: string;
+  baseUrl: string;
+  routePath: string;
   ip: string;
   statusCode: number;
   getHeader: (name: string) => string | undefined;
@@ -14,6 +17,9 @@ function makeExecutionContext(overrides: Partial<{
   const req = {
     method: overrides.method ?? 'GET',
     url: overrides.url ?? '/api/health/live',
+    path: overrides.path ?? (overrides.url ?? '/api/health/live').split('?')[0],
+    baseUrl: overrides.baseUrl ?? '',
+    route: overrides.routePath ? { path: overrides.routePath } : undefined,
     requestId: overrides.requestId,
     user: overrides.user,
     ip: overrides.ip ?? '127.0.0.1',
@@ -157,6 +163,27 @@ describe('StructuredLoggingInterceptor', () => {
     });
   });
 
+  it('logs a matched route template without query strings or resource identifiers', (done) => {
+    const ctx = makeExecutionContext({
+      url: '/api/confessions/secret-id?token=private-token&text=private-message',
+      path: '/api/confessions/secret-id',
+      baseUrl: '/api/confessions',
+      routePath: '/:id',
+    });
+
+    interceptor.intercept(ctx, makeCallHandler()).subscribe({
+      next: () => {
+        const line = logSpy.mock.calls[0][0] as string;
+        const parsed = JSON.parse(line);
+        expect(parsed.route).toBe('/api/confessions/:id');
+        expect(line).not.toContain('secret-id');
+        expect(line).not.toContain('private-token');
+        expect(line).not.toContain('private-message');
+        done();
+      },
+    });
+  });
+
   it('includes userId from request.user when authenticated', (done) => {
     const ctx = makeExecutionContext({
       requestId: 'req-auth',
@@ -189,20 +216,21 @@ describe('StructuredLoggingInterceptor', () => {
     });
   });
 
-  it('handles errors and logs errorClass and errorMessage', (done) => {
+  it('handles errors and logs the error class without copying potentially private error text', (done) => {
     const ctx = makeExecutionContext({
       requestId: 'req-err',
       statusCode: 500,
       url: '/api/auth/login',
     });
 
-    const error = new TypeError('Cannot read property of undefined');
+    const error = new TypeError('private message body should never be copied into the request log');
     interceptor.intercept(ctx, makeErrorCallHandler(error)).subscribe({
       error: () => {
         expect(errorSpy).toHaveBeenCalledTimes(1);
         const parsed = JSON.parse(errorSpy.mock.calls[0][0]);
         expect(parsed.errorClass).toBe('TypeError');
-        expect(parsed.errorMessage).toBe('Cannot read property of undefined');
+        expect(parsed.errorMessage).toBeUndefined();
+        expect(errorSpy.mock.calls[0][0]).not.toContain('private message body');
         expect(parsed.requestId).toBe('req-err');
         expect(parsed.subsystem).toBe('auth');
         done();

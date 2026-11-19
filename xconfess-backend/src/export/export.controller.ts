@@ -4,7 +4,7 @@ import {
   Param,
   Req,
   UseGuards,
-  ForbiddenException,
+  NotFoundException,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { OwnershipGuard } from '../common/guards/ownership.guard';
@@ -35,6 +35,8 @@ export class ExportController {
 
   /**
    * GET /export/jobs/:userId/:jobId/download
+   * Unknown, expired, and other users' jobs share one 404 response so the
+   * endpoint never reveals whether an export exists.
    */
   @Get('jobs/:userId/:jobId/download')
   @Ownership({ paramKey: 'userId', adminBypass: true })
@@ -43,6 +45,15 @@ export class ExportController {
     @Param('jobId') jobId: string,
     @Req() req: any,
   ) {
-    return this.exportService.getExportFile(jobId, String(req.user.sub));
+    const job = await this.exportService.getExportFile(
+      jobId,
+      String(req.user.sub),
+    );
+
+    if (!job) {
+      throw new NotFoundException('Export not found or expired');
+    }
+
+    return job;
   }
 }

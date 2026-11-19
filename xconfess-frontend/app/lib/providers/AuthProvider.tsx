@@ -16,6 +16,7 @@ import { AppError } from '../utils/errorHandler';
 import {
   NormalizedAuthError,
 } from '@/lib/normalizeAuthError';
+import { SESSION_EXPIRED_EVENT } from '../auth/sessionExpiry';
 
 /**
  * Auth Context
@@ -72,6 +73,22 @@ export function AuthProvider({ children }: AuthProviderProps) {
       });
     }
   }, [setStoreUser, storeLogout]);
+
+  useEffect(() => {
+    const handleSessionExpired = () => {
+      setStoreUser(null);
+      setState({
+        user: null,
+        isAuthenticated: false,
+        isLoading: false,
+        error: null,
+        isSessionExpired: true,
+      });
+    };
+
+    window.addEventListener(SESSION_EXPIRED_EVENT, handleSessionExpired);
+    return () => window.removeEventListener(SESSION_EXPIRED_EVENT, handleSessionExpired);
+  }, [setStoreUser]);
 
   /**
   * Check if user is authenticated by validating token with backend.

@@ -15,6 +15,7 @@ import {
 } from '../audit-log/audit-log.service';
 import { AuditActionType } from '../audit-log/audit-log.entity';
 import { UserIdMasker } from '../utils/mask-user-id';
+import { escapeHtml } from '../utils/output-escape';
 import {
   CircuitBreakerConfig,
   EmailProviderConfig,
@@ -154,15 +155,22 @@ export function renderTemplate(
     );
   }
 
-  const replaceVars = (str: string) =>
+  // Each output gets escaping for its own context. User-supplied values are
+  // escaped for HTML only in the html part, and line breaks are removed from
+  // the subject so a value cannot inject mail headers.
+  const replaceVars = (str: string, encode: (value: string) => string) =>
     str.replace(/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g, (_m, k) =>
-      vars[k] === undefined || vars[k] === null ? '' : String(vars[k]),
+      vars[k] === undefined || vars[k] === null
+        ? ''
+        : encode(String(vars[k])),
     );
 
   return {
-    subject: replaceVars(template.subject),
-    html: replaceVars(template.html),
-    text: replaceVars(template.text),
+    subject: replaceVars(template.subject, (value) =>
+      value.replace(/[\r\n]+/g, ' '),
+    ),
+    html: replaceVars(template.html, escapeHtml),
+    text: replaceVars(template.text, (value) => value),
   };
 }
 
@@ -1492,10 +1500,10 @@ export class EmailService implements OnModuleInit {
     </style>
   </head>
   <body>
-    <h1>New Reaction! <span class="emoji">${emoji}</span></h1>
-    <p>Hello ${username},</p>
-    <p><strong>${reactorName}</strong> reacted with ${emoji} to your confession:</p>
-    <div class="confession">"${truncated}"</div>
+    <h1>New Reaction! <span class="emoji">${escapeHtml(emoji)}</span></h1>
+    <p>Hello ${escapeHtml(username)},</p>
+    <p><strong>${escapeHtml(reactorName)}</strong> reacted with ${escapeHtml(emoji)} to your confession:</p>
+    <div class="confession">"${escapeHtml(truncated)}"</div>
     <a href="${this.configService.get<string>('app.frontendUrl', 'http://localhost:3000')}" class="button">View on XConfess</a>
     <p style="font-size:12px;color:#777;">© ${new Date().getFullYear()} XConfess. All rights reserved.</p>
   </body>
@@ -1523,12 +1531,12 @@ export class EmailService implements OnModuleInit {
     return `<!DOCTYPE html>
 <html>
   <body>
-    <h2>Hello ${username},</h2>
+    <h2>Hello ${escapeHtml(username)},</h2>
     <p>We received a request to reset your password.</p>
-    <a href="${resetUrl}" style="display:inline-block;padding:12px 24px;background:#007bff;color:white;text-decoration:none;border-radius:5px;">Reset My Password</a>
-    <p>Or copy: <a href="${resetUrl}">${resetUrl}</a></p>
+    <a href="${escapeHtml(resetUrl)}" style="display:inline-block;padding:12px 24px;background:#007bff;color:white;text-decoration:none;border-radius:5px;">Reset My Password</a>
+    <p>Or copy: <a href="${escapeHtml(resetUrl)}">${escapeHtml(resetUrl)}</a></p>
     <p><strong>This link expires in 15 minutes.</strong></p>
-    <p>Reset token: <code>${token}</code></p>
+    <p>Reset token: <code>${escapeHtml(token)}</code></p>
   </body>
 </html>`;
   }

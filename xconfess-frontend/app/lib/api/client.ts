@@ -1,6 +1,7 @@
 ﻿import axios, { AxiosError, AxiosResponse } from "axios";
 import { logError } from "@/app/lib/utils/errorHandler";
 import { useAuthStore } from "@/app/lib/store/authStore";
+import { coordinateSessionExpiry } from "@/app/lib/auth/sessionExpiry";
 
 /**
  * Axios instance for browser-facing API calls.
@@ -78,7 +79,7 @@ apiClient.interceptors.response.use(
 		if (error.response?.status === 401) {
 			// Signal the store: clears localStorage tokens + resets isAuthenticated.
 			// AuthGuard detects isAuthenticated: false and does router.push('/login').
-			useAuthStore.getState().logout();
+			void coordinateSessionExpiry(() => useAuthStore.getState().logout());
 
 			logError(error, "API Client - Unauthorized", { url: config.url });
 			return Promise.reject(error);

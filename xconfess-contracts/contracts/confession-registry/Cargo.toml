@@ -43,3 +43,15 @@ path = "../tests/report_lifecycle.test.rs"
 [[test]]
 name = "model_based_state_machine"
 path = "../tests/model_based_state_machine.test.rs"
+
+[[test]]
+name = "event_payload_bounds"
+path = "../tests/event_payload_bounds.rs"
+
+[[test]]
+name = "pause_traceability"
+path = "../tests/pause_traceability.rs"
+
+[[test]]
+name = "resource_regression"
+path = "../tests/resource_regression.rs"

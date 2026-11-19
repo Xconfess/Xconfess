@@ -107,7 +107,7 @@ export function SearchResultItem({
     <Link
       href={`/confessions/${confession.id}`}
       className={cn(
-        "luxury-panel block rounded-[28px] p-5 transition-colors hover:bg-[var(--surface-strong)]",
+        "luxury-panel block rounded-xl p-5 transition-colors hover:bg-[var(--surface-strong)]",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)]",
         className
       )}
@@ -116,7 +116,7 @@ export function SearchResultItem({
       <HighlightedContent
         content={confession.content}
         query={searchQuery}
-        className="mb-4 font-editorial text-2xl"
+        className="mb-4 font-editorial text-lg"
       />
       <div className="flex flex-wrap items-center gap-4 text-sm text-[var(--secondary)]">
         <span>{timeAgo(confession.createdAt)}</span>
@@ -137,7 +137,7 @@ export function SearchResultItem({
           </span>
         )}
         {confession.isAnchored && (
-          <span className="inline-flex items-center gap-1 text-green-600">
+          <span className="inline-flex items-center gap-1 text-[var(--success)]">
             <Anchor className="h-4 w-4" />
             Anchored
           </span>
@@ -148,7 +148,7 @@ export function SearchResultItem({
             target="_blank"
             rel="noopener noreferrer"
             onClick={(e) => e.stopPropagation()}
-            className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 text-xs"
+            className="inline-flex items-center gap-1 text-[var(--primary-deep)] hover:text-[var(--primary-deep)] text-xs"
           >
             <ExternalLink className="h-3 w-3" />
             Explorer

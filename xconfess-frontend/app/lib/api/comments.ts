@@ -3,13 +3,17 @@ import { AUTH_TOKEN_KEY } from "@/app/lib/api/constants";
 import { normalizeApiError, type ApiError } from "@/app/lib/api/errors";
 
 export interface GetCommentsParams {
+  /** Legacy offset page. Ignored when `cursor` is set. */
   page?: number;
   limit?: number;
+  /** Opaque cursor from the previous page's `nextCursor`. */
+  cursor?: string | null;
 }
 
 export interface GetCommentsResult {
   comments: Comment[];
   hasMore: boolean;
+  nextCursor?: string | null;
 }
 
 export type GetCommentsResponse =
@@ -62,9 +66,13 @@ export async function getComments(
   }
 
   const search = new URLSearchParams({
-    page: String(params.page ?? 1),
     limit: String(params.limit ?? 10),
   });
+  if (params.cursor) {
+    search.set("cursor", params.cursor);
+  } else {
+    search.set("page", String(params.page ?? 1));
+  }
 
   try {
     const response = await fetch(
@@ -94,6 +102,8 @@ export async function getComments(
       data: {
         comments,
         hasMore: payload.hasMore === true,
+        nextCursor:
+          typeof payload.nextCursor === "string" ? payload.nextCursor : null,
       },
     };
   } catch (err) {

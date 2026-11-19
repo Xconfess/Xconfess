@@ -8,9 +8,12 @@ import { ConfessionCard } from "./ConfessionCard";
 import { ConfessionFeedSkeleton } from "./LoadingSkeleton";
 import { useInfiniteConfessions } from "../../lib/hooks/useConfessionsQuery";
 import ErrorState from "../common/ErrorState";
+import { FeedRefreshNotice } from "./FeedRefreshNotice";
 import { useScrollRestoration } from "../../lib/hooks/useScrollRestoration";
 import { useLiveAnnouncement } from "../../lib/hooks/useLiveAnnouncement";
 import { useFeedPageRestoration } from "../../lib/hooks/useFeedPageRestoration";
+import { usePrefersReducedMotion } from "../../lib/hooks/usePrefersReducedMotion";
+import { useFeedFilterPersistence } from "../../lib/hooks/useFeedFilterPersistence";
 
 const ESTIMATED_CARD_HEIGHT = 300;
 const SCROLL_THRESHOLD = 400;
@@ -55,19 +58,46 @@ const ConfessionFeedBody = ({
   const [showScrollTop, setShowScrollTop] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
+  // Users who asked their OS to cut nonessential motion get instant scrolls
+  // and no fade transitions on the feed state swaps. The feed still swaps —
+  // it just stops animating the swap.
+  const prefersReducedMotion = usePrefersReducedMotion();
+  const scrollBehavior: ScrollBehavior = prefersReducedMotion ? "auto" : "smooth";
   // Full feeds keep sort in the URL so back/forward from a detail page
-  // returns to the same tab; preview feeds stay fixed on initialSort.
+  // returns to the same tab; preview feeds stay fixed on initialSort. When
+  // the URL does not pin a sort, fall back to the last filter the user
+  // picked in this tab (sessionStorage), so switching between feed views
+  // (e.g. /confessions -> / -> /confessions) resumes on the same tab. An
+  // unknown or stale value in either source is rejected so we can never
+  // ask the backend for an invalid sort.
+  const filterPersistence = useFeedFilterPersistence<FeedSort>(
+    "sort",
+    SORT_OPTIONS.map((o) => o.value),
+  );
   const urlSort = searchParams?.get("sort") ?? null;
-  const sort: FeedSort = !preview && isFeedSort(urlSort) ? urlSort : initialSort;
+  const resolvedSort: FeedSort = !preview
+    ? isFeedSort(urlSort)
+      ? urlSort
+      : filterPersistence.read() ?? initialSort
+    : initialSort;
+  const sort: FeedSort = resolvedSort;
   const setSort = useCallback(
     (next: FeedSort) => {
+      filterPersistence.write(next);
       const params = new URLSearchParams(searchParams?.toString());
       params.set("sort", next);
       router.replace(`${pathname}?${params.toString()}`, { scroll: false });
     },
-    [pathname, router, searchParams],
+    [pathname, router, searchParams, filterPersistence],
   );
-  useScrollRestoration(pathname);
+
+  // Persist the sort we actually show whenever it changes (covers the case
+  // where the URL carried the sort — the store still needs to learn it so a
+  // sibling feed view picks it up).
+  useEffect(() => {
+    if (preview) return;
+    filterPersistence.write(sort);
+  }, [sort, preview, filterPersistence]);
   const loadMoreRef = useRef<HTMLDivElement>(null);
 
   const {
@@ -88,7 +118,15 @@ const ConfessionFeedBody = ({
   // filter change it means the feed briefly shows confessions for the sort
   // the user just left. Treat it as its own loading state, distinct from
   // both the initial load and "loading more" pagination.
-  const isSwitchingFilter = isPlaceholderData && isFetching && !isFetchingNextPage;
+  const isSwitchingFilter = isPlaceholderData && isFetching;
+  const isPaginationLoading = isFetchingNextPage && !isSwitchingFilter;
+
+  // Restoring the scroll position only makes sense once the feed content is
+  // on screen: the saved offset may be below the fold until the cached pages
+  // have been rendered and the virtualized rows measured.
+  useScrollRestoration(pathname, {
+    contentReady: !isLoading && !isSwitchingFilter,
+  });
 
   const announcement = useLiveAnnouncement({
     isLoading,
@@ -109,6 +147,17 @@ const ConfessionFeedBody = ({
 
   const allConfessions = data?.pages.flatMap((page) => page.confessions) ?? [];
   const visibleConfessions = preview ? allConfessions.slice(0, 3) : allConfessions;
+
+  // A failed refresh keeps the previously loaded pages around, so the feed
+  // stays readable and the failure is reported inline instead of replacing
+  // the content the user is looking at.
+  const hasCachedPages = (data?.pages?.length ?? 0) > 0;
+  const isInitialError = Boolean(error) && !hasCachedPages;
+  const isRefreshError = Boolean(error) && hasCachedPages;
+  const errorMessage =
+    error instanceof Error && error.message
+      ? error.message
+      : "The backend service is not responding yet.";
   const isEmpty = !isLoading && !error && allConfessions.length === 0;
 
   const virtualizer = useWindowVirtualizer({
@@ -118,20 +167,34 @@ const ConfessionFeedBody = ({
     scrollMargin: 0,
   });
 
-  const handleRetry = useCallback(() => {
-    void refetch();
+  // A retry is a network round trip, so the button must not be able to start
+  // a second request while the first one is still in flight.
+  const isRetryingRef = useRef(false);
+  const [isRetrying, setIsRetrying] = useState(false);
+
+  const handleRetry = useCallback(async () => {
+    if (isRetryingRef.current) return;
+
+    isRetryingRef.current = true;
+    setIsRetrying(true);
+    try {
+      await refetch();
+    } finally {
+      isRetryingRef.current = false;
+      setIsRetrying(false);
+    }
   }, [refetch]);
 
   const scrollToComposer = useCallback(() => {
     document.getElementById("composer")?.scrollIntoView({
-      behavior: "smooth",
+      behavior: scrollBehavior,
       block: "start",
     });
-  }, []);
+  }, [scrollBehavior]);
 
   const scrollToTop = useCallback(() => {
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  }, []);
+    window.scrollTo({ top: 0, behavior: scrollBehavior });
+  }, [scrollBehavior]);
 
   const sortControls = (
     <div
@@ -201,14 +264,14 @@ const ConfessionFeedBody = ({
     );
   }
 
-  if (error) {
+  if (isInitialError) {
     return (
       <>
         {liveRegion}
         <ErrorState
-          error="The backend service is not responding yet."
+          error={errorMessage}
           title="Unable to load feed"
-          description="This can happen while the Render instance is waking or a new backend deploy is finishing."
+          description="This can happen while the Render instance is waking or a new backend deploy is finishing. Retrying is safe \u2014 it will not duplicate any confessions."
           showRetry
           onRetry={handleRetry}
         />
@@ -226,7 +289,7 @@ const ConfessionFeedBody = ({
           role="region"
           aria-label="Empty feed state"
         >
-          <p className="mb-3 font-editorial text-3xl text-[var(--foreground)] sm:text-4xl">
+          <p className="mb-3 text-xl font-semibold text-[var(--foreground)] sm:text-2xl">
             No confessions yet.
           </p>
           <p className="mx-auto mb-4 max-w-xl text-sm leading-7 text-[var(--secondary)]">
@@ -236,7 +299,7 @@ const ConfessionFeedBody = ({
             <button
               type="button"
               onClick={scrollToComposer}
-              className="rounded-xl bg-[var(--brand-gradient)] px-5 py-2.5 text-sm font-medium text-white shadow-[0_18px_42px_-22px_rgba(0,0,0,0.85)] transition-colors hover:brightness-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]"
+              className="rounded-xl bg-[var(--brand-gradient)] px-5 py-2.5 text-sm font-medium text-[var(--foreground)] shadow-[0_18px_42px_-22px_rgba(0,0,0,0.85)] transition-colors hover:brightness-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]"
             >
               Begin writing
             </button>
@@ -260,14 +323,30 @@ const ConfessionFeedBody = ({
       {!preview && <div className="mb-5">{sortControls}</div>}
       {liveRegion}
 
+      {isRefreshError && (
+        <FeedRefreshNotice
+          message={errorMessage}
+          onRetry={handleRetry}
+          isRetrying={isRetrying}
+        />
+      )}
+
       <div
-        className="relative w-full transition-opacity duration-200"
+        className={
+          prefersReducedMotion
+            ? "relative w-full"
+            : "relative w-full transition-opacity duration-200"
+        }
         style={{
           height: `${virtualizer.getTotalSize()}px`,
-          opacity: isFetching && !isFetchingNextPage ? 0.7 : 1,
+          // With reduced motion the fade is skipped entirely so the swap is
+          // instant; without it, fade to 0.7 while a refetch is in flight.
+          opacity:
+            !prefersReducedMotion && isFetching && !isFetchingNextPage ? 0.7 : 1,
         }}
         role="feed"
         aria-label="Confessions feed"
+        data-reduced-motion={prefersReducedMotion ? "true" : "false"}
       >
         {virtualItems.map((virtualItem) => {
           const confession = visibleConfessions[virtualItem.index];
@@ -278,6 +357,9 @@ const ConfessionFeedBody = ({
               key={confession.id}
               ref={virtualizer.measureElement}
               data-index={virtualItem.index}
+              // Marks the item as a scroll anchor so the feed can be restored
+              // to the same confession after the contents have been refreshed.
+              data-scroll-anchor={confession.id}
               className="absolute inset-x-0 top-0 pb-5"
               style={{
                 transform: `translateY(${virtualItem.start}px)`,
@@ -293,7 +375,7 @@ const ConfessionFeedBody = ({
       </div>
 
       {!preview && <div ref={loadMoreRef} className="flex justify-center py-6">
-        {isFetchingNextPage && (
+        {isPaginationLoading && (
           <div className="flex items-center gap-2 text-sm text-[var(--secondary)]">
             <svg
               className="h-4 w-4 animate-spin"
@@ -329,7 +411,7 @@ const ConfessionFeedBody = ({
         <button
           type="button"
           onClick={scrollToTop}
-          className="fixed bottom-5 right-4 z-40 flex h-11 w-11 items-center justify-center rounded-full bg-[var(--primary)] text-white shadow-lg transition-all hover:-translate-y-1 hover:bg-[var(--primary-deep)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)] sm:bottom-8 sm:right-8"
+          className="fixed bottom-5 right-4 z-40 flex h-11 w-11 items-center justify-center rounded-full bg-[var(--primary)] text-white shadow-[var(--shadow-popover)] transition-all hover:bg-[var(--primary-deep)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)] sm:bottom-8 sm:right-8"
           aria-label="Scroll to top"
         >
           <ArrowUp className="h-5 w-5" aria-hidden="true" />

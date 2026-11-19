@@ -1,5 +1,9 @@
 import { expect, Page, test } from "@playwright/test";
-import type { Notification, NotificationType, PaginatedNotifications } from "@/app/types/notifications";
+import {
+  NotificationType,
+  type Notification,
+  type PaginatedNotifications,
+} from "@/app/types/notifications";
 
 const WS_ABORT_PATTERNS = ["**/socket.io/**"];
 
@@ -115,6 +119,14 @@ async function mockNotificationCenter(
 }
 
 test.describe("Notification center visual regression", () => {
+  async function expectNoHorizontalOverflow(page: Page) {
+    const dimensions = await page.evaluate(() => ({
+      clientWidth: document.documentElement.clientWidth,
+      scrollWidth: document.documentElement.scrollWidth,
+    }));
+    expect(dimensions.scrollWidth).toBeLessThanOrEqual(dimensions.clientWidth);
+  }
+
   test("empty state (desktop)", async ({ page }) => {
     await mockNotificationCenter(page, "empty");
 
@@ -133,6 +145,7 @@ test.describe("Notification center visual regression", () => {
 
     await expect(page.getByText("2 unread notifications")).toBeVisible();
     await expect(page.getByRole("button", { name: "Mark all read" })).toBeVisible();
+    await expectNoHorizontalOverflow(page);
 
     await expect(page).toHaveScreenshot("notification-center-unread.png", {
       animations: "disabled",
@@ -144,6 +157,7 @@ test.describe("Notification center visual regression", () => {
     await mockNotificationCenter(page, "unread");
 
     await expect(page.getByText("2 unread notifications")).toBeVisible();
+    await expectNoHorizontalOverflow(page);
 
     await expect(page).toHaveScreenshot("notification-center-unread-mobile.png", {
       animations: "disabled",

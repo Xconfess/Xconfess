@@ -1,7 +1,7 @@
 import { Type } from 'class-transformer';
 import { IsInt, IsOptional, Max, Min } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { PAGINATION } from './pagination.constants';
+import { PAGINATION, PAGINATION_MESSAGES } from './pagination.constants';
 
 /**
  * Extend this class in every list-endpoint DTO that needs page/limit params.
@@ -15,13 +15,17 @@ export class PaginationDto {
     description: '1-indexed page number.',
     default: PAGINATION.DEFAULT_PAGE,
     minimum: PAGINATION.MIN_PAGE,
+    maximum: PAGINATION.MAX_PAGE,
     example: 1,
   })
   @IsOptional()
   @Type(() => Number)
-  @IsInt({ message: 'page must be an integer.' })
+  @IsInt({ message: PAGINATION_MESSAGES.PAGE_INTEGER })
   @Min(PAGINATION.MIN_PAGE, {
-    message: `page must be at least ${PAGINATION.MIN_PAGE}.`,
+    message: PAGINATION_MESSAGES.PAGE_MIN,
+  })
+  @Max(PAGINATION.MAX_PAGE, {
+    message: PAGINATION_MESSAGES.PAGE_MAX,
   })
   page?: number = PAGINATION.DEFAULT_PAGE;
 
@@ -34,12 +38,12 @@ export class PaginationDto {
   })
   @IsOptional()
   @Type(() => Number)
-  @IsInt({ message: 'limit must be an integer.' })
+  @IsInt({ message: PAGINATION_MESSAGES.LIMIT_INTEGER })
   @Min(PAGINATION.MIN_LIMIT, {
-    message: `limit must be at least ${PAGINATION.MIN_LIMIT}.`,
+    message: PAGINATION_MESSAGES.LIMIT_MIN,
   })
   @Max(PAGINATION.MAX_LIMIT, {
-    message: `limit must not exceed ${PAGINATION.MAX_LIMIT}.`,
+    message: PAGINATION_MESSAGES.LIMIT_MAX,
   })
   limit?: number = PAGINATION.DEFAULT_LIMIT;
 }

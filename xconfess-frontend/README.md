@@ -21,6 +21,9 @@ Next.js 16 App Router frontend for xConfess.
 
 ## Local Development
 
+For startup, backend connectivity, service-worker, and environment troubleshooting,
+see the [frontend development troubleshooting guide](./TROUBLESHOOTING.md).
+
 From the repo root:
 
 ```bash
@@ -89,6 +92,24 @@ cp .env.example .env.local
 | `NEXT_PUBLIC_DEBUG_NOTIFICATIONS` | `false` | Verbose notification logs in the browser. |
 | `NEXT_PUBLIC_ENABLE_DEV_MOCK_ADMIN_LOGIN` | `false` | Show mock admin login button (dev only). |
 | `NEXT_PUBLIC_ERROR_TRACKING_URL` | — | Error tracking ingest URL (e.g. Sentry). |
+
+Development auth flags are rejected by the Next.js config during production
+builds. To run the automated environment-combination and config checks:
+
+```bash
+npm run frontend:env:test
+```
+
+To reproduce a fail-closed production build locally, set either development
+auth flag to `true`:
+
+```bash
+npx cross-env NODE_ENV=production NEXT_PUBLIC_DEV_BYPASS_AUTH=true npm run frontend:build
+npx cross-env NODE_ENV=production NEXT_PUBLIC_ENABLE_DEV_MOCK_ADMIN_LOGIN=true npm run frontend:build
+```
+
+Each build must stop with an error naming the enabled flag. Never put secrets in
+these flags or in test fixtures.
 
 > **Note:** `BACKEND_URL` is not a valid variable in this project. All proxy routes use `BACKEND_API_URL` via `getApiBaseUrl()` in `app/lib/config.ts`. The resolver accepts either `http://localhost:5000` or `http://localhost:5000/api`, but `.env.example` uses the explicit `/api` form so route construction is obvious. The startup validator (`instrumentation.ts`) warns if `BACKEND_API_URL` is missing, or throws at boot when `STRICT_ENV_VALIDATION=true`.
 

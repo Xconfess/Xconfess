@@ -1,0 +1,99 @@
+name: UI / frontend bug
+description: Report a visual, layout, or interaction defect in the web frontend.
+title: "[UI] "
+labels: ["frontend", "bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a UI bug. Please fill in every section so a
+        contributor can reproduce the problem without needing extra context.
+
+        **Do not paste sensitive information** — no tokens, passwords, private
+        messages, wallet seed phrases, personal data, or internal URLs. Screenshots
+        may be attached, but blur or crop anything private first.
+
+  - type: input
+    id: page
+    attributes:
+      label: Page / route
+      description: Where does the bug happen? Use the route or screen name, not a private URL.
+      placeholder: "/feed" or "Confession detail page"
+    validations:
+      required: true
+
+  - type: input
+    id: browser
+    attributes:
+      label: Browser and version
+      description: Exact browser where the bug appears.
+      placeholder: "Chrome 140, Firefox 142, Safari 18, Edge 140, ..."
+    validations:
+      required: true
+
+  - type: input
+    id: viewport
+    attributes:
+      label: Viewport size
+      description: Window size or device preset (open dev tools → responsive mode if unsure).
+      placeholder: "1440x900 desktop" or "390x844 iPhone 14"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - Windows
+        - macOS
+        - Linux
+        - iOS
+        - Android
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Minimal numbered steps starting from a clean state.
+      placeholder: |
+        1. Open the feed while signed out
+        2. Click the "Load more" button
+        3. Resize the window to 390px wide
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What should happen instead.
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: What actually happens, including any console errors (copy text, not just a screenshot).
+    validations:
+      required: true
+
+  - type: textarea
+    id: screenshot
+    attributes:
+      label: Screenshots or screen recording
+      description: >
+        Optional but encouraged. Attach images by dragging them into this box.
+        Redact or crop any sensitive information before uploading — never include
+        credentials, tokens, private messages, or personal data.
+      placeholder: Drag and drop images here, or describe the visual defect in words.
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional context
+      description: Anything else that might help — regression range, related issues, workarounds.

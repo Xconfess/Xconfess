@@ -12,7 +12,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User, UserRole } from './entities/user.entity';
 import * as bcrypt from 'bcryptjs';
-import { UpdateUserProfileDto } from './dto/updateProfile.dto';
+import { UpdateUserProfileDto } from './dto/update-profile.dto';
 import {
   PrivacySettingsResponseDto,
   UpdatePrivacySettingsDto,
@@ -339,54 +339,6 @@ export class UserService {
     }
   }
 
-  async setRecoveryCodes(userId: number, encrypted: string, iv: string, tag: string): Promise<void> {
-    const user = await this.findById(userId);
-    if (!user) throw new NotFoundException('User not found');
-    user.recoveryCodesEncrypted = encrypted;
-    user.recoveryCodesIv = iv;
-    user.recoveryCodesTag = tag;
-    try {
-      await this.userRepository.save(user);
-    } catch (e) {
-      throw new InternalServerErrorException('Failed to set recovery codes');
-    }
-  }
-
-  async consumeRecoveryCode(userId: number, code: string): Promise<boolean> {
-    const user = await this.findById(userId);
-    if (!user) throw new NotFoundException('User not found');
-    if (!user.recoveryCodesEncrypted) return false;
-
-    const { CryptoUtil } = require('../common/crypto.util');
-    let codes: string[] = [];
-    try {
-      const decrypted = CryptoUtil.decrypt(
-        user.recoveryCodesEncrypted,
-        user.recoveryCodesIv || '',
-        user.recoveryCodesTag || '',
-      );
-      codes = JSON.parse(decrypted) as string[];
-    } catch (e) {
-      return false;
-    }
-
-    const idx = codes.indexOf(code);
-    if (idx === -1) return false;
-
-    codes.splice(idx, 1);
-
-    try {
-      const enc = CryptoUtil.encrypt(JSON.stringify(codes));
-      user.recoveryCodesEncrypted = enc.encrypted;
-      user.recoveryCodesIv = enc.iv;
-      user.recoveryCodesTag = enc.tag;
-      await this.userRepository.save(user);
-      return true;
-    } catch (e) {
-      return false;
-    }
-  }
-
   async getProfileSummary(userId: number, page = 1, limit = 10): Promise<any> {
     const user = await this.findById(userId);
     if (!user) throw new NotFoundException('User not found');
@@ -662,6 +614,8 @@ export class UserService {
       .andWhere('confessions.isDeleted = false')
       .andWhere('confessions.isHidden = false')
       .orderBy('confessions.created_at', 'DESC')
+      // created_at ties are common; id keeps this feed page-stable (#2118)
+      .addOrderBy('confessions.id', 'DESC')
       .skip(skip)
       .take(limit)
       .getManyAndCount();
@@ -763,7 +717,7 @@ export class UserService {
         FROM reports rep
         WHERE rep."reporterId" = $1
       ) activity
-        ORDER BY "createdAt" DESC
+        ORDER BY "createdAt" DESC, type ASC, id ASC
         LIMIT $2 OFFSET $3
         `,
         [userId, limit, offset],

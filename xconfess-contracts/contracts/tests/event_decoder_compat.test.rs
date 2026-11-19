@@ -121,6 +121,21 @@ fn schema_drift_guard() {
             "tip_pause",
             &["actor", "paused", "reason", "timestamp"][..],
         ),
+        ("pause", "PausedEvent", "paused", &["reason"][..]),
+        ("pause", "UnpausedEvent", "unpaused", &["reason"][..]),
+        (
+            "pause",
+            "PauseStateChangedEvent",
+            "pause_state_changed",
+            &[
+                "event_version",
+                "actor",
+                "reason",
+                "nonce",
+                "paused",
+                "timestamp",
+            ][..],
+        ),
         (
             "report",
             "ReportEvent",
@@ -285,6 +300,10 @@ fn schema_drift_guard() {
         assert_eq!(&fixture.topic, topic);
         assert_eq!(fixture.event_version, EVENT_VERSION_V1);
         assert_eq!(fixture.field_order, *field_order);
+        assert!(
+            fixture.event_version == EVENT_VERSION_V1
+                || fixture.event_version == EVENT_VERSION_V2
+        );
         assert_eq!(decode_event_fixture_schema(fixture).unwrap(), *fixture);
     }
 }
@@ -315,10 +334,11 @@ fn public_event_fixture_categories_are_complete() {
 #[test]
 fn fixture_decoder_rejects_unsupported_event_versions() {
     let mut fixture = PUBLIC_EVENT_SCHEMA_FIXTURES[0];
-    fixture.event_version = EVENT_VERSION_V1 + 1;
+    let unsupported = EVENT_VERSION_V2 + 1;
+    fixture.event_version = unsupported;
 
     assert_eq!(
         decode_event_fixture_schema(&fixture),
-        Err(EventDecodeError::UnsupportedEventVersion(EVENT_VERSION_V1 + 1))
+        Err(EventDecodeError::UnsupportedEventVersion(unsupported))
     );
 }

@@ -75,3 +75,42 @@ Clients receive the correlation ID and reason code in the HTTP 401 response body
 - Browser smoke validation, when needed, should connect from the configured
   frontend origin and then repeat from a non-allowed origin to confirm the
   Socket.IO CORS rejection appears in the browser console/network panel.
+
+## WebSocket Disconnect Rate Alerting
+
+Real-time service degradation is tracked through aggregate disconnect and reconnect metrics without storing user identifiers.
+
+### Aggregate Metrics
+
+- `totalDisconnects`: Total cumulative disconnect count.
+- `totalReconnects`: Total cumulative reconnect count.
+- `recentDisconnectCount`: Count of disconnects in the sliding window.
+- `recentReconnectCount`: Count of reconnects in the sliding window.
+- `disconnectRatePerMinute`: Normalized disconnect rate per minute.
+- `sustainedRateExceeded`: Boolean indicating whether recent disconnect count meets or exceeds threshold.
+
+### Configuration
+
+- `WS_DISCONNECT_WINDOW_SECONDS` (default: `60`): Window duration for sustained rate calculation.
+- `WS_DISCONNECT_RATE_THRESHOLD` (default: `10`): Number of disconnects in the window that triggers an alert.
+
+### Alert Event Structure (`WS_SUSTAINED_DISCONNECT_RATE`)
+
+When the disconnect rate exceeds the configured threshold within the window, a structured warning is emitted:
+
+```json
+{
+  "event": "WS_SUSTAINED_DISCONNECT_RATE",
+  "disconnectCount": 12,
+  "windowSeconds": 60,
+  "threshold": 10,
+  "reconnectCount": 1,
+  "msg": "High sustained WebSocket disconnect rate detected: 12 disconnects in 60s (threshold: 10)"
+}
+```
+
+All metric labels and alert payloads strictly exclude user identifiers (`userId`, username, emails, IP addresses, credentials) to prevent data leakage.
+
+## Related Documentation
+
+- [WebSocket Event Contracts & Authorization](websocket-events-and-authorization.md) — Comprehensive reference of event names, payload schemas, and room subscription lifecycles.

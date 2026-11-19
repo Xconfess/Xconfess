@@ -79,10 +79,10 @@ function buildSteps(props: AnchorTimelineProps): TimelineStep[] {
 function StepDot({ step }: { step: TimelineStep }) {
   const dotClass = cn(
     "relative z-10 flex h-6 w-6 items-center justify-center rounded-full border-2 transition-colors",
-    step.state === "done" && "border-green-500 bg-green-500 text-white",
-    step.state === "active" && "border-blue-500 bg-blue-500 text-white",
-    step.state === "pending" && "border-zinc-600 bg-zinc-800 text-zinc-500",
-    step.state === "error" && "border-red-500 bg-red-500 text-white",
+    step.state === "done" && "border-[var(--success)]/30 bg-[var(--success)] text-white",
+    step.state === "active" && "border-[var(--accent-border)] bg-[var(--primary)] text-white",
+    step.state === "pending" && "border-[var(--accent-border)] bg-[var(--surface-muted)] text-[var(--text-muted)]",
+    step.state === "error" && "border-[var(--danger)]/30 bg-[var(--danger)] text-white",
   );
 
   return (
@@ -94,7 +94,7 @@ function StepDot({ step }: { step: TimelineStep }) {
       {step.state === "active" && step.key !== "submitted" && (
         <Clock className="h-3 w-3" aria-hidden="true" />
       )}
-      {step.state === "pending" && <div className="h-2 w-2 rounded-full bg-zinc-600" aria-hidden="true" />}
+      {step.state === "pending" && <div className="h-2 w-2 rounded-full bg-[var(--text-muted)]" aria-hidden="true" />}
       {step.state === "error" && <XCircle className="h-3 w-3" aria-hidden="true" />}
     </div>
   );
@@ -136,7 +136,7 @@ export function AnchorTimeline({
                 <div
                   className={cn(
                     "ml-0 h-full w-0.5 transition-colors",
-                    isConnectorActive ? "bg-blue-500" : "bg-zinc-700",
+                    isConnectorActive ? "bg-[var(--primary)]" : "bg-[var(--surface-elevated)]",
                   )}
                   aria-hidden="true"
                 />
@@ -146,23 +146,23 @@ export function AnchorTimeline({
               <p
                 className={cn(
                   "text-sm font-medium",
-                  step.state === "done" && "text-zinc-300",
-                  step.state === "active" && "text-white",
-                  step.state === "pending" && "text-zinc-500",
-                  step.state === "error" && "text-red-400",
+                  step.state === "done" && "text-[var(--secondary)]",
+                  step.state === "active" && "text-[var(--foreground)]",
+                  step.state === "pending" && "text-[var(--text-muted)]",
+                  step.state === "error" && "text-[var(--danger)]",
                 )}
               >
                 {step.label}
               </p>
 
               {step.state === "active" && step.key === "submitted" && (
-                <p className="mt-0.5 text-xs text-zinc-400">
+                <p className="mt-0.5 text-xs text-[var(--text-muted)]">
                   Transaction submitted to the Stellar network
                 </p>
               )}
 
               {step.state === "active" && step.key === "requested" && (
-                <p className="mt-0.5 text-xs text-zinc-400">
+                <p className="mt-0.5 text-xs text-[var(--text-muted)]">
                   Preparing anchor transaction...
                 </p>
               )}
@@ -172,7 +172,7 @@ export function AnchorTimeline({
                   href={getStellarExplorerUrl(step.txHash) ?? "#"}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="mt-0.5 inline-flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 rounded"
+                  className="mt-0.5 inline-flex items-center gap-1 text-xs text-[var(--primary-deep)] hover:text-[var(--primary-deep)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] rounded"
                   aria-label="View transaction on Stellar explorer (opens in a new tab)"
                 >
                   <ExternalLink className="h-3 w-3" aria-hidden="true" />
@@ -183,9 +183,9 @@ export function AnchorTimeline({
               {step.state === "error" && (
                 <div className="mt-1 space-y-1" role="alert">
                   {step.error ? (
-                    <p className="text-xs text-red-400">{step.error}</p>
+                    <p className="text-xs text-[var(--danger)]">{step.error}</p>
                   ) : (
-                    <p className="text-xs text-zinc-400">
+                    <p className="text-xs text-[var(--text-muted)]">
                       Anchor confirmation failed
                     </p>
                   )}
@@ -193,14 +193,14 @@ export function AnchorTimeline({
                     <button
                       type="button"
                       onClick={step.onRetry}
-                      className="inline-flex items-center gap-1 text-xs font-medium text-amber-400 hover:text-amber-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 rounded px-1 py-0.5"
+                      className="inline-flex items-center gap-1 text-xs font-medium text-[var(--warning)] hover:text-[var(--warning)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] rounded px-1 py-0.5"
                       aria-label="Retry anchoring transaction"
                     >
                       <RotateCcw className="h-3 w-3" aria-hidden="true" />
                       Retry anchoring
                     </button>
                   ) : (
-                    <p className="text-xs text-zinc-500">
+                    <p className="text-xs text-[var(--text-muted)]">
                       Try connecting your wallet and anchoring again.
                     </p>
                   )}

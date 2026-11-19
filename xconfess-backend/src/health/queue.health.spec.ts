@@ -79,11 +79,12 @@ describe('QueueHealthIndicator', () => {
         const result = await indicator.isHealthy('queues');
         expect(result.queues.status).toBe('up');
         expect(result.queues).toMatchObject({
-          mode: 'disabled',
-          severity: 'info',
+          state: 'disabled',
+          dependency: 'queues',
+          details: { severity: 'info' },
         });
-        expect(result.queues.reason).toContain('"false"');
-        expect(result.queues.reason).toContain('intentionally disabled');
+        expect(result.queues.details.reason).toContain('"false"');
+        expect(result.queues.details.reason).toContain('intentionally disabled');
       });
     });
 
@@ -97,11 +98,12 @@ describe('QueueHealthIndicator', () => {
         const result = await indicator.isHealthy('queues');
         expect(result.queues.status).toBe('up');
         expect(result.queues).toMatchObject({
-          mode: 'disabled',
-          severity: 'info',
+          state: 'disabled',
+          dependency: 'queues',
+          details: { severity: 'info' },
         });
-        expect(result.queues.reason).toContain('not set');
-        expect(result.queues.reason).toContain('defaults to disabled');
+        expect(result.queues.details.reason).toContain('not set');
+        expect(result.queues.details.reason).toContain('defaults to disabled');
       });
     });
 
@@ -115,11 +117,12 @@ describe('QueueHealthIndicator', () => {
         const result = await indicator.isHealthy('queues');
         expect(result.queues.status).toBe('up');
         expect(result.queues).toMatchObject({
-          mode: 'disabled',
-          severity: 'info',
+          state: 'disabled',
+          dependency: 'queues',
+          details: { severity: 'info' },
         });
-        expect(result.queues.reason).toContain('"yes"');
-        expect(result.queues.reason).toContain('expected "true"');
+        expect(result.queues.details.reason).toContain('"yes"');
+        expect(result.queues.details.reason).toContain('expected "true"');
       });
     });
 
@@ -129,10 +132,10 @@ describe('QueueHealthIndicator', () => {
 
       const result = await indicator.isHealthy('queues');
       // Per-queue details must not be present when disabled
-      expect(result.queues['notifications']).toBeUndefined();
-      expect(result.queues['notifications-dlq']).toBeUndefined();
-      expect(result.queues['export-queue']).toBeUndefined();
-      expect(result.queues['confession-draft-publisher']).toBeUndefined();
+      expect(result.queues.details.queues?.['notifications']).toBeUndefined();
+      expect(result.queues.details.queues?.['notifications-dlq']).toBeUndefined();
+      expect(result.queues.details.queues?.['export-queue']).toBeUndefined();
+      expect(result.queues.details.queues?.['confession-draft-publisher']).toBeUndefined();
     });
   });
 
@@ -146,7 +149,7 @@ describe('QueueHealthIndicator', () => {
       it('returns up with per-queue worker and count details', async () => {
         const result = await indicator.isHealthy('queues');
         expect(result.queues.status).toBe('up');
-        expect(result.queues['notifications']).toMatchObject({
+        expect(result.queues.details.queues?.['notifications']).toMatchObject({
           status: 'up',
           workers: 1,
         });
@@ -155,7 +158,7 @@ describe('QueueHealthIndicator', () => {
       it('does not include disabled mode fields when enabled', async () => {
         const result = await indicator.isHealthy('queues');
         expect(result.queues.mode).toBeUndefined();
-        expect(result.queues.reason).toBeUndefined();
+        expect(result.queues.details.reason).toBeUndefined();
         expect(result.queues.severity).toBeUndefined();
       });
     });
@@ -185,9 +188,9 @@ describe('QueueHealthIndicator', () => {
           expect(err).toBeInstanceOf(HealthCheckError);
           const causes = (err as HealthCheckError).causes as Record<
             string,
-            Record<string, unknown>
+            Record<string, any>
           >;
-          expect(causes['queues']['notifications']).toMatchObject({
+          expect(causes['queues'].details.queues['notifications']).toMatchObject({
             status: 'down',
             workers: 0,
           });
@@ -209,7 +212,7 @@ describe('QueueHealthIndicator', () => {
       it('remains healthy — DLQ does not require workers', async () => {
         const result = await indicator.isHealthy('queues');
         expect(result.queues.status).toBe('up');
-        expect(result.queues['notifications-dlq']).toMatchObject({
+        expect(result.queues.details.queues?.['notifications-dlq']).toMatchObject({
           status: 'up',
           workers: 0,
         });
@@ -259,7 +262,7 @@ describe('QueueHealthIndicator', () => {
 
       it('includes counts in the healthy result', async () => {
         const result = await indicator.isHealthy('queues');
-        expect(result.queues['notifications']).toMatchObject({
+        expect(result.queues.details.queues?.['notifications']).toMatchObject({
           counts: { active: 3, waiting: 10, failed: 1, delayed: 0 },
         });
       });
@@ -286,7 +289,7 @@ describe('QueueHealthIndicator', () => {
 
         const result = await indicator.isHealthy('queues');
         expect(result.queues.status).toBe('up');
-        expect(result.queues['notifications']).toMatchObject({
+        expect(result.queues.details.queues?.['notifications']).toMatchObject({
           status: 'up',
           latencyMs: 10,
         });
@@ -326,11 +329,11 @@ describe('QueueHealthIndicator', () => {
             string,
             Record<string, any>
           >;
-          expect(causes['queues']['notifications']).toMatchObject({
+          expect(causes['queues'].details.queues['notifications']).toMatchObject({
             status: 'degraded',
             latencyMs: 300,
           });
-          expect(causes['queues']['notifications-dlq']).toMatchObject({
+          expect(causes['queues'].details.queues['notifications-dlq']).toMatchObject({
             status: 'up',
             latencyMs: 10,
           });
@@ -359,9 +362,10 @@ describe('QueueHealthIndicator', () => {
             string,
             Record<string, any>
           >;
-          expect(causes['queues']['notifications']).toMatchObject({
+          expect(causes['queues'].details.queues['notifications']).toMatchObject({
             status: 'down',
-            error: 'Connection timeout',
+            errorCode: 'TIMEOUT',
+            error: 'check timed out',
           });
         }
       });

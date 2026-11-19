@@ -18,7 +18,7 @@ export class StellarValidator {
       throw new BadRequestException(`${fieldName} cannot be empty`);
     }
 
-    if (!StellarSDK.Keypair.isValidPublicKey(trimmed)) {
+    if (!StellarSDK.StrKey.isValidEd25519PublicKey(trimmed)) {
       throw new BadRequestException(
         `Invalid ${fieldName}. Expected a valid Stellar public key (G-prefixed, 56 characters).`,
       );
@@ -48,7 +48,7 @@ export class StellarValidator {
     }
 
     try {
-      const decoded = StellarSDK.StrKey.decodeContractId(trimmed);
+      const decoded = StellarSDK.StrKey.decodeContract(trimmed);
       if (!decoded || decoded.length === 0) {
         throw new Error('Decoded contract ID is empty');
       }

@@ -12,9 +12,12 @@ import { RequestIdMiddleware } from './middleware/request-id.middleware';
 import { WebSocketAdapter } from './websocket/websocket.adapter';
 import { AppLogger } from './logger/logger.service';
 import { configureRequestBodyParsing } from './common/request-body-limits';
+import { buildCorsOptions } from './config/cors.config';
 import { GracefulShutdownService } from './common/graceful-shutdown.service';
 import { Queue } from 'bullmq';
 import { getQueueToken } from '@nestjs/bullmq';
+import { NotificationProcessor } from './notifications/processors/notification.processor';
+import { ExportProcessor } from './data-export/export.processor';
 
 import {
   cookieParserMiddleware,
@@ -54,17 +57,16 @@ async function bootstrap() {
     }),
   );
 
-  // â”€â”€ 3. CORS â€” one allowed origin derived from config â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  //    Both HTTP and the WebSocket adapter read FRONTEND_URL so there is a
-  //    single documented source of truth for allowed origins.
-  const frontendUrl =
-    configService.get<string>('FRONTEND_URL') || 'http://localhost:3000';
-
-  app.enableCors({
-    origin: frontendUrl,
-    credentials: true,
-    methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
-  });
+  // ── 3. CORS — explicit origin allowlist ───────────────────────────────────
+  //    `CORS_ALLOWED_ORIGINS` (comma-separated) wins over the single
+  //    `FRONTEND_URL` default. Wildcards are rejected at startup because
+  //    credentialed requests are enabled.
+  app.enableCors(
+    buildCorsOptions({
+      corsAllowedOrigins: configService.get<string>('CORS_ALLOWED_ORIGINS'),
+      frontendUrl: configService.get<string>('FRONTEND_URL'),
+    }),
+  );
 
   // â”€â”€ 4. WebSocket adapter â€” reads the same FRONTEND_URL â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   app.useWebSocketAdapter(new WebSocketAdapter(app, configService));
@@ -81,7 +83,6 @@ async function bootstrap() {
       threshold: 1024,
     }),
   );
-
 
   // ── 6. Cookie parser (required by csurf) ────────────────────────────────────
   app.use(cookieParserMiddleware);
@@ -159,7 +160,7 @@ async function bootstrap() {
     SwaggerModule.setup('api/docs', app, document);
   }
 
-const port = configService.get<number>('app.port', 3000);
+  const port = configService.get<number>('app.port', 3000);
   await app.listen(port);
 
   // â”€â”€ Startup Summary â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -169,15 +170,15 @@ const port = configService.get<number>('app.port', 3000);
   const dbPort = configService.get<number>('DB_PORT', 55432);
   const redisHost = configService.get<string>('REDIS_HOST', 'localhost');
   const redisPort = configService.get<number>('REDIS_PORT', 6379);
-  const backgroundJobMode = configService.get<string>('ENABLE_BACKGROUND_JOBS', 'false');
-  
-  logger.log(
-    `ðŸš€ Application started successfully`,
-    'Bootstrap'
+  const backgroundJobMode = configService.get<string>(
+    'ENABLE_BACKGROUND_JOBS',
+    'false',
   );
+
+  logger.log(`ðŸš€ Application started successfully`, 'Bootstrap');
   logger.log(
     `Environment: ${env} | Port: ${port} | DB: ${dbHost}:${dbPort} | Redis: ${redisHost}:${redisPort} | Background Jobs: ${backgroundJobMode}`,
-    'Bootstrap'
+    'Bootstrap',
   );
 
   // Register queues with graceful shutdown service
@@ -198,10 +199,18 @@ const port = configService.get<number>('app.port', 3000);
       // Queue not registered, skip
     }
   }
+  for (const processor of [NotificationProcessor, ExportProcessor]) {
+    try {
+      const instance = app.get(processor, { strict: false });
+      if (instance?.worker) gracefulShutdown.registerWorker(instance.worker);
+    } catch {
+      // Worker is not registered when background processing is disabled.
+    }
+  }
 
   // Set up event listeners for shutdown coordination
   const eventEmitter = app.get(require('@nestjs/event-emitter').EventEmitter2);
-  
+
   eventEmitter.on('graceful-shutdown:close-database', async () => {
     try {
       const dataSource = app.get(require('@nestjs/typeorm').DataSource);
@@ -209,35 +218,46 @@ const port = configService.get<number>('app.port', 3000);
         await dataSource.destroy();
       }
     } catch (error) {
-      logger.error(`Error closing database: ${error instanceof Error ? error.message : String(error)}`);
+      logger.error(
+        `Error closing database: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
     eventEmitter.emit('graceful-shutdown:database-closed');
   });
 
   eventEmitter.on('graceful-shutdown:close-redis', async () => {
     try {
-      const cacheManager = app.get(require('@nestjs/cache-manager').CACHE_MANAGER);
+      const cacheManager = app.get(
+        require('@nestjs/cache-manager').CACHE_MANAGER,
+      );
       if (cacheManager?.store?.client?.quit) {
         await cacheManager.store.client.quit();
       } else if (cacheManager?.store?.quit) {
         await cacheManager.store.quit();
       }
     } catch (error) {
-      logger.error(`Error closing Redis: ${error instanceof Error ? error.message : String(error)}`);
+      logger.error(
+        `Error closing Redis: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
     eventEmitter.emit('graceful-shutdown:redis-closed');
   });
 
   // Handle WebSocket drain
   eventEmitter.on('graceful-shutdown:drain-websockets', () => {
-    const wsAdapter = app.get(require('./websocket/websocket.adapter').WebSocketAdapter);
+    const wsAdapter = app.get(
+      require('./websocket/websocket.adapter').WebSocketAdapter,
+    );
     if (wsAdapter && typeof wsAdapter.closeAllConnections === 'function') {
       wsAdapter.closeAllConnections().then(() => {
         eventEmitter.emit('graceful-shutdown:websockets-drained');
       });
     } else {
       // Fallback: emit drained after a short delay
-      setTimeout(() => eventEmitter.emit('graceful-shutdown:websockets-drained'), 100);
+      setTimeout(
+        () => eventEmitter.emit('graceful-shutdown:websockets-drained'),
+        100,
+      );
     }
   });
 

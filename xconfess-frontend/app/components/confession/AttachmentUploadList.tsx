@@ -44,13 +44,16 @@ export function AttachmentUploadList({ uploads, onCancel, onRetry }: AttachmentU
             >
               <div
                 className={`h-full rounded-full transition-all ${
-                  upload.status === "error" ? "bg-red-400" : "bg-[var(--primary)]"
+                  upload.status === "error" ? "bg-[var(--danger)]" : "bg-[var(--primary)]"
                 }`}
                 style={{ width: `${upload.status === "error" ? 100 : upload.progress}%` }}
               />
             </div>
 
-            <p className="mt-1 text-xs text-[var(--secondary)]">
+            <p
+              className="mt-1 text-xs text-[var(--secondary)]"
+              role={upload.rejected ? "alert" : undefined}
+            >
               {upload.status === "uploading" && `Uploading... ${upload.progress}%`}
               {upload.status === "pending" && "Waiting to upload..."}
               {upload.status === "success" && "Uploaded"}
@@ -59,7 +62,7 @@ export function AttachmentUploadList({ uploads, onCancel, onRetry }: AttachmentU
           </div>
 
           <div className="flex shrink-0 gap-1">
-            {upload.status === "error" && (
+            {upload.status === "error" && !upload.rejected && (
               <button
                 type="button"
                 onClick={() => onRetry(upload.id)}

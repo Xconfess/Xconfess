@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Message } from '../entities/message.entity';
+import { Message, MessageDeliveryStatus } from '../entities/message.entity';
 
 export type ThreadViewerRole = 'AUTHOR' | 'SENDER';
 
@@ -38,5 +38,49 @@ export class MessageRepository {
       .andWhere('"hasReply" = :hasReply', { hasReply: true })
       .andWhere('"senderReadAt" IS NULL')
       .execute();
+  }
+
+  /**
+   * Mark messages as delivered for a specific recipient (sender-side).
+   * Idempotent: only updates messages that are still in SENT state.
+   */
+  async markMessagesDelivered(
+    confessionId: string,
+    senderId: string,
+  ): Promise<number> {
+    const result = await this.messageRepository
+      .createQueryBuilder()
+      .update(Message)
+      .set({
+        deliveryStatus: MessageDeliveryStatus.DELIVERED,
+        deliveredAt: () => 'CURRENT_TIMESTAMP',
+      })
+      .where('"confessionId" = :confessionId', { confessionId })
+      .andWhere('"senderId" = :senderId', { senderId })
+      .andWhere('"deliveryStatus" = :status', { status: MessageDeliveryStatus.SENT })
+      .execute();
+    return result.affected ?? 0;
+  }
+
+  /**
+   * Mark messages as read for a specific recipient (sender-side).
+   * Idempotent: only updates messages that are not yet read.
+   */
+  async markMessagesRead(
+    confessionId: string,
+    senderId: string,
+  ): Promise<number> {
+    const result = await this.messageRepository
+      .createQueryBuilder()
+      .update(Message)
+      .set({
+        deliveryStatus: MessageDeliveryStatus.READ,
+        readAt: () => 'CURRENT_TIMESTAMP',
+      })
+      .where('"confessionId" = :confessionId', { confessionId })
+      .andWhere('"senderId" = :senderId', { senderId })
+      .andWhere('"deliveryStatus" != :readStatus', { readStatus: MessageDeliveryStatus.READ })
+      .execute();
+    return result.affected ?? 0;
   }
 }

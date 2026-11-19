@@ -19,6 +19,8 @@ mod access_control;
 mod emergency_pause;
 #[path = "../../error.rs"]
 mod error;
+#[path = "../../event_bounds.rs"]
+pub mod event_bounds;
 #[path = "../../events.rs"]
 pub mod events;
 #[path = "../../governance/mod.rs"]

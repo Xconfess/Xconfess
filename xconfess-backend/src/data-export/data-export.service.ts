@@ -1,3 +1,81 @@
+/**
+ * Data Export Service — Contributor Guide
+ * ========================================
+ *
+ * This service owns the lifecycle of a user-initiated data export. It is the
+ * single source of truth for the API surface, the queue hand-off, and the
+ * generated artifacts. Read this header before changing anything below.
+ *
+ * ## Request lifecycle
+ *
+ * 1. `requestExport(userId)` is called by the controller.
+ *    - Rejects with `ServiceUnavailableException` when
+ *      `ENABLE_BACKGROUND_JOBS !== 'true'` (no Redis / no worker).
+ *    - Rejects with `ConflictException` if a PENDING or PROCESSING export
+ *      already exists for the user (duplicate-submission guard).
+ *    - Rejects with `BadRequestException` if the user requested an export in
+ *      the last 7 days (rate limit).
+ *    - Persists an `ExportRequest` row with `status = 'PENDING'` and stamps
+ *      `queuedAt`, then enqueues a `process-export` job on `EXPORT_QUEUE_NAME`.
+ * 2. The processor picks up the job and calls `markExportProcessing`, which
+ *    flips status to `PROCESSING` and stamps `processingAt`.
+ * 3. `compileUserData(userId)` assembles the payload and applies the redaction
+ *    policy (see "Privacy-safe handling" below).
+ * 4. On success the processor calls `markExportGenerated`, which stores the
+ *    artifact (`fileData`), sets `status = 'READY'`, and stamps `completedAt`.
+ * 5. On failure the processor calls `markExportFailed`, which increments
+ *    `retryCount`, stores `lastFailureReason`, and stamps `failedAt`.
+ * 6. Downloads go through `generateSignedDownloadUrl` → `validateAndConsumeToken`
+ *    → `getExportFile` / `getExportChunk`. Single-file links carry a one-time
+ *    nonce; chunked links are signed but not nonce-gated.
+ * 7. `expireStaleDownloadTokens` (invoked by the cleanup scheduler) nulls any
+ *    unconsumed token past its TTL and stamps `expiredAt`.
+ *
+ * ## Responsibilities by layer
+ *
+ * - **API (`DataExportService` public methods):** validation, rate limiting,
+ *   duplicate detection, signed-URL generation, token consumption, and
+ *   lifecycle status projection (`ExportHistoryItem`, `ExportJobStatus`).
+ *   The API never touches the queue directly — it only enqueues.
+ * - **Queue (`EXPORT_QUEUE_NAME`):** owns retries and backoff. The processor
+ *   is the only caller of `markExportProcessing`, `markExportGenerated`, and
+ *   `markExportFailed`. Do not call these from request handlers.
+ * - **Generated artifacts:** `ExportRequest.fileData` (single file) or
+ *   `ExportChunk` rows (chunked). Artifacts are considered ephemeral and are
+ *   subject to the retention window enforced by `isFileAvailable`.
+ *
+ * ## Local testing
+ *
+ * - Set `ENABLE_BACKGROUND_JOBS=true` and point `REDIS_URL` at a local Redis
+ *   (e.g. `docker run -p 6379:6379 redis:7`) before exercising `requestExport`.
+ * - Unit-test the pure helpers (`buildProgress`, `isFileAvailable`,
+ *   `hasActiveToken`, `hashDownloadToken`, `secureCompare`) without Redis.
+ * - Integration-test the full path by calling `requestExport`, then draining
+ *   the queue with a stub processor that calls `markExportProcessing` and
+ *   `markExportGenerated` directly.
+ * - Verify token replay protection by calling `validateAndConsumeToken` twice
+ *   with the same token — the second call must return `false`.
+ *
+ * ## Cleanup expectations
+ *
+ * - `expireStaleDownloadTokens` runs on a schedule and must be idempotent.
+ * - Cleanup only nulls tokens and stamps `expiredAt`; it does not delete rows.
+ *   Row deletion is out of scope for this service.
+ * - Any new artifact column must be covered by the cleanup path or explicitly
+ *   documented as exempt.
+ *
+ * ## Privacy-safe handling
+ *
+ * - Never log raw `fileData`, tokens, or signatures. Audit events carry IDs and
+ *   metadata only.
+ * - `compileUserData` must route every field through a `redact*ForExport`
+ *   helper. Counterpart identifiers (senders, resolvers, reviewers) are always
+ *   masked with `_reason: 'counterpart_privacy'`.
+ * - Deleted, moderated, and deactivated-user content is masked, never dropped,
+ *   so the export remains a faithful record of what existed.
+ * - `downloadTokenHash` is HMAC'd with `app.appSecret`; never store or return
+ *   the plaintext token.
+ */
 // src/data-export/data-export.service.ts
 import {
   Injectable,
@@ -18,6 +96,7 @@ import { ExportRequest } from './entities/export-request.entity';
 import { ExportChunk } from './entities/export-chunk.entity';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { EXPORT_QUEUE_NAME } from './data-export.constants';
+import { toCsv } from '../utils/output-escape';
 
 export type ExportHistoryStatus =
   | 'PENDING'
@@ -965,9 +1044,6 @@ export class DataExportService {
   }
 
   convertToCsv(data: any[]): string {
-    if (!data || data.length === 0) return '';
-    const headers = Object.keys(data[0]).join(',');
-    const rows = data.map((obj) => Object.values(obj).join(',')).join('\n');
-    return `${headers}\n${rows}`;
+    return toCsv(data);
   }
 }

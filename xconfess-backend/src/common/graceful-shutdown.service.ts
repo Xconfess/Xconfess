@@ -1,8 +1,13 @@
-import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  OnModuleDestroy,
+  OnModuleInit,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { InjectQueue } from '@nestjs/bullmq';
-import { Queue } from 'bullmq';
+import { Queue, Worker } from 'bullmq';
 import { AppLogger } from '../logger/logger.service';
 
 const MONITORED_QUEUES = [
@@ -22,22 +27,26 @@ export class GracefulShutdownService implements OnModuleInit, OnModuleDestroy {
   private shutdownResolver: (() => void) | null = null;
   private readonly shutdownTimeoutMs: number;
   private queues: Map<MonitoredQueueName, Queue> = new Map();
+  private readonly workers: Worker[] = [];
 
   constructor(
     private readonly configService: ConfigService,
     private readonly eventEmitter: EventEmitter2,
     private readonly appLogger: AppLogger,
   ) {
-    this.shutdownTimeoutMs = this.configService.get<number>('GRACEFUL_SHUTDOWN_TIMEOUT_MS') ?? 30_000;
+    this.shutdownTimeoutMs =
+      this.configService.get<number>('GRACEFUL_SHUTDOWN_TIMEOUT_MS') ?? 30_000;
   }
 
   onModuleInit() {
     this.registerSignalHandlers();
   }
 
-  onModuleDestroy() {
+  async onModuleDestroy(): Promise<void> {
     if (!this.isShuttingDown) {
-      this.initiateShutdown('module-destroy');
+      await this.initiateShutdown('module-destroy');
+    } else {
+      await this.waitForShutdown();
     }
   }
 
@@ -47,6 +56,10 @@ export class GracefulShutdownService implements OnModuleInit, OnModuleDestroy {
 
   getQueue(name: MonitoredQueueName): Queue | undefined {
     return this.queues.get(name);
+  }
+
+  registerWorker(worker: Worker): void {
+    if (!this.workers.includes(worker)) this.workers.push(worker);
   }
 
   isShutdownInProgress(): boolean {
@@ -65,12 +78,17 @@ export class GracefulShutdownService implements OnModuleInit, OnModuleDestroy {
 
   async initiateShutdown(reason: string): Promise<void> {
     if (this.isShuttingDown) {
-      this.logger.warn(`Shutdown already in progress (triggered by ${reason}), waiting...`);
+      this.logger.warn(
+        `Shutdown already in progress (triggered by ${reason}), waiting...`,
+      );
       return this.shutdownPromise ?? Promise.resolve();
     }
 
     this.isShuttingDown = true;
-    this.appLogger.log(`Graceful shutdown initiated: ${reason}`, 'GracefulShutdown');
+    this.appLogger.log(
+      `Graceful shutdown initiated: ${reason}`,
+      'GracefulShutdown',
+    );
 
     this.shutdownPromise = new Promise((resolve) => {
       this.shutdownResolver = resolve;
@@ -78,28 +96,44 @@ export class GracefulShutdownService implements OnModuleInit, OnModuleDestroy {
 
     const timeoutPromise = new Promise<void>((_, reject) => {
       setTimeout(() => {
-        reject(new Error(`Graceful shutdown timeout after ${this.shutdownTimeoutMs}ms`));
+        reject(
+          new Error(
+            `Graceful shutdown timeout after ${this.shutdownTimeoutMs}ms`,
+          ),
+        );
       }, this.shutdownTimeoutMs);
     });
 
     try {
       await Promise.race([this.executeShutdown(), timeoutPromise]);
     } catch (error) {
-      this.logger.error(`Graceful shutdown failed: ${error instanceof Error ? error.message : String(error)}`);
-      this.appLogger.error(`Graceful shutdown failed: ${error instanceof Error ? error.message : String(error)}`, 'GracefulShutdown');
+      this.logger.error(
+        `Graceful shutdown failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      this.appLogger.error(
+        `Graceful shutdown failed: ${error instanceof Error ? error.message : String(error)}`,
+        'GracefulShutdown',
+      );
       process.exit(1);
     }
 
     this.logger.log('Graceful shutdown completed successfully');
-    this.appLogger.log('Graceful shutdown completed successfully', 'GracefulShutdown');
+    this.appLogger.log(
+      'Graceful shutdown completed successfully',
+      'GracefulShutdown',
+    );
     this.shutdownResolver?.();
   }
 
   private async executeShutdown(): Promise<void> {
-    this.logger.log('Step 1: Stopping acceptance of new HTTP/WebSocket work...');
+    this.logger.log(
+      'Step 1: Stopping acceptance of new HTTP/WebSocket work...',
+    );
     this.eventEmitter.emit('graceful-shutdown:stop-accepting');
 
-    this.logger.log('Step 2: Waiting for active WebSocket connections to close...');
+    this.logger.log(
+      'Step 2: Waiting for active WebSocket connections to close...',
+    );
     await this.waitForWebSocketDrain();
 
     this.logger.log('Step 3: Closing BullMQ workers and pausing queues...');
@@ -125,7 +159,9 @@ export class GracefulShutdownService implements OnModuleInit, OnModuleDestroy {
       const checkInterval = setInterval(() => {
         if (Date.now() - startTime > drainTimeoutMs) {
           clearInterval(checkInterval);
-          this.logger.warn(`WebSocket drain timeout after ${drainTimeoutMs}ms, proceeding...`);
+          this.logger.warn(
+            `WebSocket drain timeout after ${drainTimeoutMs}ms, proceeding...`,
+          );
           resolve();
           return;
         }
@@ -141,23 +177,79 @@ export class GracefulShutdownService implements OnModuleInit, OnModuleDestroy {
   }
 
   private async closeBullMQWorkers(): Promise<void> {
-    const jobsEnabled = this.configService.get<string>('ENABLE_BACKGROUND_JOBS') === 'true';
+    const jobsEnabled =
+      this.configService.get<string>('ENABLE_BACKGROUND_JOBS') === 'true';
     if (!jobsEnabled) {
-      this.logger.log('Background jobs disabled, skipping BullMQ worker shutdown');
+      this.logger.log(
+        'Background jobs disabled, skipping BullMQ worker shutdown',
+      );
       return;
     }
 
+    // Pause only this process's workers. Queue.pause() is global and would
+    // stop other healthy replicas from consuming the same queue.
+    for (const worker of this.workers) {
+      try {
+        await worker.pause(true);
+      } catch (error) {
+        this.logger.error(
+          `Error pausing BullMQ worker: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+    }
+
+    const configuredDrainTimeout = this.configService.get<number>(
+      'WORKER_DRAIN_TIMEOUT_MS',
+    );
+    const drainTimeoutMs = Math.max(
+      0,
+      configuredDrainTimeout ?? Math.floor(this.shutdownTimeoutMs / 2),
+    );
+    const deadline = Date.now() + drainTimeoutMs;
+    while (Date.now() < deadline) {
+      const activeCounts = await Promise.all(
+        [...this.queues.values()].map((queue) => queue.getActiveCount()),
+      );
+      if (activeCounts.every((count) => count === 0)) break;
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+
+    const remaining = await Promise.all(
+      [...this.queues.entries()].map(async ([name, queue]) => ({
+        name,
+        active: await queue.getActiveCount(),
+      })),
+    );
+    const stillActive = remaining.filter(({ active }) => active > 0);
+    const forceClose = stillActive.length > 0;
+    if (stillActive.length > 0) {
+      this.logger.warn(
+        `Worker drain timeout after ${drainTimeoutMs}ms; active jobs remain in queues: ${stillActive.map(({ name, active }) => `${name}=${active}`).join(', ')}`,
+      );
+    }
+
+    await Promise.all(
+      this.workers.map(async (worker) => {
+        try {
+          await worker.close(forceClose);
+        } catch (error) {
+          this.logger.error(
+            `Error closing BullMQ worker: ${error instanceof Error ? error.message : String(error)}`,
+          );
+        }
+      }),
+    );
+
     for (const [name, queue] of this.queues.entries()) {
       try {
-        this.logger.log(`Pausing queue: ${name}`);
-        await queue.pause();
-
         this.logger.log(`Closing queue: ${name}`);
         await queue.close();
 
         this.logger.log(`Queue ${name} closed successfully`);
       } catch (error) {
-        this.logger.error(`Error closing queue ${name}: ${error instanceof Error ? error.message : String(error)}`);
+        this.logger.error(
+          `Error closing queue ${name}: ${error instanceof Error ? error.message : String(error)}`,
+        );
       }
     }
   }
@@ -177,7 +269,9 @@ export class GracefulShutdownService implements OnModuleInit, OnModuleDestroy {
       });
 
       setTimeout(() => {
-        if (!this.eventEmitter.listenerCount('graceful-shutdown:database-closed')) {
+        if (
+          !this.eventEmitter.listenerCount('graceful-shutdown:database-closed')
+        ) {
           clearTimeout(timeout);
           resolve();
         }
@@ -200,7 +294,9 @@ export class GracefulShutdownService implements OnModuleInit, OnModuleDestroy {
       });
 
       setTimeout(() => {
-        if (!this.eventEmitter.listenerCount('graceful-shutdown:redis-closed')) {
+        if (
+          !this.eventEmitter.listenerCount('graceful-shutdown:redis-closed')
+        ) {
           clearTimeout(timeout);
           resolve();
         }

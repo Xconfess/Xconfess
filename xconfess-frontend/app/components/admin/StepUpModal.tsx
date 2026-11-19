@@ -45,12 +45,12 @@ export default function StepUpModal({
       <div
         ref={containerRef}
         tabIndex={-1}
-        className="w-full max-w-md rounded-lg bg-white p-5 shadow-xl outline-none dark:bg-gray-800"
+        className="border border-[var(--border)] w-full max-w-md rounded-lg bg-[var(--surface)] p-5 outline-none"
       >
-        <h3 className="mb-2 text-lg font-semibold text-gray-900 dark:text-white">
+        <h3 className="mb-2 text-lg font-semibold text-[var(--foreground)]">
           Confirm your identity
         </h3>
-        <p className="mb-4 text-sm text-gray-500 dark:text-gray-400">
+        <p className="mb-4 text-sm text-[var(--text-muted)]">
           This action is sensitive. Please re-verify your identity to continue.
         </p>
 
@@ -58,14 +58,14 @@ export default function StepUpModal({
           <button
             type="button"
             onClick={() => setMode('password')}
-            className={`rounded-md px-3 py-1 ${mode === 'password' ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900 dark:text-indigo-200' : 'text-gray-500'}`}
+            className={`rounded-md px-3 py-1 ${mode === 'password' ? 'bg-[var(--accent-soft)] text-[var(--primary-deep)]' : 'text-[var(--text-muted)]'}`}
           >
             Password
           </button>
           <button
             type="button"
             onClick={() => setMode('totp')}
-            className={`rounded-md px-3 py-1 ${mode === 'totp' ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900 dark:text-indigo-200' : 'text-gray-500'}`}
+            className={`rounded-md px-3 py-1 ${mode === 'totp' ? 'bg-[var(--accent-soft)] text-[var(--primary-deep)]' : 'text-[var(--text-muted)]'}`}
           >
             Authenticator code
           </button>
@@ -77,7 +77,7 @@ export default function StepUpModal({
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             placeholder="Enter your password"
-            className="mb-3 min-h-[44px] w-full rounded-md border border-gray-300 px-3 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+            className="mb-3 min-h-[44px] w-full rounded-md border border-[var(--accent-border)] px-3 text-sm"
           />
         ) : (
           <input
@@ -86,12 +86,12 @@ export default function StepUpModal({
             onChange={(e) => setTotpToken(e.target.value)}
             placeholder="Enter 6-digit code"
             maxLength={6}
-            className="mb-3 min-h-[44px] w-full rounded-md border border-gray-300 px-3 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+            className="mb-3 min-h-[44px] w-full rounded-md border border-[var(--accent-border)] px-3 text-sm"
           />
         )}
 
         {error && (
-          <p className="mb-3 text-sm text-red-600 dark:text-red-400">{error}</p>
+          <p className="mb-3 text-sm text-[var(--danger)]">{error}</p>
         )}
 
         <div className="flex justify-end gap-2">

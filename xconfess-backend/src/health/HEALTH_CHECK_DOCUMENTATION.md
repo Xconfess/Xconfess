@@ -19,6 +19,99 @@ Use **liveness** for a quick local smoke test after starting the server. Use **r
 
 ---
 
+## Dependency response shape
+
+Every readiness dependency (`database`, `redis`, `queues`, `schema`) reports the
+same envelope under `info` / `error` / `details` in `/api/health/ready` (and the
+`/api/health` alias). Dependency-specific diagnostics always live under
+`details`. Source of truth: `src/health/dependency-check.ts`.
+
+| Field | Type | Meaning |
+|---|---|---|
+| `status` | `"up" \| "down"` | Terminus status. `disabled` and non-blocking `degraded` report `up`. |
+| `state` | `"up" \| "degraded" \| "down" \| "disabled"` | Fine-grained state used by `subsystems` and `/health/status`. |
+| `dependency` | string | `database`, `redis`, `queues` or `schema`. |
+| `critical` | boolean | `true` for `database` and `schema`; when they are down the service is `down`. |
+| `latencyMs` | number \| null | Duration of the check; `null` when it did not complete. |
+| `timeoutMs` | number | The bound applied to this check. |
+| `checkedAt` | ISO-8601 string | When the check ran. |
+| `message` | string | Short, fixed, secret-free summary. |
+| `errorCode` | string (optional) | `TIMEOUT`, `CONNECTION_REFUSED`, `AUTH_FAILED`, `DNS_LOOKUP_FAILED`, `RESOURCE_EXHAUSTED`, `TLS_FAILED`, `SCHEMA_DRIFT`, `PENDING_MIGRATIONS`, `QUERY_FAILED`, `UNHEALTHY`, `UNKNOWN`. |
+| `hint` | string (optional) | Actionable next step. |
+| `details` | object | Dependency-specific data (see below). |
+
+Raw driver errors (which can contain host names, users or connection strings)
+are **never** returned; they are written to the backend logs only.
+
+```json
+{
+  "status": "down",
+  "state": "down",
+  "dependency": "database",
+  "critical": true,
+  "latencyMs": null,
+  "timeoutMs": 3000,
+  "checkedAt": "2026-11-19T10:00:00.000Z",
+  "message": "PostgreSQL connection refused",
+  "errorCode": "CONNECTION_REFUSED",
+  "hint": "Database server is not accepting connections. ...",
+  "details": {}
+}
+```
+
+`details` per dependency:
+
+- `database` — `version`, `activeConnections`, `maxConnections`
+- `redis` — `version`, `connectedClients`; when disabled: `reason`, `severity`
+- `queues` — `queues.<name>` with `status`, `workers`, `counts`, `latencyMs` (or `errorCode`/`error`); when disabled: `reason`, `severity`
+- `schema` — `table`, `migrations` (drift summary, see below), and `missingColumns` / `missingIndexes` on failure
+
+### Timeouts
+
+Each dependency check is bounded. Precedence:
+`HEALTH_<DEPENDENCY>_TIMEOUT_MS` (e.g. `HEALTH_REDIS_TIMEOUT_MS`) →
+`HEALTH_CHECK_TIMEOUT_MS` → 3000 ms. Values are clamped to 100–30000 ms. A
+check that exceeds its bound reports `state: "down"`, `errorCode: "TIMEOUT"`.
+All four queues share one timeout window.
+
+### Liveness stays independent
+
+`GET /api/health/live` never calls an indicator or `HealthCheckService`; a
+database, Redis or queue outage cannot fail it. Use it for liveness probes and
+`/api/health/ready` for readiness probes.
+
+### Migration drift
+
+The `schema` check compares the migrations shipped with the running build with
+the database's `migrations` table:
+
+| Situation | Result |
+|---|---|
+| In sync | `state: "up"` |
+| Pending migrations (or no migrations table) | `state: "down"`, `errorCode: "PENDING_MIGRATIONS"` — readiness fails |
+| Migrations table unreadable | `state: "down"`, `errorCode: "QUERY_FAILED"` |
+| Database has migrations this build does not ship (e.g. rollback) | `state: "degraded"`, readiness still passes |
+
+`details.migrations` contains `mode`, `status`, `shipped`, `applied`,
+`pendingCount`, `pending` (max 20 names), `unexpectedCount`, `unexpected`,
+`migrationsTable`, `migrationsTableExists`.
+
+Configuration:
+
+- `MIGRATION_DRIFT_CHECK=enforce|warn|off` (default `enforce`; `warn` reports pending migrations as `degraded`)
+- `MIGRATION_DRIFT_FAIL_ON_UNEXPECTED=true` also fails readiness on unexpected migrations
+
+Before a deployment, run the same comparison against the target database:
+
+```bash
+npm run backend:migration:drift            # exits 1 when migrations are pending
+npm run backend:migration:drift -- --json  # machine-readable result
+```
+
+`npm run production:readiness -- --production` runs it automatically.
+
+---
+
 ## Endpoint Reference
 
 ### `GET /api/health/live`

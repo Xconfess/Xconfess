@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { StepUpService } from './step-up.service';
+import { RecoveryCodeService } from './recovery-code.service';
 import { BadRequestException } from '@nestjs/common';
 
 describe('AuthController', () => {
@@ -30,6 +31,7 @@ describe('AuthController', () => {
           provide: StepUpService,
           useValue: mockStepUpService,
         },
+        { provide: RecoveryCodeService, useValue: {} },
       ],
     }).compile();
 

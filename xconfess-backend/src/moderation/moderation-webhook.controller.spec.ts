@@ -3,6 +3,7 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import * as crypto from 'crypto';
 import { ModerationStatus } from './ai-moderation.service';
 import { ModerationWebhookController } from './moderation-webhook.controller';
+import { FakeModerationWebhookEventStore } from '../../test/utils/moderation-webhook-event-store.fake';
 
 describe('ModerationWebhookController', () => {
   const webhookSecret = 'top-secret';
@@ -23,6 +24,7 @@ describe('ModerationWebhookController', () => {
   let auditLogService: {
     log: jest.Mock;
   };
+  let eventStore: FakeModerationWebhookEventStore;
 
   const confession = {
     id: 'conf-123',
@@ -53,18 +55,22 @@ describe('ModerationWebhookController', () => {
   beforeEach(() => {
     const txFindOne = jest.fn().mockResolvedValue({ ...confession });
     const txSave = jest.fn().mockImplementation(async (value) => value);
+    eventStore = new FakeModerationWebhookEventStore();
 
     confessionRepo = {
       findOne: txFindOne,
       save: txSave,
       manager: {
         transaction: jest.fn(async (work) =>
-          work({
-            getRepository: jest.fn().mockReturnValue({
-              findOne: txFindOne,
-              save: txSave,
-            }),
-          }),
+          eventStore.runInTransaction(
+            {
+              getRepository: jest.fn().mockReturnValue({
+                findOne: txFindOne,
+                save: txSave,
+              }),
+            },
+            work,
+          ),
         ),
       },
     };
@@ -92,6 +98,7 @@ describe('ModerationWebhookController', () => {
       confessionRepo as any,
       moderationRepoService as any,
       auditLogService as any,
+      eventStore as any,
     );
   });
 
@@ -142,6 +149,42 @@ describe('ModerationWebhookController', () => {
       status: ModerationStatus.FLAGGED,
       isIdempotent: false,
     });
+  });
+
+  it('evicts the cached confession and listings after a processed result (#2168)', async () => {
+    const cacheService = { del: jest.fn(), delPattern: jest.fn() };
+    const cachedController = new ModerationWebhookController(
+      {
+        get: jest.fn((key: string, def?: any) => {
+          if (key === 'WEBHOOK_SECRET') return webhookSecret;
+          if (key === 'WEBHOOK_TIMESTAMP_TOLERANCE_SECONDS') return 300;
+          return def;
+        }),
+      } as any,
+      eventEmitter as unknown as EventEmitter2,
+      confessionRepo as any,
+      moderationRepoService as any,
+      auditLogService as any,
+      eventStore as any,
+      cacheService as any,
+    );
+    const payload = {
+      eventId: crypto.randomUUID(),
+      confessionId: 'conf-123',
+      moderationScore: 0.71,
+      moderationFlags: ['harassment'],
+      moderationStatus: ModerationStatus.FLAGGED,
+      details: { harassment: 0.71 },
+      timestamp: new Date().toISOString(),
+    };
+
+    await cachedController.handleModerationResults(
+      payload,
+      buildSignature(payload),
+    );
+
+    expect(cacheService.del).toHaveBeenCalledWith('confession:conf-123');
+    expect(cacheService.delPattern).toHaveBeenCalledWith('confessions:');
   });
 
   it('emits high-severity for rejected results', async () => {
@@ -232,9 +275,10 @@ describe('ModerationWebhookController', () => {
         },
       );
 
-      const value = await work({
-        getRepository: jest.fn().mockReturnValue(txRepo),
-      });
+      const value = await eventStore.runInTransaction(
+        { getRepository: jest.fn().mockReturnValue(txRepo) },
+        work,
+      );
       committed.moderationLogs = stagedLogCount;
       committed.isHidden = stagedConfession.isHidden;
       return value;
@@ -247,6 +291,8 @@ describe('ModerationWebhookController', () => {
     expect(committed.moderationLogs).toBe(0);
     expect(committed.isHidden).toBe(false);
     expect(eventEmitter.emit).not.toHaveBeenCalled();
+    // The event claim rolled back with the transaction, so a retry can apply it.
+    expect(eventStore.committed.has(payload.eventId)).toBe(false);
   });
 
   it('rejects webhook requests with an invalid signature', async () => {

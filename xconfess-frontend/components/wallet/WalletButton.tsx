@@ -2,6 +2,7 @@
 
 import { useContext, useState } from "react";
 import { useRouter } from "next/navigation";
+import { AlertTriangle, ChevronDown, Copy, Loader2 } from "lucide-react";
 import { WalletContext } from "@/lib/providers/WalletProvider";
 
 interface WalletButtonProps {
@@ -94,10 +95,10 @@ export const WalletButton: React.FC<WalletButtonProps> = ({
     return (
       <button
         disabled
-        className={`min-h-11 max-w-[42vw] truncate rounded-xl bg-[var(--surface-muted)] px-3 py-2 text-sm text-[var(--secondary)] opacity-70 sm:px-4 ${className}`}
+        className={`flex h-9 max-w-[42vw] items-center gap-2 truncate rounded-[var(--radius-control)] border border-[var(--border)] px-3 text-sm text-[var(--secondary)] ${className}`}
       >
-        <span className="inline-block animate-spin mr-2">⏳</span>
-        Connecting...
+        <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+        Connecting…
       </button>
     );
   }
@@ -108,13 +109,13 @@ export const WalletButton: React.FC<WalletButtonProps> = ({
       <div className={`relative group ${className}`}>
         <button
           onClick={handleWalletAction}
-          className="min-h-11 max-w-[42vw] truncate rounded-xl border border-rose-300 bg-rose-50 px-3 py-2 text-sm font-medium text-rose-700 transition hover:bg-rose-100 sm:px-4"
+          className="flex h-9 max-w-[42vw] items-center gap-2 truncate rounded-[var(--radius-control)] border border-[var(--danger)]/40 px-3 text-sm font-medium text-[var(--danger)] transition-colors hover:bg-[var(--danger)]/10"
           title={error}
         >
-          ⚠️{" "}
-          Connect Wallet
+          <AlertTriangle className="h-3.5 w-3.5" aria-hidden="true" />
+          Connect wallet
         </button>
-        <div className="absolute hidden group-hover:block bg-red-900 text-white text-xs rounded py-1 px-2 whitespace-nowrap z-50 bottom-full mb-2">
+        <div className="absolute right-0 top-full z-50 mt-2 hidden whitespace-nowrap rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--surface-elevated)] px-2 py-1 text-xs text-[var(--foreground)] shadow-[var(--shadow-popover)] group-hover:block">
           {error}
         </div>
       </div>
@@ -127,15 +128,15 @@ export const WalletButton: React.FC<WalletButtonProps> = ({
       <div className={`relative group ${className}`}>
         <button
           onClick={handleLockWallet}
-          className="flex min-h-11 max-w-[42vw] items-center gap-2 truncate rounded-xl border border-orange-300 bg-orange-50 px-3 py-2 text-sm font-medium text-orange-800 transition hover:bg-orange-100 sm:px-4"
+          className="flex h-9 max-w-[42vw] items-center gap-2 truncate rounded-[var(--radius-control)] border border-[var(--warning)]/40 px-3 text-sm font-medium text-[var(--warning)] transition-colors hover:bg-[var(--warning)]/10"
           title={readinessError || "Open wallet"}
         >
-          ⚠️{" "}
+          <AlertTriangle className="h-3.5 w-3.5" aria-hidden="true" />
           {readinessError?.includes("network")
             ? "Network Mismatch"
             : "Action Required"}
         </button>
-        <div className="absolute hidden group-hover:block bg-orange-900 text-white text-xs rounded py-1 px-2 whitespace-nowrap z-50 bottom-full mb-2">
+        <div className="absolute right-0 top-full z-50 mt-2 hidden whitespace-nowrap rounded-[var(--radius-control)] border border-[var(--border)] bg-[var(--surface-elevated)] px-2 py-1 text-xs text-[var(--foreground)] shadow-[var(--shadow-popover)] group-hover:block">
           {readinessError} (Open wallet to review)
         </div>
       </div>
@@ -151,23 +152,11 @@ export const WalletButton: React.FC<WalletButtonProps> = ({
           aria-haspopup="menu"
           aria-expanded={isDropdownOpen}
           aria-label="Wallet menu"
-          className="flex min-h-11 max-w-[42vw] items-center gap-2 truncate rounded-xl bg-[var(--primary)] px-3 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90 sm:px-4"
+          className="flex h-9 max-w-[42vw] items-center gap-2 truncate rounded-[var(--radius-control)] border border-[var(--border)] px-3 font-mono text-xs text-[var(--foreground)] transition-colors hover:bg-[var(--surface-muted)]"
         >
-          <span className="inline-block w-2 h-2 rounded-full bg-green-400 animate-pulse"></span>
+          <span className="inline-block h-1.5 w-1.5 rounded-full bg-[var(--success)]" aria-hidden="true"></span>
           <span className="truncate">{truncateAddress(publicKey, 4)}</span>
-          <svg
-            className={`w-4 h-4 transition-transform ${isDropdownOpen ? "rotate-180" : ""}`}
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M19 14l-7 7m0 0l-7-7m7 7V3"
-            />
-          </svg>
+          <ChevronDown className={`h-3.5 w-3.5 text-[var(--secondary)] transition-transform ${isDropdownOpen ? "rotate-180" : ""}`} aria-hidden="true" />
         </button>
 
         {/* Dropdown Menu */}
@@ -175,12 +164,12 @@ export const WalletButton: React.FC<WalletButtonProps> = ({
           <div
             role="menu"
             aria-label="Wallet actions"
-            className="absolute right-0 mt-2 w-64 bg-white rounded-lg shadow-xl z-50 overflow-hidden border border-gray-200"
+            className="absolute right-0 z-50 mt-2 w-72 overflow-hidden rounded-[var(--radius-panel)] border border-[var(--border)] bg-[var(--surface-elevated)] shadow-[var(--shadow-popover)]"
           >
             {/* Network Info */}
-            <div className="p-4 border-b border-gray-200">
-              <div className="text-xs text-gray-500 font-semibold mb-2">
-                NETWORK
+            <div className="p-4 border-b border-[var(--border)]">
+              <div className="mb-2 text-xs font-medium text-[var(--text-muted)]">
+                Network
               </div>
               <div
                 className="px-3 py-2 rounded-lg flex items-center gap-2 text-sm font-medium"
@@ -198,20 +187,21 @@ export const WalletButton: React.FC<WalletButtonProps> = ({
             </div>
 
             {/* Public Key Section */}
-            <div className="p-4 border-b border-gray-200">
-              <div className="text-xs text-gray-500 font-semibold mb-2">
-                PUBLIC KEY
+            <div className="p-4 border-b border-[var(--border)]">
+              <div className="mb-2 text-xs font-medium text-[var(--text-muted)]">
+                Public key
               </div>
               <div className="flex items-center gap-2">
-                <code className="flex-1 text-xs bg-gray-100 p-2 rounded font-mono text-gray-700 break-all">
+                <code className="flex-1 break-all rounded-[var(--radius-control)] bg-[var(--surface-muted)] p-2 font-mono text-xs text-[var(--foreground)]">
                   {publicKey}
                 </code>
                 <button
                   onClick={copyToClipboard}
-                  className="p-2 hover:bg-gray-200 rounded transition text-gray-600"
+                  className="rounded-[var(--radius-control)] p-2 text-[var(--secondary)] transition-colors hover:bg-[var(--surface-muted)] hover:text-[var(--foreground)]"
                   title="Copy to clipboard"
+                  aria-label="Copy public key"
                 >
-                  📋
+                  <Copy className="h-4 w-4" aria-hidden="true" />
                 </button>
               </div>
             </div>
@@ -220,7 +210,7 @@ export const WalletButton: React.FC<WalletButtonProps> = ({
             <div className="p-3">
               <button
                 onClick={handleLockWallet}
-                className="w-full px-4 py-2 bg-red-50 text-red-600 hover:bg-red-100 rounded-lg transition font-medium text-sm border border-red-200"
+                className="w-full rounded-[var(--radius-control)] px-3 py-2 text-left text-sm text-[var(--danger)] transition-colors hover:bg-[var(--danger)]/10"
               >
                 Lock wallet
               </button>
@@ -243,9 +233,9 @@ export const WalletButton: React.FC<WalletButtonProps> = ({
   return (
     <button
       onClick={handleWalletAction}
-      className={`min-h-11 max-w-[42vw] truncate rounded-xl bg-[var(--primary)] px-3 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90 sm:px-4 ${className}`}
+      className={`flex h-9 max-w-[42vw] items-center truncate rounded-[var(--radius-control)] bg-[var(--primary)] px-3 text-sm font-medium text-white transition-colors hover:bg-[var(--primary-hover)] ${className}`}
     >
-      Connect Wallet
+      Connect wallet
     </button>
   );
 };

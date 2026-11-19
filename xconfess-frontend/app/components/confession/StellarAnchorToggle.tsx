@@ -58,31 +58,31 @@ export const StellarAnchorToggle: React.FC<StellarAnchorToggleProps> = ({
           checked={enabled}
           onChange={(e) => handleToggle(e.target.checked)}
           disabled={!isAvailable || isConnecting || isLoading}
-          className="w-4 h-4 rounded border-zinc-700 bg-zinc-800 text-blue-600 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-zinc-900 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="w-4 h-4 rounded border-[var(--border)] bg-[var(--surface-muted)] text-[var(--primary-deep)] focus:ring-2 focus:ring-[var(--focus-ring)] focus:ring-offset-2 focus:ring-offset-[var(--background)] disabled:opacity-50 disabled:cursor-not-allowed"
           aria-label="Anchor confession on Stellar blockchain"
         />
-        <span className="text-sm font-medium text-zinc-300">
+        <span className="text-sm font-medium text-[var(--secondary)]">
           Anchor on Stellar
         </span>
         {isLoading || isConnecting ? (
-          <Loader2 role='status' aria-label='loading' className="h-4 w-4 animate-spin text-zinc-400" />
+          <Loader2 role='status' aria-label='loading' className="h-4 w-4 animate-spin text-[var(--text-muted)]" />
         ) : enabled && transactionHash ? (
-          <CheckCircle2 className="h-4 w-4 text-green-400" />
+          <CheckCircle2 className="h-4 w-4 text-[var(--success)]" />
         ) : null}
       </label>
 
       {!isAvailable && (
-        <div className="flex items-start gap-2 text-xs text-yellow-400 bg-yellow-400/10 border border-yellow-400/20 rounded-lg p-2">
+        <div className="flex items-start gap-2 text-xs text-[var(--warning)] bg-[var(--warning)]/10 border border-[var(--warning)]/20 rounded-lg p-2">
           <AlertCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
           <div>
             <p className="font-medium">No Stellar wallet connected</p>
-            <p className="text-yellow-300/80 mt-1">
+            <p className="text-[var(--warning)] mt-1">
               Open{" "}
               <a
                 href="/wallet"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="underline hover:text-yellow-300"
+                className="underline hover:text-[var(--warning)]"
               >
                 XConfess Wallet
               </a>{" "}
@@ -93,7 +93,7 @@ export const StellarAnchorToggle: React.FC<StellarAnchorToggleProps> = ({
       )}
 
       {isAvailable && !isConnected && enabled && (
-        <div className="flex items-start gap-2 text-xs text-blue-400 bg-blue-400/10 border border-blue-400/20 rounded-lg p-2">
+        <div className="flex items-start gap-2 text-xs text-[var(--primary-deep)] bg-[var(--accent-soft)] border border-[var(--accent-border)] rounded-lg p-2">
           <AlertCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
           <div className="flex-1">
             <p className="font-medium">Wallet not connected</p>
@@ -118,13 +118,13 @@ export const StellarAnchorToggle: React.FC<StellarAnchorToggleProps> = ({
       )}
 
       {isConnected && publicKey && (
-        <p className="text-xs text-zinc-500">
+        <p className="text-xs text-[var(--text-muted)]">
           Connected: {publicKey.slice(0, 8)}...{publicKey.slice(-8)}
         </p>
       )}
 
       {error && (
-        <div className="flex items-start gap-2 text-xs text-red-400 bg-red-400/10 border border-red-400/20 rounded-lg p-2">
+        <div className="flex items-start gap-2 text-xs text-[var(--danger)] bg-[var(--danger)]/10 border border-[var(--danger)]/20 rounded-lg p-2">
           <AlertCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
           <p>{error}</p>
         </div>
@@ -132,14 +132,14 @@ export const StellarAnchorToggle: React.FC<StellarAnchorToggleProps> = ({
 
       {transactionHash && (
         <div className="flex items-center gap-2 text-xs">
-          <CheckCircle2 className="h-4 w-4 text-green-400" />
-          <span className="text-zinc-400">Anchored on Stellar</span>
+          <CheckCircle2 className="h-4 w-4 text-[var(--success)]" />
+          <span className="text-[var(--text-muted)]">Anchored on Stellar</span>
           {explorerUrl && (
             <a
               href={explorerUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-blue-400 hover:text-blue-300 flex items-center gap-1 underline"
+              className="text-[var(--primary-deep)] hover:text-[var(--primary-deep)] flex items-center gap-1 underline"
             >
               View transaction
               <ExternalLink className="h-3 w-3" />
