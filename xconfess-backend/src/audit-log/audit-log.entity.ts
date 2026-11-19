@@ -31,6 +31,12 @@ export enum AuditActionType {
   // Auth actions
   FAILED_LOGIN = 'failed_login',
 
+  // Two-factor recovery code lifecycle (codes themselves are never logged)
+  TWO_FACTOR_RECOVERY_CODES_GENERATED = 'two_factor_recovery_codes_generated',
+  TWO_FACTOR_RECOVERY_CODE_USED = 'two_factor_recovery_code_used',
+  TWO_FACTOR_RECOVERY_CODE_FAILED = 'two_factor_recovery_code_failed',
+  TWO_FACTOR_RECOVERY_CODES_REVOKED = 'two_factor_recovery_codes_revoked',
+
   // Notification actions
   NOTIFICATION_SUPPRESSED = 'notification_suppressed',
   NOTIFICATION_DLQ_REPLAY = 'notification_dlq_replay',

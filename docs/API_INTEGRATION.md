@@ -29,6 +29,32 @@ identity references, see the [identity terminology in the glossary](GLOSSARY.md#
 - `POST /api/auth/forgot-password` — request password reset
 - `POST /api/auth/reset-password` — complete password reset
 
+### Two-factor recovery codes
+
+When TOTP is enabled, `POST /api/auth/2fa/verify-setup` returns 10 recovery
+codes (format `XXXXX-XXXXX`, case and dashes ignored). They are shown **once**
+and stored only as salted scrypt hashes.
+
+- `POST /api/auth/2fa/login` with `{ "userId", "recoveryCode" }` redeems a code.
+  Each code works exactly once, even under concurrent requests. After 5 failed
+  attempts in 15 minutes the account's recovery-code verification is locked for
+  15 minutes (`429`, `RATE_LIMIT_EXCEEDED`, `retryAfter` in seconds), on top of
+  the per-IP throttle.
+- `GET /api/auth/2fa/recovery-codes` returns counts only:
+  `{ "enabled", "total", "remaining", "generatedAt" }`.
+- `POST /api/auth/2fa/recovery-codes/regenerate` (requires a step-up proof in
+  `x-step-up-token`) returns a new batch and invalidates every previous code.
+- `POST /api/auth/2fa/disable` revokes all codes.
+- `POST /api/admin/users/:id/2fa/recovery-codes/revoke` (admin + step-up)
+  revokes all codes for a user.
+
+Generation, use, failed attempts and revocation are written to the audit log
+(`two_factor_recovery_codes_generated`, `two_factor_recovery_code_used`,
+`two_factor_recovery_code_failed`, `two_factor_recovery_codes_revoked`) with
+counts, batch IDs and actors — never the codes or their hashes. Codes created
+before hashing was introduced are converted to hashes, and their encrypted copy
+cleared, the first time the user redeems, regenerates or revokes codes.
+
 ### Login request
 
 `POST /api/auth/login`
@@ -303,10 +329,13 @@ Typed error response body (`pending` / `stale` / `conflict` / `failed`):
 
 ### Health checks
 
-- `GET /api/health/live`
-- `GET /api/health/ready`
+- `GET /api/health/live` — liveness; never checks dependencies
+- `GET /api/health/ready` — readiness; database, Redis, queues and schema
+  (including migration drift), each bounded by a timeout
 
-These endpoints are useful for monitoring and verifying backend availability.
+Every dependency in the readiness response uses the same shape (`state`,
+`critical`, `latencyMs`, `timeoutMs`, `errorCode`, `hint`, `details`); see
+`xconfess-backend/src/health/HEALTH_CHECK_DOCUMENTATION.md`.
 
 ## Rate limiting
 

@@ -15,6 +15,14 @@ import { StepUpGuard } from './guards/step-up.guard';
 import { UserModule } from '../user/user.module';
 import { EmailModule } from '../email/email.module';
 import { PasswordReset } from './entities/password-reset.entity';
+import { UserRecoveryCode } from './entities/user-recovery-code.entity';
+import { User } from '../user/entities/user.entity';
+import { AuditLogModule } from '../audit-log/audit-log.module';
+import { RecoveryCodeService } from './recovery-code.service';
+import {
+  AdminTwoFactorRecoveryController,
+  TwoFactorRecoveryController,
+} from './two-factor-recovery.controller';
 
 @Module({
   imports: [
@@ -22,7 +30,8 @@ import { PasswordReset } from './entities/password-reset.entity';
     CacheModule,
     EmailModule,
     PassportModule,
-    TypeOrmModule.forFeature([PasswordReset]),
+    AuditLogModule,
+    TypeOrmModule.forFeature([PasswordReset, UserRecoveryCode, User]),
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
@@ -32,7 +41,11 @@ import { PasswordReset } from './entities/password-reset.entity';
       }),
     }),
   ],
-  controllers: [AuthController],
+  controllers: [
+    AuthController,
+    TwoFactorRecoveryController,
+    AdminTwoFactorRecoveryController,
+  ],
   providers: [
     LockoutService,
     AuthService,
@@ -41,8 +54,10 @@ import { PasswordReset } from './entities/password-reset.entity';
     StepUpService,
     StepUpGuard,
     OptionalJwtAuthGuard,
+    RecoveryCodeService,
   ],
   exports: [
+    RecoveryCodeService,
     AuthService,
     LockoutService,
     JwtModule,

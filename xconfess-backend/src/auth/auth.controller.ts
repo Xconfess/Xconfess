@@ -32,6 +32,7 @@ import { JwtAuthGuard } from './jwt-auth.guard';
 import { GetUser } from './get-user.decorator';
 import { User } from '../user/entities/user.entity';
 import { RateLimit } from './guard/rate-limit.decorator';
+import { RecoveryCodeService } from './recovery-code.service';
 
 @ApiTags('Auth')
 @Controller('auth')
@@ -39,6 +40,7 @@ export class AuthController {
   constructor(
     private readonly authService: AuthService,
     private readonly stepUpService: StepUpService,
+    private readonly recoveryCodes: RecoveryCodeService,
   ) {}
 
   @Post('step-up')
@@ -113,12 +115,13 @@ export class AuthController {
       enc.tag,
     );
 
-    // generate recovery codes
-    const codes = Array.from({ length: 10 }, () =>
-      Math.random().toString(36).slice(2, 10).toUpperCase(),
+    // Recovery codes are generated with a CSPRNG, stored only as hashes and
+    // returned once. Any earlier codes are invalidated.
+    const { codes } = await this.recoveryCodes.generateForUser(
+      userId,
+      { type: 'user', id: userId },
+      'setup',
     );
-    const recEnc = CryptoUtil.encrypt(JSON.stringify(codes));
-    await (this as any).authService.userService.setRecoveryCodes(userId, recEnc.encrypted, recEnc.iv, recEnc.tag);
 
     return { success: true, recoveryCodes: codes };
   }
@@ -128,6 +131,11 @@ export class AuthController {
   @ApiOperation({ summary: 'Disable TOTP for current user' })
   async disable2fa(@GetUser('id') userId: number): Promise<{ success: boolean }> {
     await (this as any).authService.userService.disableTotp(userId);
+    await this.recoveryCodes.revokeAll(
+      userId,
+      { type: 'user', id: userId },
+      'two_factor_disabled',
+    );
     return { success: true };
   }
 
@@ -151,7 +159,11 @@ export class AuthController {
     const { CryptoUtil } = require('../common/crypto.util');
 
     if (recoveryCode) {
-      const consumed = await svc.consumeRecoveryCode(userId, recoveryCode);
+      // Single-use, hashed, and rate limited per user (429 once locked).
+      const consumed = await this.recoveryCodes.verifyAndConsume(
+        Number(userId),
+        String(recoveryCode),
+      );
       if (!consumed) throw new UnauthorizedException('Invalid recovery code');
       const payload = {
         email: user.email,
