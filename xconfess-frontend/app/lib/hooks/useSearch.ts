@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { SearchConfession, SearchFilters } from "@/app/lib/types/search";
-import { logError } from "@/app/lib/utils/errorHandler";
+import { logSearchError, validateSearchResponse } from "@/app/lib/utils/searchErrorHandler";
 
 const SEARCH_MAX_RETRIES = 3;
 const SEARCH_BASE_DELAY_MS = 400;
@@ -126,6 +126,11 @@ async function fetchSearchWithRetry(
     }
 
     let res: Response;
+    const queryLength = debouncedQuery.length;
+    const hasFilters = Object.values(filters).some(
+      (v) => v && v !== "newest"
+    );
+
     try {
       res = await fetch(url, { signal });
     } catch (fetchErr) {
@@ -138,11 +143,12 @@ async function fetchSearchWithRetry(
           }
         );
       } else {
-        logError(fetchErr, "useSearch", {
-          url: "/api/confessions/search",
+        logSearchError(fetchErr, {
           attempt: attempt + 1,
           phase: "network",
           willRetry: attempt < SEARCH_MAX_RETRIES - 1,
+          queryLength,
+          hasFilters,
         });
       }
 
@@ -153,7 +159,11 @@ async function fetchSearchWithRetry(
     }
 
     if (res.ok) {
-      return (await res.json()) as Record<string, unknown>;
+      const data = (await res.json()) as Record<string, unknown>;
+      if (!validateSearchResponse(data)) {
+        throw new Error("Invalid search response format");
+      }
+      return data;
     }
 
     if (DEV_BYPASS_AUTH_ENABLED && res.status >= 500) {
@@ -166,13 +176,14 @@ async function fetchSearchWithRetry(
         }
       );
     } else {
-      logError(new Error(`search_upstream_${res.status}`), "useSearch", {
-        url: "/api/confessions/search",
+      logSearchError(new Error(`search_upstream_${res.status}`), {
         httpStatus: res.status,
         attempt: attempt + 1,
         willRetry:
           isRetryableSearchHttpStatus(res.status) &&
           attempt < SEARCH_MAX_RETRIES - 1,
+        queryLength,
+        hasFilters,
       });
     }
 

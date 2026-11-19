@@ -5,6 +5,24 @@ import { useRouter } from "next/navigation";
 import { Modal } from "@/app/components/ui/modal";
 import { Button } from "@/app/components/ui/button";
 
+function usePrefersReducedMotion(): boolean {
+  const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
+    setPrefersReducedMotion(mediaQuery.matches);
+
+    const handleChange = (e: MediaQueryListEvent) => {
+      setPrefersReducedMotion(e.matches);
+    };
+
+    mediaQuery.addEventListener("change", handleChange);
+    return () => mediaQuery.removeEventListener("change", handleChange);
+  }, []);
+
+  return prefersReducedMotion;
+}
+
 export const ShortcutsProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
@@ -12,6 +30,8 @@ export const ShortcutsProvider: React.FC<{ children: React.ReactNode }> = ({
   const [selectedIndex, setSelectedIndex] = useState<number>(-1);
   const [helpOpen, setHelpOpen] = useState(false);
   const [gPending, setGPending] = useState(false);
+  const prefersReducedMotion = usePrefersReducedMotion();
+  const [announceMessage, setAnnounceMessage] = useState("");
 
   useEffect(() => {
     let gTimer: number | undefined;
@@ -46,7 +66,9 @@ export const ShortcutsProvider: React.FC<{ children: React.ReactNode }> = ({
       setSelectedIndex(clamped);
       const el = items[clamped];
       el?.focus();
-      el?.scrollIntoView({ behavior: "smooth", block: "center" });
+      const behavior = prefersReducedMotion ? "auto" : "smooth";
+      el?.scrollIntoView({ behavior, block: "center" });
+      setAnnounceMessage(`Selected item ${clamped + 1} of ${items.length}`);
     };
 
     const selectNext = () => select(selectedIndex + 1);
@@ -149,6 +171,7 @@ export const ShortcutsProvider: React.FC<{ children: React.ReactNode }> = ({
         case "?":
           e.preventDefault();
           setHelpOpen(true);
+          setAnnounceMessage("Opening keyboard shortcuts help");
           break;
         case "j":
           e.preventDefault();
@@ -188,13 +211,30 @@ export const ShortcutsProvider: React.FC<{ children: React.ReactNode }> = ({
       window.removeEventListener("keydown", onKeyDown);
       resetG();
     };
-  }, [selectedIndex, gPending, router]);
+  }, [selectedIndex, gPending, router, prefersReducedMotion]);
 
   return (
     <>
       {children}
 
-      <Modal isOpen={helpOpen} onClose={() => setHelpOpen(false)} title="Keyboard Shortcuts">
+      <div
+        className="sr-only"
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+      >
+        {announceMessage}
+      </div>
+
+      <Modal
+        isOpen={helpOpen}
+        onClose={() => {
+          setHelpOpen(false);
+          setAnnounceMessage("Closed keyboard shortcuts help");
+        }}
+        title="Keyboard Shortcuts"
+        aria-label="Keyboard shortcuts help dialog"
+      >
         <div className="space-y-3" role="list" aria-label="Keyboard shortcut list">
           <ShortcutRow keys={["j", "k"]}>Navigate down / up in feed</ShortcutRow>
           <ShortcutRow keys={["Enter"]}>Open selected confession</ShortcutRow>
@@ -226,8 +266,20 @@ const ShortcutRow: React.FC<{ keys: string[]; alternatives?: string[][]; childre
     </React.Fragment>
   ));
 
+  const keysLabel = keys.join(" then ");
+  const alternativeLabels = alternatives
+    .map((alt) => alt.join(" then "))
+    .join(" or ");
+  const fullLabel = alternativeLabels
+    ? `${keysLabel} or ${alternativeLabels}`
+    : keysLabel;
+
   return (
-    <div className="flex items-start justify-between gap-4 py-1" role="listitem">
+    <div
+      className="flex items-start justify-between gap-4 py-1"
+      role="listitem"
+      aria-label={`${children}: ${fullLabel}`}
+    >
       <div className="text-sm text-[var(--secondary)]">{children}</div>
       <div className="flex items-center shrink-0 text-xs text-[var(--text-muted)]">
         {formatKeys(keys)}
