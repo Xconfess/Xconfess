@@ -65,6 +65,7 @@
     "deploy:smoke:test": "node --test scripts/__tests__/deployed-smoke.test.js",
     "readiness": "npm run production:readiness",
     "readiness:test": "node --test scripts/__tests__/production-readiness.test.js",
+    "node:test": "node --test scripts/__tests__/node-version.test.js",
     "production:readiness": "node scripts/production-readiness.js",
     "production:readiness:full": "node scripts/production-readiness.js --full",
     "production:readiness:deployed": "node scripts/production-readiness.js --production --smoke",

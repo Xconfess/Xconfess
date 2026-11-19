@@ -62,6 +62,40 @@ Follow these steps from a fresh clone to get the full stack running.
 - Rust + `cargo` (only needed if working on contracts; see `docs/SOROBAN_SETUP.md`)
 - A Stellar testnet keypair (only needed for Stellar/Soroban work; see [Stellar Testnet Development Guide](docs/STELLAR_TESTNET_GUIDE.md))
 
+### Node.js 22 setup
+
+This repository requires Node.js **22.x** and npm **9+**. The `npm run setup:check` preflight fails before the rest of the development workflow when the runtime is unsupported.
+
+**Unix / macOS (nvm):**
+
+```bash
+nvm install 22
+nvm use 22
+nvm alias default 22
+node --version
+npm run setup:check
+```
+
+**Windows (PowerShell):** use fnm, nvm-windows, or Volta:
+
+```powershell
+# fnm
+fnm install 22
+fnm use 22
+
+# or nvm-windows
+nvm install 22
+nvm use 22
+
+# or Volta
+volta install node@22
+
+node --version
+npm.cmd run setup:check
+```
+
+If PowerShell blocks `npm.ps1`, use `npm.cmd` as shown above.
+
 ### Contributor Quick Start
 
 For most contributors, this is the fastest path:

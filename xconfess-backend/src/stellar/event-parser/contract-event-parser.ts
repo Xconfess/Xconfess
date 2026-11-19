@@ -108,6 +108,10 @@ const EVENT_SCHEMAS: readonly EventSchema[] = [
     fieldOrder: ['proposal_id', 'executor'],
   },
   {
+    eventName: 'GovernanceExpiredEvent', category: 'governance', topic: 'gov_exp', eventVersion: 1,
+    fieldOrder: ['proposal_id', 'nonce', 'timestamp'],
+  },
+  {
     eventName: 'GovInvariantViolationEvent', category: 'governance', topic: 'gov_inv', eventVersion: 1,
     fieldOrder: ['nonce', 'timestamp', 'operation', 'reason', 'attempted_by'],
   },
