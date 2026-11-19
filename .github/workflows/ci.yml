@@ -48,6 +48,10 @@ jobs:
       - run: npm install --global npm@10.9.3
       - run: npm ci --include=optional --no-audit --no-fund
       - run: npm run audit:ci
+      - name: Validate package distribution policy fixtures
+        run: npm run packages:distribution:self-test
+      - name: Audit npm workspaces and Rust dependencies
+        run: npm run packages:distribution
 
   secret-scan:
     name: Security / Secret Scan
@@ -231,3 +235,11 @@ jobs:
       - name: Test release manifest validation failures
         working-directory: .
         run: bash scripts/test-contract-release-metadata.sh
+      - name: Check contract manifest drift
+        working-directory: ${{ github.workspace }}
+        run: npm run contracts:manifest-check
+      - name: Check contract error registry compatibility
+        working-directory: ${{ github.workspace }}
+        run: npm run contracts:error-registry-check
+      - name: Test package and contract safety fixtures
+        run: node --test scripts/__tests__/contract-safety.test.js
