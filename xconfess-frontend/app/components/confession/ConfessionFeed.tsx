@@ -12,6 +12,8 @@ import { FeedRefreshNotice } from "./FeedRefreshNotice";
 import { useScrollRestoration } from "../../lib/hooks/useScrollRestoration";
 import { useLiveAnnouncement } from "../../lib/hooks/useLiveAnnouncement";
 import { useFeedPageRestoration } from "../../lib/hooks/useFeedPageRestoration";
+import { usePrefersReducedMotion } from "../../lib/hooks/usePrefersReducedMotion";
+import { useFeedFilterPersistence } from "../../lib/hooks/useFeedFilterPersistence";
 
 const ESTIMATED_CARD_HEIGHT = 300;
 const SCROLL_THRESHOLD = 400;
@@ -56,18 +58,46 @@ const ConfessionFeedBody = ({
   const [showScrollTop, setShowScrollTop] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
+  // Users who asked their OS to cut nonessential motion get instant scrolls
+  // and no fade transitions on the feed state swaps. The feed still swaps —
+  // it just stops animating the swap.
+  const prefersReducedMotion = usePrefersReducedMotion();
+  const scrollBehavior: ScrollBehavior = prefersReducedMotion ? "auto" : "smooth";
   // Full feeds keep sort in the URL so back/forward from a detail page
-  // returns to the same tab; preview feeds stay fixed on initialSort.
+  // returns to the same tab; preview feeds stay fixed on initialSort. When
+  // the URL does not pin a sort, fall back to the last filter the user
+  // picked in this tab (sessionStorage), so switching between feed views
+  // (e.g. /confessions -> / -> /confessions) resumes on the same tab. An
+  // unknown or stale value in either source is rejected so we can never
+  // ask the backend for an invalid sort.
+  const filterPersistence = useFeedFilterPersistence<FeedSort>(
+    "sort",
+    SORT_OPTIONS.map((o) => o.value),
+  );
   const urlSort = searchParams?.get("sort") ?? null;
-  const sort: FeedSort = !preview && isFeedSort(urlSort) ? urlSort : initialSort;
+  const resolvedSort: FeedSort = !preview
+    ? isFeedSort(urlSort)
+      ? urlSort
+      : filterPersistence.read() ?? initialSort
+    : initialSort;
+  const sort: FeedSort = resolvedSort;
   const setSort = useCallback(
     (next: FeedSort) => {
+      filterPersistence.write(next);
       const params = new URLSearchParams(searchParams?.toString());
       params.set("sort", next);
       router.replace(`${pathname}?${params.toString()}`, { scroll: false });
     },
-    [pathname, router, searchParams],
+    [pathname, router, searchParams, filterPersistence],
   );
+
+  // Persist the sort we actually show whenever it changes (covers the case
+  // where the URL carried the sort — the store still needs to learn it so a
+  // sibling feed view picks it up).
+  useEffect(() => {
+    if (preview) return;
+    filterPersistence.write(sort);
+  }, [sort, preview, filterPersistence]);
   const loadMoreRef = useRef<HTMLDivElement>(null);
 
   const {
@@ -157,14 +187,14 @@ const ConfessionFeedBody = ({
 
   const scrollToComposer = useCallback(() => {
     document.getElementById("composer")?.scrollIntoView({
-      behavior: "smooth",
+      behavior: scrollBehavior,
       block: "start",
     });
-  }, []);
+  }, [scrollBehavior]);
 
   const scrollToTop = useCallback(() => {
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  }, []);
+    window.scrollTo({ top: 0, behavior: scrollBehavior });
+  }, [scrollBehavior]);
 
   const sortControls = (
     <div
@@ -302,13 +332,21 @@ const ConfessionFeedBody = ({
       )}
 
       <div
-        className="relative w-full transition-opacity duration-200"
+        className={
+          prefersReducedMotion
+            ? "relative w-full"
+            : "relative w-full transition-opacity duration-200"
+        }
         style={{
           height: `${virtualizer.getTotalSize()}px`,
-          opacity: isFetching && !isFetchingNextPage ? 0.7 : 1,
+          // With reduced motion the fade is skipped entirely so the swap is
+          // instant; without it, fade to 0.7 while a refetch is in flight.
+          opacity:
+            !prefersReducedMotion && isFetching && !isFetchingNextPage ? 0.7 : 1,
         }}
         role="feed"
         aria-label="Confessions feed"
+        data-reduced-motion={prefersReducedMotion ? "true" : "false"}
       >
         {virtualItems.map((virtualItem) => {
           const confession = visibleConfessions[virtualItem.index];
