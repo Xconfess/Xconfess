@@ -25,7 +25,7 @@ describe("AttachmentPreview", () => {
     );
   });
 
-  it("falls back to the download link when an image fails to load", () => {
+  it("shows an explicit retry affordance when the image fails to load, distinct from an upload error", () => {
     render(
       <AttachmentPreview name="broken.webp" type="image/webp" url={SAFE_IMAGE_URL} />,
     );
@@ -33,7 +33,51 @@ describe("AttachmentPreview", () => {
     fireEvent.error(screen.getByRole("img", { name: "broken.webp" }));
 
     expect(screen.queryByRole("img")).not.toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Download broken.webp" })).toBeInTheDocument();
+    expect(screen.getByTestId("attachment-preview-error")).toHaveAccessibleName(
+      /preview failed for broken\.webp/i,
+    );
+    expect(
+      screen.getByRole("button", { name: /retry loading preview for broken\.webp/i }),
+    ).toBeInTheDocument();
+    // The download link stays available so the user is never fully stuck.
+    expect(
+      screen.getByRole("link", { name: "Download broken.webp" }),
+    ).toBeInTheDocument();
+    // Copy explicitly separates preview failure from upload failure so the
+    // user understands retrying does not re-upload the file.
+    expect(
+      screen.getByText(/the file was uploaded successfully/i),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/won't re-upload the file/i),
+    ).toBeInTheDocument();
+  });
+
+  it("re-renders the image when the retry button is clicked and busts the cached URL", () => {
+    render(
+      <AttachmentPreview name="broken.webp" type="image/webp" url={SAFE_IMAGE_URL} />,
+    );
+
+    fireEvent.error(screen.getByRole("img", { name: "broken.webp" }));
+
+    fireEvent.click(
+      screen.getByRole("button", { name: /retry loading preview for broken\.webp/i }),
+    );
+
+    const retried = screen.getByRole("img", { name: "broken.webp" });
+    expect(retried).toHaveAttribute("src", expect.stringContaining(SAFE_IMAGE_URL));
+    expect(retried.getAttribute("src")).toMatch(/__preview_retry=1$/);
+  });
+
+  it("does not render the retry affordance for non-image attachments", () => {
+    render(
+      <AttachmentPreview name="report.pdf" type="application/pdf" url={SAFE_IMAGE_URL} />,
+    );
+
+    expect(screen.queryByTestId("attachment-preview-error")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /retry loading preview/i }),
+    ).not.toBeInTheDocument();
   });
 
   it("never renders a PDF inline and offers a labelled download", () => {

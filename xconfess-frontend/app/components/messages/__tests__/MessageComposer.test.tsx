@@ -129,3 +129,192 @@ describe('MessageComposer — disabled state', () => {
     expect(screen.getByRole('button', { name: 'Send message' })).toBeDisabled();
   });
 });
+
+describe('MessageComposer — offline feedback', () => {
+  it('explains that sending is unavailable when offline', () => {
+    renderComposer({ value: 'hello', isOffline: true });
+
+    expect(screen.getByTestId('composer-offline-status')).toHaveTextContent(
+      /offline/i,
+    );
+    expect(screen.getByTestId('composer-offline-status')).toHaveTextContent(
+      /draft is saved/i,
+    );
+  });
+
+  it('disables the field and the send button when offline', () => {
+    renderComposer({ value: 'hello', isOffline: true });
+
+    expect(screen.getByLabelText('Send encrypted message')).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Send message' })).toBeDisabled();
+  });
+
+  it('does not fire onSend when Enter is pressed while offline (no false success)', () => {
+    const { onSend } = renderComposer({ value: 'hello', isOffline: true });
+
+    fireEvent.keyDown(screen.getByLabelText('Send encrypted message'), {
+      key: 'Enter',
+    });
+
+    expect(onSend).not.toHaveBeenCalled();
+  });
+
+  it('does not fire onSend when the send button is clicked while offline', () => {
+    const { onSend } = renderComposer({ value: 'hello', isOffline: true });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Send message' }));
+
+    expect(onSend).not.toHaveBeenCalled();
+  });
+
+  it('keeps the draft text visible across the offline transition', () => {
+    const { rerender } = render(
+      <MessageComposer
+        value="half-typed thought"
+        onChange={jest.fn()}
+        onSend={jest.fn()}
+        placeholder="Send encrypted message..."
+        label="Send encrypted message"
+        isOffline={false}
+      />,
+    );
+
+    expect(screen.getByLabelText('Send encrypted message')).toHaveValue(
+      'half-typed thought',
+    );
+
+    rerender(
+      <MessageComposer
+        value="half-typed thought"
+        onChange={jest.fn()}
+        onSend={jest.fn()}
+        placeholder="Send encrypted message..."
+        label="Send encrypted message"
+        isOffline={true}
+      />,
+    );
+
+    expect(screen.getByLabelText('Send encrypted message')).toHaveValue(
+      'half-typed thought',
+    );
+  });
+
+  it('hides the offline status once connectivity returns', () => {
+    const { rerender } = render(
+      <MessageComposer
+        value="hello"
+        onChange={jest.fn()}
+        onSend={jest.fn()}
+        placeholder="Send encrypted message..."
+        label="Send encrypted message"
+        isOffline={true}
+      />,
+    );
+
+    expect(screen.getByTestId('composer-offline-status')).toBeInTheDocument();
+
+    rerender(
+      <MessageComposer
+        value="hello"
+        onChange={jest.fn()}
+        onSend={jest.fn()}
+        placeholder="Send encrypted message..."
+        label="Send encrypted message"
+        isOffline={false}
+      />,
+    );
+
+    expect(
+      screen.queryByTestId('composer-offline-status'),
+    ).not.toBeInTheDocument();
+  });
+});
+
+describe('MessageComposer — reconnect flow', () => {
+  beforeEach(() => {
+    jest.useFakeTimers();
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
+  function renderOfflineThenOnline(
+    initialValue = 'hello',
+    extra: Partial<React.ComponentProps<typeof MessageComposer>> = {},
+  ) {
+    const onSend = jest.fn();
+    const utils = render(
+      <MessageComposer
+        value={initialValue}
+        onChange={jest.fn()}
+        onSend={onSend}
+        placeholder="Send encrypted message..."
+        label="Send encrypted message"
+        isOffline={true}
+        {...extra}
+      />,
+    );
+    utils.rerender(
+      <MessageComposer
+        value={initialValue}
+        onChange={jest.fn()}
+        onSend={onSend}
+        placeholder="Send encrypted message..."
+        label="Send encrypted message"
+        isOffline={false}
+        {...extra}
+      />,
+    );
+    return { ...utils, onSend };
+  }
+
+  it('shows a brief "back online" confirmation after reconnect', () => {
+    renderOfflineThenOnline();
+
+    expect(
+      screen.getByTestId('composer-reconnected-status'),
+    ).toHaveTextContent(/back online/i);
+  });
+
+  it('dismisses the reconnect confirmation after a few seconds', () => {
+    renderOfflineThenOnline();
+
+    expect(
+      screen.getByTestId('composer-reconnected-status'),
+    ).toBeInTheDocument();
+
+    jest.advanceTimersByTime(3500);
+
+    expect(
+      screen.queryByTestId('composer-reconnected-status'),
+    ).not.toBeInTheDocument();
+  });
+
+  it('re-enables sending after reconnect so a retry can go through', () => {
+    const { onSend } = renderOfflineThenOnline();
+
+    const sendButton = screen.getByRole('button', { name: 'Send message' });
+    expect(sendButton).not.toBeDisabled();
+
+    fireEvent.click(sendButton);
+    expect(onSend).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not show the reconnect confirmation on the initial online render', () => {
+    render(
+      <MessageComposer
+        value="hello"
+        onChange={jest.fn()}
+        onSend={jest.fn()}
+        placeholder="Send encrypted message..."
+        label="Send encrypted message"
+        isOffline={false}
+      />,
+    );
+
+    expect(
+      screen.queryByTestId('composer-reconnected-status'),
+    ).not.toBeInTheDocument();
+  });
+});
