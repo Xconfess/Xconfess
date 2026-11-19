@@ -45,7 +45,13 @@ describe('HealthController', () => {
   };
 
   beforeEach(async () => {
-    jest.clearAllMocks();
+    // mockReset (not clearAllMocks) also drops queued *Once implementations,
+    // so a leftover rejection cannot leak into the next test.
+    healthService.check.mockReset();
+    dbIndicator.isHealthy.mockReset();
+    redisIndicator.isHealthy.mockReset();
+    schemaIndicator.isHealthy.mockReset();
+    queueIndicator.isHealthy.mockReset();
 
     configService = { get: jest.fn().mockReturnValue('false') };
     dbIndicator.isHealthy.mockResolvedValue(
@@ -135,7 +141,7 @@ describe('HealthController', () => {
 
     it('marks disabled subsystems in the summary', async () => {
       redisIndicator.isHealthy.mockResolvedValue({
-        redis: { status: 'up', mode: 'disabled', reason: 'test', severity: 'info' },
+        redis: { status: 'up', state: 'disabled', details: { reason: 'test' } },
       });
 
       const result = await controller.readiness();
@@ -149,8 +155,13 @@ describe('HealthController', () => {
       queueIndicator.isHealthy.mockResolvedValue({
         queues: {
           status: 'down',
-          notifications: { status: 'degraded', latencyMs: 300 },
-          'notifications-dlq': { status: 'up', latencyMs: 10 },
+          state: 'degraded',
+          details: {
+            queues: {
+              notifications: { status: 'degraded', latencyMs: 300 },
+              'notifications-dlq': { status: 'up', latencyMs: 10 },
+            },
+          },
         },
       });
 
@@ -229,16 +240,16 @@ describe('HealthController', () => {
         status: 'ok',
         details: {
           database: { status: 'up' },
-          redis: { status: 'up', mode: 'disabled' },
-          queues: { status: 'up', mode: 'disabled' },
+          redis: { status: 'up', state: 'disabled' },
+          queues: { status: 'up', state: 'disabled' },
           schema: { status: 'up' },
         },
       });
 
       const result = await controller.status();
       expect(result.state).toBe('disabled');
-      expect(result.checks.redis.mode).toBe('disabled');
-      expect(result.checks.queues.mode).toBe('disabled');
+      expect(result.checks.redis.status).toBe('disabled');
+      expect(result.checks.queues.status).toBe('disabled');
     });
 
     it('returns state "degraded" when queues are down but core is up', async () => {

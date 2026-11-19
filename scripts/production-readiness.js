@@ -64,11 +64,14 @@ function buildChecks({ mode, includeFullTests, includeSmoke }) {
   ];
 
   if (mode === 'production') {
-    checks.splice(0, 0, [
-      'deploy preflight',
-      'npm',
-      ['run', 'deploy:preflight'],
-    ]);
+    checks.splice(
+      0,
+      0,
+      ['deploy preflight', 'npm', ['run', 'deploy:preflight']],
+      // Compares shipped migrations with the target database (DB_* env) and
+      // fails when required migrations are pending.
+      ['migration drift', 'npm', ['run', 'backend:migration:drift']],
+    );
   }
 
   if (includeFullTests) {

@@ -6,31 +6,29 @@ import {
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Redis from 'ioredis';
+import {
+  buildDependencyDetail,
+  classifyDependencyError,
+  DependencyErrorCode,
+  resolveBackgroundJobsDisabledReason,
+  resolveDependencyTimeoutMs,
+  summarizeDependencyError,
+  withDependencyTimeout,
+} from './dependency-check';
 
-function resolveDisabledReason(rawValue: unknown): string {
-  if (rawValue === 'false') {
-    return 'ENABLE_BACKGROUND_JOBS is set to "false" (background jobs intentionally disabled)';
+function resolveActionableHint(code: DependencyErrorCode): string {
+  switch (code) {
+    case 'CONNECTION_REFUSED':
+      return 'Redis server is not running or not accepting connections. Verify REDIS_HOST and REDIS_PORT, and ensure Redis is started.';
+    case 'TIMEOUT':
+      return 'Connection timed out. Check network connectivity between the application and Redis host, or raise HEALTH_REDIS_TIMEOUT_MS.';
+    case 'AUTH_FAILED':
+      return 'Authentication failed. If Redis requires a password, set the REDIS_PASSWORD environment variable.';
+    case 'DNS_LOOKUP_FAILED':
+      return 'Redis host could not be resolved. Verify REDIS_HOST.';
+    default:
+      return 'Check backend logs for the full error. Verify REDIS_HOST and REDIS_PORT environment variables.';
   }
-  if (rawValue === undefined || rawValue === null || rawValue === '') {
-    return 'ENABLE_BACKGROUND_JOBS is not set (defaults to disabled)';
-  }
-  return `ENABLE_BACKGROUND_JOBS is set to "${String(rawValue)}" (expected "true" to enable)`;
-}
-
-function resolveActionableHint(errorMessage: string): string {
-  const lower = errorMessage.toLowerCase();
-
-  if (lower.includes('econnrefused')) {
-    return 'Redis server is not running or not accepting connections. Verify REDIS_HOST and REDIS_PORT, and ensure Redis is started.';
-  }
-  if (lower.includes('timeout') || lower.includes('timed out')) {
-    return 'Connection timed out. Check network connectivity between the application and Redis host.';
-  }
-  if (lower.includes('noauth') || lower.includes('auth')) {
-    return 'Authentication failed. If Redis requires a password, set the REDIS_PASSWORD environment variable.';
-  }
-
-  return 'Check backend logs for the full error. Verify REDIS_HOST and REDIS_PORT environment variables.';
 }
 
 @Injectable()
@@ -42,72 +40,88 @@ export class RedisHealthIndicator extends HealthIndicator {
   }
 
   async isHealthy(key: string): Promise<HealthIndicatorResult> {
+    const timeoutMs = resolveDependencyTimeoutMs(this.configService, 'redis');
     const rawConfig = this.configService.get<string | undefined>(
       'ENABLE_BACKGROUND_JOBS',
     );
-    const jobsEnabled = rawConfig === 'true';
 
-    if (!jobsEnabled) {
-      return this.getStatus(key, true, {
-        mode: 'disabled',
-        reason: resolveDisabledReason(rawConfig),
-        severity: 'info',
-      });
+    if (rawConfig !== 'true') {
+      return {
+        [key]: buildDependencyDetail({
+          dependency: 'redis',
+          state: 'disabled',
+          timeoutMs,
+          message: 'Redis check skipped because background jobs are disabled',
+          details: {
+            reason: resolveBackgroundJobsDisabledReason(rawConfig),
+            severity: 'info',
+          },
+        }),
+      };
     }
 
-    const host =
-      this.configService.get<string>('REDIS_HOST') || 'localhost';
-    const port = this.configService.get<number>('REDIS_PORT') || 6379;
+    const host = this.configService.get<string>('REDIS_HOST') || 'localhost';
+    const port = Number(this.configService.get<number>('REDIS_PORT')) || 6379;
 
     const client = new Redis({
       host,
       port,
-      connectTimeout: 2000,
+      connectTimeout: timeoutMs,
       lazyConnect: true,
       retryStrategy: () => null,
+      maxRetriesPerRequest: 0,
     });
 
+    const start = Date.now();
     try {
-      await client.connect();
+      const details = await withDependencyTimeout(
+        'redis',
+        timeoutMs,
+        async () => {
+          await client.connect();
+          await client.ping();
 
-      const start = Date.now();
-      await client.ping();
-      const latencyMs = Date.now() - start;
+          const infoRaw = await client.info('server');
+          const versionMatch = infoRaw.match(/redis_version:([\d.]+)/);
+          const clientsRaw = await client.info('clients');
+          const clientsMatch = clientsRaw.match(/connected_clients:(\d+)/);
 
-      // Retrieve server version and connected client count
-      const infoRaw = await client.info('server');
-      const versionMatch = infoRaw.match(/redis_version:([\d.]+)/);
-      const version = versionMatch ? versionMatch[1] : undefined;
-
-      const clientsRaw = await client.info('clients');
-      const clientsMatch = clientsRaw.match(/connected_clients:(\d+)/);
-      const connectedClients = clientsMatch
-        ? parseInt(clientsMatch[1], 10)
-        : undefined;
-
-      return this.getStatus(key, true, {
-        host,
-        port,
-        latencyMs,
-        version,
-        connectedClients,
-      });
-    } catch (error: unknown) {
-      const message =
-        error instanceof Error ? error.message : String(error);
-      this.logger.error(`Redis health check failed: ${message}`);
-      throw new HealthCheckError(
-        'Redis is unreachable',
-        this.getStatus(key, false, {
-          host,
-          port,
-          error: message,
-          hint: resolveActionableHint(message),
-        }),
+          return {
+            version: versionMatch ? versionMatch[1] : undefined,
+            connectedClients: clientsMatch
+              ? parseInt(clientsMatch[1], 10)
+              : undefined,
+          };
+        },
       );
+
+      return {
+        [key]: buildDependencyDetail({
+          dependency: 'redis',
+          state: 'up',
+          timeoutMs,
+          latencyMs: Date.now() - start,
+          message: 'Redis is reachable',
+          details,
+        }),
+      };
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.error(`Redis health check failed: ${message}`);
+      const errorCode = classifyDependencyError(error);
+      throw new HealthCheckError('Redis is unreachable', {
+        [key]: buildDependencyDetail({
+          dependency: 'redis',
+          state: 'down',
+          timeoutMs,
+          message: `Redis ${summarizeDependencyError(errorCode)}`,
+          errorCode,
+          hint: resolveActionableHint(errorCode),
+        }),
+      });
     } finally {
       try {
-        await client.disconnect();
+        client.disconnect();
       } catch {
         // ignore disconnect errors
       }

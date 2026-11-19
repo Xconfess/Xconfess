@@ -27,6 +27,7 @@
     "backend:migration:run": "npm run migration:run --workspace=xconfess-backend",
     "backend:migration:show": "npm run migration:show --workspace=xconfess-backend",
     "backend:migration:smoke": "npm run migration:smoke --workspace=xconfess-backend",
+    "backend:migration:drift": "npm run migration:drift --workspace=xconfess-backend",
     "backend:schema:repair": "npx ts-node -r tsconfig-paths/register --project tsconfig.seed.json scripts/schema-repair.ts",
     "contract:build": "npm run build --workspace=xconfess-contracts",
     "contract:build:release": "npm run build:release --workspace=xconfess-contracts",

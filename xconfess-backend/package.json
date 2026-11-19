@@ -18,6 +18,7 @@
     "migration:run": "typeorm-ts-node-commonjs -d data-source.ts migration:run",
     "migration:show": "typeorm-ts-node-commonjs -d data-source.ts migration:show",
     "migration:smoke": "ts-node -r tsconfig-paths/register scripts/migration-smoke.ts",
+    "migration:drift": "ts-node -r tsconfig-paths/register scripts/migration-drift.ts",
     "test": "jest --config jest.config.js --runInBand",
     "test:watch": "jest --watch",
     "test:cov": "jest --config ./jest.admin.config.js --coverage",
@@ -27,7 +28,7 @@
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "test:feed:e2e": "jest --config ./test/jest-e2e.json --testPathPattern=public-feed",
     "test:websocket-fanout": "jest --config ./jest.config.js src/notifications/gateways/notification.gateway.load.spec.ts --runInBand",
-    "test:reliability": "TZ=Africa/Lagos PG_INTEGRATION=true REDIS_INTEGRATION=true jest --config jest.config.js --runInBand --runTestsByPath src/cache/redis-outage.integration.spec.ts src/confession/feed-filter.property.pg.spec.ts src/messages/messages.concurrent.pg.spec.ts src/notifications/notification-delivery.failure.integration.spec.ts"
+    "test:reliability": "TZ=Africa/Lagos PG_INTEGRATION=true REDIS_INTEGRATION=true jest --config jest.config.js --runInBand --runTestsByPath src/cache/redis-outage.integration.spec.ts src/confession/feed-filter.property.pg.spec.ts src/messages/messages.concurrent.pg.spec.ts src/notifications/notification-delivery.failure.integration.spec.ts src/database/migration-drift.postgres.spec.ts"
   },
   "dependencies": {
     "@nestjs-modules/ioredis": "^2.0.2",
