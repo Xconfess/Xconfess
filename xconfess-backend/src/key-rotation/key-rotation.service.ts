@@ -212,4 +212,106 @@ export class KeyRotationService {
       },
     });
   }
+
+  /**
+   * Check if a key version can be retired safely.
+   * Detects records still using the target key version.
+   */
+  async checkKeyRetirementCoverage(keyVersionToRetire: string): Promise<{
+    canRetire: boolean;
+    recordsStillUsing: number;
+    details: string;
+    recommendations: string[];
+  }> {
+    this.logger.log(`Checking if key version ${keyVersionToRetire} can be retired`);
+
+    // Check encryption service constraints
+    const encryptionCheck = this.encryptionService.canRetireKeyVersion(keyVersionToRetire);
+    if (!encryptionCheck.canRetire) {
+      return {
+        canRetire: false,
+        recordsStillUsing: encryptionCheck.dependentCount,
+        details: encryptionCheck.description,
+        recommendations: [
+          'First rotate all confessions to a newer key version',
+          `Use POST /admin/key-rotation/rotate to migrate records off key version ${keyVersionToRetire}`,
+        ],
+      };
+    }
+
+    // Count confessions still encrypted with this key version
+    const recordCount = await this.confessionRepo.count({
+      where: {
+        keyVersion: keyVersionToRetire,
+        wrappedDek: Not(IsNull()),
+        migrationStatus: 'completed',
+      },
+    });
+
+    if (recordCount > 0) {
+      return {
+        canRetire: false,
+        recordsStillUsing: recordCount,
+        details: `Found ${recordCount} confession(s) still encrypted with key version ${keyVersionToRetire}`,
+        recommendations: [
+          `Rotate ${recordCount} confessions to current key version before retiring ${keyVersionToRetire}`,
+          `Run: POST /admin/key-rotation/rotate?dryRun=true to preview rotation`,
+          'After rotation completes, retry retirement check',
+        ],
+      };
+    }
+
+    return {
+      canRetire: true,
+      recordsStillUsing: 0,
+      details: `No confessions depend on key version ${keyVersionToRetire}. Safe to retire.`,
+      recommendations: [
+        'Remove key environment variable ENCRYPTION_MASTER_KEY_' + keyVersionToRetire,
+        'Update CI/CD and deployment pipelines to no longer configure this key',
+        'Document this key retirement in security changelog',
+      ],
+    };
+  }
+
+  /**
+   * Perform a dry-run check for mixed key versions in the database.
+   * Useful for understanding encryption state before rotation.
+   */
+  async analyzeKeyVersionDistribution(): Promise<{
+    totalEncrypted: number;
+    byVersion: Array<{ version: string; count: number; percentage: string }>;
+    currentVersion: string;
+    needsRotation: boolean;
+  }> {
+    const allRecords = await this.confessionRepo
+      .createQueryBuilder('confession')
+      .where("confession.wrappedDek IS NOT NULL AND confession.wrappedDek != ''")
+      .andWhere("confession.migrationStatus = :migrationStatus", { migrationStatus: 'completed' })
+      .select('confession.keyVersion', 'keyVersion')
+      .addSelect('COUNT(*)', 'count')
+      .groupBy('confession.keyVersion')
+      .getRawMany();
+
+    const totalEncrypted = allRecords.reduce((sum, row) => sum + parseInt(row.count, 10), 0);
+    const currentVersion = this.encryptionService.getCurrentKeyVersion();
+
+    const byVersion = allRecords
+      .map((row) => ({
+        version: row.keyVersion || 'unknown',
+        count: parseInt(row.count, 10),
+        percentage: totalEncrypted > 0
+          ? ((parseInt(row.count, 10) / totalEncrypted) * 100).toFixed(2) + '%'
+          : '0%',
+      }))
+      .sort((a, b) => b.count - a.count);
+
+    const needsRotation = byVersion.some((v) => v.version !== currentVersion);
+
+    return {
+      totalEncrypted,
+      byVersion,
+      currentVersion,
+      needsRotation,
+    };
+  }
 }

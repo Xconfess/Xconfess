@@ -10,6 +10,7 @@ import { AnalyticsEvent } from './entities/analytics-event.entity';
 import { AnalyticsDailyRollup } from './entities/analytics-daily-rollup.entity';
 import { AnalyticsEventService } from './analytics-event.service';
 import { TractionMetricsService } from './traction-metrics.service';
+import { AnalyticsRetentionService } from './analytics-retention.service';
 import { PublicTractionController } from './public-traction.controller';
 import { Comment } from '../comment/entities/comment.entity';
 import { Message } from '../messages/entities/message.entity';
@@ -33,7 +34,7 @@ import { StellarAnchor } from '../stellar/entities/stellar-anchor.entity';
     CacheModule,
   ],
   controllers: [AnalyticsController, PublicTractionController],
-  providers: [AnalyticsService, AnalyticsEventService, TractionMetricsService],
-  exports: [AnalyticsService, AnalyticsEventService, TractionMetricsService],
+  providers: [AnalyticsService, AnalyticsEventService, TractionMetricsService, AnalyticsRetentionService],
+  exports: [AnalyticsService, AnalyticsEventService, TractionMetricsService, AnalyticsRetentionService],
 })
 export class AnalyticsModule {}
