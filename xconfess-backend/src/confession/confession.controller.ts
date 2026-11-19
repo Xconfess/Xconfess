@@ -270,20 +270,6 @@ export class ConfessionController {
     return this.service.update(id, dto);
   }
 
-  @Delete(':id')
-  @ApiOperation({ summary: 'Soft-delete a confession' })
-  @ApiParam({ name: 'id', description: 'Confession UUID' })
-  remove(@Param('id') id: string) {
-    return this.service.remove(id);
-  }
-
-  @Patch(':id/restore')
-  @ApiOperation({ summary: 'Restore a soft-deleted confession (admin)' })
-  @ApiParam({ name: 'id', description: 'Confession UUID' })
-  restore(@Param('id') id: string) {
-    return this.service.restore(id);
-  }
-
   @Post(':id/schedule')
   @UseGuards(OptionalJwtAuthGuard)
   @ApiOperation({ summary: 'Schedule a confession for future posting' })
