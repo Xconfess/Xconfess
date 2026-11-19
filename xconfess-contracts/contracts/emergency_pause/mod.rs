@@ -8,3 +8,6 @@ pub mod storage;
 pub use admin::{get_admin, set_admin};
 #[allow(unused_imports)]
 pub use pause::{assert_not_paused, is_paused, pause, set_paused_internal, unpause};
+
+#[allow(unused_imports)]
+pub use events::latest_pause_nonce;

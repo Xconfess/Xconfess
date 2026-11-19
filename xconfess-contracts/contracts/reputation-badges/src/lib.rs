@@ -2,6 +2,9 @@
 #![allow(dead_code)]
 #![allow(deprecated)]
 
+#[path = "../../event_bounds.rs"]
+pub mod event_bounds;
+
 use soroban_sdk::{
     contract, contracterror, contractimpl, contracttype, Address, Env, String, Symbol, Vec,
 };
@@ -31,6 +34,8 @@ pub enum Error {
     /// Emergency pause is active; badge/reputation mutations are blocked
     /// until an admin unpauses. Read-only queries remain available.
     ContractPaused = 7,
+    /// A badge metadata or pause-reason field exceeded its per-event bound.
+    MetadataTooLong = 8,
 }
 
 #[contracttype]
@@ -324,6 +329,7 @@ impl ReputationBadges {
     pub fn pause(env: Env, reason: String) -> Result<(), Error> {
         let admin = get_admin(&env)?;
         admin.require_auth();
+        event_bounds::validate_pause_reason(&reason).map_err(|_| Error::MetadataTooLong)?;
 
         env.storage().persistent().set(&StorageKey::Paused, &true);
 
@@ -337,6 +343,7 @@ impl ReputationBadges {
     pub fn unpause(env: Env, reason: String) -> Result<(), Error> {
         let admin = get_admin(&env)?;
         admin.require_auth();
+        event_bounds::validate_pause_reason(&reason).map_err(|_| Error::MetadataTooLong)?;
 
         env.storage().persistent().set(&StorageKey::Paused, &false);
 
@@ -363,6 +370,12 @@ impl ReputationBadges {
 
         let admin = get_admin(&env)?;
         admin.require_auth();
+
+        // Bound each variable-width badge metadata field before it is stored
+        // or referenced by an event, keeping the resource envelope predictable.
+        event_bounds::validate_badge_metadata(&name).map_err(|_| Error::MetadataTooLong)?;
+        event_bounds::validate_badge_metadata(&description).map_err(|_| Error::MetadataTooLong)?;
+        event_bounds::validate_badge_metadata(&criteria).map_err(|_| Error::MetadataTooLong)?;
 
         let metadata = BadgeTypeMetadata {
             name,

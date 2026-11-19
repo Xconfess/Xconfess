@@ -5,6 +5,7 @@
   "functions": [
     "anchor_confession",
     "assert_upgrade_from",
+    "can_anchor_with_timestamp",
     "can_upgrade_from",
     "get_admin_count",
     "get_capabilities",
@@ -25,6 +26,7 @@
     "last_anchor_timestamp",
     "migrate",
     "pause",
+    "pause_event_nonce",
     "revoke_admin",
     "revoke_operator",
     "schema_version",

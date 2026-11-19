@@ -12,8 +12,11 @@ use soroban_sdk::{
 #[path = "../../access_control.rs"]
 mod access_control;
 
+#[path = "../../event_bounds.rs"]
+pub mod event_bounds;
+
 #[path = "../../emergency_pause/mod.rs"]
-mod emergency_pause;
+pub mod emergency_pause;
 
 pub const CONTRACT_SEMVER_MAJOR: u32 = 1;
 pub const CONTRACT_SEMVER_MINOR: u32 = 0;
@@ -34,6 +37,20 @@ const CAPABILITY_PAUSE_V1: Symbol = symbol_short!("pausev1");
 /// Schema version constants for upgrade-safe migration.
 pub const ANCHOR_SCHEMA_VERSION_INITIAL: u32 = 1;
 pub const ANCHOR_SCHEMA_VERSION_CURRENT: u32 = 2;
+
+/// Anchor timestamp policy (enforced from schema v2 onward).
+///
+/// Client-supplied timestamps must be **non-decreasing**: a new anchor may
+/// reuse the most recent timestamp (several confessions can share a second),
+/// but it must never go backwards. `timestamp == 0` is always accepted as the
+/// initial value after migration. The policy intentionally does *not* compare
+/// against ledger time because the anchor timestamp is supplied in
+/// milliseconds by the client while `env.ledger().timestamp()` is seconds.
+///
+/// The policy is only active once `migrate()` has created the
+/// `LastAnchorTimestamp` key. Pre-v2 deployments (and pre-migration anchors)
+/// are left untouched so existing stored anchors remain valid.
+pub const ANCHOR_TIMESTAMP_POLICY_MIN: u64 = 0;
 
 /// Storage keys for confession-anchor state
 #[contracttype]
@@ -134,6 +151,10 @@ pub enum Error {
     AlreadyOperator = 13,
     NotOperator = 14,
     IncompatibleUpgrade = 15,
+    /// A confession timestamp predates the last recorded anchor timestamp.
+    InvalidTimestamp = 16,
+    /// A pause/unpause reason exceeded the per-event bound.
+    PauseReasonTooLong = 17,
 }
 
 impl From<access_control::AccessError> for Error {
@@ -160,12 +181,34 @@ impl From<emergency_pause::errors::PauseError> for Error {
             emergency_pause::errors::PauseError::NotPaused => Self::NotPaused,
             emergency_pause::errors::PauseError::Unauthorized => Self::Unauthorized,
             emergency_pause::errors::PauseError::ContractPaused => Self::ContractPaused,
+            emergency_pause::errors::PauseError::ReasonTooLong => Self::PauseReasonTooLong,
         }
     }
 }
 
 fn get_confession_store(env: &Env) -> soroban_sdk::storage::Instance {
     env.storage().instance()
+}
+
+/// Validate a client-supplied anchor timestamp against the monotonic policy.
+///
+/// No state is mutated here. Returns `InvalidTimestamp` when the value would
+/// move the anchor stream backwards; pre-v2 deployments are a no-op.
+fn validate_anchor_timestamp(env: &Env, timestamp: u64) -> Result<(), Error> {
+    // Policy is gated on the v2 migration key being present. This preserves
+    // compatibility with deployments that never ran `migrate()`.
+    if !env.storage().instance().has(&DataKey::LastAnchorTimestamp) {
+        return Ok(());
+    }
+    let last: u64 = env
+        .storage()
+        .instance()
+        .get(&DataKey::LastAnchorTimestamp)
+        .unwrap_or(ANCHOR_TIMESTAMP_POLICY_MIN);
+    if timestamp < last {
+        return Err(Error::InvalidTimestamp);
+    }
+    Ok(())
 }
 
 fn get_count(env: &Env) -> u64 {
@@ -223,6 +266,16 @@ impl ConfessionAnchor {
         // Enforce uniqueness: if already anchored, do not overwrite.
         if storage.has(&hash) {
             return symbol_short!("exists");
+        }
+
+        // Reject out-of-order timestamps before any state mutation. A failed
+        // validation therefore cannot write the anchor, bump the count, or
+        // emit an event.
+        if let Err(err) = validate_anchor_timestamp(&env, timestamp) {
+            // Entry point returns a Symbol, so emit a typed contract error
+            // (stable code 16) instead of a string panic. This rolls back all
+            // writes performed by this invocation.
+            soroban_sdk::panic_with_error!(&env, err);
         }
 
         // Calculate before writing any state. This makes an exhausted counter a
@@ -521,6 +574,13 @@ impl ConfessionAnchor {
             .unwrap_or(0_u64)
     }
 
+    /// Read-only predicate describing whether `timestamp` satisfies the
+    /// monotonic anchor policy right now. Useful for clients that want to
+    /// normalise timestamps before submitting.
+    pub fn can_anchor_with_timestamp(env: Env, timestamp: u64) -> bool {
+        validate_anchor_timestamp(&env, timestamp).is_ok()
+    }
+
     // ─────────────────────────────────────────────────────────────────────────
     // Pause/Resume Management
     // ─────────────────────────────────────────────────────────────────────────
@@ -534,8 +594,12 @@ impl ConfessionAnchor {
             return Err(Error::AlreadyPaused);
         }
 
+        // Bound-check before any state mutation so an oversized reason can
+        // never be recorded (or billed) as part of a state change.
+        emergency_pause::events::validate_pause_reason(&reason).map_err(Error::from)?;
+
         emergency_pause::set_paused_internal(&env, true);
-        emergency_pause::events::emit_paused(&env, &caller, reason);
+        emergency_pause::events::emit_paused(&env, &caller, reason).map_err(Error::from)?;
         Ok(())
     }
 
@@ -547,9 +611,17 @@ impl ConfessionAnchor {
             return Err(Error::NotPaused);
         }
 
+        emergency_pause::events::validate_pause_reason(&reason).map_err(Error::from)?;
+
         emergency_pause::set_paused_internal(&env, false);
-        emergency_pause::events::emit_unpaused(&env, &caller, reason);
+        emergency_pause::events::emit_unpaused(&env, &caller, reason).map_err(Error::from)?;
         Ok(())
+    }
+
+    /// Current value of the monotonic pause-event nonce. Consumers can use it
+    /// to detect gaps/reordering in the pause audit stream.
+    pub fn pause_event_nonce(env: Env) -> u64 {
+        emergency_pause::events::latest_pause_nonce(&env)
     }
 
     /// Check if the contract is paused.
@@ -610,6 +682,8 @@ impl ConfessionAnchor {
 
 #[cfg(test)]
 mod test {
+    extern crate std;
+
     use super::*;
     use soroban_sdk::{
         testutils::{Address as _, Events, Ledger, LedgerInfo},
@@ -1411,8 +1485,7 @@ mod test {
     }
 
     #[test]
-    #[should_panic(expected = "pause reason too long")]
-    fn pause_reason_limit_plus_one_rejected() {
+    fn pause_reason_limit_plus_one_rejected_with_stable_error() {
         let (env, client) = new_client();
         let owner = Address::generate(&env);
         let reason = SorobanString::from_str(
@@ -1422,6 +1495,62 @@ mod test {
 
         client.initialize(&owner);
 
-        client.pause(&owner, &reason);
+        assert_eq!(
+            client.try_pause(&owner, &reason),
+            Err(Ok(Error::PauseReasonTooLong))
+        );
+        assert!(!client.is_paused(), "rejected pause must not mutate state");
+        assert_eq!(client.pause_event_nonce(), 0);
+    }
+
+    #[test]
+    fn pause_events_carry_actor_reason_and_monotonic_nonce() {
+        let (env, client) = new_client();
+        let owner = Address::generate(&env);
+        client.initialize(&owner);
+
+        use soroban_sdk::{testutils::Events, IntoVal, Symbol};
+
+        assert_eq!(client.pause_event_nonce(), 0);
+        client.pause(&owner, &SorobanString::from_str(&env, "incident"));
+        let pause_snapshot = env.events().all();
+        assert_eq!(client.pause_event_nonce(), 1);
+        client.unpause(&owner, &SorobanString::from_str(&env, "resolved"));
+        let unpause_snapshot = env.events().all();
+        assert_eq!(client.pause_event_nonce(), 2);
+
+        let pause_topic = Symbol::new(&env, "pause_state_changed");
+        for (expected_nonce, expected_paused, snapshot) in [
+            (1_u64, true, pause_snapshot),
+            (2_u64, false, unpause_snapshot),
+        ] {
+            assert_eq!(snapshot.len(), 1, "exactly one pause event per action");
+            let (_, topics, data) = snapshot.first().unwrap();
+            let topic: Symbol = topics.first().unwrap().into_val(&env);
+            assert_eq!(topic, pause_topic);
+            let (version, actor, reason, nonce, paused, _ts): (
+                u32,
+                Address,
+                SorobanString,
+                u64,
+                bool,
+                u64,
+            ) = data.into_val(&env);
+            assert_eq!(version, emergency_pause::events::PAUSE_EVENT_VERSION_V2);
+            assert_eq!(actor, owner);
+            assert_eq!(
+                reason,
+                SorobanString::from_str(
+                    &env,
+                    if expected_paused {
+                        "incident"
+                    } else {
+                        "resolved"
+                    }
+                )
+            );
+            assert_eq!(nonce, expected_nonce);
+            assert_eq!(paused, expected_paused);
+        }
     }
 }

@@ -1258,6 +1258,9 @@ orders against this reference. Keep this section aligned with
 | `ConfessionEvent` | `confession` | `confess` | `single-value` | `event_version`, `confession_id`, `author`, `content_hash`, `nonce`, `timestamp`, `correlation_id` |
 | `ReactionEvent` | `reaction` | `react` | `single-value` | `event_version`, `confession_id`, `reactor`, `reaction_type`, `nonce`, `timestamp`, `correlation_id` |
 | `PauseChangedEvent` | `pause` | `tip_pause` | `single-value` | `actor`, `paused`, `reason`, `timestamp` |
+| `PausedEvent` | `pause` | `paused` | `single-value` | `reason` |
+| `UnpausedEvent` | `pause` | `unpaused` | `single-value` | `reason` |
+| `PauseStateChangedEvent` | `pause` | `pause_state_changed` | `vec` | `event_version`, `actor`, `reason`, `nonce`, `paused`, `timestamp` |
 | `ReportEvent` | `report` | `report` | `single-value` | `event_version`, `confession_id`, `reporter`, `reason`, `nonce`, `timestamp`, `correlation_id` |
 | `ReportSubmittedLedgerEvent` | `report` | `report` | `single-value` | `confession_id`, `actor`, `reason`, `event_version`, `nonce`, `timestamp` |
 | `RoleEvent` | `role` | `role` | `single-value` | `event_version`, `user`, `role`, `granted`, `nonce`, `timestamp`, `correlation_id` |
