@@ -22,6 +22,7 @@ import {
   OutboxEvent,
   OutboxStatus,
 } from '../common/entities/outbox-event.entity';
+import { resolveReportSortColumn } from '../common/validation/sort-allowlist';
 
 export const DUPLICATE_REPORT_MESSAGE =
   'You have already reported this confession within the last 24 hours.';
@@ -560,9 +561,9 @@ export class ReportsService {
       });
     }
 
-    const sortBy = query.sortBy || 'createdAt';
-    const sortOrder = query.sortOrder || 'DESC';
-    queryBuilder.orderBy(`report.${sortBy}`, sortOrder);
+    const sortColumn = resolveReportSortColumn(query.sortBy);
+    const sortOrder = query.sortOrder === 'ASC' ? 'ASC' : 'DESC';
+    queryBuilder.orderBy(sortColumn, sortOrder);
 
     const total = await queryBuilder.getCount();
     const reports = await queryBuilder.skip(offset).take(limit).getMany();

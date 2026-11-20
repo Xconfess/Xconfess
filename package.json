@@ -21,6 +21,7 @@
     "dev:frontend": "npm run dev --workspace=xconfess-frontend",
     "backend:build": "npm run build --workspace=xconfess-backend",
     "backend:test": "npm run test --workspace=xconfess-backend",
+    "backend:test:contracts": "npm run test:contracts --workspace=xconfess-backend",
     "backend:test:critical-coverage": "npm run test:cov:critical --workspace=xconfess-backend",
     "backend:test:e2e": "npm run test:e2e --workspace=xconfess-backend",
     "backend:lint": "npm run lint --workspace=xconfess-backend",
@@ -96,7 +97,7 @@
     "contracts:fixtures:verify": "node scripts/verify-contract-fixtures.js",
     "contracts:fixtures:inventory": "node scripts/verify-contract-fixtures.js --write",
     "database:restore:verify": "node scripts/verify-database-restore.js",
-    "sbom:generate": "node scripts/generate-release-sboms.js"
+    "sbom:generate": "node scripts/generate-release-sboms.js",
     "packages:distribution": "node scripts/check-package-distribution.js",
     "packages:distribution:self-test": "node scripts/check-package-distribution.js --self-test",
     "contracts:manifest-check": "node scripts/check-contract-manifest-drift.js",

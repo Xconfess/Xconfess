@@ -129,7 +129,7 @@ export class AnalyticsRetentionService {
       completedAt: new Date(Date.now()).toISOString(),
       durationMs,
       isComplete: true,
-      nextCursor: lastProcessedId,
+      nextCursor: lastProcessedId ?? undefined,
       config: {
         retentionDays,
         batchSize,
