@@ -6,6 +6,7 @@
   NotFoundException,
   Optional,
 } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
 import { InjectRepository } from "@nestjs/typeorm";
 import { DataSource, Repository } from "typeorm";
 import { AnalyticsService } from "../analytics/analytics.service";
@@ -60,8 +61,58 @@ export class CommentService {
     private readonly dataSource: DataSource,
     private readonly analyticsService: AnalyticsService,
     @Optional()
+    private readonly configService?: ConfigService,
+    @Optional()
     private readonly analyticsEventService?: AnalyticsEventService,
   ) {}
+
+  // ---------------------------------------------------------------------------
+  // Nesting depth (Issue #2122)
+  // ---------------------------------------------------------------------------
+
+  /** Default when the ConfigService is not wired (e.g. legacy unit tests). */
+  private static readonly DEFAULT_MAX_NESTING_DEPTH = 1;
+
+  private getMaxNestingDepth(): number {
+    const configured = this.configService?.get<number>(
+      "comment.maxNestingDepth",
+    );
+    if (typeof configured === "number" && Number.isFinite(configured)) {
+      return Math.max(0, Math.floor(configured));
+    }
+    return CommentService.DEFAULT_MAX_NESTING_DEPTH;
+  }
+
+  /**
+   * Returns the depth of the comment identified by `commentId`. A top-level
+   * comment (no parent) has depth 0; its direct reply has depth 1, etc. The
+   * walk follows the `parentId` relation iteratively and stops either when
+   * the chain terminates in a top-level comment or when a parent row cannot
+   * be loaded (an orphaned chain). If `commentId` itself is missing,
+   * `NotFoundException` is raised so the caller can surface a clear error.
+   */
+  private async getCommentDepth(commentId: number): Promise<number> {
+    let node = await this.commentRepo.findOne({ where: { id: commentId } });
+    if (!node) {
+      throw new NotFoundException("Parent comment not found");
+    }
+    let depth = 0;
+    while (node.parentId) {
+      depth++;
+      const next = await this.commentRepo.findOne({
+        where: { id: node.parentId },
+      });
+      if (!next) {
+        // Orphaned ancestor — stop counting here rather than throwing, so a
+        // historically-valid thread that lost its root to a hard delete can
+        // still be read. For new-reply gating we treat depth-so-far as the
+        // effective depth.
+        break;
+      }
+      node = next;
+    }
+    return depth;
+  }
 
   // ---------------------------------------------------------------------------
   // Mention parsing
@@ -109,18 +160,17 @@ export class CommentService {
       throw new NotFoundException("Confession not found");
     }
 
-    // Enforce one level of nesting: reject replies to replies
+    // Issue #2122: enforce the configurable maximum nesting depth. The
+    // parent is also validated for existence here so a missing parent is
+    // always a 404 regardless of the configured depth. A top-level comment
+    // has depth 0, so the new reply's depth is (parent depth + 1).
     if (parentId) {
-      const parent = await this.commentRepo.findOne({
-        where: { id: parentId },
-        relations: ["parent"],
-      });
-      if (!parent) {
-        throw new NotFoundException("Parent comment not found");
-      }
-      if (parent.parentId) {
+      const parentDepth = await this.getCommentDepth(parentId);
+      const newDepth = parentDepth + 1;
+      const maxDepth = this.getMaxNestingDepth();
+      if (newDepth > maxDepth) {
         throw new BadRequestException(
-          "Replies to replies are not supported. You can only reply to top-level comments.",
+          `Reply depth ${newDepth} exceeds the maximum allowed nesting depth of ${maxDepth}.`,
         );
       }
     }
