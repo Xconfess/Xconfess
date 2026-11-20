@@ -141,4 +141,45 @@ export class AttachmentRepository {
   async find(options: { where: { status: AttachmentStatus } }): Promise<Attachment[]> {
     return this.attachmentRepository.find(options);
   }
+
+  /**
+   * Issue #2124: find attachments whose referenced message has been
+   * deleted. The `messages.id -> attachments.message_id` link is a plain
+   * integer (not a FK with ON DELETE CASCADE), so a hard-deleted message
+   * leaves its attachments behind with a dangling `messageId`. The
+   * LEFT JOIN returns only rows where the message is no longer present.
+   *
+   * Scans in bounded batches (`limit`) so a long-running retention sweep
+   * cannot pile up thousands of rows in a single transaction.
+   */
+  async findAttachmentsForDeletedMessages(limit: number): Promise<Attachment[]> {
+    return this.attachmentRepository
+      .createQueryBuilder('attachment')
+      .leftJoin('messages', 'message', 'message.id = attachment.message_id')
+      .where('attachment.message_id IS NOT NULL')
+      .andWhere('message.id IS NULL')
+      .orderBy('attachment.createdAt', 'ASC')
+      .limit(Math.max(1, Math.floor(limit)))
+      .getMany();
+  }
+
+  /**
+   * Issue #2124: null out an attachment's `messageId` so an attachment
+   * that is still referenced by a confession survives when only the
+   * message link became stale. Idempotent — applies the update only if
+   * `messageId` is currently set.
+   */
+  async clearMessageReference(id: string): Promise<number> {
+    const result = await this.attachmentRepository
+      .createQueryBuilder()
+      .update(Attachment)
+      .set({
+        messageId: null,
+        updatedAt: () => 'CURRENT_TIMESTAMP',
+      })
+      .where('id = :id', { id })
+      .andWhere('message_id IS NOT NULL')
+      .execute();
+    return result.affected ?? 0;
+  }
 }
