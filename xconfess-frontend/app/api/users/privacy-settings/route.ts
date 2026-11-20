@@ -12,6 +12,7 @@ export async function GET(request: Request) {
 
     const response = await fetch(backend.url, {
       method: "GET",
+      cache: "no-store",
       headers: {
         "X-Correlation-ID": correlationId,
         "cookie": cookie,
@@ -32,6 +33,8 @@ export async function GET(request: Request) {
     return new Response(responseBody, {
       status: 200,
       headers: {
+        "Cache-Control": "private, no-store, max-age=0",
+        "Vary": "Cookie, Authorization",
         "Content-Type": "application/json",
         "Set-Cookie": response.headers.get("set-cookie") || "",
       },
@@ -56,7 +59,10 @@ export async function PATCH(request: Request) {
 
     const response = await fetch(backend.url, {
       method: "PATCH",
+      cache: "no-store",
       headers: {
+        "Cache-Control": "private, no-store, max-age=0",
+        "Vary": "Cookie, Authorization",
         "Content-Type": "application/json",
         "X-Correlation-ID": correlationId,
         "cookie": cookie,
@@ -78,6 +84,8 @@ export async function PATCH(request: Request) {
     return new Response(responseBody, {
       status: 200,
       headers: {
+        "Cache-Control": "private, no-store, max-age=0",
+        "Vary": "Cookie, Authorization",
         "Content-Type": "application/json",
         "Set-Cookie": response.headers.get("set-cookie") || "",
       },
