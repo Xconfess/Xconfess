@@ -5,6 +5,7 @@ import { ConfigService } from '@nestjs/config';
 import { ThrottlerExceptionFilter } from './common/filters/throttler-exception.filter';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
+import { validationExceptionFactory } from './common/validation/validation-exception-factory';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import compression from 'compression';
 import helmet from 'helmet';
@@ -118,6 +119,11 @@ async function bootstrap() {
     new ValidationPipe({
       whitelist: true,
       transform: true,
+      // Issue #2125: standardise DTO validation failures across every
+      // controller. The factory emits a BadRequestException whose body
+      // the HttpExceptionFilter surfaces as the documented schema v1
+      // envelope with `details.fields` populated per failing property.
+      exceptionFactory: validationExceptionFactory,
     }),
   );
 
