@@ -19,6 +19,7 @@ import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import throttleConfig from './config/throttle.config';
 import exportConfig from './config/export.config';
+import attachmentConfig from './config/attachment.config';
 import { HealthModule } from './health/health.module';
 import { MessagesModule } from './messages/messages.module';
 import { AdminModule } from './admin/admin.module';
@@ -53,7 +54,7 @@ import { HttpMetricsMiddleware } from './observability/http-metrics.middleware';
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: '.env',
-      load: [throttleConfig, appConfig, exportConfig],
+      load: [throttleConfig, appConfig, exportConfig, attachmentConfig],
       validationSchema: envValidationSchema,
       validationOptions: { abortEarly: false },
     }),
