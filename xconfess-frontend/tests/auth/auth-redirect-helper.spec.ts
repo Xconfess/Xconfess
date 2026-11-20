@@ -3,8 +3,8 @@
  *
  * isSafeAuthRedirect guards the `next` query param used for post-login
  * redirects. It must reject anything that isn't a same-origin, root-relative
- * path, since accepting protocol-relative or absolute URLs would allow an
- * open redirect (e.g. /login?next=https://evil.com).
+ * path or a configured trusted origin, since accepting protocol-relative or
+ * absolute URLs would allow an open redirect (e.g. /login?next=https://evil.com).
  */
 import { isSafeAuthRedirect } from '@/app/lib/utils/auth-redirect';
 
@@ -39,5 +39,27 @@ describe('isSafeAuthRedirect', () => {
 
   it('accepts a safe root-relative path with query params', () => {
     expect(isSafeAuthRedirect('/dashboard?tab=settings')).toBe(true);
+  });
+
+  it('rejects a trusted origin when not configured', () => {
+    const original = process.env.NEXT_PUBLIC_TRUSTED_REDIRECT_ORIGINS;
+    delete process.env.NEXT_PUBLIC_TRUSTED_REDIRECT_ORIGINS;
+    try {
+      expect(isSafeAuthRedirect('https://trusted.com')).toBe(false);
+    } finally {
+      if (original) {
+        process.env.NEXT_PUBLIC_TRUSTED_REDIRECT_ORIGINS = original;
+      }
+    }
+  });
+
+  it('accepts a configured trusted origin', () => {
+    process.env.NEXT_PUBLIC_TRUSTED_REDIRECT_ORIGINS = 'https://trusted.com,https://another.com';
+    try {
+      expect(isSafeAuthRedirect('https://trusted.com')).toBe(true);
+      expect(isSafeAuthRedirect('https://another.com')).toBe(true);
+    } finally {
+      delete process.env.NEXT_PUBLIC_TRUSTED_REDIRECT_ORIGINS;
+    }
   });
 });
