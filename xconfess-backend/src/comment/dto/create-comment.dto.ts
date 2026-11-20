@@ -11,8 +11,10 @@ export class CreateCommentDto {
   anonymousContextId: string;
 
   /**
-   * If provided, this comment is a reply to the given comment ID.
-   * Only one level of nesting is supported — replies to replies are rejected.
+   * If provided, this comment is a reply to the given comment ID. The
+   * server enforces a configurable maximum nesting depth (Issue #2122);
+   * replies whose resulting depth would exceed `COMMENT_MAX_NESTING_DEPTH`
+   * are rejected with 400.
    */
   @IsOptional()
   @IsNumber()
