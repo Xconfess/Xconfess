@@ -79,6 +79,8 @@ process with an actionable error.
 | `COMMENT_MAX_NESTING_DEPTH` | `1` | No | Maximum reply nesting depth. A top-level comment has depth 0; its direct reply has depth 1. The default preserves the historic "replies to replies rejected" behaviour; raise it to allow deeper threads (Issue #2122). |
 | `ATTACHMENT_MAX_SIZE_BYTES` | `10485760` (10 MiB) | No | Maximum attachment size accepted by `POST /attachments`. Oversized uploads are rejected with `400` before any storage record is written (Issue #2123). |
 | `ATTACHMENT_ALLOWED_MIME_TYPES` | `image/jpeg,image/png,image/webp,image/gif,application/pdf` | No | Comma-separated MIME-type allowlist for `POST /attachments`. The claimed MIME is additionally cross-checked against the extension on `originalName`, so a client cannot bypass the allowlist by lying about one of the two fields (Issue #2123). |
+| `ATTACHMENT_CLEANUP_GRACE_PERIOD_MS` | `86400000` (24 h) | No | Attachment retention window. Uploads not linked to any confession or message are deleted after this period by the daily 03:00 cleanup job. Attachments of a deleted private message are removed in the same run, unless a retained confession still references them, in which case only the message link is cleared and the file is kept. Failed rows are retried on the next run (Issue #2292). |
+| `ATTACHMENT_CLEANUP_BATCH_SIZE` | `1000` | No | Maximum attachments processed per cleanup run. |
 
 ### Email variables (optional — mail is skipped when unconfigured)
 

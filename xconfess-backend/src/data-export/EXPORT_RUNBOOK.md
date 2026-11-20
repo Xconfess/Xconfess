@@ -7,6 +7,11 @@ notification queue, it has **no dead-letter queue (DLQ)**. Failed jobs transitio
 the export record to `FAILED` status with `retryCount` and `lastFailureReason`
 persisted for operator investigation.
 
+Each export ZIP contains `complete_data.json`, `confessions.csv` (when the user
+has confessions) and `manifest.json`. The manifest lists the generation time,
+the files in the archive and each included data category with its record count.
+It never contains record contents, identifiers or secrets.
+
 ## Queue Configuration
 
 | Setting | Value |
