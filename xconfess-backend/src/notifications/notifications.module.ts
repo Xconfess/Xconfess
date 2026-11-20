@@ -18,6 +18,7 @@ import { NotificationGateway } from './gateways/notification.gateway';
 import { DlqAdminController } from './dlq-admin.controller';
 import { WebSocketLogger } from '../websocket/websocket.logger';
 import { OutboxDispatcherService } from './services/outbox-dispatcher.service';
+import { createJwtSecretProvider } from '../auth/jwt-secret-rotation';
 import { RecipientResolver } from './services/recipient-resolver.service';
 import { JobManagementService } from './services/job-management.service';
 import { OutboxEvent } from '../common/entities/outbox-event.entity';
@@ -54,6 +55,7 @@ const jobsEnabled = process.env.ENABLE_BACKGROUND_JOBS === 'true';
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => ({
         secret: configService.get('JWT_SECRET'),
+        secretOrKeyProvider: createJwtSecretProvider(configService),
         signOptions: { expiresIn: '1d' },
       }),
     }),

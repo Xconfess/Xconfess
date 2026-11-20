@@ -1,5 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import {
+  CSRF_STATUS_LABELS,
+  CsrfStatusLabel,
   DB_POOL_LABELS,
   DB_POOL_STATE_LABELS,
   FEED_OUTCOME_LABELS,
@@ -97,6 +99,15 @@ export class OperationalMetricsService {
     allowedLabels: this.feedQueries.allowedLabels,
   };
 
+  private readonly csrfChecks: MetricDefinition = {
+    name: 'xconfess_csrf_checks_total',
+    help: 'CSRF-protected requests by safe route category and check status.',
+    allowedLabels: {
+      route_category: ROUTE_CATEGORY_LABELS,
+      status: CSRF_STATUS_LABELS,
+    },
+  };
+
   private readonly dbPoolConnections: MetricDefinition = {
     name: 'xconfess_db_pool_connections',
     help: 'Database connections per pool by state (total, idle, active, max).',
@@ -175,6 +186,14 @@ export class OperationalMetricsService {
     }
   }
 
+  /** Record one CSRF check result. Inputs are reduced to closed label sets. */
+  recordCsrfCheck(routeCategory: string, status: CsrfStatusLabel): void {
+    this.incrementCounter(this.csrfChecks, {
+      route_category: String(routeCategory),
+      status,
+    });
+  }
+
   /**
    * Replace the database pool gauges with a fresh reading.
    *
@@ -207,7 +226,11 @@ export class OperationalMetricsService {
   renderPrometheus(): string {
     const lines: string[] = [];
 
-    for (const def of [this.httpRequests, this.feedQueries]) {
+    for (const def of [
+      this.httpRequests,
+      this.feedQueries,
+      this.csrfChecks,
+    ]) {
       lines.push(`# HELP ${def.name} ${def.help}`);
       lines.push(`# TYPE ${def.name} counter`);
       for (const series of this.counters.get(def.name)?.values() ?? []) {

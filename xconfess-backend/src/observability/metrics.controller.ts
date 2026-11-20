@@ -24,7 +24,7 @@ export class MetricsController {
   @ApiResponse({
     status: 200,
     description:
-      'Request latency/status by safe route category and feed query latency. Labels never contain user or confession identifiers.',
+      'Request latency/status, CSRF checks and feed query latency by safe route category. Labels never contain cookies, tokens, request bodies, user or confession identifiers.',
   })
   getMetrics(): string {
     this.metrics.setDbPoolSnapshot(readDbPoolStats(this.dataSource));

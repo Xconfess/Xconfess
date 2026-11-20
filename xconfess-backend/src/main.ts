@@ -18,6 +18,8 @@ import { Queue } from 'bullmq';
 import { getQueueToken } from '@nestjs/bullmq';
 import { NotificationProcessor } from './notifications/processors/notification.processor';
 import { ExportProcessor } from './data-export/export.processor';
+import { OperationalMetricsService } from './observability/operational-metrics.service';
+import { categorizeRoute } from './observability/metric-labels';
 
 import {
   cookieParserMiddleware,
@@ -27,6 +29,7 @@ import {
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, { bodyParser: false });
   const configService = app.get(ConfigService);
+  const operationalMetrics = app.get(OperationalMetricsService);
 
   // â”€â”€ 1. Request-ID must be first so all downstream code sees it â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const requestIdMiddleware = new RequestIdMiddleware();
@@ -101,13 +104,16 @@ async function bootstrap() {
 
   app.use((req, res, next) => {
     const routeKey = `${req.method.toUpperCase()} ${req.path}`;
+    const routeFamily = categorizeRoute(req.method, req.path);
     if (
       req.path.startsWith('/api/webhooks/moderation') ||
       csrfExemptRoutes.has(routeKey)
     ) {
+      operationalMetrics.recordCsrfCheck(routeFamily, 'allowed');
       return next();
     }
     csrfMiddleware(req as any, res as any, (err) => {
+      operationalMetrics.recordCsrfCheck(routeFamily, err ? 'rejected' : 'allowed');
       if (err) return next(err);
       csrfCookieSetter(req as any, res as any, next);
     });
