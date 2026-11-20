@@ -13,6 +13,7 @@ import { EmailService } from '../email/email.service';
 import { Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { EXPORT_QUEUE_NAME } from './data-export.constants';
+import { buildExportManifest } from './export-manifest';
 
 @Processor(EXPORT_QUEUE_NAME)
 export class ExportProcessor extends WorkerHost {
@@ -157,6 +158,7 @@ export class ExportProcessor extends WorkerHost {
 
       archive.pipe(chunkProcessor);
 
+      const files = ['complete_data.json'];
       archive.append(JSON.stringify(data, null, 2), {
         name: 'complete_data.json',
       });
@@ -165,7 +167,12 @@ export class ExportProcessor extends WorkerHost {
           data.confessions,
         );
         archive.append(csvContent, { name: 'confessions.csv' });
+        files.push('confessions.csv');
       }
+      archive.append(
+        JSON.stringify(buildExportManifest(data, files), null, 2),
+        { name: 'manifest.json' },
+      );
 
       archive.finalize();
     });
