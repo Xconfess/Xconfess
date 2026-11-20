@@ -5,6 +5,7 @@ import {
   OneToMany,
   Column,
   Index,
+  DeleteDateColumn,
 } from 'typeorm';
 import { AnonymousConfession } from '../../confession/entities/confession.entity';
 import { Comment } from '../../comment/entities/comment.entity';
@@ -16,7 +17,7 @@ export class AnonymousUser {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  /** Keyed fingerprint of an optional Stellar wallet used for continuity. */
+/** Keyed fingerprint of an optional Stellar wallet used for continuity. */
   @Index({ unique: true })
   @Column({ type: 'varchar', length: 64, nullable: true })
   walletFingerprint: string | null;
@@ -24,19 +25,25 @@ export class AnonymousUser {
   @CreateDateColumn()
   createdAt: Date;
 
+  @Column({ type: 'boolean', default: false })
+  isDeleted: boolean;
+
+  @DeleteDateColumn()
+  deletedAt: Date | null;
+
   /** X25519 public key (base64url) for E2E message encryption. */
   @Column({ type: 'varchar', length: 128, nullable: true })
   messagePublicKey: string | null;
 
-  /** Incremented when the client rotates keys (e.g. new device without backup). */
+/** Incremented when the client rotates keys (e.g. new device without backup). */
   @Column({ type: 'int', default: 0 })
   messageKeyVersion: number;
 
-  /** Passphrase-wrapped private key backup; server cannot decrypt. */
+/** Passphrase-wrapped private key backup; server cannot decrypt. */
   @Column({ type: 'text', nullable: true })
   encryptedKeyBackup: string | null;
 
-  // Relations to anonymous actions
+/** Relations to anonymous actions */
   @OneToMany(
     () => AnonymousConfession,
     (confession) => confession.anonymousUser,

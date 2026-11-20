@@ -10,11 +10,20 @@ export interface LockoutStatus {
   lockCount: number;
 }
 
+export interface DependencyException {
+  id: string;
+  owner: string;
+  reason: string;
+  expiresAt: Date;
+  createdAt: Date;
+}
+
 const MAX_ATTEMPTS = 5;
 const LOCKOUT_DURATIONS_SECONDS = [15 * 60, 30 * 60, 60 * 60, 24 * 60 * 60];
 const ATTEMPTS_KEY = (email: string) => `lockout:attempts:${email}`;
 const LOCKED_KEY = (email: string) => `lockout:locked:${email}`;
 const COUNT_KEY = (email: string) => `lockout:count:${email}`;
+const EXCEPTIONS_KEY = 'dependency:exceptions';
 
 @Injectable()
 export class LockoutService {
@@ -45,6 +54,74 @@ export class LockoutService {
       attemptsRemaining: Math.max(0, MAX_ATTEMPTS - attempts),
       lockCount,
     };
+  }
+
+  async recordDependencyException(
+    owner: string,
+    reason: string,
+    ttlSeconds: number,
+  ): Promise<void> {
+    const id = `${owner}:${Date.now()}`;
+    const exception: DependencyException = {
+      id,
+      owner,
+      reason,
+      expiresAt: new Date(Date.now() + ttlSeconds * 1000),
+      createdAt: new Date(),
+    };
+    const exceptionsStr = await this.cache.get<string>(EXCEPTIONS_KEY);
+    const exceptions = exceptionsStr
+      ? JSON.parse(exceptionsStr).concat(exception)
+      : [exception];
+    await this.cache.set(
+      EXCEPTIONS_KEY,
+      JSON.stringify(exceptions),
+      ttlSeconds * 1000,
+    );
+    this.logger.log(
+      `Dependency exception recorded: ${owner} - ${reason} (expires in ${ttlSeconds}s)`,
+    );
+  }
+
+  async getExpiredExceptions(): Promise<DependencyException[]> {
+    const exceptionsStr = await this.cache.get<string>(EXCEPTIONS_KEY);
+    if (!exceptionsStr) return [];
+
+    const now = new Date();
+    const exceptions = JSON.parse(exceptionsStr);
+    const expired = exceptions.filter(
+      (exp: { expiresAt: Date }) => new Date(exp.expiresAt) < now,
+    );
+
+    // Remove expired exceptions from cache
+    if (expired.length > 0) {
+      const remaining = exceptions.filter(
+        (exp: { expiresAt: Date }) => new Date(exp.expiresAt) >= now,
+      );
+      await this.cache.set(
+        EXCEPTIONS_KEY,
+        JSON.stringify(remaining),
+        60 * 1000,
+      );
+    }
+
+    return expired;
+  }
+
+  async clearException(id: string): Promise<void> {
+    const exceptionsStr = await this.cache.get<string>(EXCEPTIONS_KEY);
+    if (!exceptionsStr) return;
+
+    const exceptions = JSON.parse(exceptionsStr);
+    const remaining = exceptions.filter(
+      (exp: { id: string }) => exp.id !== id,
+    );
+    await this.cache.set(
+      EXCEPTIONS_KEY,
+      JSON.stringify(remaining),
+      60 * 1000,
+    );
+    this.logger.log(`Dependency exception cleared: ${id}`);
   }
 
   async recordFailedAttempt(email: string): Promise<LockoutStatus> {

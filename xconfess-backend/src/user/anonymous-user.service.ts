@@ -120,6 +120,14 @@ export class AnonymousUserService {
     return links.map((link) => link.anonymousUserId);
   }
 
+  async softDelete(id: string): Promise<void> {
+    await this.anonymousUserRepository.softDelete(id);
+  }
+
+  async hardDelete(id: string): Promise<void> {
+    await this.anonymousUserRepository.delete(id);
+  }
+
   async cleanupExpiredSessions(sessionWindowHours: number = 24): Promise<void> {
     const cutoff = new Date();
     cutoff.setHours(cutoff.getHours() - sessionWindowHours);
