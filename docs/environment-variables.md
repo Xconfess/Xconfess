@@ -76,6 +76,9 @@ process with an actionable error.
 | `DLQ_CLEANUP_DRY_RUN` | `false` | No | Dry-run DLQ cleanup. |
 | `DLQ_AUTO_REPLAY_ENABLED` | `false` | No | Enable automatic DLQ replay. |
 | `CB_FAILURE_THRESHOLD` / `CB_COOLDOWN_SECONDS` / `CB_PROBE_SUCCESS_THRESHOLD` | `3` / `60` / `2` | No | Mail circuit-breaker tuning. |
+| `COMMENT_MAX_NESTING_DEPTH` | `1` | No | Maximum reply nesting depth. A top-level comment has depth 0; its direct reply has depth 1. The default preserves the historic "replies to replies rejected" behaviour; raise it to allow deeper threads (Issue #2122). |
+| `ATTACHMENT_MAX_SIZE_BYTES` | `10485760` (10 MiB) | No | Maximum attachment size accepted by `POST /attachments`. Oversized uploads are rejected with `400` before any storage record is written (Issue #2123). |
+| `ATTACHMENT_ALLOWED_MIME_TYPES` | `image/jpeg,image/png,image/webp,image/gif,application/pdf` | No | Comma-separated MIME-type allowlist for `POST /attachments`. The claimed MIME is additionally cross-checked against the extension on `originalName`, so a client cannot bypass the allowlist by lying about one of the two fields (Issue #2123). |
 
 ### Email variables (optional — mail is skipped when unconfigured)
 

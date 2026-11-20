@@ -10,6 +10,28 @@ export interface CleanupResult {
   errors: string[];
 }
 
+/**
+ * Issue #2124: outcome of a sweep over attachments whose referenced
+ * message has been deleted.
+ *
+ * - `detachedCount`    attachments whose only stale reference was the
+ *                      messageId; the row is kept (confession still
+ *                      links it) and messageId is cleared.
+ * - `abandonedCount`   attachments marked ABANDONED because no other
+ *                      valid reference remained.
+ * - `deletedCount`     abandoned rows that were then deleted in the
+ *                      same sweep (the two steps are safe to re-run).
+ * - `errors`           per-attachment error strings; a failure on one
+ *                      row does not stop the sweep.
+ */
+export interface DeletedMessageCleanupResult {
+  scanned: number;
+  detachedCount: number;
+  abandonedCount: number;
+  deletedCount: number;
+  errors: string[];
+}
+
 @Injectable()
 export class AttachmentCleanupService {
   private readonly logger = new Logger(AttachmentCleanupService.name);
@@ -90,15 +112,116 @@ export class AttachmentCleanupService {
 
   /**
    * Scheduled cleanup job - runs daily at 3 AM.
+   *
+   * Sweeps abandoned uploads (grace-period expired) and attachments
+   * whose referenced message has been deleted (Issue #2124). Each sweep
+   * is idempotent and safe to re-run, so a failure on one does not
+   * suppress the other and a partial-failure first pass heals on the
+   * next scheduled run.
    */
   @Cron(CronExpression.EVERY_DAY_AT_3AM)
   async scheduledCleanup(): Promise<void> {
     this.logger.log('Running scheduled attachment cleanup');
     const result = await this.runCleanup();
-    
+
     if (result.errors.length > 0) {
       this.logger.warn(`Scheduled cleanup completed with errors: ${result.errors.join('; ')}`);
     }
+
+    try {
+      const dm = await this.cleanupAttachmentsForDeletedMessages();
+      this.logger.log(
+        `Deleted-message sweep: scanned=${dm.scanned}, detached=${dm.detachedCount}, abandoned=${dm.abandonedCount}, deleted=${dm.deletedCount}, errors=${dm.errors.length}`,
+      );
+      if (dm.errors.length > 0) {
+        this.logger.warn(
+          `Deleted-message sweep completed with errors: ${dm.errors.join('; ')}`,
+        );
+      }
+    } catch (error) {
+      this.logger.error(
+        `Deleted-message sweep failed: ${error instanceof Error ? error.message : String(error)}`,
+        error instanceof Error ? error.stack : undefined,
+      );
+    }
+  }
+
+  /**
+   * Issue #2124: deleted-message attachment cleanup.
+   *
+   * Finds attachments whose `messageId` points to a message row that no
+   * longer exists. For each:
+   *   - if `confessionId` is still set, clear the stale message link
+   *     (the attachment stays valid for the confession);
+   *   - otherwise, mark it ABANDONED and let the abandoned-delete step
+   *     reap it in the same sweep.
+   *
+   * The two underlying repository calls (`markAsAbandoned`,
+   * `deleteAbandonedAttachments`) are already idempotent: they skip rows
+   * that are already in the target state. A failure on one attachment
+   * is captured in `errors` and the sweep continues; re-running after a
+   * partial failure finishes the remaining work without double-processing
+   * anything.
+   */
+  async cleanupAttachmentsForDeletedMessages(
+    limit: number = this.batchSize,
+  ): Promise<DeletedMessageCleanupResult> {
+    const result: DeletedMessageCleanupResult = {
+      scanned: 0,
+      detachedCount: 0,
+      abandonedCount: 0,
+      deletedCount: 0,
+      errors: [],
+    };
+
+    let candidates: Attachment[];
+    try {
+      candidates = await this.attachmentRepository.findAttachmentsForDeletedMessages(limit);
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      result.errors.push(`candidate scan failed: ${msg}`);
+      return result;
+    }
+
+    result.scanned = candidates.length;
+    if (candidates.length === 0) {
+      return result;
+    }
+
+    const toAbandonIds: string[] = [];
+
+    for (const attachment of candidates) {
+      try {
+        if (attachment.confessionId) {
+          const changed = await this.attachmentRepository.clearMessageReference(attachment.id);
+          result.detachedCount += changed;
+        } else {
+          toAbandonIds.push(attachment.id);
+        }
+      } catch (error) {
+        const msg = error instanceof Error ? error.message : String(error);
+        result.errors.push(`attachment ${attachment.id}: ${msg}`);
+      }
+    }
+
+    if (toAbandonIds.length > 0) {
+      try {
+        result.abandonedCount = await this.attachmentRepository.markAsAbandoned(toAbandonIds);
+      } catch (error) {
+        const msg = error instanceof Error ? error.message : String(error);
+        result.errors.push(`mark-abandoned batch failed: ${msg}`);
+      }
+
+      try {
+        result.deletedCount =
+          await this.attachmentRepository.deleteAbandonedAttachments(toAbandonIds);
+      } catch (error) {
+        const msg = error instanceof Error ? error.message : String(error);
+        result.errors.push(`delete-abandoned batch failed: ${msg}`);
+      }
+    }
+
+    return result;
   }
 
   /**

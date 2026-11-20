@@ -260,4 +260,22 @@ export const envValidationSchema = Joi.object({
 
   // â”€â”€ Redis queue health â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   REDIS_QUEUE_LATENCY_THRESHOLD_MS: Joi.number().default(250),
+
+  // ---- Comment module (Issue #2122) ----
+  // Maximum nesting depth for comment replies. A top-level comment has
+  // depth 0; its direct reply has depth 1, etc. The default of 1 keeps
+  // the historic "replies to replies are rejected" behaviour; raise it
+  // to allow deeper threads.
+  COMMENT_MAX_NESTING_DEPTH: Joi.number().integer().min(0).default(1),
+
+  // ---- Attachments (Issue #2123) ----
+  // Pre-storage metadata validation applied to POST /attachments. See
+  // src/attachment/attachment-validation.service.ts for the three checks
+  // (size ceiling, MIME allowlist, extension-vs-MIME consistency).
+  ATTACHMENT_MAX_SIZE_BYTES: Joi.number()
+    .integer()
+    .min(1)
+    .default(10 * 1024 * 1024),
+  ATTACHMENT_ALLOWED_MIME_TYPES: Joi.string()
+    .default('image/jpeg,image/png,image/webp,image/gif,application/pdf'),
 }).options({ allowUnknown: true, abortEarly: false });
