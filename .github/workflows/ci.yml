@@ -68,6 +68,8 @@ jobs:
       - run: ./scripts/secret-scanning-preflight.sh
       - name: Validate synthetic fixture policy
         run: npm run fixtures:validate
+      - name: Run fixture privacy regression tests
+        run: npm run fixtures:test
       - name: Self-test release artifact scanner
         run: npm run artifacts:scan:self-test
       - name: Scan committed Docker context and release metadata
