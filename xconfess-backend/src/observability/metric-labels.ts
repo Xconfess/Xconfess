@@ -71,6 +71,8 @@ export const FEED_TYPE_LABELS = [
 
 export const FEED_OUTCOME_LABELS = ['success', 'error'] as const;
 
+export const CSRF_STATUS_LABELS = ['allowed', 'rejected'] as const;
+
 /** Database connection pool role. Read replicas share the `replica` series. */
 export const DB_POOL_LABELS = ['primary', 'replica', 'other'] as const;
 
@@ -86,6 +88,7 @@ export type StatusClassLabel = (typeof STATUS_CLASS_LABELS)[number];
 export type RouteCategoryLabel = (typeof ROUTE_CATEGORY_LABELS)[number];
 export type FeedTypeLabel = (typeof FEED_TYPE_LABELS)[number];
 export type FeedOutcomeLabel = (typeof FEED_OUTCOME_LABELS)[number];
+export type CsrfStatusLabel = (typeof CSRF_STATUS_LABELS)[number];
 export type DbPoolLabel = (typeof DB_POOL_LABELS)[number];
 
 /** First path segment (after the global `/api` prefix) -> category. */

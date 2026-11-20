@@ -7,6 +7,7 @@ import { UserRole } from '../user/entities/user.entity';
 import { JwtPayload, RequestUser } from './interfaces/jwt-payload.interface';
 import { STEP_UP_TOKEN_PURPOSE } from './step-up.service';
 import { SessionRevocationService } from './session-revocation.service';
+import { createJwtSecretProvider } from './jwt-secret-rotation';
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
@@ -19,7 +20,7 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
-      secretOrKey: configService.get<string>('JWT_SECRET'),
+      secretOrKeyProvider: createJwtSecretProvider(configService),
     });
   }
 

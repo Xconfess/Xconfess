@@ -128,12 +128,14 @@ const ConfessionFeedBody = ({
     contentReady: !isLoading && !isSwitchingFilter,
   });
 
+  const allConfessions = data?.pages.flatMap((page) => page.confessions) ?? [];
+
   const announcement = useLiveAnnouncement({
     isLoading,
     isFetching,
     isFetchingNextPage,
     isError: Boolean(error),
-    errorMessage: error instanceof Error ? error.message : undefined,
+    resultCount: allConfessions.length,
   });
 
   useFeedPageRestoration({
@@ -145,7 +147,6 @@ const ConfessionFeedBody = ({
     enabled: !preview,
   });
 
-  const allConfessions = data?.pages.flatMap((page) => page.confessions) ?? [];
   const visibleConfessions = preview ? allConfessions.slice(0, 3) : allConfessions;
 
   // A failed refresh keeps the previously loaded pages around, so the feed

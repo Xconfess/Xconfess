@@ -33,7 +33,8 @@ process with an actionable error.
 | `DB_USERNAME` | `postgres` | No | PostgreSQL user. |
 | `DB_PASSWORD` | `postgres` (may be empty locally) | **Yes** | PostgreSQL password. |
 | `DB_NAME` | `xconfess` | No | PostgreSQL database name. |
-| `JWT_SECRET` | any random string ≥ 32 chars | **Yes** | Signs auth tokens. Must be ≥ 32 chars. |
+| `JWT_SECRET` | any random string ≥ 32 chars | **Yes** | Signs new auth tokens. Must be ≥ 32 chars. |
+| `JWT_PREVIOUS_SECRET` | any random string ≥ 32 chars | **Yes** | Optional previous signing key accepted during JWT rotation overlap. |
 | `CONFESSION_ENCRYPTION_KEY` | 64-char hex, e.g. `0123...` (not all zeros) | **Yes** | Encrypts confession content. |
 | `ENCRYPTION_MASTER_KEY_v1` | 64-char hex, e.g. `0123...` (not all zeros) | **Yes** | Envelope-encryption master key. |
 | `APP_SECRET` | any random string ≥ 32 chars | **Yes** | App-level HMAC secret. Optional locally, **required** in `staging`/`production`. |
@@ -54,6 +55,7 @@ process with an actionable error.
 | `DB_IDLE_TIMEOUT_MS` / `DB_CONN_TIMEOUT_MS` | env-specific | No | Pool timeouts. |
 | `TYPEORM_SYNCHRONIZE` | `false` | No | Auto-sync schema. Local only. |
 | `TYPEORM_MIGRATIONS_RUN` | `false` (`true` in prod) | No | Run migrations on boot. |
+| `JWT_SECRET_ROTATION_OVERLAP_SECONDS` | `86400` | No | Maximum age of tokens presented with `JWT_PREVIOUS_SECRET`. |
 | `ENCRYPTION_CURRENT_KEY_VERSION` | `v1` | No | Active envelope key version (`v1`, `v2`, …). |
 | `EMAIL_ENCRYPTION_KEY` | test-only 32-byte string | **Yes** | Encrypts stored email fields. |
 | `ENABLE_BACKGROUND_JOBS` | `false` | No | Enable BullMQ workers (notifications/exports/drafts). |

@@ -108,6 +108,37 @@ describe('OperationalMetricsService', () => {
     });
   });
 
+  describe('CSRF metrics', () => {
+    it('counts allowed and rejected checks by safe route family and status', () => {
+      service.recordCsrfCheck('confessions', 'allowed');
+      service.recordCsrfCheck('confessions', 'rejected');
+      service.recordCsrfCheck('confessions', 'rejected');
+
+      const text = service.renderPrometheus();
+      expect(text).toContain(
+        'xconfess_csrf_checks_total{route_category="confessions",status="allowed"} 1',
+      );
+      expect(text).toContain(
+        'xconfess_csrf_checks_total{route_category="confessions",status="rejected"} 2',
+      );
+    });
+
+    it('never records cookies, tokens, bodies or raw request paths', () => {
+      service.recordCsrfCheck(
+        '/api/confessions/alice@example.com?token=secret#body',
+        'rejected',
+      );
+
+      const text = service.renderPrometheus();
+      expect(text).toContain(
+        'xconfess_csrf_checks_total{route_category="other",status="rejected"} 1',
+      );
+      expect(text).not.toContain('alice@example.com');
+      expect(text).not.toContain('token=secret');
+      expect(text).not.toContain('#body');
+    });
+  });
+
   describe('feed metrics', () => {
     it('emits feed latency separately from general API latency', () => {
       service.recordFeedQuery('public', 'success', 0.02);
@@ -313,6 +344,8 @@ describe('OperationalMetricsService', () => {
         'status_class',
         'feed_type',
         'outcome',
+        'route_category',
+        'status',
         'le',
       ]);
       const labelNames = [

@@ -24,6 +24,7 @@ import {
   AdminTwoFactorRecoveryController,
   TwoFactorRecoveryController,
 } from './two-factor-recovery.controller';
+import { createJwtSecretProvider } from './jwt-secret-rotation';
 
 @Module({
   imports: [
@@ -38,6 +39,7 @@ import {
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => ({
         secret: configService.get('JWT_SECRET'),
+        secretOrKeyProvider: createJwtSecretProvider(configService),
         signOptions: { expiresIn: '1d' },
       }),
     }),

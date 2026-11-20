@@ -18,7 +18,7 @@ describe("useLiveAnnouncement", () => {
     expect(result.current).toBe("Loading feed...");
   });
 
-  it("announces a background refresh completing", () => {
+  it("announces the number of results after a background refresh", () => {
     const { result, rerender } = renderHook(
       (props) => useLiveAnnouncement(props),
       {
@@ -27,6 +27,7 @@ describe("useLiveAnnouncement", () => {
           isFetching: true,
           isFetchingNextPage: false,
           isError: false,
+          resultCount: 2,
         },
       },
     );
@@ -37,21 +38,46 @@ describe("useLiveAnnouncement", () => {
       isFetching: false,
       isFetchingNextPage: false,
       isError: false,
+      resultCount: 2,
     });
-    expect(result.current).toBe("Feed updated.");
+    expect(result.current).toBe("2 confessions available.");
   });
 
-  it("announces an error", () => {
+  it("announces an empty result count without reading post content", () => {
+    const { result, rerender } = renderHook(
+      (props) => useLiveAnnouncement(props),
+      {
+        initialProps: {
+          isLoading: true,
+          isFetching: true,
+          isFetchingNextPage: false,
+          isError: false,
+          resultCount: 0,
+        },
+      },
+    );
+
+    rerender({
+      isLoading: false,
+      isFetching: false,
+      isFetchingNextPage: false,
+      isError: false,
+      resultCount: 0,
+    });
+    expect(result.current).toBe("No confessions found.");
+    expect(result.current).not.toContain("confession text");
+  });
+
+  it("announces a safe generic failure and never echoes backend error text", () => {
     const { result } = renderHook(() =>
       useLiveAnnouncement({
         isLoading: false,
         isFetching: false,
         isFetchingNextPage: false,
         isError: true,
-        errorMessage: "Network Error",
       }),
     );
-    expect(result.current).toBe("Unable to load feed: Network Error");
+    expect(result.current).toBe("Unable to load feed.");
   });
 
   it("dedupes identical consecutive messages", () => {
@@ -74,8 +100,6 @@ describe("useLiveAnnouncement", () => {
       isFetchingNextPage: false,
       isError: false,
     });
-    // Same message stays referentially the "current" value, not re-fired
-    // as a fresh announcement.
     expect(result.current).toBe("Updating feed contents...");
   });
 });
