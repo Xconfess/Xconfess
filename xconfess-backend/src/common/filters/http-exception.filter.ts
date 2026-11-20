@@ -49,9 +49,15 @@ export class HttpExceptionFilter implements ExceptionFilter {
       return;
     }
 
+    // Issue #2125: schema v1 requires both `status` and the `statusCode`
+    // compatibility alias in every error response, not just throttler
+    // errors. Add it here so DTO validation failures (routed through
+    // AppException.fromHttpException) and every other HttpException
+    // emit the full documented envelope.
     const errorResponse = {
       schemaVersion: 1,
       status,
+      statusCode: status,
       code: exceptionResponse.code || ErrorCode.INTERNAL_SERVER_ERROR,
       message:
         status >= HttpStatus.INTERNAL_SERVER_ERROR
