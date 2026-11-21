@@ -6,7 +6,6 @@ import {
   Res,
   UnauthorizedException,
   GoneException,
-  NotFoundException,
   Post,
   Req,
   UseGuards,
@@ -224,28 +223,54 @@ export class DataExportController {
 
     // 4. Fetch from Service
     if (chunkIndex !== undefined) {
-      const exportChunk = await this.exportService.getExportChunk(
-        id,
-        userId,
-        chunkIndex,
-      );
-      if (!exportChunk) throw new NotFoundException('Chunk not found.');
+      // getExportChunk verifies ownership (where: { id, userId }) and expiry
+      // before returning the chunk.  An expired or cross-account request both
+      // surface as NotFoundException so callers cannot distinguish the two
+      // (Issue #2157).
+      let exportChunk;
+      try {
+        exportChunk = await this.exportService.getExportChunk(
+          id,
+          userId,
+          chunkIndex,
+        );
+      } catch {
+        throw new GoneException({
+          statusCode: 410,
+          error: 'Gone',
+          message: 'Export not found, expired, or unauthorized.',
+          code: 'EXPORT_NOT_AVAILABLE',
+        });
+      }
+      if (!exportChunk) throw new GoneException({
+        statusCode: 410,
+        error: 'Gone',
+        message: 'Export not found, expired, or unauthorized.',
+        code: 'EXPORT_NOT_AVAILABLE',
+      });
 
       res.set({
         'Content-Type': 'application/zip',
-        'Content-Disposition': `attachment; filename="xconfess-data-${userId}-part${chunkIndex + 1}.zip"`,
+        'Content-Disposition': `attachment; filename="xconfess-data-part${chunkIndex + 1}.zip"`,
         'Content-Length': exportChunk.chunkSize,
         'X-Chunk-Checksum': exportChunk.checksum,
       });
       return res.send(exportChunk.fileData);
     }
 
+    // getExportFile verifies ownership (where: { id, userId }) and expiry.
     const exportReq = await this.exportService.getExportFile(id, userId);
 
-    // Unknown, expired, and other users' exports share the same 404 response so
-    // this endpoint never reveals whether an export exists.
+    // Unknown, expired, and other users' exports share the same response so
+    // this endpoint never reveals whether an export exists for a different user
+    // (Issue #2157).
     if (!exportReq || (!exportReq.fileData && !exportReq.isChunked)) {
-      throw new NotFoundException('Export not found or expired');
+      throw new GoneException({
+        statusCode: 410,
+        error: 'Gone',
+        message: 'Export not found, expired, or unauthorized.',
+        code: 'EXPORT_NOT_AVAILABLE',
+      });
     }
 
     if (exportReq.isChunked) {
@@ -264,13 +289,18 @@ export class DataExportController {
     }
 
     if (!exportReq.fileData) {
-      throw new NotFoundException('Export not found or expired');
+      throw new GoneException({
+        statusCode: 410,
+        error: 'Gone',
+        message: 'Export not found, expired, or unauthorized.',
+        code: 'EXPORT_NOT_AVAILABLE',
+      });
     }
 
-    // 5. Stream single file
+    // 5. Stream single file — omit userId from filename to avoid leaking it
     res.set({
       'Content-Type': 'application/zip',
-      'Content-Disposition': `attachment; filename="xconfess-data-${userId}.zip"`,
+      'Content-Disposition': `attachment; filename="xconfess-data.zip"`,
       'Content-Length': exportReq.fileData.length,
     });
 
