@@ -36,6 +36,20 @@ When `STELLAR_FEATURES_ENABLED=true`, contract IDs must be provided via environm
 2. The configured `STELLAR_NETWORK` matches the deployment metadata network (if metadata is available).
 3. Any explicitly configured contract IDs match deployment metadata (no stale env vars from another network).
 
+### Startup network validation (Issue #2280)
+
+With `STELLAR_FEATURES_ENABLED=true`, environment validation (`src/config/stellar-network.validation.ts`, run by `envValidationSchema`) refuses to boot when:
+
+| Check | Example diagnostic |
+|-------|--------------------|
+| A contract ID is not a Soroban contract strkey (`C` + 55 base32 chars) | `TIPPING_SYSTEM_CONTRACT_ID is not a valid Soroban contract ID (expected 56 characters starting with "C"). Copy the ID from the testnet deployment output.` |
+| Two contract variables share one ID | `CONFESSION_ANCHOR_CONTRACT_ID and TIPPING_SYSTEM_CONTRACT_ID are set to the same contract ID. ...` |
+| `STELLAR_HORIZON_URL` or `STELLAR_SOROBAN_RPC_URL` points to a different network than `STELLAR_NETWORK` | `STELLAR_SOROBAN_RPC_URL points to a testnet endpoint (host "soroban-rpc-testnet.stellar.org") but STELLAR_NETWORK is "mainnet". Set STELLAR_SOROBAN_RPC_URL to a mainnet endpoint or change STELLAR_NETWORK.` |
+
+The endpoint's network is inferred from its hostname: hosts containing `testnet` or `futurenet`, the SDF mainnet hosts, or hosts containing `mainnet`/`pubnet`. Hosts that can't be classified (custom RPC providers, `localhost`) are not checked. Both URLs default to testnet, so a **mainnet deployment must set both explicitly**.
+
+Diagnostics name variables and URL hosts only. Contract ID values, URL credentials, paths, query strings and secrets are never included. All problems are reported together in one startup error.
+
 | Contract | Env Var | Purpose | Contract Version |
 |----------|---------|---------|-----------------|
 | Confession Anchor | `CONFESSION_ANCHOR_CONTRACT_ID` | Anchors confession hashes on-chain | v0.1.0 |
