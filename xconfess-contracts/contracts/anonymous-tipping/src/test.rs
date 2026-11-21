@@ -106,11 +106,27 @@ fn invalid_tip_amounts_do_not_affect_valid_tips() {
 
     assert_eq!(token.balance(&sender), 1);
     assert_eq!(client.get_tip_balance(&recipient), 0);
+    assert_eq!(client.latest_settlement_nonce(), 0);
 
     let settlement_id = client.send_tip(&sender, &recipient, &1);
     assert_eq!(settlement_id, 1);
     assert_eq!(token.balance(&sender), 0);
     assert_eq!(client.get_tip_balance(&recipient), 1);
+}
+
+#[test]
+fn send_tip_requires_sender_auth_and_keeps_recipient_anonymous() {
+    let (env, client, token_id) = setup();
+    let token = TestTokenClient::new(&env, &token_id);
+    let sender = Address::generate(&env);
+    let recipient = Address::generate(&env);
+    token.mint(&sender, &10);
+
+    let settlement_id = client.send_tip(&sender, &recipient, &1);
+    assert_eq!(settlement_id, 1);
+    assert!(env.auths().iter().any(|(address, _)| *address == sender));
+    assert_eq!(client.get_tip_balance(&recipient), 1);
+    assert_eq!(token.balance(&sender), 9);
 }
 
 #[test]

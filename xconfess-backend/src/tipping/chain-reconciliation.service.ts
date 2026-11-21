@@ -54,6 +54,7 @@ export class ChainReconciliationService {
   private readonly INITIAL_BACKOFF_MS = 5000; // 5 seconds
   private readonly MAX_BACKOFF_MS = 3600000; // 1 hour
   private readonly STALE_THRESHOLD_MS = 86400000; // 24 hours
+  private readonly MAX_BATCH_SIZE = 100;
   private lastMetrics: ReconciliationMetrics | null = null;
 
   constructor(
@@ -228,6 +229,13 @@ export class ChainReconciliationService {
       // Verify transaction on-chain
       const txData = await this.stellarService.verifyTransactionFull(tip.txId);
 
+      if (txData.hash !== tip.txId) {
+        return {
+          success: false,
+          error: 'Chain response hash does not match the pending tip record',
+        };
+      }
+
       if (!txData || !txData.success) {
         // Transaction failed on-chain
         return {
@@ -297,7 +305,7 @@ export class ChainReconciliationService {
       this.logger.log('Starting chain reconciliation for pending tips...');
 
       // Find all pending tips
-      const pendingTips = await this.tipRepository.find({
+      const pendingTips = (await this.tipRepository.find({
         where: {
           verificationStatus: In([
             TipVerificationStatus.PENDING,
@@ -305,7 +313,8 @@ export class ChainReconciliationService {
           ]),
         },
         order: { lastCheckedAt: 'ASC' },
-      });
+        take: this.MAX_BATCH_SIZE,
+      })).slice(0, this.MAX_BATCH_SIZE);
 
       metrics.totalPending = pendingTips.length;
 
