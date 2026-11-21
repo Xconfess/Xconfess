@@ -1,5 +1,5 @@
-import { IsString, IsNotEmpty, Matches } from 'class-validator';
-import { ApiProperty } from '@nestjs/swagger';
+import { IsString, IsNotEmpty, Matches, IsOptional } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class VerifyTipDto {
   @ApiProperty({
@@ -13,4 +13,18 @@ export class VerifyTipDto {
     message: 'Transaction ID must be a valid 64-character hex string',
   })
   txId: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Optional client idempotency key. When provided, it is bound to the same caller/confession operation and must match on replay; mismatches are rejected safely.',
+    maxLength: 128,
+  })
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  @Matches(/^[A-Za-z0-9:._-]{1,128}$/, {
+    message:
+      'idempotencyKey must be 1-128 chars and contain only letters, numbers, colon, dot, underscore, or hyphen',
+  })
+  idempotencyKey?: string;
 }

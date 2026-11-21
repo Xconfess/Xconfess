@@ -8,6 +8,7 @@ import {
   Req,
   UsePipes,
   ValidationPipe,
+  BadRequestException,
 } from '@nestjs/common';
 import { Request } from 'express';
 import { Throttle } from '@nestjs/throttler';
@@ -111,6 +112,40 @@ export class TippingController {
     return this.tippingService.getTipStats(confessionId);
   }
 
+  @Get(':txId/status')
+  @ApiOperation({
+    summary: 'Get lifecycle status for a submitted tip transaction',
+    description:
+      'Returns a public-safe lifecycle view (pending, confirmed, failed) for a tip transaction scoped to the confession. Internal reconciliation metadata is never exposed.',
+  })
+  @ApiParam({ name: 'id', description: 'Confession UUID' })
+  @ApiParam({ name: 'txId', description: 'Stellar transaction hash (64 hex chars)' })
+  @ApiResponse({
+    status: 200,
+    description: 'Tip transaction status.',
+    schema: {
+      example: {
+        confessionId: 'f47ac10b-58cc-4372-a567-0e02b2c3d479',
+        txId: 'a3f8e2d1b4c5a6e7f8d9c0b1a2e3f4d5c6b7a8e9f0d1c2b3a4e5f6d7c8b9a0e1',
+        tipId: 'tip-abc-123',
+        lifecycleStatus: 'confirmed',
+        verificationStatus: 'verified',
+        amount: 100,
+        verifiedAt: '2026-04-25T10:00:00.000Z',
+        createdAt: '2026-04-25T10:00:00.000Z',
+        updatedAtHint: '2026-04-25T10:00:00.000Z',
+      },
+    },
+  })
+  @ApiResponse({ status: 400, description: 'Invalid transaction ID format.' })
+  @ApiResponse({ status: 404, description: 'Confession or tip transaction not found.' })
+  async getTipStatus(
+    @Param('id') confessionId: string,
+    @Param('txId') txId: string,
+  ) {
+    return this.tippingService.getTipStatusForConfession(confessionId, txId);
+  }
+
   @Post('verify')
   @Throttle({ strict: {} })
   @UsePipes(new ValidationPipe({ whitelist: true }))
@@ -119,8 +154,10 @@ export class TippingController {
     description:
       'Rate limited separately from the global default — this route ' +
       'hits Stellar Horizon to verify the transaction and is throttled ' +
-      'per IP+confession to protect against RPC cost spikes. See API ' +
-      'docs / runbook for limits.',
+      'per IP+confession to protect against RPC cost spikes. Replay protection: ' +
+      'dedupe is derived from confessionId+txId, and an optional idempotency key ' +
+      '(header or body) is bound to caller+confession+operation and rejected on mismatch. ' +
+      'See API docs / runbook for limits.',
   })
   @ApiParam({ name: 'id', description: 'Confession UUID' })
   @ApiBody({
@@ -176,15 +213,28 @@ export class TippingController {
     @Param('id') confessionId: string,
     @Body() dto: VerifyTipDto,
     @Req() req: Request,
-    @Headers('idempotency-key') _idempotencyKey?: string,
+    @Headers('idempotency-key') idempotencyKeyHeader?: string,
   ): Promise<TipVerifyResponse> {
     const requestId = (req as any).requestId as string | undefined;
-    // The tipping service derives its own idempotency key from confessionId + txId
-    // (DB-level UNIQUE constraint). The optional Idempotency-Key header is accepted
-    // here for API consistency but does not alter the de-duplication logic — the
-    // txId uniqueness guarantee already makes retries safe.
+    const headerKey = idempotencyKeyHeader?.trim();
+    if (headerKey) {
+      if (dto.idempotencyKey && dto.idempotencyKey !== headerKey) {
+        throw new BadRequestException({
+          message: 'Idempotency key header does not match request body.',
+          code: 'VALIDATION_FAILED',
+          details: { field: 'idempotencyKey' },
+        });
+      }
+      dto.idempotencyKey = dto.idempotencyKey ?? headerKey;
+    }
+
     const result: TipVerificationResult =
-      await this.tippingService.verifyAndRecordTip(confessionId, dto, requestId);
+      await this.tippingService.verifyAndRecordTip(
+        confessionId,
+        dto,
+        requestId,
+        { ip: req.ip },
+      );
 
     return {
       state: result.state,

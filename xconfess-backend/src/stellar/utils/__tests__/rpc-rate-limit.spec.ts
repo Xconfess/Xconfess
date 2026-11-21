@@ -2,9 +2,13 @@ import { HttpStatus } from '@nestjs/common';
 import {
   StellarRpcUnavailableException,
   backOffOrFail,
+  backOffOrFailTransient,
+  classifyStellarRpcError,
   getRetryAfterMs,
   isRateLimitError,
+  isTransientRpcError,
   planRateLimitRetry,
+  planTransientRpcRetry,
   rateLimitErrorFromResponse,
 } from '../rpc-rate-limit';
 import { handleStellarError } from '../stellar-error.handler';
@@ -51,6 +55,42 @@ describe('Stellar RPC rate-limit handling (#2279)', () => {
       ['undefined', undefined],
     ])('ignores %s', (_label, error) => {
       expect(isRateLimitError(error)).toBe(false);
+    });
+  });
+
+  describe('transient classification (#2275)', () => {
+    it('classifies transient RPC/network failures as retryable', () => {
+      expect(isTransientRpcError(new Error('ETIMEDOUT'))).toBe(true);
+      expect(isTransientRpcError({ status: 503 })).toBe(true);
+      expect(classifyStellarRpcError(new Error('ECONNRESET'))).toBe('transient');
+    });
+
+    it('does not classify permanent client failures as retryable', () => {
+      expect(isTransientRpcError({ status: 400 })).toBe(false);
+      expect(classifyStellarRpcError({ response: { status: 404 } })).toBe('permanent');
+    });
+
+    it('plans bounded backoff for transient failures and stops on exhaustion', () => {
+      expect(planTransientRpcRetry(new Error('timeout'), 0, policy)).toEqual({
+        retry: true,
+        delayMs: 100,
+      });
+      expect(planTransientRpcRetry(new Error('timeout'), 3, policy)).toEqual({
+        retry: false,
+        retryAfterSeconds: 1,
+      });
+    });
+
+    it('backOffOrFailTransient rethrows permanent failures', async () => {
+      await expect(
+        backOffOrFailTransient(
+          'op',
+          Object.assign(new Error('bad request'), { status: 400 }),
+          0,
+          rpcConfig,
+          { warn: jest.fn() },
+        ),
+      ).rejects.toMatchObject({ status: 400 });
     });
   });
 
@@ -193,6 +233,33 @@ describe('Stellar RPC rate-limit handling (#2279)', () => {
       const error = await result;
       expect(error).toBeInstanceOf(StellarRpcUnavailableException);
       expect(fetchMock).toHaveBeenCalledTimes(rpcConfig.rpcMaxRetries + 1);
+    });
+
+    it('verifyTransaction: transient 503 retries with backoff then recovers', async () => {
+      const fetchMock = jest
+        .spyOn(global, 'fetch')
+        .mockResolvedValueOnce(new Response('', { status: 503 }))
+        .mockResolvedValueOnce(new Response('', { status: 503 }))
+        .mockResolvedValueOnce(
+          new Response(JSON.stringify({ successful: true }), { status: 200 }),
+        );
+      const service = makeStellarService();
+
+      const result = service.verifyTransaction(TX_HASH);
+      await jest.advanceTimersByTimeAsync(10_000);
+
+      await expect(result).resolves.toBe(true);
+      expect(fetchMock).toHaveBeenCalledTimes(3);
+    });
+
+    it('verifyTransaction: permanent 404 is not retried', async () => {
+      const fetchMock = jest
+        .spyOn(global, 'fetch')
+        .mockResolvedValueOnce(new Response('', { status: 404 }));
+      const service = makeStellarService();
+
+      await expect(service.verifyTransaction(TX_HASH)).resolves.toBe(false);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
     });
 
     it('verifyTransaction: a long Retry-After fails fast without retrying', async () => {
