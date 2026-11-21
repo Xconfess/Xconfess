@@ -31,6 +31,7 @@ describe('ExportProcessor', () => {
       convertToCsv: jest.fn(() => 'test,csv'),
       markExportFailed: jest.fn(),
       markExportProcessing: jest.fn(),
+      cleanupPartialChunks: jest.fn(),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -174,6 +175,84 @@ describe('ExportProcessor', () => {
 
       expect(dataExportService.markExportProcessing).not.toHaveBeenCalled();
       expect(dataExportService.markExportFailed).not.toHaveBeenCalled();
+    });
+  });
+
+  // ── Issue #2156 — idempotent retries and partial chunk cleanup ───────────
+
+  describe('idempotency and partial-chunk cleanup (#2156)', () => {
+    it('calls cleanupPartialChunks before writing new chunks so a retry starts clean', async () => {
+      const mockJob = {
+        name: 'process-export',
+        data: { userId: '2', requestId: 'req-retry' },
+      } as Job;
+
+      dataExportService.compileUserData.mockResolvedValue({
+        userId: '2',
+        confessions: [],
+      });
+      userRepo.findOneBy.mockResolvedValue(null);
+
+      const callOrder: string[] = [];
+      dataExportService.cleanupPartialChunks.mockImplementation(async () => {
+        callOrder.push('cleanupPartialChunks');
+      });
+      dataExportService.compileUserData.mockImplementation(async () => {
+        callOrder.push('compileUserData');
+        return { userId: '2', confessions: [] };
+      });
+
+      await processor.process(mockJob);
+
+      // cleanupPartialChunks must be called before data compilation.
+      expect(callOrder.indexOf('cleanupPartialChunks')).toBeLessThan(
+        callOrder.indexOf('compileUserData'),
+      );
+    });
+
+    it('cleans up partial chunks before marking the job failed when compilation throws', async () => {
+      const mockJob = {
+        name: 'process-export',
+        data: { userId: '3', requestId: 'req-fail-clean' },
+      } as Job;
+
+      dataExportService.compileUserData.mockRejectedValue(
+        new Error('disk full'),
+      );
+
+      await processor.process(mockJob);
+
+      // On failure the processor must clean up any partial chunks that were
+      // written before the error (Issue #2156).
+      expect(dataExportService.cleanupPartialChunks).toHaveBeenCalledWith(
+        'req-fail-clean',
+      );
+      expect(dataExportService.markExportFailed).toHaveBeenCalledWith(
+        'req-fail-clean',
+        'disk full',
+      );
+    });
+
+    it('still marks the job failed even when cleanupPartialChunks itself throws', async () => {
+      const mockJob = {
+        name: 'process-export',
+        data: { userId: '4', requestId: 'req-cleanup-err' },
+      } as Job;
+
+      dataExportService.compileUserData.mockRejectedValue(
+        new Error('timeout'),
+      );
+      dataExportService.cleanupPartialChunks.mockRejectedValue(
+        new Error('cleanup DB error'),
+      );
+
+      // Must not throw — the processor swallows cleanup errors and proceeds
+      // to markExportFailed (Issue #2156).
+      await expect(processor.process(mockJob)).resolves.not.toThrow();
+      expect(dataExportService.markExportFailed).toHaveBeenCalledWith(
+        'req-cleanup-err',
+        'timeout',
+      );
     });
   });
 });

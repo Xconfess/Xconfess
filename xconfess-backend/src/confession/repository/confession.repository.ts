@@ -368,8 +368,11 @@ export class AnonymousConfessionRepository extends Repository<AnonymousConfessio
   ): Promise<AnonymousConfession[]> {
     return this.find({
       where: { isDeleted: false },
+      // id is the unique tie-breaker so rows sharing a timestamp never
+      // reorder across pages (Issue #2138).
       order: {
         created_at: 'DESC',
+        id: 'DESC',
       },
       skip: (page - 1) * limit,
       take: limit,

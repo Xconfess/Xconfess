@@ -1042,7 +1042,9 @@ export class ConfessionService {
         { requiresReview: true, isDeleted: false },
         { moderationStatus: ModerationStatus.FLAGGED as any, isDeleted: false },
       ],
-      order: { created_at: 'DESC' },
+      // id is the unique tie-breaker: flagged confessions created in the same
+      // second always appear in a stable order across pages (Issue #2138).
+      order: { created_at: 'DESC', id: 'DESC' },
       skip,
       take: limit,
     });

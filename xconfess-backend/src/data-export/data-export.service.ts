@@ -229,8 +229,22 @@ export class DataExportService {
   /**
    * Called by the processor as soon as it picks up the job.
    * Transitions status to PROCESSING and stamps processingAt.
+   *
+   * Idempotent: if the job is already PROCESSING (e.g. a worker restart
+   * or BullMQ retry delivered the same job twice) this is a no-op so the
+   * processor never re-enters a job that is already running (Issue #2156).
    */
   async markExportProcessing(requestId: string): Promise<void> {
+    const current = await this.exportRepository.findOne({
+      where: { id: requestId },
+      select: ['status'] as any,
+    });
+
+    // Guard: already processing — do not reset timestamps or overwrite state.
+    if (!current || current.status === 'PROCESSING') {
+      return;
+    }
+
     const now = new Date();
     await this.exportRepository.update(requestId, {
       status: 'PROCESSING',
@@ -258,6 +272,15 @@ export class DataExportService {
       retryCount,
       lastFailureReason: reason,
     });
+  }
+
+  /**
+   * Delete any partial ExportChunk rows written during a failed or interrupted
+   * export run so that retried jobs start from a clean slate (Issue #2156).
+   * Safe to call multiple times — a no-op when no chunks exist.
+   */
+  async cleanupPartialChunks(requestId: string): Promise<void> {
+    await this.chunkRepository.delete({ exportRequestId: requestId });
   }
 
   async generateSignedDownloadUrl(
