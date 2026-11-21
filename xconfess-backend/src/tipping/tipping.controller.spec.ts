@@ -44,20 +44,21 @@ describe('TippingController — sanitized verify response (issue #1687)', () => 
   function makeController(result: TipVerificationResult) {
     const tippingService = {
       verifyAndRecordTip: jest.fn().mockResolvedValue(result),
+      getTipStatusForConfession: jest.fn(),
     } as unknown as TippingService;
-    return new TippingController(tippingService);
+    return { controller: new TippingController(tippingService), tippingService };
   }
 
   it('strips internal-only fields from the response', async () => {
     const tip = makeFullTip();
-    const controller = makeController({
+    const { controller } = makeController({
       tip,
       isNew: true,
       isIdempotent: false,
       state: 'verified',
     });
 
-    const response = await controller.verifyTip(confessionId, dto, {} as any);
+    const response = await controller.verifyTip(confessionId, dto, { ip: '127.0.0.1' } as any);
 
     // Public fields present
     expect(response.tip).toMatchObject({
@@ -84,18 +85,60 @@ describe('TippingController — sanitized verify response (issue #1687)', () => 
 
   it('surfaces the typed state and idempotency flags for a duplicate replay', async () => {
     const tip = makeFullTip({ verificationStatus: TipVerificationStatus.VERIFIED });
-    const controller = makeController({
+    const { controller } = makeController({
       tip,
       isNew: false,
       isIdempotent: true,
       state: 'duplicate',
     });
 
-    const response = await controller.verifyTip(confessionId, dto, {} as any);
+    const response = await controller.verifyTip(confessionId, dto, { ip: '127.0.0.1' } as any);
 
     expect(response.state).toBe('duplicate');
     expect(response.isNew).toBe(false);
     expect(response.isIdempotent).toBe(true);
     expect(response.success).toBe(true);
+  });
+
+  it('binds Idempotency-Key header and forwards caller context', async () => {
+    const tip = makeFullTip();
+    const { controller, tippingService } = makeController({
+      tip,
+      isNew: true,
+      isIdempotent: false,
+      state: 'verified',
+    });
+
+    await controller.verifyTip(confessionId, { txId }, { ip: '10.0.0.1' } as any, 'idem-1');
+
+    expect((tippingService.verifyAndRecordTip as jest.Mock).mock.calls[0][1]).toMatchObject({
+      txId,
+      idempotencyKey: 'idem-1',
+    });
+    expect((tippingService.verifyAndRecordTip as jest.Mock).mock.calls[0][3]).toEqual({
+      ip: '10.0.0.1',
+    });
+  });
+
+  it('returns tip status via scoped service lookup (#2278)', async () => {
+    const tippingService = {
+      verifyAndRecordTip: jest.fn(),
+      getTipStatusForConfession: jest.fn().mockResolvedValue({
+        confessionId,
+        txId,
+        tipId: 'tip-1',
+        lifecycleStatus: 'pending',
+        verificationStatus: 'pending',
+        amount: 1,
+        verifiedAt: null,
+        createdAt: new Date(),
+        updatedAtHint: null,
+      }),
+    } as unknown as TippingService;
+    const controller = new TippingController(tippingService);
+
+    const result = await controller.getTipStatus(confessionId, txId);
+    expect(tippingService.getTipStatusForConfession).toHaveBeenCalledWith(confessionId, txId);
+    expect(result.lifecycleStatus).toBe('pending');
   });
 });

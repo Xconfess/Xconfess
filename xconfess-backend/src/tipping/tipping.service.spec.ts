@@ -19,6 +19,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { QueryFailedError } from 'typeorm';
+import { StellarRpcUnavailableException } from '../stellar/utils/rpc-rate-limit';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -86,6 +87,9 @@ function makeService(overrides: {
     stellarService,
     eventEmitter,
     auditLogService,
+    undefined,
+    undefined,
+    undefined,
   );
 
   return { svc, tipRepo, confessionRepo, stellarService, eventEmitter, auditLogService };
@@ -472,6 +476,95 @@ describe('TippingService', () => {
       expect(newCount).toBe(1);
       expect(idempotentCount).toBe(N - 1);
       expect(stellarService.verifyTransaction).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  // ── Issue hardening: #2275/#2276/#2277/#2278 ─────────────────────────────
+  describe('hardening regressions (#2275-#2278)', () => {
+    const confessionId = 'confession-hardening';
+    const dto = { txId: 'd'.repeat(64) };
+
+    it('propagates RPC unavailable (503) instead of masking as invalid tx (#2275)', async () => {
+      const { svc, tipRepo, confessionRepo, stellarService } = makeService();
+      confessionRepo.findOne.mockResolvedValue({ id: confessionId });
+      tipRepo.save.mockResolvedValue({ id: 'tip-1', txId: dto.txId, confessionId, amount: 0 });
+      tipRepo.findOne.mockResolvedValue(null);
+      stellarService.verifyTransaction.mockRejectedValue(new StellarRpcUnavailableException(5));
+
+      await expect(svc.verifyAndRecordTip(confessionId, dto)).rejects.toBeInstanceOf(
+        StellarRpcUnavailableException,
+      );
+    });
+
+    it('rejects malformed sender address from transaction payload (#2276)', async () => {
+      const { svc, tipRepo, confessionRepo, stellarService } = makeService();
+      confessionRepo.findOne.mockResolvedValue({ id: confessionId });
+      tipRepo.save.mockResolvedValue({ id: 'tip-1', txId: dto.txId, confessionId, amount: 0 });
+      tipRepo.findOne.mockResolvedValue(null);
+      stellarService.verifyTransaction.mockResolvedValue(true);
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          _embedded: {
+            operations: [
+              { type: 'payment', asset_type: 'native', amount: '1.0', from: 'BAD_ADDRESS' },
+            ],
+          },
+        }),
+      });
+
+      await expect(svc.verifyAndRecordTip(confessionId, dto)).rejects.toMatchObject({
+        response: expect.objectContaining({ code: 'INVALID_STELLAR_ADDRESS' }),
+      });
+    });
+
+    it('rejects replayed idempotency key when caller/payload binding differs (#2277)', async () => {
+      const { svc, confessionRepo } = makeService();
+      confessionRepo.findOne.mockResolvedValue({ id: confessionId });
+      const key = 'idem-key-1';
+
+      await expect(
+        (svc as any).assertIdempotencyKeyBinding(
+          confessionId,
+          { txId: dto.txId, idempotencyKey: key },
+          'req-1',
+          { ip: '1.1.1.1' },
+        ),
+      ).not.toThrow();
+
+      expect(() =>
+        (svc as any).assertIdempotencyKeyBinding(
+          confessionId,
+          { txId: 'e'.repeat(64), idempotencyKey: key },
+          'req-2',
+          { ip: '1.1.1.1' },
+        ),
+      ).toThrow(ConflictException);
+    });
+
+    it('returns public-safe tip status scoped to confession (#2278)', async () => {
+      const { svc, confessionRepo, tipRepo } = makeService();
+      confessionRepo.findOne.mockResolvedValue({ id: confessionId });
+      tipRepo.findOne.mockResolvedValue({
+        id: 'tip-1',
+        confessionId,
+        txId: dto.txId,
+        amount: 2,
+        verificationStatus: TipVerificationStatus.PENDING,
+        verifiedAt: null,
+        createdAt: new Date('2026-01-01T00:00:00Z'),
+        lastCheckedAt: new Date('2026-01-01T00:05:00Z'),
+      });
+
+      const status = await svc.getTipStatusForConfession(confessionId, dto.txId);
+      expect(status).toMatchObject({
+        confessionId,
+        txId: dto.txId,
+        lifecycleStatus: 'pending',
+        verificationStatus: TipVerificationStatus.PENDING,
+      });
+      expect((status as any).reconciliationMetadata).toBeUndefined();
     });
   });
 

@@ -1405,9 +1405,32 @@ export class ConfessionService {
       };
     }
 
-    const txSucceeded = await this.stellarService.verifyTransaction(
-      confession.stellarTxHash,
-    );
+    let txSucceeded = false;
+    try {
+      txSucceeded = await this.stellarService.verifyTransaction(
+        confession.stellarTxHash,
+      );
+    } catch (error) {
+      if ((error as any)?.name === 'StellarRpcUnavailableException' || (error as any)?.code === 'SERVICE_UNAVAILABLE') {
+        this.logger.warn(
+          `Stellar RPC unavailable while verifying anchor for confession ${confession.id}; treating as pending`,
+        );
+        return {
+          isAnchored: confession.isAnchored,
+          anchorPending: !confession.isAnchored,
+          isVerified: false,
+          stellarTxHash: confession.stellarTxHash,
+          stellarHash: confession.stellarHash,
+          anchoredAt: confession.anchoredAt,
+          stellarExplorerUrl: this.stellarService.getExplorerUrl(
+            confession.stellarTxHash,
+          ),
+          message:
+            'Anchor verification is temporarily unavailable due to Stellar RPC issues. Please retry shortly.',
+        };
+      }
+      throw error;
+    }
 
     // A successful transaction alone does not prove *this* confession was
     // anchored — the reported tx hash could belong to an unrelated or stale
