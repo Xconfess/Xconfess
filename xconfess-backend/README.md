@@ -199,6 +199,9 @@ When running locally, Swagger docs are available at `/api/api-docs`.
 
 For route inventory, DTO examples, and the **`GET /api/health`** contract (including schema readiness for `anonymous_confessions`), see [API_DOCUMENTATION.md](./API_DOCUMENTATION.md).
 
+Request body sizes and the attachment-upload exception are documented in
+[docs/request-body-limits.md](./docs/request-body-limits.md).
+
 ## 📄 License
 
 [MIT licensed](../LICENSE)

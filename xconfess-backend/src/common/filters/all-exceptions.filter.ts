@@ -8,6 +8,10 @@ import {
 } from '@nestjs/common';
 import { Request, Response } from 'express';
 import { ErrorCode } from '../errors/error-codes';
+import {
+  classifyDatabaseConstraintError,
+  databaseConstraintCode,
+} from './database-constraint-error';
 
 /**
  * Catch-all exception filter that handles any error not already caught by
@@ -58,7 +62,27 @@ export class AllExceptionsFilter implements ExceptionFilter {
     const request = ctx.getRequest<Request>();
     const requestId = (request as any).requestId ?? 'unknown';
 
-    const errorClass = exception instanceof Error ? exception.constructor.name : 'UnknownError';
+    const constraintResponse = classifyDatabaseConstraintError(exception);
+    if (constraintResponse) {
+      this.logger.warn(
+        `Database constraint rejected ${request.method} ${request.path} ` +
+          `[requestId=${requestId}] constraintCode=${databaseConstraintCode(exception)}`,
+      );
+      response.status(constraintResponse.status).json({
+        schemaVersion: 1,
+        status: constraintResponse.status,
+        statusCode: constraintResponse.status,
+        code: constraintResponse.code,
+        message: constraintResponse.message,
+        timestamp: new Date().toISOString(),
+        path: request.path,
+        requestId,
+      });
+      return;
+    }
+
+    const errorClass =
+      exception instanceof Error ? exception.constructor.name : 'UnknownError';
     // Error messages and stacks may contain request or private-message data.
     // Keep the correlation ID and error class; operators can correlate other
     // already-redacted application events with the same request ID.

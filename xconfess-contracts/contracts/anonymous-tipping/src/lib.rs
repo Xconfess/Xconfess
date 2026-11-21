@@ -368,7 +368,12 @@ impl AnonymousTipping {
         Ok(settlement_id)
     }
 
-    /// Get tip history for a recipient
+    /// Return the cumulative tip balance as a Soroban `i128`.
+    ///
+    /// A recipient with no stored balance returns the integer `0`, never null.
+    /// Clients must preserve this value as an integer/bigint (or a decimal
+    /// string in JSON); converting it through an IEEE-754 floating point value
+    /// can lose precision for large balances.
     pub fn get_tips(env: Env, recipient: Address) -> i128 {
         env.storage()
             .persistent()
@@ -376,7 +381,7 @@ impl AnonymousTipping {
             .unwrap_or(0_i128)
     }
 
-    /// Return the cumulative tip amount received by an address.
+    /// Return the same integer balance as [`Self::get_tips`].
     pub fn get_tip_balance(env: Env, recipient: Address) -> i128 {
         Self::get_tips(env, recipient)
     }
