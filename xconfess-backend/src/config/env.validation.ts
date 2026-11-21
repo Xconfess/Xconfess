@@ -228,6 +228,9 @@ export const envValidationSchema = Joi.object({
   SEARCH_QUERY_TIMEOUT_MS: Joi.number().integer().min(100).max(60000).default(5000),
   ANALYTICS_ENABLED: Joi.string().valid('true', 'false').default('true'),
   ANALYTICS_RETENTION_DAYS: Joi.number().min(1).default(365),
+  // Keys the one-way pseudonyms stored in analytics_events.actor_id (Issue #2281).
+  // Optional: falls back to a key derived from JWT_SECRET.
+  ANALYTICS_ACTOR_PSEUDONYM_SECRET: Joi.string().min(32).optional(),
   TRACTION_CACHE_TTL_SECONDS: Joi.number().min(1).max(3600).default(60),
   TRACTION_EXCLUDED_USER_IDS: Joi.string()
     .allow('')

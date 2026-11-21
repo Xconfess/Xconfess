@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { redactTelemetryPayload } from './telemetryRedaction';
 
 export interface ErrorResponse {
   message: string;
@@ -296,11 +297,13 @@ export const logError = (
 
   // In production, you could send this to an error tracking service
   // Example: Sentry, LogRocket, etc.
+  // Third-party telemetry: identity identifiers are always redacted first
+  // (Issue #2281). If redaction fails, nothing is sent.
   if (process.env.NEXT_PUBLIC_ERROR_TRACKING_URL) {
     try {
       navigator.sendBeacon(
         process.env.NEXT_PUBLIC_ERROR_TRACKING_URL,
-        JSON.stringify(errorLog)
+        JSON.stringify(redactTelemetryPayload(errorLog))
       );
     } catch (e) {
       console.error('Failed to send error log:', e);

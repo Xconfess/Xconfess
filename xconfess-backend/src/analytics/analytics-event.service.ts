@@ -10,6 +10,11 @@ import {
   AnalyticsEventName,
   AnalyticsNetwork,
 } from './entities/analytics-event.entity';
+import {
+  IDENTITY_IDENTIFIER_KEYS,
+  pseudonymizeActorId,
+  resolveActorPseudonymKey,
+} from './analytics-identity';
 
 export interface RecordAnalyticsEventInput {
   eventName: AnalyticsEventName;
@@ -46,6 +51,7 @@ const SENSITIVE_KEYS = [
   'ip',
   'user_agent',
   'useragent',
+  ...IDENTITY_IDENTIFIER_KEYS,
 ];
 
 const ALLOWED_METADATA_KEYS = new Set([
@@ -64,6 +70,8 @@ const ALLOWED_METADATA_KEYS = new Set([
 @Injectable()
 export class AnalyticsEventService {
   private readonly logger = new Logger(AnalyticsEventService.name);
+  private pseudonymKey: Buffer | null | undefined;
+  private warnedMissingKey = false;
 
   constructor(
     @InjectRepository(AnalyticsEvent)
@@ -81,10 +89,7 @@ export class AnalyticsEventService {
 
     const event = this.analyticsEventRepository.create({
       eventName: input.eventName,
-      actorId:
-        input.actorId === undefined || input.actorId === null
-          ? null
-          : String(input.actorId),
+      actorId: this.toPseudonymousActorId(input.actorId),
       occurredAt: input.occurredAt ?? new Date(),
       network: input.network ?? null,
       assetCode: input.assetCode?.toUpperCase() ?? null,
@@ -108,6 +113,31 @@ export class AnalyticsEventService {
       );
       throw error;
     }
+  }
+
+  /**
+   * Raw identity identifiers never reach analytics storage: the actor is
+   * replaced by a keyed one-way pseudonym, or dropped if no key is configured.
+   */
+  private toPseudonymousActorId(
+    actorId: RecordAnalyticsEventInput['actorId'],
+  ): string | null {
+    if (actorId === undefined || actorId === null || actorId === '') {
+      return null;
+    }
+    if (this.pseudonymKey === undefined) {
+      this.pseudonymKey = resolveActorPseudonymKey((key) =>
+        this.configService.get<string>(key),
+      );
+    }
+    const pseudonym = pseudonymizeActorId(actorId, this.pseudonymKey);
+    if (pseudonym === null && !this.warnedMissingKey) {
+      this.warnedMissingKey = true;
+      this.logger.warn(
+        'No analytics pseudonym key configured (ANALYTICS_ACTOR_PSEUDONYM_SECRET or JWT_SECRET); dropping actor identifiers from analytics events.',
+      );
+    }
+    return pseudonym;
   }
 
   private isEnabled(): boolean {
