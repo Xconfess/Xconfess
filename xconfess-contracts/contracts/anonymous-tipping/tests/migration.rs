@@ -287,6 +287,24 @@ fn migrate_multiple_times_returns_current_version_each_time() {
     assert_eq!(client.schema_version(), SCHEMA_VERSION_CURRENT);
 }
 
+#[test]
+fn migrate_rejects_a_future_schema_version_without_mutating_state() {
+    let (env, id, owner, client) = owner_setup();
+    let future_version = SCHEMA_VERSION_CURRENT + 1;
+
+    env.as_contract(&id, || {
+        env.storage()
+            .instance()
+            .set(&anonymous_tipping::DataKey::SchemaVersion, &future_version);
+    });
+
+    assert_eq!(
+        client.try_migrate(&owner),
+        Err(Ok(Error::UnsupportedSchemaVersion))
+    );
+    assert_eq!(client.schema_version(), future_version);
+}
+
 // ── auth enforcement ──────────────────────────────────────────────────────────
 
 #[test]
