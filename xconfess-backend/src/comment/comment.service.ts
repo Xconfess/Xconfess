@@ -390,7 +390,7 @@ export class CommentService {
     confessionId: string,
     queryDto: GetCommentsQueryDto,
   ): Promise<CursorPaginatedResponseDto<Comment>> {
-    const { cursor, sortField, sortOrder, limit, page, includeOrphanedReplies } =
+    const { cursor, sortField, sortOrder, limit, page } =
       queryDto;
 
     const parsedCursor = this.parseCursor(cursor);
@@ -428,11 +428,9 @@ export class CommentService {
       });
     }
 
-    if (!includeOrphanedReplies) {
-      qb.andWhere(
-        "(comment.parent IS NULL OR comment.parent.isDeleted = false)",
-      );
-    }
+    // Privacy policy: never expose replies under deleted parents, even when
+    // the legacy includeOrphanedReplies query flag is supplied.
+    qb.andWhere("(comment.parent IS NULL OR parent.isDeleted = false)");
 
     if (!cursor && page && page > 1) {
       qb.andWhere("comment.parent IS NULL");
@@ -444,6 +442,26 @@ export class CommentService {
     qb.orderBy(orderBy, orderDirection).take(fetchLimit);
 
     const comments = await qb.getMany();
+    // Deleted ancestors must not expose retained reply context through the
+    // eagerly loaded replies relation. Public API always hides those replies;
+    // a query flag cannot override this privacy rule.
+    const redactDeletedThreads = (node: Comment, ancestorDeleted = false): Comment | null => {
+      if (ancestorDeleted) return null;
+      if (node.isDeleted) {
+        node.content = "[deleted]";
+        node.mentionedUsernames = [];
+        node.anonymousContextId = undefined;
+        node.replies = [];
+        return node;
+      }
+      if (node.replies) {
+        node.replies = node.replies
+          .map((reply) => redactDeletedThreads(reply, node.isDeleted))
+          .filter((reply): reply is Comment => reply !== null);
+      }
+      return node;
+    };
+    for (const comment of comments) redactDeletedThreads(comment);
     const hasMore = comments.length > actualLimit;
     const resultComments = hasMore ? comments.slice(0, actualLimit) : comments;
 

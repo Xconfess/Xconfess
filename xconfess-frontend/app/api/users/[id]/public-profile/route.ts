@@ -13,6 +13,7 @@ export async function GET(req: NextRequest, { params }: RouteContext) {
 
     const response = await fetch(backend.url, {
       method: "GET",
+      cache: "no-store",
       headers: buildForwardHeaders(req, correlationId),
     });
 
@@ -30,6 +31,8 @@ export async function GET(req: NextRequest, { params }: RouteContext) {
     return new Response(responseBody, {
       status: 200,
       headers: {
+        "Cache-Control": "private, no-store, max-age=0",
+        "Vary": "Cookie, Authorization",
         "Content-Type": "application/json",
       },
     });

@@ -23,6 +23,7 @@ export async function GET(request: NextRequest) {
 
     const response = await fetch(backend.url, {
       method: "GET",
+      cache: "no-store",
       headers: {
         "X-Correlation-ID": correlationId,
         cookie,
@@ -42,7 +43,7 @@ export async function GET(request: NextRequest) {
     const responseBody = await response.text();
     return new Response(responseBody, {
       status: 200,
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "Cache-Control": "private, no-store, max-age=0", "Vary": "Cookie, Authorization" },
     });
   } catch (error) {
     return createApiErrorResponse(error, {
