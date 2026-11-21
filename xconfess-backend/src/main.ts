@@ -27,8 +27,13 @@ import {
   csrfMiddleware,
   csrfCookieSetter,
 } from './common/middleware/middleware';
+import { RedactingConsoleLogger } from './common/logging/redacting-console.logger';
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule, { bodyParser: false });
+  const app = await NestFactory.create(AppModule, {
+    bodyParser: false,
+    // Issue #2282: every Logger call is redacted (tokens, secrets, user text).
+    logger: new RedactingConsoleLogger(),
+  });
   const configService = app.get(ConfigService);
   const operationalMetrics = app.get(OperationalMetricsService);
 

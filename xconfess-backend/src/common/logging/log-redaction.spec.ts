@@ -154,14 +154,15 @@ describe('Log Redaction', () => {
       expect(result.statusCode).toBe(401);
     });
 
-    it('preserves confession/message text while redacting an attached token', () => {
+    it('redacts confession/message text and an attached token (#2282)', () => {
       const input = {
         event: 'message.sent',
         message: { body: 'this is my private confession text', authToken: 'secretvalue' },
       };
       const result: any = redactLogPayload(input);
-      expect(result.message.body).toBe('this is my private confession text');
+      expect(result.message.body).toBe('[REDACTED:user-content,len=34]');
       expect(result.message.authToken).toBe('[REDACTED]');
+      expect(JSON.stringify(result)).not.toContain('private confession');
     });
   });
 
