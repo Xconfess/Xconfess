@@ -204,7 +204,9 @@ function isPayloadTooLarge(error: unknown): boolean {
 
 function sendRequestTooLarge(request: Request, response: Response): void {
   response.status(HttpStatus.PAYLOAD_TOO_LARGE).json({
+    schemaVersion: 1,
     status: HttpStatus.PAYLOAD_TOO_LARGE,
+    statusCode: HttpStatus.PAYLOAD_TOO_LARGE,
     code: ErrorCode.REQUEST_TOO_LARGE,
     message: REQUEST_TOO_LARGE_MESSAGE,
     timestamp: new Date().toISOString(),

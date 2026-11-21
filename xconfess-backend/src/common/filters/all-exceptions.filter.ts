@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import { Request, Response } from 'express';
 import { ErrorCode } from '../errors/error-codes';
+import { normalizeDatabaseConstraintError } from '../errors/database-constraint';
 
 /**
  * Catch-all exception filter that handles any error not already caught by
@@ -26,6 +27,33 @@ export class AllExceptionsFilter implements ExceptionFilter {
   private readonly logger = new Logger(AllExceptionsFilter.name);
 
   catch(exception: unknown, host: ArgumentsHost): void {
+    const databaseException = normalizeDatabaseConstraintError(exception);
+    if (databaseException) {
+      const ctx = host.switchToHttp();
+      const response = ctx.getResponse<Response>();
+      const request = ctx.getRequest<Request>();
+      const requestId = (request as any).requestId ?? 'unknown';
+      const body = databaseException.getResponse() as {
+        message: string;
+        code: ErrorCode;
+      };
+
+      this.logger.warn(
+        `Database constraint rejected ${request.method} ${request.path} [requestId=${requestId}] code=${body.code}`,
+      );
+      response.status(databaseException.getStatus()).json({
+        schemaVersion: 1,
+        status: databaseException.getStatus(),
+        statusCode: databaseException.getStatus(),
+        code: body.code,
+        message: body.message,
+        timestamp: new Date().toISOString(),
+        path: request.path,
+        requestId,
+      });
+      return;
+    }
+
     // Delegate HTTP exceptions to the existing HttpExceptionFilter contract —
     // only handle genuinely unexpected errors here.
     if (exception instanceof HttpException) {
@@ -58,7 +86,8 @@ export class AllExceptionsFilter implements ExceptionFilter {
     const request = ctx.getRequest<Request>();
     const requestId = (request as any).requestId ?? 'unknown';
 
-    const errorClass = exception instanceof Error ? exception.constructor.name : 'UnknownError';
+    const errorClass =
+      exception instanceof Error ? exception.constructor.name : 'UnknownError';
     // Error messages and stacks may contain request or private-message data.
     // Keep the correlation ID and error class; operators can correlate other
     // already-redacted application events with the same request ID.

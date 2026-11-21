@@ -355,3 +355,37 @@ fn single_stroop_transfer_succeeds() {
     assert_eq!(token.balance(&sender), 0);
     assert_eq!(token.balance(&recipient), 1);
 }
+
+#[test]
+fn seeded_boundary_inputs_preserve_state_and_exact_i128_balances() {
+    // Reproduction seed for #2269: 0xC0FFEE. The generator is deliberately
+    // tiny and deterministic so a failing input can be replayed without a
+    // random-number dependency in contract tests.
+    let (env, client, token_id) = setup();
+    let token = TestTokenClient::new(&env, &token_id);
+    let sender = Address::generate(&env);
+    let recipient = Address::generate(&env);
+    let initial_sender_balance = AnonymousTipping::MAX_TIP_AMOUNT * 32;
+    token.mint(&sender, &initial_sender_balance);
+
+    let mut seed = 0xC0FFEE_u64;
+    let mut expected_total = 0_i128;
+    for _ in 0..32 {
+        seed = seed.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
+        let amount = (seed as i128 % AnonymousTipping::MAX_TIP_AMOUNT) + 1;
+        client.send_tip(&sender, &recipient, &amount);
+        expected_total += amount;
+        assert_eq!(client.get_tip_balance(&recipient), expected_total);
+    }
+
+    // The empty state and large totals remain exact i128 values; no floating
+    // point conversion is involved in the public balance response (#2270).
+    let empty_recipient = Address::generate(&env);
+    assert_eq!(client.get_tip_balance(&empty_recipient), 0_i128);
+    token.mint(&sender, &AnonymousTipping::MAX_TIP_AMOUNT);
+    client.send_tip(&sender, &empty_recipient, &AnonymousTipping::MAX_TIP_AMOUNT);
+    assert_eq!(
+        client.get_tip_balance(&empty_recipient),
+        AnonymousTipping::MAX_TIP_AMOUNT
+    );
+}

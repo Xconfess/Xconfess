@@ -69,6 +69,31 @@ describe('AllExceptionsFilter', () => {
     expect(body.schemaVersion).toBe(1);
   });
 
+  it('maps known database constraints without leaking driver details', () => {
+    const host = makeHost('req-id-db');
+    const response = host.switchToHttp().getResponse<any>();
+
+    filter.catch(
+      {
+        code: '23505',
+        detail: 'duplicate key value contains private data',
+        constraint: 'users_email_key',
+      },
+      host,
+    );
+
+    expect(response.status).toHaveBeenCalledWith(HttpStatus.CONFLICT);
+    const body = response.status.mock.results[0].value.json.mock.calls[0][0];
+    expect(body).toMatchObject({
+      schemaVersion: 1,
+      statusCode: HttpStatus.CONFLICT,
+      code: 'ALREADY_EXISTS',
+      requestId: 'req-id-db',
+    });
+    expect(JSON.stringify(body)).not.toContain('users_email_key');
+    expect(JSON.stringify(body)).not.toContain('private data');
+  });
+
   it('redacts internal HttpException messages from server errors', () => {
     const host = makeHost('req-id-http-secret');
     const response = host.switchToHttp().getResponse<any>();
