@@ -1,4 +1,5 @@
 import * as Joi from 'joi';
+import { findStellarNetworkConfigIssues } from './stellar-network.validation';
 
 const productionLike = Joi.valid('production', 'staging');
 const productionHexKey = Joi.string()
@@ -278,4 +279,15 @@ export const envValidationSchema = Joi.object({
     .default(10 * 1024 * 1024),
   ATTACHMENT_ALLOWED_MIME_TYPES: Joi.string()
     .default('image/jpeg,image/png,image/webp,image/gif,application/pdf'),
-}).options({ allowUnknown: true, abortEarly: false });
+})
+  // Cross-field Stellar contract/network consistency (Issue #2280).
+  .custom((value: Record<string, unknown>, helpers) => {
+    const issues = findStellarNetworkConfigIssues(value);
+    if (issues.length > 0) {
+      return helpers.message({
+        custom: `Stellar network configuration is invalid: ${issues.join(' ')}`,
+      });
+    }
+    return value;
+  })
+  .options({ allowUnknown: true, abortEarly: false });

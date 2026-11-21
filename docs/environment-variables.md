@@ -109,6 +109,8 @@ feature-flag matrix.
 | `CONFESSION_ANCHOR_CONTRACT_ID` | `C...` (public key) | No | Anchor contract ID. |
 | `REPUTATION_BADGES_CONTRACT_ID` | `C...` (public key) | No | Reputation contract ID. |
 | `TIPPING_SYSTEM_CONTRACT_ID` | `C...` (public key) | No | Tipping contract ID. |
+
+When `STELLAR_FEATURES_ENABLED=true`, startup fails if a contract ID is malformed, two contract variables share an ID, or `STELLAR_HORIZON_URL` / `STELLAR_SOROBAN_RPC_URL` point to a different network than `STELLAR_NETWORK`. Both URLs default to testnet, so mainnet must set them explicitly. See [stellar-feature-flag-matrix.md](stellar-feature-flag-matrix.md#startup-network-validation-issue-2280).
 | `STELLAR_SERVER_SECRET` | `S...` (56 chars) | **Yes** | Server signing keypair (testnet only locally). |
 | `ENABLE_TESTNET_FUNDING` | `false` | No | Opt-in to Friendbot funding. |
 
