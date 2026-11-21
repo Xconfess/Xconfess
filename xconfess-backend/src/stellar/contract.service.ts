@@ -9,6 +9,7 @@ import {
 import { handleStellarError } from './utils/stellar-error.handler';
 import { encodeContractArgs, ContractArg } from './utils/parameter.encoder';
 import { redactSecretStrings } from '../utils/redact-secrets';
+import { backOffOrFail, isRateLimitError } from './utils/rpc-rate-limit';
 import { InvokeContractDto } from './dto/invoke-contract.dto';
 import { getStellarInvocationPolicy } from './stellar-invocation-policy';
 
@@ -159,6 +160,11 @@ export class ContractService {
         const timestamp = StellarSDK.scValToNative(result as any);
         return timestamp || null;
       } catch (error: unknown) {
+        if (isRateLimitError(error)) {
+          // Throttled is not "not found": retry, or fail with 503.
+          await backOffOrFail('verifyConfession', error, attempt, rpcConfig, this.logger);
+          continue;
+        }
         const message = error instanceof Error ? error.message : String(error);
         const isRetryable =
           message.toLowerCase().includes('timeout') ||

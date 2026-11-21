@@ -4,6 +4,7 @@ import * as StellarSDK from '@stellar/stellar-sdk';
 import { StellarConfigService } from './stellar-config.service';
 import { ITransactionOptions } from './interfaces/stellar-config.interface';
 import { redactSecretStrings } from '../utils/redact-secrets';
+import { backOffOrFail, isRateLimitError } from './utils/rpc-rate-limit';
 
 @Injectable()
 export class TransactionBuilderService {
@@ -153,6 +154,16 @@ export class TransactionBuilderService {
         return result;
       } catch (error: unknown) {
         lastError = error;
+        if (isRateLimitError(error)) {
+          await backOffOrFail(
+            'submitTransaction',
+            error,
+            attempt,
+            this.stellarConfig.getConfig(),
+            this.logger,
+          );
+          continue;
+        }
         const message = error instanceof Error ? error.message : String(error);
         const withResponse = error as {
           response?: { data?: { extras?: { result_codes?: unknown } } };

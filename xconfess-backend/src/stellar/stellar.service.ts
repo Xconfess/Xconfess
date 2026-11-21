@@ -14,6 +14,11 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { AnonymousConfession } from '../confession/entities/confession.entity';
 import { redactSecretStrings } from '../utils/redact-secrets';
+import {
+  backOffOrFail,
+  isRateLimitError,
+  rateLimitErrorFromResponse,
+} from './utils/rpc-rate-limit';
 
 export interface AnchorData {
   stellarTxHash: string;
@@ -74,6 +79,10 @@ export class StellarService {
           }));
         return { native, assets };
       } catch (error: unknown) {
+        if (isRateLimitError(error)) {
+          await backOffOrFail('getAccountBalance', error, attempt, rpcConfig, this.logger);
+          continue;
+        }
         const message = error instanceof Error ? error.message : String(error);
         const isRetryable =
           message.toLowerCase().includes('timeout') ||
@@ -126,6 +135,10 @@ export class StellarService {
           result: tx.result_xdr,
         };
       } catch (error: unknown) {
+        if (isRateLimitError(error)) {
+          await backOffOrFail('verifyTransactionFull', error, attempt, rpcConfig, this.logger);
+          continue;
+        }
         const message = error instanceof Error ? error.message : String(error);
         const isRetryable =
           message.toLowerCase().includes('timeout') ||
@@ -303,6 +316,11 @@ export class StellarService {
           clearTimeout(timeoutId);
         }
 
+        if (response.status === 429) {
+          // Throttled: not a verdict on the transaction. Retry or fail with 503.
+          throw rateLimitErrorFromResponse(response);
+        }
+
         if (!response.ok) {
           return false;
         }
@@ -310,6 +328,10 @@ export class StellarService {
         const data = await response.json();
         return data.successful === true;
       } catch (error: unknown) {
+        if (isRateLimitError(error)) {
+          await backOffOrFail('verifyTransaction', error, attempt, rpcConfig, this.logger);
+          continue;
+        }
         const message = error instanceof Error ? error.message : String(error);
         const isAbort =
           error instanceof DOMException && error.name === 'AbortError';

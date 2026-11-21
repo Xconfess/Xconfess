@@ -2,6 +2,8 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { HttpException, HttpStatus, ArgumentsHost } from '@nestjs/common';
 import { HttpExceptionFilter } from './http-exception.filter';
 import { ErrorCode } from '../errors/error-codes';
+import { ErrorUtils } from '../errors/error-utils';
+import { StellarRpcUnavailableException } from '../../stellar/utils/rpc-rate-limit';
 
 describe('HttpExceptionFilter', () => {
   let filter: HttpExceptionFilter;
@@ -87,5 +89,39 @@ describe('HttpExceptionFilter', () => {
       }),
     );
     expect(JSON.stringify(mockResponse.json.mock.calls[0][0])).not.toContain('private-value');
+  });
+
+  // Issue #2279: Stellar RPC throttling surfaces as a safe 503 with Retry-After.
+  it('returns a safe 503 with a Retry-After header for an unavailable dependency', () => {
+    mockResponse.setHeader = jest.fn();
+    const exception = new StellarRpcUnavailableException(30);
+
+    filter.catch(exception, mockArgumentsHost);
+
+    expect(mockResponse.status).toHaveBeenCalledWith(HttpStatus.SERVICE_UNAVAILABLE);
+    expect(mockResponse.setHeader).toHaveBeenCalledWith('Retry-After', '30');
+    expect(mockResponse.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: HttpStatus.SERVICE_UNAVAILABLE,
+        code: ErrorCode.SERVICE_UNAVAILABLE,
+        message: 'Service temporarily unavailable. Please retry later.',
+        retryAfter: 30,
+      }),
+    );
+  });
+
+  it('does not echo upstream details in a 503 body', () => {
+    mockResponse.setHeader = jest.fn();
+    const exception = ErrorUtils.serviceUnavailable(
+      'stellar-rpc',
+      'upstream said: key=provider-secret',
+      10,
+    );
+
+    filter.catch(exception, mockArgumentsHost);
+
+    const body = JSON.stringify(mockResponse.json.mock.calls[0][0]);
+    expect(body).not.toContain('provider-secret');
+    expect(body).not.toContain('stellar-rpc');
   });
 });

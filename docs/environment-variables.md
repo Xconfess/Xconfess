@@ -110,6 +110,10 @@ feature-flag matrix.
 | `REPUTATION_BADGES_CONTRACT_ID` | `C...` (public key) | No | Reputation contract ID. |
 | `TIPPING_SYSTEM_CONTRACT_ID` | `C...` (public key) | No | Tipping contract ID. |
 | `STELLAR_SERVER_SECRET` | `S...` (56 chars) | **Yes** | Server signing keypair (testnet only locally). |
+| `STELLAR_RPC_MAX_RETRIES` | `3` | No | Maximum retries per Stellar RPC/Horizon call, including when the provider rate-limits (HTTP 429). |
+| `STELLAR_RPC_RETRY_BASE_DELAY_MS` | `1000` | No | Base delay for exponential backoff (`base * 2^attempt`) when no `Retry-After` hint is given. |
+| `STELLAR_RPC_RETRY_MAX_DELAY_MS` | `10000` | No | Maximum wait per retry. If the provider's `Retry-After` is longer, the request fails fast with `503` + `Retry-After` instead of waiting. See [stellar README](../xconfess-backend/src/stellar/README.md#rpc-rate-limits). |
+| `STELLAR_RPC_TIMEOUT_MS` | `15000` | No | Per-call RPC timeout. |
 | `ENABLE_TESTNET_FUNDING` | `false` | No | Opt-in to Friendbot funding. |
 
 ## Frontend variables
