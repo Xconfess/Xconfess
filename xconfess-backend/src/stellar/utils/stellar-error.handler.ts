@@ -11,6 +11,7 @@ import {
   TIPPING_ERROR_CODES,
   CONTRACT_ERROR_CODES,
 } from './stellar-contract-errors';
+import { StellarRpcUnavailableException } from './rpc-rate-limit';
 
 // ---- Stellar Transaction Error Classes ----
 
@@ -151,6 +152,11 @@ export function handleStellarContractError(errorCode: number): StellarContractEr
 // ---- Transaction Error Handler ----
 
 export function handleStellarError(error: any): Error {
+  // RPC throttling already maps to a safe 503 with Retry-After (Issue #2279).
+  if (error instanceof StellarRpcUnavailableException) {
+    return error;
+  }
+
   // Map specific error messages
   const errorMsg = error.message?.toLowerCase() || '';
   if (errorMsg.includes('timeout')) {

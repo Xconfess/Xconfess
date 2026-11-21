@@ -54,16 +54,28 @@ export class HttpExceptionFilter implements ExceptionFilter {
     // errors. Add it here so DTO validation failures (routed through
     // AppException.fromHttpException) and every other HttpException
     // emit the full documented envelope.
+    // Issue #2279: a 503 (e.g. Stellar RPC throttling) tells the client when to
+    // retry. The message is a fixed string so nothing upstream is echoed.
+    const isServiceUnavailable = status === HttpStatus.SERVICE_UNAVAILABLE;
+    const retryAfter: number | undefined = isServiceUnavailable
+      ? exceptionResponse.retryAfter
+      : undefined;
+    if (retryAfter !== undefined) {
+      response.setHeader('Retry-After', retryAfter.toString());
+    }
+
     const errorResponse = {
       schemaVersion: 1,
       status,
       statusCode: status,
       code: exceptionResponse.code || ErrorCode.INTERNAL_SERVER_ERROR,
-      message:
-        status >= HttpStatus.INTERNAL_SERVER_ERROR
+      message: isServiceUnavailable
+        ? 'Service temporarily unavailable. Please retry later.'
+        : status >= HttpStatus.INTERNAL_SERVER_ERROR
           ? 'An unexpected error occurred'
           : exceptionResponse.message || 'An unexpected error occurred',
-      details: exceptionResponse.details,
+      details: isServiceUnavailable ? undefined : exceptionResponse.details,
+      ...(retryAfter !== undefined ? { retryAfter } : {}),
       timestamp: new Date().toISOString(),
       path: request.path,
       requestId,
