@@ -67,6 +67,7 @@ process with an actionable error.
 | `RATE_LIMIT_GET_MAX` / `_WINDOW` | `50` / `60` | No | GET rate limiting. |
 | `ANALYTICS_ENABLED` | `true` | No | Toggle privacy-safe analytics. |
 | `ANALYTICS_RETENTION_DAYS` | `365` | No | Analytics retention. |
+| `ANALYTICS_ACTOR_PSEUDONYM_SECRET` | derived from `JWT_SECRET` | No | Min 32 chars. Keys the one-way pseudonyms stored instead of raw anonymous/user IDs in `analytics_events.actor_id`. Set a dedicated value so JWT rotation does not reset retention cohorts. See [analytics-identity-redaction.md](analytics-identity-redaction.md). |
 | `TRACTION_CACHE_TTL_SECONDS` | `60` | No | Public traction metric cache TTL. |
 | `TRACTION_EXCLUDED_*_IDS` | empty | No | Comma-separated IDs excluded from public aggregates. |
 | `EXPORT_RETENTION_DAYS` | `7` | No | Data-export artifact retention. |
@@ -137,7 +138,7 @@ feature-flag matrix.
 | `NEXT_PUBLIC_STELLAR_HORIZON_URL` | `https://horizon-testnet.stellar.org` | Yes | Horizon endpoint. |
 | `NEXT_PUBLIC_STELLAR_RPC_URL` / `NEXT_PUBLIC_STELLAR_SOROBAN_RPC_URL` | `https://soroban-rpc-testnet.stellar.org` | Yes | Soroban RPC endpoints. |
 | `NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID` | empty locally | Yes | WalletConnect project ID (public identifier, still keep it out of logs). |
-| `NEXT_PUBLIC_ERROR_TRACKING_URL` | empty | Yes | Error-reporting collector URL. |
+| `NEXT_PUBLIC_ERROR_TRACKING_URL` | empty | Yes | Error-reporting collector URL. Payloads are scrubbed of identity identifiers before sending; see [analytics-identity-redaction.md](analytics-identity-redaction.md). |
 | `NEXT_PUBLIC_DEBUG_NOTIFICATIONS` | `false` | Yes | Verbose notification debugging. |
 | `NEXT_PUBLIC_DEV_BYPASS_AUTH` | `false` | Yes | **Dev only** — bypass auth checks. Never enable in production. |
 | `NEXT_PUBLIC_DEV_MOCK_ROLE` | `user` | Yes | **Dev only** — mock role when bypass is on. |
