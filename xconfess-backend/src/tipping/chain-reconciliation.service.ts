@@ -229,14 +229,16 @@ export class ChainReconciliationService {
       // Verify transaction on-chain
       const txData = await this.stellarService.verifyTransactionFull(tip.txId);
 
-      if (txData.hash !== tip.txId) {
+      if (!txData || txData.hash !== tip.txId) {
         return {
           success: false,
-          error: 'Chain response hash does not match the pending tip record',
+          error: txData
+            ? 'Chain response hash does not match the pending tip record'
+            : 'Chain transaction could not be found',
         };
       }
 
-      if (!txData || !txData.success) {
+      if (!txData.success) {
         // Transaction failed on-chain
         return {
           success: true,
