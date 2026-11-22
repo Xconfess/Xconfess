@@ -321,6 +321,25 @@ describe('Stellar RPC rate-limit handling (#2279)', () => {
       await expect(result).resolves.toEqual({ hash: 'h1' });
     });
 
+    it('submitTransaction: checks an ambiguous submission before retrying', async () => {
+      const submitTransaction = jest.fn().mockRejectedValue(new Error('timeout'));
+      const getTransaction = jest.fn().mockResolvedValue({ hash: 'accepted-hash' });
+      const transaction = {
+        hash: () => Buffer.from('accepted-hash'),
+      };
+      const builder = new TransactionBuilderService({
+        getConfig: () => ({ ...rpcConfig, rpcMaxRetries: 1 }),
+        getServer: () => ({ submitTransaction, getTransaction }),
+      } as any);
+
+      const result = builder.submitTransaction(transaction);
+      await jest.advanceTimersByTimeAsync(10_000);
+
+      await expect(result).resolves.toEqual({ hash: 'accepted-hash' });
+      expect(getTransaction).toHaveBeenCalledWith('61636365707465642d68617368');
+      expect(submitTransaction).toHaveBeenCalledTimes(1);
+    });
+
     it('verifyConfession: sustained throttling surfaces 503, not "not anchored"', async () => {
       const service = new ContractService(
         {
