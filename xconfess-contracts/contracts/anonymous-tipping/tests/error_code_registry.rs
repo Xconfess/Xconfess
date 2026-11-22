@@ -15,7 +15,7 @@ use anonymous_tipping::{codes, Error, ErrorClassification};
 const REGISTRY_MD: &str = include_str!("../../../CONTRACT_ERROR_CODES.md");
 
 /// Every tipping error: variant, public `codes` constant, and registry name.
-const REGISTRY: [(Error, u32, &str); 12] = [
+const REGISTRY: [(Error, u32, &str); 14] = [
     (
         Error::InvalidTipAmount,
         codes::INVALID_TIP_AMOUNT,
@@ -68,6 +68,16 @@ const REGISTRY: [(Error, u32, &str); 12] = [
         codes::RECIPIENT_MISMATCH,
         "RECIPIENT_MISMATCH",
     ),
+    (
+        Error::InsufficientBalance,
+        codes::INSUFFICIENT_BALANCE,
+        "INSUFFICIENT_BALANCE",
+    ),
+    (
+        Error::UnsupportedSchemaVersion,
+        codes::UNSUPPORTED_SCHEMA_VERSION,
+        "UNSUPPORTED_SCHEMA_VERSION",
+    ),
 ];
 
 /// Compile-time coverage: adding an `Error` variant breaks this exhaustive
@@ -86,6 +96,8 @@ fn registry_index(error: Error) -> usize {
         Error::SettlementReplay => 9,
         Error::SettlementNotFound => 10,
         Error::RecipientMismatch => 11,
+        Error::InsufficientBalance => 12,
+        Error::UnsupportedSchemaVersion => 13,
     }
 }
 
@@ -127,6 +139,11 @@ fn codes_constants_match_error_code_method() {
             "Error::{error:?} must map to its codes constant"
         );
     }
+}
+
+#[test]
+fn unsupported_asset_uses_the_token_configuration_code() {
+    assert_eq!(codes::UNSUPPORTED_ASSET, codes::TOKEN_NOT_CONFIGURED);
 }
 
 #[test]

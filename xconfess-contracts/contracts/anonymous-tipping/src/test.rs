@@ -262,11 +262,27 @@ fn insufficient_balance_rejects_tip() {
     // Mint 50, try to send 100 — should fail
     token.mint(&sender, &50);
 
-    // This should fail because token.transfer will fail due to insufficient balance
+    // The contract must reject before invoking the token transfer.
     let result = client.try_send_tip(&sender, &recipient, &100);
-    assert!(result.is_err());
+    assert_eq!(result, Err(Ok(Error::InsufficientBalance)));
     assert_eq!(client.get_tip_balance(&recipient), 0);
     assert_eq!(token.balance(&sender), 50);
+}
+
+#[test]
+fn reading_an_unknown_recipient_does_not_create_storage() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(AnonymousTipping, ());
+    let client = AnonymousTippingClient::new(&env, &contract_id);
+    let recipient = Address::generate(&env);
+
+    assert_eq!(client.get_tip_balance(&recipient), 0);
+    assert!(!env.as_contract(&contract_id, || {
+        env.storage()
+            .persistent()
+            .has(&crate::DataKey::RecipientTotal(recipient.clone()))
+    }));
 }
 
 #[test]
