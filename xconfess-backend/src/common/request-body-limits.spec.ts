@@ -199,7 +199,9 @@ describe('request body limits', () => {
 
       expect(res.status).toBe(413);
       expect(res.body).toMatchObject({
+        schemaVersion: 1,
         status: 413,
+        statusCode: 413,
         code: 'REQUEST_TOO_LARGE',
         message: 'Request body exceeds the allowed size',
         path: '/api/confessions',
