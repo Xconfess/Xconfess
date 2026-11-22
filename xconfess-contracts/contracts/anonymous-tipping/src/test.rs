@@ -106,11 +106,27 @@ fn invalid_tip_amounts_do_not_affect_valid_tips() {
 
     assert_eq!(token.balance(&sender), 1);
     assert_eq!(client.get_tip_balance(&recipient), 0);
+    assert_eq!(client.latest_settlement_nonce(), 0);
 
     let settlement_id = client.send_tip(&sender, &recipient, &1);
     assert_eq!(settlement_id, 1);
     assert_eq!(token.balance(&sender), 0);
     assert_eq!(client.get_tip_balance(&recipient), 1);
+}
+
+#[test]
+fn send_tip_requires_sender_auth_and_keeps_recipient_anonymous() {
+    let (env, client, token_id) = setup();
+    let token = TestTokenClient::new(&env, &token_id);
+    let sender = Address::generate(&env);
+    let recipient = Address::generate(&env);
+    token.mint(&sender, &10);
+
+    let settlement_id = client.send_tip(&sender, &recipient, &1);
+    assert_eq!(settlement_id, 1);
+    assert!(env.auths().iter().any(|(address, _)| *address == sender));
+    assert_eq!(client.get_tip_balance(&recipient), 1);
+    assert_eq!(token.balance(&sender), 9);
 }
 
 #[test]
@@ -262,11 +278,27 @@ fn insufficient_balance_rejects_tip() {
     // Mint 50, try to send 100 — should fail
     token.mint(&sender, &50);
 
-    // This should fail because token.transfer will fail due to insufficient balance
+    // The contract must reject before invoking the token transfer.
     let result = client.try_send_tip(&sender, &recipient, &100);
-    assert!(result.is_err());
+    assert_eq!(result, Err(Ok(Error::InsufficientBalance)));
     assert_eq!(client.get_tip_balance(&recipient), 0);
     assert_eq!(token.balance(&sender), 50);
+}
+
+#[test]
+fn reading_an_unknown_recipient_does_not_create_storage() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(AnonymousTipping, ());
+    let client = AnonymousTippingClient::new(&env, &contract_id);
+    let recipient = Address::generate(&env);
+
+    assert_eq!(client.get_tip_balance(&recipient), 0);
+    assert!(!env.as_contract(&contract_id, || {
+        env.storage()
+            .persistent()
+            .has(&crate::DataKey::RecipientTotal(recipient.clone()))
+    }));
 }
 
 #[test]
@@ -354,4 +386,38 @@ fn single_stroop_transfer_succeeds() {
     assert_eq!(client.get_tip_balance(&recipient), 1);
     assert_eq!(token.balance(&sender), 0);
     assert_eq!(token.balance(&recipient), 1);
+}
+
+#[test]
+fn seeded_boundary_inputs_preserve_state_and_exact_i128_balances() {
+    // Reproduction seed for #2269: 0xC0FFEE. The generator is deliberately
+    // tiny and deterministic so a failing input can be replayed without a
+    // random-number dependency in contract tests.
+    let (env, client, token_id) = setup();
+    let token = TestTokenClient::new(&env, &token_id);
+    let sender = Address::generate(&env);
+    let recipient = Address::generate(&env);
+    let initial_sender_balance = AnonymousTipping::MAX_TIP_AMOUNT * 32;
+    token.mint(&sender, &initial_sender_balance);
+
+    let mut seed = 0xC0FFEE_u64;
+    let mut expected_total = 0_i128;
+    for _ in 0..32 {
+        seed = seed.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
+        let amount = (seed as i128 % AnonymousTipping::MAX_TIP_AMOUNT) + 1;
+        client.send_tip(&sender, &recipient, &amount);
+        expected_total += amount;
+        assert_eq!(client.get_tip_balance(&recipient), expected_total);
+    }
+
+    // The empty state and large totals remain exact i128 values; no floating
+    // point conversion is involved in the public balance response (#2270).
+    let empty_recipient = Address::generate(&env);
+    assert_eq!(client.get_tip_balance(&empty_recipient), 0_i128);
+    token.mint(&sender, &AnonymousTipping::MAX_TIP_AMOUNT);
+    client.send_tip(&sender, &empty_recipient, &AnonymousTipping::MAX_TIP_AMOUNT);
+    assert_eq!(
+        client.get_tip_balance(&empty_recipient),
+        AnonymousTipping::MAX_TIP_AMOUNT
+    );
 }

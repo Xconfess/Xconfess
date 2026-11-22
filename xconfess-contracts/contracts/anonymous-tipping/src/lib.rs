@@ -23,6 +23,10 @@ pub mod codes {
     pub const SETTLEMENT_REPLAY: u32 = 6010;
     pub const SETTLEMENT_NOT_FOUND: u32 = 6011;
     pub const RECIPIENT_MISMATCH: u32 = 6012;
+    pub const INSUFFICIENT_BALANCE: u32 = 6013;
+    pub const UNSUPPORTED_SCHEMA_VERSION: u32 = 6014;
+    /// Alias used by clients when the configured asset is not supported.
+    pub const UNSUPPORTED_ASSET: u32 = TOKEN_NOT_CONFIGURED;
 }
 
 /// Error classification for backend retry strategy
@@ -52,6 +56,8 @@ pub enum Error {
     SettlementReplay = 10,
     SettlementNotFound = 11,
     RecipientMismatch = 12,
+    InsufficientBalance = 13,
+    UnsupportedSchemaVersion = 14,
 }
 
 impl Error {
@@ -71,6 +77,8 @@ impl Error {
             Error::SettlementReplay => codes::SETTLEMENT_REPLAY,
             Error::SettlementNotFound => codes::SETTLEMENT_NOT_FOUND,
             Error::RecipientMismatch => codes::RECIPIENT_MISMATCH,
+            Error::InsufficientBalance => codes::INSUFFICIENT_BALANCE,
+            Error::UnsupportedSchemaVersion => codes::UNSUPPORTED_SCHEMA_VERSION,
         }
     }
 
@@ -89,6 +97,8 @@ impl Error {
             Error::SettlementReplay => "settlement id reuse detected",
             Error::SettlementNotFound => "settlement receipt not found",
             Error::RecipientMismatch => "settlement recipient mismatch",
+            Error::InsufficientBalance => "sender token balance is insufficient",
+            Error::UnsupportedSchemaVersion => "stored schema version is newer than this contract",
         }
     }
 
@@ -104,6 +114,8 @@ impl Error {
             Error::SettlementReplay => ErrorClassification::Terminal,
             Error::SettlementNotFound => ErrorClassification::Terminal,
             Error::RecipientMismatch => ErrorClassification::Terminal,
+            Error::InsufficientBalance => ErrorClassification::Terminal,
+            Error::UnsupportedSchemaVersion => ErrorClassification::Terminal,
 
             // Retryable: transient state (pause, rate limit) may resolve
             Error::ContractPaused => ErrorClassification::Retryable,
@@ -128,7 +140,7 @@ pub const SCHEMA_VERSION_CURRENT: u32 = 3;
 
 #[contracttype]
 #[derive(Clone)]
-enum DataKey {
+pub enum DataKey {
     RecipientTotal(Address),
     SettlementNonce,
     Owner,
@@ -290,8 +302,12 @@ impl AnonymousTipping {
             .get::<_, Address>(&DataKey::XlmToken)
             .ok_or(Error::TokenNotConfigured)?;
         if xlm_token != env.current_contract_address() {
+            let token = TokenClient::new(&env, &xlm_token);
+            if token.balance(&sender) < amount {
+                return Err(Error::InsufficientBalance);
+            }
             let token_recipient = MuxedAddress::from(recipient.clone());
-            TokenClient::new(&env, &xlm_token).transfer(&sender, &token_recipient, &amount);
+            token.transfer(&sender, &token_recipient, &amount);
         }
 
         let previous = env
@@ -516,6 +532,10 @@ impl AnonymousTipping {
             .instance()
             .get::<_, u32>(&DataKey::SchemaVersion)
             .unwrap_or(SCHEMA_VERSION_INITIAL);
+
+        if current_version > SCHEMA_VERSION_CURRENT {
+            return Err(Error::UnsupportedSchemaVersion);
+        }
 
         if current_version >= SCHEMA_VERSION_CURRENT {
             return Ok(current_version);

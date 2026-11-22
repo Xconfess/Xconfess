@@ -158,6 +158,21 @@ describe('ChainReconciliationService - Issue #173', () => {
   });
 
   describe('Single Tip Reconciliation', () => {
+    it('does not verify a response for a different transaction hash', async () => {
+      jest.spyOn(stellarService, 'verifyTransactionFull').mockResolvedValue({
+        hash: 'b'.repeat(64),
+        success: true,
+        ledger: 12345,
+      });
+
+      const result = await service['reconcileSingleTip'](mockPendingTip);
+
+      expect(result).toEqual({
+        success: false,
+        error: 'Chain response hash does not match the pending tip record',
+      });
+    });
+
     it('should mark tip as verified when transaction succeeds on-chain', async () => {
       jest.spyOn(stellarService, 'verifyTransactionFull').mockResolvedValue({
         hash: mockPendingTip.txId,

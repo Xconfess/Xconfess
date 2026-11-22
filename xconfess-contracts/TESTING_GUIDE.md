@@ -134,6 +134,22 @@ cd xconfess-contracts
 cargo test --all
 ```
 
+## Anonymous tipping boundary and serialization coverage (#2269, #2270)
+
+`contracts/anonymous-tipping/src/test.rs` contains a deterministic seeded
+boundary run using seed `0xC0FFEE`. It exercises generated positive amounts,
+empty recipient state, and the maximum accepted amount. Re-run the exact
+scenario with:
+
+```bash
+cd xconfess-contracts
+cargo test -p anonymous-tipping seeded_boundary_inputs_preserve_state_and_exact_i128_balances
+```
+
+Tip balances are returned and asserted as `i128`. The contract never converts
+them through a floating-point type, and an absent recipient is serialized as
+the exact value `0`.
+
 ## Documentation Updates
 
 All test suites are integrated with existing CI/CD pipelines:

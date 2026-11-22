@@ -232,6 +232,23 @@ Gas usage is tracked in `gas-baseline.json` to catch performance regressions.
 
 See [docs/soroban-gas-baseline-maintenance.md](../docs/soroban-gas-baseline-maintenance.md) for the full workflow and PR review expectations.
 
+### Anonymous tipping resource expectations
+
+The repeatable benchmark target is `cargo test -p anonymous-tipping --test benchmarks
+-- --nocapture`. It reports CPU instructions and memory for representative
+`send_tip` and `get_tips` calls. The checked-in baseline currently records:
+
+| Operation | CPU | Memory | Budget |
+|---|---:|---:|---|
+| `send_tip` | 51,246 | 5,515 | CPU ≤ 60,000; memory ≤ 7,000 |
+| `get_tips` | 27,563 | 3,158 | CPU ≤ 35,000; memory ≤ 5,000 |
+
+Run `python scripts/check-tipping-resources.py` from this directory to verify
+that the baseline is present and remains within those budgets. A benchmark
+change must update `gas-baseline.json` only with a matching explanation in the
+PR; the script intentionally fails when a required metric disappears or grows
+past its budget.
+
 ---
 
 ## Linting and formatting
