@@ -197,6 +197,24 @@ export class CommentService {
         const moderationRepo = manager.getRepository(ModerationComment);
         const outboxRepo = manager.getRepository(OutboxEvent);
 
+        // Issue #2120: re-validate the parent comment inside the
+        // transaction, holding a pessimistic read lock on the parent row
+        // so a concurrent soft-delete or hard-delete cannot land between
+        // the outside-transaction depth walk and this insert. Throws a
+        // stable client-safe NotFoundException on every invalid-parent
+        // case (missing, or `isDeleted: true`). The parent confession's
+        // deletion race is covered by the `parent_id` foreign key,
+        // which rejects an insert whose referenced row is gone.
+        if (parentId) {
+          const freshParent = await commentRepo.findOne({
+            where: { id: parentId, isDeleted: false },
+            lock: { mode: "pessimistic_read" },
+          });
+          if (!freshParent) {
+            throw new NotFoundException("Parent comment not found");
+          }
+        }
+
         const comment = commentRepo.create({
           content,
           anonymousUser: user,

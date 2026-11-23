@@ -267,11 +267,11 @@ describe('CommentService (soft‑delete)', () => {
         confession: fakeConf,
       } as any;
       confessionRepo.findOne.mockResolvedValue(fakeConf);
-      // Parent is a top-level comment (no parentId): new reply's depth = 1.
-      (commentRepo.findOne as jest.Mock).mockResolvedValueOnce({
-        id: 50,
-        parentId: undefined,
-      } as any);
+      // 1) outside-transaction depth walk: parent is top-level, so one call.
+      // 2) inside-transaction re-check (Issue #2120): parent still exists.
+      (commentRepo.findOne as jest.Mock)
+        .mockResolvedValueOnce({ id: 50, parentId: undefined } as any)
+        .mockResolvedValueOnce({ id: 50, isDeleted: false } as any);
       commentRepo.create.mockReturnValue(savedComment);
       commentRepo.save.mockResolvedValue(savedComment);
       moderationRepo.create.mockReturnValue({
@@ -288,6 +288,61 @@ describe('CommentService (soft‑delete)', () => {
         50,
       );
       expect(result).toBe(savedComment);
+    });
+
+    // -----------------------------------------------------------------
+    // Issue #2120: atomic comment creation + parent validation
+    //
+    // The outside-transaction depth check and the inside-transaction
+    // re-check are intentionally separate: the walk reports a clean 404
+    // when the parent never existed, while the locked re-check catches
+    // the narrow race where the parent was validated and then
+    // soft-deleted before this transaction's insert lands.
+    // -----------------------------------------------------------------
+
+    it('rejects a reply when the parent is deleted between the depth check and the transaction (race)', async () => {
+      confessionRepo.findOne.mockResolvedValue(fakeConf);
+      // 1) outside-transaction depth walk: parent exists.
+      // 2) inside-transaction re-check: parent is gone (null) — the
+      //    concurrent soft-delete landed while we were in flight.
+      (commentRepo.findOne as jest.Mock)
+        .mockResolvedValueOnce({ id: 50, parentId: undefined } as any)
+        .mockResolvedValueOnce(null);
+
+      await expect(
+        service.create('reply', fakeAnonUser, 'c1', 'anonCtx', 50),
+      ).rejects.toThrow(NotFoundException);
+      expect(commentRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('acquires a pessimistic read lock on the parent inside the transaction', async () => {
+      const savedComment = {
+        id: 103,
+        content: 'reply',
+        anonymousUser: fakeAnonUser,
+        confession: fakeConf,
+      } as any;
+      confessionRepo.findOne.mockResolvedValue(fakeConf);
+      (commentRepo.findOne as jest.Mock)
+        .mockResolvedValueOnce({ id: 50, parentId: undefined } as any)
+        .mockResolvedValueOnce({ id: 50, isDeleted: false } as any);
+      commentRepo.create.mockReturnValue(savedComment);
+      commentRepo.save.mockResolvedValue(savedComment);
+      moderationRepo.create.mockReturnValue({
+        commentId: 103,
+        status: ModerationStatus.PENDING,
+      } as any);
+      moderationRepo.save.mockResolvedValue({} as any);
+
+      await service.create('reply', fakeAnonUser, 'c1', 'anonCtx', 50);
+
+      // The second findOne is the inside-transaction re-check and must
+      // request a pessimistic read lock on the parent row.
+      const calls = (commentRepo.findOne as jest.Mock).mock.calls;
+      expect(calls[1][0]).toMatchObject({
+        where: { id: 50, isDeleted: false },
+        lock: { mode: 'pessimistic_read' },
+      });
     });
 
     it('rejects a reply whose depth exceeds the configured max by one', async () => {
@@ -415,9 +470,12 @@ describe('CommentService (nesting depth config)', () => {
     } as any;
     confessionRepo.findOne.mockResolvedValue(fakeConf);
     // Parent is a depth-1 reply (its parent is a top-level comment).
+    // Three findOne calls in order: parent, grandparent, then the
+    // Issue #2120 locked re-check inside the transaction.
     (commentRepo.findOne as jest.Mock)
       .mockResolvedValueOnce({ id: 70, parentId: 60 } as any)
-      .mockResolvedValueOnce({ id: 60, parentId: undefined } as any);
+      .mockResolvedValueOnce({ id: 60, parentId: undefined } as any)
+      .mockResolvedValueOnce({ id: 70, isDeleted: false } as any);
     commentRepo.create.mockReturnValue(savedComment);
     commentRepo.save.mockResolvedValue(savedComment);
     moderationRepo.create.mockReturnValue({
