@@ -282,6 +282,15 @@ export const envValidationSchema = Joi.object({
     .default(10 * 1024 * 1024),
   ATTACHMENT_ALLOWED_MIME_TYPES: Joi.string()
     .default('image/jpeg,image/png,image/webp,image/gif,application/pdf'),
+
+  // ---- Confession submission abuse throttle (Issue #2121) ----
+  // Window and ceiling for POST /confessions. Separate from the global
+  // THROTTLE_* envelope so an operator can tighten this path without
+  // narrowing the entire API. The underlying tracker is the in-memory
+  // ThrottlerGuard default (IP-keyed); the IP is not persisted or
+  // returned to clients.
+  CONFESSION_SUBMIT_TTL_MS: Joi.number().integer().min(1).default(60_000),
+  CONFESSION_SUBMIT_LIMIT: Joi.number().integer().min(1).default(10),
 })
   // Cross-field Stellar contract/network consistency (Issue #2280).
   .custom((value: Record<string, unknown>, helpers) => {

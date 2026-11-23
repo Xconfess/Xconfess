@@ -94,7 +94,13 @@ export class ConfessionController {
   ) {}
 
   @Post()
-  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  // Issue #2121: switch to the named `confessionSubmit` throttler so the
+  // limit and window are tunable via CONFESSION_SUBMIT_LIMIT and
+  // CONFESSION_SUBMIT_TTL_MS without touching the controller. The named
+  // throttler is registered in app.module.ts; its defaults preserve the
+  // historic 10 req / 60 s behaviour so this change is zero-noise for
+  // callers that already respect the previous ceiling.
+  @Throttle({ confessionSubmit: {} })
   @ApiOperation({ summary: 'Create a new anonymous confession' })
   @ApiBody({ type: CreateConfessionDto })
   @ApiResponse({

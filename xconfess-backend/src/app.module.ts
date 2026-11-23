@@ -73,6 +73,13 @@ import { HttpMetricsMiddleware } from './observability/http-metrics.middleware';
             ttl: (config.get<number>('throttle.strictTtlSeconds') || 60) * 1000,
             limit: config.get<number>('throttle.strictLimit') || 5,
           },
+          {
+            // Issue #2121: abuse throttle on POST /confessions. See
+            // confession.controller.ts and config/throttle.config.ts.
+            name: 'confessionSubmit',
+            ttl: config.get<number>('throttle.confessionSubmitTtlMs') || 60_000,
+            limit: config.get<number>('throttle.confessionSubmitLimit') || 10,
+          },
         ],
       }),
     }),

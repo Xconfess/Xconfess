@@ -82,6 +82,8 @@ process with an actionable error.
 | `ATTACHMENT_ALLOWED_MIME_TYPES` | `image/jpeg,image/png,image/webp,image/gif,application/pdf` | No | Comma-separated MIME-type allowlist for `POST /attachments`. The claimed MIME is additionally cross-checked against the extension on `originalName`, so a client cannot bypass the allowlist by lying about one of the two fields (Issue #2123). |
 | `ATTACHMENT_CLEANUP_GRACE_PERIOD_MS` | `86400000` (24 h) | No | Attachment retention window. Uploads not linked to any confession or message are deleted after this period by the daily 03:00 cleanup job. Attachments of a deleted private message are removed in the same run, unless a retained confession still references them, in which case only the message link is cleared and the file is kept. Failed rows are retried on the next run (Issue #2292). |
 | `ATTACHMENT_CLEANUP_BATCH_SIZE` | `1000` | No | Maximum attachments processed per cleanup run. |
+| `CONFESSION_SUBMIT_TTL_MS` | `60000` (60 s) | No | Abuse-throttle window for `POST /confessions`. Independent of `THROTTLE_TTL_MS` so an operator can tighten this path without narrowing the whole API (Issue #2121). |
+| `CONFESSION_SUBMIT_LIMIT` | `10` | No | Maximum confession submissions per window, keyed by IP through the default in-memory `ThrottlerGuard` tracker (Issue #2121). |
 
 ### Email variables (optional — mail is skipped when unconfigured)
 
