@@ -2,7 +2,6 @@ import {
   MigrationInterface,
   QueryRunner,
   Table,
-  TableIndex,
   TableForeignKey,
 } from 'typeorm';
 
@@ -42,12 +41,8 @@ export class CreateTagsSystem2026012700000 implements MigrationInterface {
     );
 
     // Create index on tag name
-    await queryRunner.createIndex(
-      'tags',
-      new TableIndex({
-        name: 'IDX_tags_name',
-        columnNames: ['name'],
-      }),
+    await queryRunner.query(
+      `CREATE INDEX IF NOT EXISTS "IDX_tags_name" ON "tags" ("name")`,
     );
 
     // Create confession_tags junction table
@@ -81,42 +76,31 @@ export class CreateTagsSystem2026012700000 implements MigrationInterface {
     );
 
     // Create indexes for efficient querying
-    await queryRunner.createIndex(
-      'confession_tags',
-      new TableIndex({
-        name: 'IDX_confession_tags_confession_id',
-        columnNames: ['confession_id'],
-      }),
+    await queryRunner.query(
+      `CREATE INDEX IF NOT EXISTS "IDX_confession_tags_confession_id" ON "confession_tags" ("confession_id")`,
     );
 
-    await queryRunner.createIndex(
-      'confession_tags',
-      new TableIndex({
-        name: 'IDX_confession_tags_tag_id',
-        columnNames: ['tag_id'],
-      }),
+    await queryRunner.query(
+      `CREATE INDEX IF NOT EXISTS "IDX_confession_tags_tag_id" ON "confession_tags" ("tag_id")`,
     );
 
     // Create composite unique index to prevent duplicate tag assignments
-    await queryRunner.createIndex(
-      'confession_tags',
-      new TableIndex({
-        name: 'IDX_confession_tags_confession_tag_unique',
-        columnNames: ['confession_id', 'tag_id'],
-        isUnique: true,
-      }),
+    await queryRunner.query(
+      `CREATE UNIQUE INDEX IF NOT EXISTS "IDX_confession_tags_confession_tag_unique" ON "confession_tags" ("confession_id", "tag_id")`,
     );
 
     // Add foreign key constraints
-    await queryRunner.createForeignKey(
-      'confession_tags',
-      new TableForeignKey({
-        columnNames: ['confession_id'],
-        referencedColumnNames: ['id'],
-        referencedTableName: 'anonymous_confessions',
-        onDelete: 'CASCADE',
-      }),
-    );
+    if (await queryRunner.hasTable('anonymous_confessions')) {
+      await queryRunner.createForeignKey(
+        'confession_tags',
+        new TableForeignKey({
+          columnNames: ['confession_id'],
+          referencedColumnNames: ['id'],
+          referencedTableName: 'anonymous_confessions',
+          onDelete: 'CASCADE',
+        }),
+      );
+    }
 
     await queryRunner.createForeignKey(
       'confession_tags',
@@ -140,7 +124,8 @@ export class CreateTagsSystem2026012700000 implements MigrationInterface {
         ('confession', 'General confessions'),
         ('rant', 'Venting or expressing frustration'),
         ('grateful', 'Expressing gratitude'),
-        ('regret', 'Confessions about regrets');
+        ('regret', 'Confessions about regrets')
+      ON CONFLICT (name) DO NOTHING;
     `);
   }
 
@@ -155,22 +140,13 @@ export class CreateTagsSystem2026012700000 implements MigrationInterface {
     }
 
     // Drop indexes
-    await queryRunner.dropIndex(
-      'confession_tags',
-      'IDX_confession_tags_confession_tag_unique',
-    );
-    await queryRunner.dropIndex(
-      'confession_tags',
-      'IDX_confession_tags_tag_id',
-    );
-    await queryRunner.dropIndex(
-      'confession_tags',
-      'IDX_confession_tags_confession_id',
-    );
-    await queryRunner.dropIndex('tags', 'IDX_tags_name');
+    await queryRunner.query(`DROP INDEX IF EXISTS "IDX_confession_tags_confession_tag_unique"`);
+    await queryRunner.query(`DROP INDEX IF EXISTS "IDX_confession_tags_tag_id"`);
+    await queryRunner.query(`DROP INDEX IF EXISTS "IDX_confession_tags_confession_id"`);
+    await queryRunner.query(`DROP INDEX IF EXISTS "IDX_tags_name"`);
 
     // Drop tables
-    await queryRunner.dropTable('confession_tags');
-    await queryRunner.dropTable('tags');
+    await queryRunner.dropTable('confession_tags', true);
+    await queryRunner.dropTable('tags', true);
   }
 }

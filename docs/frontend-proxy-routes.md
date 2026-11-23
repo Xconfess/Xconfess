@@ -18,7 +18,7 @@ forward cookies or authorization headers when present, and normalize failures th
 | --- | --- | --- |
 | `/api/auth/session` | `/api/auth/session`, with fallback to `/api/auth/me` and login handling | Cookie/session aware; returns normalized auth errors for `AuthProvider`. |
 | `/api/users/register` | `/api/users/register` | Validates `BACKEND_API_URL` and uses normalized API error responses. |
-| `/api/users/profile`, `/api/users/profile/summary`, `/api/users/privacy-settings`, `/api/users/stats` | Matching `/api/users/...` backend routes | Same-origin browser calls; proxy responses should preserve backend status and user-safe messages. |
+| `/api/users/profile`, `/api/users/profile/summary`, `/api/users/privacy-settings`, `/api/users/notification-preferences`, `/api/users/stats` | Matching `/api/users/...` backend routes | Same-origin browser calls; proxy responses should preserve backend status and user-safe messages. Settings pages must surface failures through `normalizeApiError`. |
 | `/api/users/[id]/public-profile`, `/api/users/[id]/confessions`, `/api/users/[id]/activities` | Matching `/api/users/:id/...` backend routes | Public/profile data proxies; use centralized API error responses. |
 | `/api/confessions`, `/api/confessions/search`, `/api/confessions/[id]` | `/api/confessions...` | Confession list/detail/search proxies; normalize confession payloads where route handlers reshape data. |
 | `/api/confessions/[id]/react`, `/report`, `/anchor`, `/tips/stats`, `/tips/verify` | Matching confession action routes | Action routes forward request bodies and preserve backend validation/rate-limit failures. |

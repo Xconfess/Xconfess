@@ -67,7 +67,7 @@ export class EmailNotificationService {
     }
 
     const mockNotification = {
-      id: data._meta?.originalJobId || 'job-' + Date.now(),
+      id: data.notificationId || data._meta?.originalJobId || 'job-' + Date.now(),
       type: data.type,
       userId: userId,
       title: data.title,

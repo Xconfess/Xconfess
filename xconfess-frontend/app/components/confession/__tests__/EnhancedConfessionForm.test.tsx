@@ -192,7 +192,7 @@ describe("EnhancedConfessionForm", () => {
     expect(screen.queryByText("Please review the highlighted fields and try again.")).not.toBeInTheDocument();
   });
 
-  it("saves a valid pending confession and redirects guests to login", async () => {
+  it(\"saves a valid pending confession and redirects guests to login\", async () => {
     (useAuth as jest.Mock).mockReturnValue({
       isAuthenticated: false,
       isLoading: false,
@@ -242,4 +242,86 @@ describe("EnhancedConfessionForm", () => {
       "Your confession draft is restored. Review it, then publish when ready.",
     );
   });
+
+  // ── Issue #1990: prevent duplicate submissions from rapid clicks ──────────
+  describe("duplicate submission prevention (#1990)", () => {
+    it("disables the submit button while a request is in flight", async () => {
+      let resolve!: () => void;
+      (apiClient.post as jest.Mock).mockImplementation(
+        () => new Promise<void>((r) => { resolve = r; }),
+      );
+
+      const user = userEvent.setup();
+      renderComposer();
+
+      await user.type(screen.getByRole("textbox", { name: /^confession/i }), "A valid confession body.");
+      await user.click(screen.getByRole("button", { name: /publish confession/i }));
+
+      // Button must be disabled while the request is pending
+      await waitFor(() =>
+        expect(screen.getByRole("button", { name: /publishing confession/i })).toBeDisabled(),
+      );
+
+      resolve();
+    });
+
+    it("does not call the API twice when the submit button is clicked rapidly", async () => {
+      let resolve!: () => void;
+      (apiClient.post as jest.Mock).mockImplementation(
+        () => new Promise<void>((r) => { resolve = r; }),
+      );
+
+      const user = userEvent.setup();
+      renderComposer();
+
+      await user.type(screen.getByRole("textbox", { name: /^confession/i }), "A valid confession body.");
+
+      const button = screen.getByRole("button", { name: /publish confession/i });
+      // Simulate rapid double-click
+      await user.click(button);
+      await user.click(button);
+
+      // Should only call the API once despite two clicks
+      expect(apiClient.post).toHaveBeenCalledTimes(1);
+
+      resolve();
+    });
+
+    it("does not call the API twice on rapid keyboard submit (Ctrl+Enter)", async () => {
+      let resolve!: () => void;
+      (apiClient.post as jest.Mock).mockImplementation(
+        () => new Promise<void>((r) => { resolve = r; }),
+      );
+
+      const user = userEvent.setup();
+      renderComposer();
+
+      const bodyTextarea = screen.getByRole("textbox", { name: /^confession/i });
+      await user.type(bodyTextarea, "A valid confession body.");
+
+      // Fire Ctrl+Enter twice in quick succession
+      await user.keyboard("{Control>}{Enter}{/Control}");
+      await user.keyboard("{Control>}{Enter}{/Control}");
+
+      expect(apiClient.post).toHaveBeenCalledTimes(1);
+
+      resolve();
+    });
+
+    it("re-enables the form after a failed request so the user can retry", async () => {
+      (apiClient.post as jest.Mock).mockRejectedValueOnce(new Error("Network error"));
+
+      const user = userEvent.setup();
+      renderComposer();
+
+      await user.type(screen.getByRole("textbox", { name: /^confession/i }), "A valid confession body.");
+      await user.click(screen.getByRole("button", { name: /publish confession/i }));
+
+      // After failure the button must be re-enabled so the user can retry
+      await waitFor(() =>
+        expect(screen.getByRole("button", { name: /publish confession/i })).not.toBeDisabled(),
+      );
+    });
+  });
 });
+

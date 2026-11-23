@@ -19,7 +19,6 @@ interface AnchorButtonProps {
 type SubmitState = "idle" | "pending" | "success" | "error";
 
 export function AnchorButton({
-  confessionId,
   content,
   onSuccess,
   onError,
@@ -57,7 +56,7 @@ export function AnchorButton({
     return (
       <Button
         type="button"
-        onClick={wallet.connect}
+        onClick={() => window.location.assign("/wallet")}
         disabled={wallet.isLoading}
         aria-label="Connect wallet to anchor"
         className="anchor-btn anchor-btn--connect"

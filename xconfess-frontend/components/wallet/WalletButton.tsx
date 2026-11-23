@@ -1,13 +1,12 @@
 "use client";
 
 import { useContext, useState } from "react";
+import { useRouter } from "next/navigation";
 import { WalletContext } from "@/lib/providers/WalletProvider";
 
 interface WalletButtonProps {
   className?: string;
 }
-
-const FREIGHTER_INSTALL_URL = "https://www.freighter.app/";
 
 /**
  * Truncate public key for display
@@ -49,12 +48,13 @@ const getNetworkInfo = (
 
 /**
  * Wallet Button Component
- * Displays wallet connection status and allows connect/disconnect
+ * Displays wallet connection status and wallet-first identity actions
  */
 export const WalletButton: React.FC<WalletButtonProps> = ({
   className = "",
 }) => {
   const wallet = useContext(WalletContext);
+  const router = useRouter();
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
 
   if (!wallet) {
@@ -69,29 +69,16 @@ export const WalletButton: React.FC<WalletButtonProps> = ({
     error,
     isReady,
     readinessError,
-    connect,
     disconnect,
   } = wallet;
   const networkInfo = getNetworkInfo(network);
-  const shouldInstallWallet =
-    !wallet.isFreighterInstalled ||
-    error?.toLowerCase().includes("not installed");
-
-  const handleConnect = async () => {
-    try {
-      await connect();
-    } catch (err) {
-      console.error("Failed to connect wallet:", err);
-    }
+  const handleWalletAction = () => {
+    router.push("/wallet");
   };
 
-  const handleDisconnect = () => {
+  const handleLockWallet = () => {
     disconnect();
     setIsDropdownOpen(false);
-  };
-
-  const handleInstallWallet = () => {
-    window.open(FREIGHTER_INSTALL_URL, "_blank", "noopener,noreferrer");
   };
 
   const copyToClipboard = () => {
@@ -107,7 +94,7 @@ export const WalletButton: React.FC<WalletButtonProps> = ({
     return (
       <button
         disabled
-        className={`px-4 py-2 rounded-lg bg-gray-200 text-gray-600 cursor-not-allowed opacity-60 ${className}`}
+        className={`min-h-11 max-w-[42vw] truncate rounded-xl bg-[var(--surface-muted)] px-3 py-2 text-sm text-[var(--secondary)] opacity-70 sm:px-4 ${className}`}
       >
         <span className="inline-block animate-spin mr-2">⏳</span>
         Connecting...
@@ -120,14 +107,12 @@ export const WalletButton: React.FC<WalletButtonProps> = ({
     return (
       <div className={`relative group ${className}`}>
         <button
-          onClick={shouldInstallWallet ? handleInstallWallet : handleConnect}
-          className="px-4 py-2 rounded-lg bg-red-100 text-red-700 hover:bg-red-200 transition font-medium text-sm border border-red-300"
+          onClick={handleWalletAction}
+          className="min-h-11 max-w-[42vw] truncate rounded-xl border border-rose-300 bg-rose-50 px-3 py-2 text-sm font-medium text-rose-700 transition hover:bg-rose-100 sm:px-4"
           title={error}
         >
           ⚠️{" "}
-          {shouldInstallWallet
-            ? "Install Wallet"
-            : "Connect Wallet"}
+          Connect Wallet
         </button>
         <div className="absolute hidden group-hover:block bg-red-900 text-white text-xs rounded py-1 px-2 whitespace-nowrap z-50 bottom-full mb-2">
           {error}
@@ -141,9 +126,9 @@ export const WalletButton: React.FC<WalletButtonProps> = ({
     return (
       <div className={`relative group ${className}`}>
         <button
-          onClick={handleDisconnect}
-          className="px-4 py-2 rounded-lg bg-orange-100 text-orange-800 hover:bg-orange-200 transition font-medium text-sm border border-orange-300 flex items-center gap-2"
-          title={readinessError || "Action Required"}
+          onClick={handleLockWallet}
+          className="flex min-h-11 max-w-[42vw] items-center gap-2 truncate rounded-xl border border-orange-300 bg-orange-50 px-3 py-2 text-sm font-medium text-orange-800 transition hover:bg-orange-100 sm:px-4"
+          title={readinessError || "Open wallet"}
         >
           ⚠️{" "}
           {readinessError?.includes("network")
@@ -151,7 +136,7 @@ export const WalletButton: React.FC<WalletButtonProps> = ({
             : "Action Required"}
         </button>
         <div className="absolute hidden group-hover:block bg-orange-900 text-white text-xs rounded py-1 px-2 whitespace-nowrap z-50 bottom-full mb-2">
-          {readinessError} (Click to disconnect)
+          {readinessError} (Open wallet to review)
         </div>
       </div>
     );
@@ -166,10 +151,10 @@ export const WalletButton: React.FC<WalletButtonProps> = ({
           aria-haspopup="menu"
           aria-expanded={isDropdownOpen}
           aria-label="Wallet menu"
-          className="px-4 py-2 rounded-lg bg-gradient-to-r from-blue-500 to-purple-600 text-white hover:shadow-lg transition font-medium text-sm flex items-center gap-2 whitespace-nowrap"
+          className="flex min-h-11 max-w-[42vw] items-center gap-2 truncate rounded-xl bg-[var(--primary)] px-3 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90 sm:px-4"
         >
           <span className="inline-block w-2 h-2 rounded-full bg-green-400 animate-pulse"></span>
-          {truncateAddress(publicKey)}
+          <span className="truncate">{truncateAddress(publicKey, 4)}</span>
           <svg
             className={`w-4 h-4 transition-transform ${isDropdownOpen ? "rotate-180" : ""}`}
             fill="none"
@@ -231,13 +216,13 @@ export const WalletButton: React.FC<WalletButtonProps> = ({
               </div>
             </div>
 
-            {/* Disconnect Button */}
+            {/* Lock wallet Button */}
             <div className="p-3">
               <button
-                onClick={handleDisconnect}
+                onClick={handleLockWallet}
                 className="w-full px-4 py-2 bg-red-50 text-red-600 hover:bg-red-100 rounded-lg transition font-medium text-sm border border-red-200"
               >
-                Disconnect
+                Lock wallet
               </button>
             </div>
           </div>
@@ -257,8 +242,8 @@ export const WalletButton: React.FC<WalletButtonProps> = ({
   // Not connected state
   return (
     <button
-      onClick={handleConnect}
-      className={`px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition font-medium text-sm ${className}`}
+      onClick={handleWalletAction}
+      className={`min-h-11 max-w-[42vw] truncate rounded-xl bg-[var(--primary)] px-3 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90 sm:px-4 ${className}`}
     >
       Connect Wallet
     </button>

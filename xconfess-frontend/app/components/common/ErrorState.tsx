@@ -36,17 +36,17 @@ const ErrorState: React.FC<ErrorStateProps> = ({
     ? 'min-h-screen flex items-center justify-center'
     : 'py-8 px-4';
   const isWarning = variant === "warning";
-  const accentText = isWarning ? "text-[var(--foreground)]" : "text-red-700";
-  const subtitleText = isWarning ? "text-[var(--secondary)]" : "text-red-600";
-  const iconBg = isWarning ? "bg-[var(--accent-soft)]" : "bg-red-50";
-  const iconColor = isWarning ? "text-[var(--primary-deep)]" : "text-red-600";
+  const accentText = isWarning ? "text-[var(--foreground)]" : "text-red-200";
+  const subtitleText = isWarning ? "text-[var(--secondary)]" : "text-red-300";
+  const iconBg = isWarning ? "bg-[var(--accent-soft)]" : "bg-red-950/40";
+  const iconColor = isWarning ? "text-[var(--primary-deep)]" : "text-red-300";
 
   return (
     <div className={containerClass}>
-      <div className="luxury-panel mx-auto max-w-md rounded-[28px] px-6 py-8 text-center">
+      <div className="luxury-panel mx-auto max-w-md rounded-2xl px-6 py-8 text-center">
         {showIcon && (
           <div className="mb-4 flex justify-center">
-            <div className={`flex h-16 w-16 items-center justify-center rounded-full ${iconBg}`}>
+            <div className={`flex h-16 w-16 items-center justify-center rounded-xl ${iconBg}`}>
               <svg
                 className={`h-8 w-8 ${iconColor}`}
                 fill="currentColor"
@@ -86,7 +86,7 @@ const ErrorState: React.FC<ErrorStateProps> = ({
             <button
               type="button"
               onClick={onPrimaryAction}
-              className="rounded-full bg-[linear-gradient(135deg,var(--primary),var(--primary-deep))] px-4 py-2 text-sm font-medium text-white shadow-[0_18px_40px_-22px_rgba(88,105,125,0.55)] transition-colors hover:brightness-105"
+              className="rounded-xl bg-[linear-gradient(135deg,var(--primary),var(--primary-deep))] px-4 py-2 text-sm font-medium text-white shadow-[0_18px_40px_-22px_rgba(0,0,0,0.72)] transition-colors hover:brightness-105"
             >
               {primaryActionLabel}
             </button>
@@ -95,7 +95,7 @@ const ErrorState: React.FC<ErrorStateProps> = ({
             <button
               type="button"
               onClick={onSecondaryAction}
-              className="rounded-full border border-[var(--border)] bg-[var(--surface-muted)] px-4 py-2 text-sm font-medium text-[var(--secondary)] transition-colors hover:bg-[var(--surface-strong)] hover:text-[var(--foreground)]"
+              className="rounded-xl border border-[var(--border)] bg-[var(--surface-muted)] px-4 py-2 text-sm font-medium text-[var(--secondary)] transition-colors hover:bg-[var(--surface-strong)] hover:text-[var(--foreground)]"
             >
               {secondaryActionLabel}
             </button>

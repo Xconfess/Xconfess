@@ -11,6 +11,7 @@
     "npm": ">=9.0.0"
   },
   "scripts": {
+    "preflight": "node scripts/check-node-version.js",
     "dev": "npm run dev:check && concurrently \"npm run dev --workspace=xconfess-backend\" \"npm run dev --workspace=xconfess-frontend\"",
     "setup:check": "node scripts/check-node-version.js",
     "env:bootstrap": "node scripts/bootstrap-env.js",
@@ -48,17 +49,23 @@
     "seed": "npx ts-node -r tsconfig-paths/register --project tsconfig.seed.json scripts/seed.ts",
     "frontend:lint": "npm run lint --workspace=xconfess-frontend",
     "frontend:typecheck": "npm run typecheck --workspace=xconfess-frontend",
+    "contract:fmt:check": "npm run fmt:check --workspace=xconfess-contracts",
     "ci:backend": "npm run backend:build && npm run backend:lint && npm run backend:test",
     "ci:frontend": "npm run frontend:lint && npm run frontend:typecheck && npm run frontend:test && npm run frontend:build",
     "ci:contract": "npm run contract:fmt:check && npm run contract:lint && npm run contract:test && npm run contract:build:release",
     "ci:apps": "npm run backend:build && npm run backend:lint && npm run frontend:lint && npm run frontend:typecheck && npm run frontend:build",
     "ci": "npm run ci:backend && npm run ci:frontend && npm run ci:contract",
-    "deploy:preflight": "node scripts/deploy-preflight.js",
+    "deploy:preflight": "npm run contracts:verify-env && node scripts/deploy-preflight.js",
     "deploy:smoke": "node scripts/deployed-smoke.js",
+    "readiness": "npm run production:readiness",
+    "readiness:test": "node --test scripts/__tests__/production-readiness.test.js",
+    "production:readiness": "node scripts/production-readiness.js",
+    "production:readiness:full": "node scripts/production-readiness.js --full",
+    "production:readiness:deployed": "node scripts/production-readiness.js --production --smoke",
     "render:prestart": "node scripts/render-prestart.js",
     "contracts:verify-env": "node scripts/verify-contract-env.js",
-    "secret-scan": "./scripts/secret-scanning-preflight.sh",
-    "secret-scan:self-test": "./scripts/secret-scanning-preflight.sh --self-test",
+    "secret-scan": "node scripts/run-secret-scanning-preflight.js",
+    "secret-scan:self-test": "node scripts/run-secret-scanning-preflight.js --self-test",
     "audit:ci": "npx audit-ci --config audit-ci.json",
     "audit:report": "npm audit --json > audit-report.json 2>&1 || true"
   },
@@ -78,8 +85,15 @@
   },
   "packageManager": "npm@10.9.3",
   "overrides": {
+    "@nestjs/schematics": "11.1.0",
+    "browserslist": "4.28.9",
+    "fast-uri": "3.1.6",
+    "fflate": "0.8.3",
     "js-yaml": "4.3.1",
     "nanoid": "3.3.18",
-    "rxjs": "7.8.2"
+    "qs": "6.16.0",
+    "rxjs": "7.8.2",
+    "toml": "4.2.0",
+    "uuid": "11.1.1"
   }
 }

@@ -37,8 +37,7 @@ export class CreateConfessionIdempotencyRecords20260721000001
         "status"           VARCHAR(16)       NOT NULL DEFAULT 'processing',
         "response_status"  INTEGER           NULL,
         "response_body"    JSONB             NULL,
-        "confession_id"    UUID              NULL
-          REFERENCES "anonymous_confessions"("id") ON DELETE SET NULL,
+        "confession_id"    UUID              NULL,
         "created_at"       TIMESTAMPTZ       NOT NULL DEFAULT NOW(),
         "updated_at"       TIMESTAMPTZ       NOT NULL DEFAULT NOW(),
         "expires_at"       TIMESTAMPTZ       NOT NULL
@@ -58,9 +57,35 @@ export class CreateConfessionIdempotencyRecords20260721000001
         ON "confession_idempotency_records" ("confession_id")
         WHERE "confession_id" IS NOT NULL;
     `);
+
+    await queryRunner.query(`
+      DO $$
+      BEGIN
+        IF EXISTS (
+          SELECT 1
+          FROM information_schema.tables
+          WHERE table_schema = 'public'
+            AND table_name = 'anonymous_confessions'
+        ) AND NOT EXISTS (
+          SELECT 1
+          FROM pg_constraint
+          WHERE conname = 'fk_cir_confession_id'
+        ) THEN
+          ALTER TABLE "confession_idempotency_records"
+            ADD CONSTRAINT "fk_cir_confession_id"
+            FOREIGN KEY ("confession_id")
+            REFERENCES "anonymous_confessions"("id")
+            ON DELETE SET NULL;
+        END IF;
+      END $$;
+    `);
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
+    await queryRunner.query(`
+      ALTER TABLE "confession_idempotency_records"
+        DROP CONSTRAINT IF EXISTS "fk_cir_confession_id";
+    `);
     await queryRunner.query(`
       DROP INDEX IF EXISTS "idx_cir_confession_id";
     `);

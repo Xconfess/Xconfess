@@ -6,6 +6,7 @@ import { OutboxEvent } from '../common/entities/outbox-event.entity';
 import { AnonymousUser } from '../user/entities/anonymous-user.entity';
 import { AuditLogModule } from '../audit-log/audit-log.module';
 import { AuthModule } from '../auth/auth.module';
+import { UserModule } from '../user/user.module';
 import { ReportsService } from './reports.service';
 import { ReportsController } from './reports.controller';
 
@@ -19,6 +20,7 @@ import { ReportsController } from './reports.controller';
     ]),
     AuditLogModule,
     AuthModule,
+    UserModule,
   ],
   providers: [ReportsService],
   controllers: [ReportsController],

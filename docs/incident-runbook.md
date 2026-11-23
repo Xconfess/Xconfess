@@ -353,9 +353,105 @@ After resolving any incident:
 
 ---
 
-## 8. Related Documentation
+## 8. Environment-Specific Failure Patterns
+
+### 8.1 Local Development Failures
+
+| Symptom | Likely Cause | Fix |
+|---------|-------------|-----|
+| `ECONNREFUSED 127.0.0.1:55432` | Postgres not running | `docker compose up -d postgres` |
+| `ECONNREFUSED 127.0.0.1:6379` | Redis not running | `docker compose up -d redis` |
+| `ENABLE_BACKGROUND_JOBS is not "true"` | Jobs disabled | Set `ENABLE_BACKGROUND_JOBS=true` in `.env` or ignore (expected locally) |
+| `JwtStrategy: secret is undefined` | `JWT_SECRET` missing | Add `JWT_SECRET=<random>` to `.env` |
+| Health `/ready` returns 503 | Missing migration | Run `npm run migration:run` in `xconfess-backend` |
+| CSRF token mismatch | Stale cookie | Clear browser cookies and reload |
+| Frontend 503 from proxy | `BACKEND_API_URL` not set | Ensure `.env.local` has `BACKEND_API_URL=http://localhost:5000` |
+
+### 8.2 Staging Failures
+
+| Symptom | Likely Cause | Fix |
+|---------|-------------|-----|
+| Intermittent 503 on `/ready` | Redis memory pressure | Increase `maxmemory` or investigate queue growth |
+| Schema check fails after deploy | Pending migration | Run `npm run migration:run` on staging DB |
+| Queue workers not consuming | BullMQ worker crashed | Check worker logs, restart with `docker compose restart backend` |
+| High latency on queue check | Network latency to Redis | Check `REDIS_QUEUE_LATENCY_THRESHOLD_MS` setting |
+| Auth 401 surge after deploy | JWT secret rotated without session flush | Flush Redis sessions: `redis-cli FLUSHDB` |
+
+### 8.3 Production Failures
+
+| Symptom | Likely Cause | Fix |
+|---------|-------------|-----|
+| Health returns `"state": "down"` | Critical dependency failure | Follow Emergency Pause (Section 2) if data integrity at risk |
+| Health returns `"state": "degraded"` | Non-critical dependency issue | Monitor queue/Redis, escalate if persistent |
+| Spike in 429 responses | Rate limit exceeded | Check traffic patterns, adjust throttle config if legitimate |
+| DLQ growing unbounded | Notification provider down | Check provider status, retry jobs after recovery |
+| Export jobs stuck | Storage permissions or S3 outage | Check storage health, retry stuck jobs |
+| WebSocket connection drops | Redis pub/sub instability | Check Redis memory and network, restart if needed |
+
+### 8.4 Health State Quick Reference
+
+Use `GET /api/health/status` for a single machine-readable health classification:
+
+| `state` | Meaning | HTTP Status | Action |
+|---------|---------|-------------|--------|
+| `live` | Process responsive (liveness only) | 200 | None — normal |
+| `ready` | All dependencies healthy | 200 | None — normal |
+| `disabled` | Optional deps intentionally off | 200 | Expected in dev/staging without Redis |
+| `degraded` | Non-critical dependency degraded | 200 | Monitor; investigate if persistent |
+| `down` | Critical dependency unreachable | 503 | Immediate action required |
+
+---
+
+## 9. Structured Logging and Correlation IDs
+
+Every HTTP request is automatically logged with structured fields via the `StructuredLoggingInterceptor`. The log format is:
+
+```json
+{
+  "method": "POST",
+  "route": "/api/confessions",
+  "status": 201,
+  "duration": 42,
+  "requestId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "userId": "user_a3f9c2d1b5e7",
+  "userRole": "user",
+  "subsystem": "confession",
+  "timestamp": "2026-08-30T12:00:00.000Z",
+  "ip": "192.168.1.100"
+}
+```
+
+### Tracing a failed request end-to-end
+
+1. **Client side**: Every API error response includes a `correlationId` in the JSON body.
+2. **Frontend proxy**: Passes the `x-request-id` header to the backend.
+3. **Backend middleware**: Accepts the `x-request-id` or generates a UUID v4.
+4. **Backend logs**: The `StructuredLoggingInterceptor` logs every request with the `requestId` field.
+5. **Backend error responses**: Exception filters include `requestId` in the response body.
+
+To trace a failed request:
+```bash
+# From the client error response, extract the correlationId:
+# { "message": "...", "correlationId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890" }
+
+# Search backend logs for that requestId:
+docker logs xconfess-backend 2>&1 | grep 'a1b2c3d4-e5f6-7890-abcd-ef1234567890'
+```
+
+### What is logged vs. what is redacted
+
+**Always logged**: request ID, timestamp, method, route, status code, duration, user ID (masked), user role, subsystem, IP address.
+
+**Always redacted**: passwords, tokens, secrets, API keys, encrypted payloads, JWTs, long hex strings, emails.
+
+See [Contributor Log Redaction Guide](./CONTRIBUTOR_LOGS_GUIDE.md) for the full redaction policy.
+
+---
+
+## 10. Related Documentation
 
 - [Health Endpoint Quick Reference](./HEALTH_ENDPOINT_QUICK_REFERENCE.md)
+- [Contributor Log Redaction Guide](./CONTRIBUTOR_LOGS_GUIDE.md)
 - [Realtime Incident Playbook](./realtime-incident-playbook.md)
 - [Data Export Privacy Runbook](./data-export-privacy-runbook.md)
 - [Contract Signer Rotation Runbook](./contract-signer-rotation-runbook.md)

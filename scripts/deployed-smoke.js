@@ -5,33 +5,149 @@ const crypto = require('crypto');
 const frontendUrl = process.env.SMOKE_FRONTEND_URL || process.env.FRONTEND_URL || 'https://xconfess.vercel.app';
 const backendUrl = process.env.SMOKE_BACKEND_URL || process.env.BACKEND_URL || 'https://xconfess-backend.onrender.com';
 const runMutation = process.env.SMOKE_RUN_MUTATION === 'true';
+const timeoutMs = Number(process.env.SMOKE_TIMEOUT_MS || 45000);
+const maxAttempts = Math.max(1, Number(process.env.SMOKE_MAX_ATTEMPTS || process.env.SMOKE_RETRIES || 5));
+const retryDelayMs = Math.max(0, Number(process.env.SMOKE_RETRY_DELAY_MS || 5000));
 
 function joinUrl(base, path) {
   return `${base.replace(/\/+$/, '')}${path}`;
 }
 
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function retryDelayForAttempt(attempt) {
+  return retryDelayMs * attempt;
+}
+
+function isRenderHibernateWake(response) {
+  return response.headers.get('x-render-routing') === 'hibernate-wake-error';
+}
+
+function isRetryableFetchError(error) {
+  return error && (error.name === 'AbortError' || error.name === 'TypeError');
+}
+
 async function request(name, url, options = {}, expectedStatuses = [200]) {
-  const started = Date.now();
-  const response = await fetch(url, {
-    ...options,
-    headers: {
-      accept: 'application/json',
-      ...(options.body ? { 'content-type': 'application/json' } : {}),
-      ...(options.headers || {}),
-    },
-  });
-  const latencyMs = Date.now() - started;
-  if (!expectedStatuses.includes(response.status)) {
-    const body = await response.text().catch(() => '');
-    throw new Error(`${name} returned ${response.status} in ${latencyMs}ms: ${body.slice(0, 500)}`);
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    const started = Date.now();
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+    let response;
+    try {
+      response = await fetch(url, {
+        ...options,
+        signal: controller.signal,
+        headers: {
+          accept: 'application/json',
+          ...(options.body ? { 'content-type': 'application/json' } : {}),
+          ...(options.headers || {}),
+        },
+      });
+    } catch (error) {
+      const latencyMs = Date.now() - started;
+      const reason =
+        error && error.name === 'AbortError'
+          ? `timed out after ${timeoutMs}ms`
+          : error && error.message
+            ? error.message
+            : String(error);
+      if (attempt < maxAttempts && isRetryableFetchError(error)) {
+        console.log(`${name}: retrying after ${reason} (attempt ${attempt}/${maxAttempts})`);
+        await sleep(retryDelayForAttempt(attempt));
+        continue;
+      }
+      throw new Error(`${name} request to ${url} failed in ${latencyMs}ms: ${reason}`);
+    } finally {
+      clearTimeout(timeoutId);
+    }
+
+    const latencyMs = Date.now() - started;
+    if (!expectedStatuses.includes(response.status)) {
+      const body = await response.text().catch(() => '');
+      if (attempt < maxAttempts && response.status === 503 && isRenderHibernateWake(response)) {
+        console.log(`${name}: retrying Render hibernate wake response (attempt ${attempt}/${maxAttempts})`);
+        await sleep(retryDelayForAttempt(attempt));
+        continue;
+      }
+      throw new Error(`${name} returned ${response.status} in ${latencyMs}ms: ${body.slice(0, 500)}`);
+    }
+    console.log(`${name}: ${response.status} (${latencyMs}ms)`);
+    return response;
   }
-  console.log(`${name}: ${response.status} (${latencyMs}ms)`);
-  return response;
+}
+
+async function requestJson(name, url, options = {}, expectedStatuses = [200]) {
+  const response = await request(name, url, options, expectedStatuses);
+  return response.json();
+}
+
+function assertObject(name, value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new Error(`${name} did not return a JSON object`);
+  }
+}
+
+function assertNoSensitiveKeys(name, value, path = '') {
+  if (!value || typeof value !== 'object') return;
+
+  const sensitiveKeys = new Set([
+    'authorization',
+    'body',
+    'content',
+    'email',
+    'ip',
+    'ipaddress',
+    'jwt',
+    'message',
+    'password',
+    'passwordhash',
+    'phone',
+    'privatekey',
+    'rawip',
+    'seed',
+    'seedphrase',
+    'sessiontoken',
+    'token',
+    'useragent',
+  ]);
+  for (const [key, child] of Object.entries(value)) {
+    const nextPath = path ? `${path}.${key}` : key;
+    const normalized = key.toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (
+      sensitiveKeys.has(normalized) ||
+      normalized.endsWith('token') ||
+      normalized.includes('privatekey') ||
+      normalized.includes('seedphrase')
+    ) {
+      throw new Error(`${name} exposed sensitive key: ${nextPath}`);
+    }
+    assertNoSensitiveKeys(name, child, nextPath);
+  }
 }
 
 async function main() {
-  await request('backend liveness', joinUrl(backendUrl, '/api/health/live'));
-  await request('backend readiness', joinUrl(backendUrl, '/api/health/ready'));
+  await requestJson('backend liveness', joinUrl(backendUrl, '/api/health/live'));
+  await requestJson('backend readiness', joinUrl(backendUrl, '/api/health/ready'));
+  const healthStatus = await requestJson('backend health status', joinUrl(backendUrl, '/api/health/status'), {}, [200, 503]);
+  assertObject('backend health status', healthStatus);
+
+  const traction = await requestJson('public traction API', joinUrl(backendUrl, '/api/public/traction'));
+  assertObject('public traction API', traction);
+  assertNoSensitiveKeys('public traction API', traction);
+  if (!traction.users || !traction.engagement || !traction.stellar || !traction.reliability) {
+    throw new Error('public traction API is missing required aggregate sections');
+  }
+
+  const stellarConfig = await requestJson('public Stellar config', joinUrl(backendUrl, '/api/stellar/config'));
+  assertObject('public Stellar config', stellarConfig);
+  assertNoSensitiveKeys('public Stellar config', stellarConfig);
+  if (!stellarConfig.network || !stellarConfig.contractIds) {
+    throw new Error('public Stellar config is missing network or contractIds');
+  }
+
+  await request('frontend traction page', joinUrl(frontendUrl, '/traction'), {}, [200]);
   await request('frontend session anonymous', joinUrl(frontendUrl, '/api/auth/session'), {}, [401]);
   await request('frontend register method guard', joinUrl(frontendUrl, '/api/users/register'), {}, [405]);
 

@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 
 type Theme = "light" | "dark" | "system";
+const THEME_VERSION = "premium-theme-v2";
 
 interface ThemeContextType {
   theme: Theme;
@@ -15,9 +16,14 @@ const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [theme, setThemeState] = useState<Theme>(() => {
     if (typeof window !== "undefined") {
+      if (localStorage.getItem("theme-version") !== THEME_VERSION) {
+        localStorage.setItem("theme", "system");
+        localStorage.setItem("theme-version", THEME_VERSION);
+        return "system";
+      }
       return (localStorage.getItem("theme") as Theme) || "dark";
     }
-    return "dark";
+    return "system";
   });
 
   const [resolvedTheme, setResolvedTheme] = useState<"light" | "dark">("dark");
@@ -25,6 +31,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const setTheme = (newTheme: Theme) => {
     setThemeState(newTheme);
     localStorage.setItem("theme", newTheme);
+    localStorage.setItem("theme-version", THEME_VERSION);
   };
 
   useEffect(() => {

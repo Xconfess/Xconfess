@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { Bell, Mail, Smartphone, Moon, Save, Clock, RefreshCw } from 'lucide-react';
 import { useGlobalToast } from '@/app/components/common/Toast';
+import { normalizeApiError } from '@/app/lib/api/errors';
 
 interface ChannelPrefs {
   inApp: boolean;
@@ -66,7 +67,10 @@ export default function NotificationSettingsPage() {
     setError(null);
     try {
       const response = await fetch('/api/users/notification-preferences', { credentials: 'include' });
-      if (!response.ok) throw new Error('Failed to load preferences');
+      if (!response.ok) {
+        const error = await normalizeApiError(response);
+        throw new Error(error.message);
+      }
       const data = await response.json();
       setPreferences({
         reactions: { inApp: true, email: true, push: true, ...data.reactions },
@@ -81,7 +85,7 @@ export default function NotificationSettingsPage() {
         timezone: data.timezone ?? null,
       });
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load');
+      setError(err instanceof Error ? err.message : 'Failed to load notification preferences');
     } finally {
       setLoading(false);
     }
@@ -122,10 +126,13 @@ export default function NotificationSettingsPage() {
         body: JSON.stringify(body),
       });
 
-      if (!response.ok) throw new Error('Failed to save');
+      if (!response.ok) {
+        const error = await normalizeApiError(response);
+        throw new Error(error.message);
+      }
       toast.success('Notification preferences saved');
-    } catch {
-      toast.error('Failed to save preferences');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to save preferences');
     } finally {
       setSaving(false);
     }

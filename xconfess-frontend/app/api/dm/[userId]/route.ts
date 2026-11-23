@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getApiBaseUrl } from '@/app/lib/config';
+import { resolveBackendRoute } from '@/app/lib/api/proxy';
 
 type RouteContext = { params: Promise<{ userId: string }> };
 
@@ -8,7 +8,6 @@ export async function GET(
   req: NextRequest,
   { params }: RouteContext,
 ) {
-  const BACKEND_URL = getApiBaseUrl();
   const { userId } = await params;
 
   const sessionUserId = getSessionUserId(req);
@@ -20,7 +19,8 @@ export async function GET(
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
-  const backendRes = await fetch(`${BACKEND_URL}/messages/${userId}/inbox`, {
+  const backend = resolveBackendRoute(req, `/messages/${userId}/inbox`);
+  const backendRes = await fetch(backend.url, {
     headers: { cookie: req.headers.get('cookie') ?? '' },
   });
 
@@ -32,7 +32,6 @@ export async function DELETE(
   req: NextRequest,
   { params }: RouteContext,
 ) {
-  const BACKEND_URL = getApiBaseUrl();
   const { userId } = await params;
   const threadId = req.nextUrl.searchParams.get('threadId');
 
@@ -40,10 +39,14 @@ export async function DELETE(
   if (!sessionUserId) return NextResponse.json({ error: 'Unauthenticated' }, { status: 401 });
   if (sessionUserId !== userId) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
-  const backendRes = await fetch(
-    `${BACKEND_URL}/messages/${userId}/thread/${threadId}`,
-    { method: 'DELETE', headers: { cookie: req.headers.get('cookie') ?? '' } },
+  const backend = resolveBackendRoute(
+    req,
+    `/messages/${userId}/thread/${threadId}`,
   );
+  const backendRes = await fetch(backend.url, {
+    method: 'DELETE',
+    headers: { cookie: req.headers.get('cookie') ?? '' },
+  });
 
   return NextResponse.json(await backendRes.json(), { status: backendRes.status });
 }

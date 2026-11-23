@@ -20,32 +20,39 @@ export class AddAuditReportCompositeIndexes20260723000001
   name = 'AddAuditReportCompositeIndexes20260723000001';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
-    // Audit logs composite indexes
-    await queryRunner.query(`
-      CREATE INDEX IF NOT EXISTS "idx_audit_logs_admin_created"
-        ON "audit_logs" ("admin_id", "createdAt" DESC);
-    `);
+    const hasAuditLogs = await queryRunner.hasTable('audit_logs');
+    const hasReports = await queryRunner.hasTable('reports');
 
-    await queryRunner.query(`
-      CREATE INDEX IF NOT EXISTS "idx_audit_logs_action_created"
-        ON "audit_logs" ("action", "createdAt" DESC);
-    `);
+    if (hasAuditLogs) {
+      // Audit logs composite indexes
+      await queryRunner.query(`
+        CREATE INDEX IF NOT EXISTS "idx_audit_logs_admin_created"
+          ON "audit_logs" ("admin_id", "createdAt" DESC);
+      `);
 
-    await queryRunner.query(`
-      CREATE INDEX IF NOT EXISTS "idx_audit_logs_entity_type_created"
-        ON "audit_logs" ("entity_type", "createdAt" DESC);
-    `);
+      await queryRunner.query(`
+        CREATE INDEX IF NOT EXISTS "idx_audit_logs_action_created"
+          ON "audit_logs" ("action", "createdAt" DESC);
+      `);
 
-    // Reports composite indexes for cursor pagination and filtering
-    await queryRunner.query(`
-      CREATE INDEX IF NOT EXISTS "idx_reports_status_created_id"
-        ON "reports" ("status", "createdAt" DESC, "id" DESC);
-    `);
+      await queryRunner.query(`
+        CREATE INDEX IF NOT EXISTS "idx_audit_logs_entity_type_created"
+          ON "audit_logs" ("entity_type", "createdAt" DESC);
+      `);
+    }
 
-    await queryRunner.query(`
-      CREATE INDEX IF NOT EXISTS "idx_reports_type_created_id"
-        ON "reports" ("type", "createdAt" DESC, "id" DESC);
-    `);
+    if (hasReports) {
+      // Reports composite indexes for cursor pagination and filtering
+      await queryRunner.query(`
+        CREATE INDEX IF NOT EXISTS "idx_reports_status_created_id"
+          ON "reports" ("status", "createdAt" DESC, "id" DESC);
+      `);
+
+      await queryRunner.query(`
+        CREATE INDEX IF NOT EXISTS "idx_reports_type_created_id"
+          ON "reports" ("type", "createdAt" DESC, "id" DESC);
+      `);
+    }
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {

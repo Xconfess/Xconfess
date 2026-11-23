@@ -29,7 +29,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
       response.setHeader('Retry-After', retryAfter.toString());
       response.setHeader('X-Request-Id', requestId);
       this.logger.warn(
-        `RATE_LIMIT_EXCEEDED method=${request.method} path=${request.url} ip=${request.ip} requestId=${requestId} retryAfter=${retryAfter}`,
+        `RATE_LIMIT_EXCEEDED method=${request.method} path=${request.path} requestId=${requestId} retryAfter=${retryAfter}`,
       );
       response.status(status).json({
         statusCode: status,
@@ -40,7 +40,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
         retryAfter,
         requestId,
         timestamp: new Date().toISOString(),
-        path: request.url,
+        path: request.path,
       });
       return;
     }
@@ -51,18 +51,17 @@ export class HttpExceptionFilter implements ExceptionFilter {
       message: exceptionResponse.message || 'An unexpected error occurred',
       details: exceptionResponse.details,
       timestamp: new Date().toISOString(),
-      path: request.url,
+      path: request.path,
       requestId,
     };
 
     if (status >= HttpStatus.INTERNAL_SERVER_ERROR) {
       this.logger.error(
-        `${request.method} ${request.url} - ${status} [${errorResponse.code}]: ${errorResponse.message}`,
-        exception.stack,
+        `${request.method} ${request.path} - ${status} [${errorResponse.code}]`,
       );
     } else {
       this.logger.warn(
-        `${request.method} ${request.url} - ${status} [${errorResponse.code}]: ${errorResponse.message}`,
+        `${request.method} ${request.path} - ${status} [${errorResponse.code}]`,
       );
     }
 

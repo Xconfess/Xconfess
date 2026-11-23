@@ -1,6 +1,7 @@
 import { render, screen, within, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { axe, toHaveNoViolations } from "jest-axe";
+import apiClient from "@/app/lib/api/client";
 
 expect.extend(toHaveNoViolations);
 
@@ -88,6 +89,10 @@ jest.mock("lucide-react", () => {
     Eye: icon("eye"),
     EyeOff: icon("eye-off"),
     ShieldCheck: icon("shield-check"),
+    UserPlus: icon("user-plus"),
+    LogIn: icon("log-in"),
+    Check: icon("check"),
+    Copy: icon("copy"),
   };
 });
 
@@ -515,6 +520,7 @@ describe("Login page accessibility", () => {
     await user.keyboard("{Enter}");
     expect(signIn).toBeInTheDocument();
   });
+
 });
 
 // ---------------------------------------------------------------------------
@@ -551,6 +557,19 @@ describe("Register page accessibility", () => {
     expect(screen.getByLabelText(/username/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/email/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/^password$/i)).toBeInTheDocument();
+  });
+
+  it("Sign in button routes to /login without calling the backend", async () => {
+    const user = userEvent.setup();
+    render(<RegisterPage />);
+
+    const signInButton = screen.getByRole("button", { name: /sign in/i });
+    expect(signInButton).toBeInTheDocument();
+
+    await user.click(signInButton);
+
+    expect(mockPush).toHaveBeenCalledWith("/login");
+    expect(apiClient.post).not.toHaveBeenCalled();
   });
 
   it("Tab reaches the sign-in link", async () => {

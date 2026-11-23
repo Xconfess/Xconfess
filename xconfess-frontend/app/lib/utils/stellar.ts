@@ -1,10 +1,7 @@
+import { freighterGetPublicKey, freighterSignTransaction } from "@/lib/wallet/freighterAdapter";
 import * as StellarSDK from "@stellar/stellar-sdk";
 import CryptoJS from "crypto-js";
-import {
-  freighterGetPublicKey,
-  freighterSignTransaction,
-  isFreighterInstalled,
-} from "@/lib/wallet/freighterAdapter";
+import { getEmbeddedWallet, unlockEmbeddedWallet } from "@/app/lib/crypto/embeddedWallet";
 
 const STEEXP_BASE = "https://testnet.steexp.com";
 const STELLAR_EXPERT_BASE = "https://stellar.expert/explorer";
@@ -28,7 +25,7 @@ export function mapAnchorApiError(status: number, message?: string): string {
   if (lower.includes("not found")) return "Confession not found.";
   switch (status) {
     case 400: return message || "Invalid anchor request.";
-    case 401: return "Sign in to save your anchor.";
+    case 401: return "Connect your wallet to save your anchor.";
     case 403: return "You cannot anchor this confession.";
     case 404: return "Confession not found.";
     case 409: return "This confession is already anchored.";
@@ -56,7 +53,12 @@ export function getStellarServer(): StellarSDK.Horizon.Server {
 }
 
 export async function isFreighterAvailable(): Promise<boolean> {
-  return isFreighterInstalled();
+  try {
+    await freighterGetPublicKey();
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export async function getPublicKey(): Promise<string | null> {
@@ -70,18 +72,16 @@ export async function getPublicKey(): Promise<string | null> {
 export async function anchorConfession(
   confessionHash: string,
   timestamp: number,
+  walletPin?: string,
 ): Promise<{ success: boolean; txHash?: string; error?: string }> {
   try {
     const contractId = process.env.NEXT_PUBLIC_STELLAR_CONTRACT_ID;
     if (!contractId) return { success: false, error: "Stellar contract ID not configured" };
-    if (!isFreighterInstalled()) return { success: false, error: "Freighter wallet not found" };
-
+    const embeddedWallet = getEmbeddedWallet();
     let publicKey: string;
-    try {
-      publicKey = await freighterGetPublicKey();
-    } catch {
-      return { success: false, error: "Failed to get public key from wallet" };
-    }
+    if (embeddedWallet) {
+      publicKey = embeddedWallet.publicKey;
+    } else { return { success: false, error: "Create or unlock your XConfess Wallet first" }; }
 
     const network = getStellarNetwork();
     const horizonServer = getStellarServer();
@@ -118,7 +118,13 @@ export async function anchorConfession(
       .build();
 
     const preparedTx = await sorobanServer.prepareTransaction(transaction);
-    const signedTx = await freighterSignTransaction(preparedTx.toXDR(), network);
+    let signedTx: string;
+    if (embeddedWallet) {
+      if (!walletPin) return { success: false, error: "Unlock your XConfess Wallet to add Stellar proof" };
+      const keypair = await unlockEmbeddedWallet(walletPin);
+      preparedTx.sign(keypair);
+      signedTx = preparedTx.toXDR();
+    } else { return { success: false, error: "Unlock your XConfess Wallet to add Stellar proof" }; }
     const submitResponse = await sorobanServer.sendTransaction(
       StellarSDK.TransactionBuilder.fromXDR(signedTx, network),
     );
@@ -145,7 +151,13 @@ export async function anchorConfession(
 
     return { success: true, txHash: submitResponse.hash };
   } catch (error: any) {
-    console.error("Failed to anchor confession:", error);
-    return { success: false, error: error.message || "Failed to anchor confession on Stellar" };
+    const message = error?.message || "Failed to anchor confession on Stellar";
+    // A newly-created Freighter account returns 404 from Horizon until it is
+    // funded on the selected network. Anchoring is optional for publishing,
+    // so keep this expected condition quiet and let the form continue.
+    if (!/not found|404/i.test(message)) {
+      console.warn("Optional Stellar anchoring failed:", message);
+    }
+    return { success: false, error: message };
   }
 }

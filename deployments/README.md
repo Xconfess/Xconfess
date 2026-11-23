@@ -46,3 +46,30 @@ Do not commit:
 
 Before committing a deployment file, verify the hashes with the checksum
 workflow in `docs/contract-release-and-upgrade-runbook.md`.
+
+## Updating Shared Metadata After Redeploy
+
+After redeploying shared contracts, update metadata and service env vars from
+the same deployment output:
+
+```bash
+./scripts/contracts-release.sh deploy --network testnet --source "$DEPLOYER_KEY"
+jq -r '.contracts | to_entries[] | [.key, .value.contract_id] | @tsv' deployments/testnet.json
+```
+
+Map the public IDs into environment configuration:
+
+- `confession-anchor` -> `CONFESSION_ANCHOR_CONTRACT_ID`
+- `reputation-badges` -> `REPUTATION_BADGES_CONTRACT_ID`
+- `anonymous-tipping` -> `TIPPING_SYSTEM_CONTRACT_ID`
+
+Then run:
+
+```bash
+npm run contracts:verify-env
+```
+
+Commit `deployments/testnet.json` in the same change that updates CI,
+Render/Vercel, or environment templates. CI preflight uses this command with
+`DEPLOYMENT_METADATA_PATH=deployments/testnet.json`, so stale env vars fail
+before deploy.

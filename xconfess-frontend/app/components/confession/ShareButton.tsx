@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Button } from "@/app/components/ui/button";
 import { Share2, Copy, Check, Mail } from "lucide-react";
 import { cn } from "@/app/lib/utils/cn";
+import { focusVisible } from "@/app/lib/utils/focusStyles";
 
 interface ShareButtonProps {
   confessionId: string;
@@ -26,9 +27,9 @@ export function ShareButton({
       ? window.location.origin
       : process.env.NEXT_PUBLIC_APP_URL || "";
   const shareUrl = `${baseUrl}/confessions/${confessionId}`;
-  const shareText = encodeURIComponent(
-    title ? `${title} — xConfess` : "Check out this confession on xConfess"
-  );
+  const shareText = title
+    ? `${title} — xConfess`
+    : "Check out this confession on xConfess";
 
   const copyLink = async () => {
     try {
@@ -50,13 +51,13 @@ export function ShareButton({
   };
 
   const shareViaEmail = () => {
-    const mailto = `mailto:?subject=${shareText}&body=${encodeURIComponent(shareUrl)}`;
+    const mailto = `mailto:?subject=${encodeURIComponent(shareText)}&body=${encodeURIComponent(shareUrl)}`;
     window.open(mailto);
     setOpen(false);
   };
 
   const shareToTwitter = () => {
-    const url = `https://twitter.com/intent/tweet?text=${shareText}&url=${encodeURIComponent(shareUrl)}`;
+    const url = `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}&url=${encodeURIComponent(shareUrl)}`;
     window.open(url, "_blank", "noopener,noreferrer,width=550,height=420");
     setOpen(false);
   };
@@ -87,6 +88,7 @@ export function ShareButton({
           onClick={() => setOpen((o) => !o)}
           className="gap-2"
           aria-label="Share options"
+          title="Open share options"
         >
           <Share2 className="h-4 w-4" />
           Share
@@ -105,8 +107,9 @@ export function ShareButton({
               <button
                 type="button"
                 onClick={copyLink}
-                className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-zinc-200 hover:bg-zinc-800"
+                className={cn("flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-zinc-200 hover:bg-zinc-800", focusVisible)}
                 role="menuitem"
+                title="Copy confession link to clipboard"
               >
                 {copied ? (
                   <Check className="h-4 w-4 text-green-400" />
@@ -119,8 +122,9 @@ export function ShareButton({
                 <button
                   type="button"
                   onClick={shareNative}
-                  className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-zinc-200 hover:bg-zinc-800"
+                  className={cn("flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-zinc-200 hover:bg-zinc-800", focusVisible)}
                   role="menuitem"
+                  title="Share using native app"
                 >
                   <Share2 className="h-4 w-4" />
                   Share via...
@@ -129,16 +133,18 @@ export function ShareButton({
               <button
                 type="button"
                 onClick={shareToTwitter}
-                className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-zinc-200 hover:bg-zinc-800"
+                className={cn("flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-zinc-200 hover:bg-zinc-800", focusVisible)}
                 role="menuitem"
+                title="Share to X (formerly Twitter)"
               >
                 Share to X
               </button>
               <button
                 type="button"
                 onClick={shareViaEmail}
-                className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-zinc-200 hover:bg-zinc-800"
+                className={cn("flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-zinc-200 hover:bg-zinc-800", focusVisible)}
                 role="menuitem"
+                title="Send via email"
               >
                 <Mail className="h-4 w-4" />
                 Email
@@ -158,6 +164,7 @@ export function ShareButton({
         onClick={shareNative}
         className="gap-2"
         aria-label="Share"
+        title="Share this confession"
       >
         <Share2 className="h-4 w-4" />
         Share
@@ -168,6 +175,7 @@ export function ShareButton({
         onClick={copyLink}
         className="gap-2"
         aria-label="Copy link"
+        title="Copy link to clipboard"
       >
         {copied ? (
           <Check className="h-4 w-4 text-green-400" />

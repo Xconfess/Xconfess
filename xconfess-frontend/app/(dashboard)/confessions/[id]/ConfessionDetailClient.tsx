@@ -1,6 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
+import { readRetryDelay, shouldRetryRead } from "@/app/lib/api/readRetry";
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -28,6 +29,8 @@ import { CommentSection } from "@/app/components/confession/CommentSection";
 import { RelatedConfessions } from "@/app/components/confession/RelatedConfessions";
 import { formatDate } from "@/app/lib/utils/formatDate";
 import { sanitizeMarkdown } from "@/app/lib/utils/markdown";
+import { cn } from "@/app/lib/utils/cn";
+import { focusVisible } from "@/app/lib/utils/focusStyles";
 import { queryKeys } from "@/app/lib/api/queryKeys";
 import { useAuth } from "@/app/lib/hooks/useAuth";
 import { getConfessionById } from "@/app/lib/api/confessions";
@@ -70,8 +73,18 @@ export function ConfessionDetailClient({
     refetch,
   } = useQuery({
     queryKey: queryKeys.confessions.detail(confessionId),
-    queryFn: async () => {
-      const result = await getConfessionById(confessionId);
+    queryFn: async ({ signal }) => {
+      const result = await getConfessionById(confessionId, signal);
+
+      // The request was cancelled because confessionId changed (navigated to
+      // another confession) or this component unmounted. Rethrow the abort
+      // as-is so React Query's own cancellation handling recognizes it and
+      // discards the result instead of surfacing it as a NETWORK_FAILURE
+      // error state for a request nobody is waiting on anymore.
+      if (!result.ok && signal.aborted) {
+        throw new DOMException("Request was cancelled.", "AbortError");
+      }
+
       // Explicit 404 check mapping using the error object parameters
       if (
         !result.ok &&
@@ -88,7 +101,8 @@ export function ConfessionDetailClient({
       return result.data;
     },
     initialData: initialConfession ?? undefined,
-    retry: 1,
+    retry: shouldRetryRead,
+    retryDelay: readRetryDelay,
   });
 
   const submitReport = async () => {
@@ -282,7 +296,10 @@ export function ConfessionDetailClient({
             <li>
               <Link
                 href="/"
-                className="text-zinc-500 hover:text-zinc-300 transition-colors"
+                className={cn(
+                  "text-zinc-500 hover:text-zinc-300 transition-colors",
+                  focusVisible,
+                )}
               >
                 Feed
               </Link>

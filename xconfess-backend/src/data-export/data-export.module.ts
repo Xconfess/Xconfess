@@ -11,6 +11,7 @@ import { User } from '../user/entities/user.entity';
 import { EmailModule } from '../email/email.module';
 import { AuditLogModule } from '../audit-log/audit-log.module';
 import { EXPORT_QUEUE_NAME } from './data-export.constants';
+import { DataExportQueueRegistrar } from './queue-registrar';
 const jobsEnabled = process.env.ENABLE_BACKGROUND_JOBS === 'true';
 @Module({
   imports: [
@@ -26,6 +27,7 @@ const jobsEnabled = process.env.ENABLE_BACKGROUND_JOBS === 'true';
     DataExportService,
     DataCleanupService,
     ...(jobsEnabled ? [ExportProcessor] : []),
+    DataExportQueueRegistrar,
   ],
   exports: [DataExportService, DataCleanupService],
 })

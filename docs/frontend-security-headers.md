@@ -2,7 +2,7 @@
 
 ## Summary
 
-This document inventories the currently configured security headers in the XConfess frontend and proposes a safe Content Security Policy (CSP) posture compatible with Next.js and required assets.
+This document inventories the currently configured security headers in the xConfess frontend and proposes a safe Content Security Policy (CSP) posture compatible with Next.js and required assets.
 
 ## Current Header Inventory
 

@@ -1,6 +1,9 @@
 import { Injectable } from '@nestjs/common';
+import { Optional } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, MoreThan } from 'typeorm';
+import { createHash, createHmac } from 'crypto';
 import { AnonymousUser } from './entities/anonymous-user.entity';
 import { UserAnonymousUser } from './entities/user-anonymous-link.entity';
 
@@ -11,11 +14,43 @@ export class AnonymousUserService {
     private anonymousUserRepository: Repository<AnonymousUser>,
     @InjectRepository(UserAnonymousUser)
     private readonly userAnonRepo: Repository<UserAnonymousUser>,
+    @Optional() private readonly configService?: ConfigService,
   ) {}
 
-  async create(): Promise<AnonymousUser> {
-    const anon = this.anonymousUserRepository.create();
-    return this.anonymousUserRepository.save(anon);
+  async create(walletAddress?: string): Promise<AnonymousUser> {
+    const walletFingerprint = this.getWalletFingerprint(walletAddress);
+
+    if (walletFingerprint) {
+      const existing = await this.anonymousUserRepository.findOne({
+        where: { walletFingerprint },
+      });
+      if (existing) return existing;
+    }
+
+    const anon = this.anonymousUserRepository.create({ walletFingerprint });
+    try {
+      return await this.anonymousUserRepository.save(anon);
+    } catch (error: any) {
+      // Two tabs may connect the same wallet at once. Reuse the winner.
+      if (walletFingerprint && error?.code === '23505') {
+        const existing = await this.anonymousUserRepository.findOne({
+          where: { walletFingerprint },
+        });
+        if (existing) return existing;
+      }
+      throw error;
+    }
+  }
+
+  private getWalletFingerprint(walletAddress?: string): string | null {
+    if (!walletAddress || !/^G[A-Z2-7]{55}$/.test(walletAddress)) {
+      return null;
+    }
+
+    const secret = this.configService?.get<string>('app.appSecret');
+    return secret
+      ? createHmac('sha256', secret).update(walletAddress).digest('hex')
+      : createHash('sha256').update(walletAddress).digest('hex');
   }
 
   async getOrCreateForUserSession(
@@ -55,6 +90,14 @@ export class AnonymousUserService {
 
   async findById(id: string): Promise<AnonymousUser | null> {
     return this.anonymousUserRepository.findOne({ where: { id } });
+  }
+
+  async findByWalletAddress(walletAddress: string): Promise<AnonymousUser | null> {
+    const walletFingerprint = this.getWalletFingerprint(walletAddress);
+    if (!walletFingerprint) return null;
+    return this.anonymousUserRepository.findOne({
+      where: { walletFingerprint },
+    });
   }
 
   async rotateAnonymousContext(userId: number): Promise<AnonymousUser> {

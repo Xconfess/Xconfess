@@ -30,6 +30,7 @@ import { NotificationTemplatesController } from './controllers/notification-temp
 import { TemplatesService } from './services/templates.service';
 
 import { StellarAnchor } from '../stellar/entities/stellar-anchor.entity';
+import { SorobanEventCheckpoint } from '../stellar/entities/soroban-event-checkpoint.entity';
 
 @Module({
   imports: [
@@ -44,6 +45,7 @@ import { StellarAnchor } from '../stellar/entities/stellar-anchor.entity';
       NotificationTemplate, // Added
       TemplateVersion,      // Added
       StellarAnchor,
+      SorobanEventCheckpoint,
     ]),
     AuthModule,
     UserModule,

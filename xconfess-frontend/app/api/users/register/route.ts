@@ -1,5 +1,5 @@
 import { createApiErrorResponse } from "@/lib/apiErrorHandler";
-import { methodNotAllowed, resolveBackendRoute } from "@/app/lib/api/proxy";
+import { methodNotAllowedHandlers, resolveBackendRoute } from "@/app/lib/api/proxy";
 
 export async function POST(request: Request) {
   let correlationId = request.headers.get("X-Request-ID") || request.headers.get("X-Correlation-ID") || "unknown";
@@ -51,6 +51,4 @@ export async function POST(request: Request) {
   }
 }
 
-export async function GET() {
-  return methodNotAllowed("GET", ["POST"]);
-}
+export const { GET, PUT, PATCH, DELETE } = methodNotAllowedHandlers(["POST"]);

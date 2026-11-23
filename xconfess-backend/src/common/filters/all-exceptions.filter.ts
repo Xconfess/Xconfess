@@ -8,7 +8,6 @@ import {
 } from '@nestjs/common';
 import { Request, Response } from 'express';
 import { ErrorCode } from '../errors/error-codes';
-import { redactSecretStrings } from '../../utils/redact-secrets';
 
 /**
  * Catch-all exception filter that handles any error not already caught by
@@ -39,11 +38,11 @@ export class AllExceptionsFilter implements ExceptionFilter {
       const requestId = (request as any).requestId ?? 'unknown';
 
       response.status(status).json({
-        status,
+        statusCode: status,
         code: ErrorCode.INTERNAL_SERVER_ERROR,
         message: exception.message,
         timestamp: new Date().toISOString(),
-        path: request.url,
+        path: request.path,
         requestId,
       });
       return;
@@ -54,23 +53,20 @@ export class AllExceptionsFilter implements ExceptionFilter {
     const request = ctx.getRequest<Request>();
     const requestId = (request as any).requestId ?? 'unknown';
 
-    // Redact secret-shaped content (Stellar signing seeds, signed XDR) before
-    // it ever reaches the log sink — an unexpected error from the Stellar SDK
-    // could otherwise echo sensitive material back through this catch-all.
-    const rawMessage = exception instanceof Error ? exception.message : String(exception);
-    const rawStack = exception instanceof Error ? exception.stack : undefined;
-
+    const errorClass = exception instanceof Error ? exception.constructor.name : 'UnknownError';
+    // Error messages and stacks may contain request or private-message data.
+    // Keep the correlation ID and error class; operators can correlate other
+    // already-redacted application events with the same request ID.
     this.logger.error(
-      `Unhandled exception on ${request.method} ${request.url} [requestId=${requestId}]: ${redactSecretStrings(rawMessage)}`,
-      rawStack ? redactSecretStrings(rawStack) : undefined,
+      `Unhandled exception on ${request.method} ${request.path} [requestId=${requestId}] errorClass=${errorClass}`,
     );
 
     response.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
-      status: HttpStatus.INTERNAL_SERVER_ERROR,
+      statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
       code: ErrorCode.INTERNAL_SERVER_ERROR,
       message: 'An unexpected error occurred',
       timestamp: new Date().toISOString(),
-      path: request.url,
+      path: request.path,
       requestId,
     });
   }

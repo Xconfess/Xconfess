@@ -397,8 +397,18 @@ export class DataExportService {
         'chunkCount',
         'totalSize',
         'combinedChecksum',
+        'createdAt',
       ],
     });
+
+    if (!exportRecord) {
+      return null;
+    }
+
+    // Expired artifacts become inaccessible
+    if (exportRecord.status === 'EXPIRED' || !this.isFileAvailable(exportRecord as Pick<ExportRequest, 'status' | 'createdAt'>)) {
+      return null;
+    }
 
     if (exportRecord?.fileData) {
       await this.auditLogService?.logExportLifecycleEvent({
@@ -417,13 +427,14 @@ export class DataExportService {
   }
 
   async getExportChunk(requestId: string, userId: string, chunkIndex: number) {
-    // First verify ownership of the request
+    // First verify ownership of the request and that it is still available
     const request = await this.exportRepository.findOne({
       where: { id: requestId, userId },
+      select: ['id', 'status', 'createdAt'],
     });
 
-    if (!request) {
-      throw new NotFoundException('Export request not found or unauthorized');
+    if (!request || !this.isFileAvailable(request as Pick<ExportRequest, 'status' | 'createdAt'>)) {
+      throw new NotFoundException('Export request not found or expired');
     }
 
     return this.chunkRepository.findOne({
@@ -513,6 +524,7 @@ export class DataExportService {
     request: Pick<ExportRequest, 'status' | 'createdAt'>,
   ): boolean {
     if (request.status !== 'READY') return false;
+    if (!request.createdAt) return true;
     return Date.now() <= this.getExpiryTimestamp(request.createdAt);
   }
 

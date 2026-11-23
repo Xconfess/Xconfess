@@ -15,10 +15,14 @@ import { CreateReportDto } from './dto/create-report.dto';
 import { OptionalJwtAuthGuard } from '../auth/optional-jwt-auth.guard';
 import { GetUser } from '../auth/get-user.decorator';
 import { RateLimit } from '../auth/guard/rate-limit.decorator';
+import { AnonymousUserService } from '../user/anonymous-user.service';
 
 @Controller('confessions')
 export class ReportsController {
-  constructor(private readonly reportsService: ReportsService) {}
+  constructor(
+    private readonly reportsService: ReportsService,
+    private readonly anonymousUserService: AnonymousUserService,
+  ) {}
 
   @Post(':id/report')
   @UseGuards(OptionalJwtAuthGuard)
@@ -29,13 +33,20 @@ export class ReportsController {
     @Body() dto: CreateReportDto,
     @Headers('idempotency-key') rawIdempotencyKey: string | undefined,
     @Headers('x-anonymous-user-id') anonymousUserId: string | undefined,
+    @Headers('x-stellar-wallet') walletAddress: string | undefined,
     @Req() req: Request,
   ) {
+    const walletAnonymousUser =
+      !anonymousUserId && walletAddress
+        ? await this.anonymousUserService.findByWalletAddress(walletAddress)
+        : null;
+    const resolvedAnonymousUserId = anonymousUserId || walletAnonymousUser?.id;
+
     // Idempotency keys are only honoured for authenticated users.
     // Anonymous callers use their anonymous user ID for deduplication.
-    if (reporterId === null && !anonymousUserId) {
+    if (reporterId === null && !resolvedAnonymousUserId) {
       throw new BadRequestException(
-        'Anonymous reports require x-anonymous-user-id header',
+        'Connect your wallet before reporting anonymously',
       );
     }
 
@@ -51,7 +62,7 @@ export class ReportsController {
       {
         ipAddress: req.ip,
         userAgent: req.headers['user-agent'],
-        anonymousUserId: reporterId === null ? anonymousUserId : undefined,
+        anonymousUserId: reporterId === null ? resolvedAnonymousUserId : undefined,
       },
       idempotencyKey,
     );

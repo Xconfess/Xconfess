@@ -24,6 +24,7 @@ import { User } from '../user/entities/user.entity';
 import { AuditLogModule } from '../audit-log/audit-log.module';
 import { LoggerModule } from '../logger/logger.module';
 import { EmailModule } from '../email/email.module';
+import { NotificationsQueueRegistrar } from './queue-registrar';
 
 const jobsEnabled = process.env.ENABLE_BACKGROUND_JOBS === 'true';
 
@@ -77,6 +78,7 @@ const jobsEnabled = process.env.ENABLE_BACKGROUND_JOBS === 'true';
     OutboxDispatcherService,
     RecipientResolver,
     JobManagementService,
+    NotificationsQueueRegistrar,
   ],
   exports: [NotificationService, RecipientResolver, JobManagementService],
 })

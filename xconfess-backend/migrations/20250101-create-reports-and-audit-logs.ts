@@ -97,44 +97,61 @@ export class CreateReportsAndAuditLogs2025010100000 implements MigrationInterfac
       }),
     );
 
-    await queryRunner.createIndex(
-      'reports',
-      new TableIndex({
-        name: 'IDX_reports_created_at',
-        columnNames: ['createdAt'],
-      }),
-    );
+    if (await queryRunner.hasColumn('reports', 'createdAt')) {
+      await queryRunner.createIndex(
+        'reports',
+        new TableIndex({
+          name: 'IDX_reports_created_at',
+          columnNames: ['createdAt'],
+        }),
+      );
+    }
 
     // Create foreign keys for reports
-    await queryRunner.createForeignKey(
-      'reports',
-      new TableForeignKey({
-        columnNames: ['confession_id'],
-        referencedColumnNames: ['id'],
-        referencedTableName: 'anonymous_confessions',
-        onDelete: 'CASCADE',
-      }),
-    );
+    if (
+      (await queryRunner.hasTable('anonymous_confessions')) &&
+      (await queryRunner.hasColumn('reports', 'confession_id'))
+    ) {
+      await queryRunner.createForeignKey(
+        'reports',
+        new TableForeignKey({
+          columnNames: ['confession_id'],
+          referencedColumnNames: ['id'],
+          referencedTableName: 'anonymous_confessions',
+          onDelete: 'CASCADE',
+        }),
+      );
+    }
 
-    await queryRunner.createForeignKey(
-      'reports',
-      new TableForeignKey({
-        columnNames: ['reporter_id'],
-        referencedColumnNames: ['id'],
-        referencedTableName: 'user',
-        onDelete: 'SET NULL',
-      }),
-    );
+    if (
+      (await queryRunner.hasTable('user')) &&
+      (await queryRunner.hasColumn('reports', 'reporter_id'))
+    ) {
+      await queryRunner.createForeignKey(
+        'reports',
+        new TableForeignKey({
+          columnNames: ['reporter_id'],
+          referencedColumnNames: ['id'],
+          referencedTableName: 'user',
+          onDelete: 'SET NULL',
+        }),
+      );
+    }
 
-    await queryRunner.createForeignKey(
-      'reports',
-      new TableForeignKey({
-        columnNames: ['resolved_by'],
-        referencedColumnNames: ['id'],
-        referencedTableName: 'user',
-        onDelete: 'SET NULL',
-      }),
-    );
+    if (
+      (await queryRunner.hasTable('user')) &&
+      (await queryRunner.hasColumn('reports', 'resolved_by'))
+    ) {
+      await queryRunner.createForeignKey(
+        'reports',
+        new TableForeignKey({
+          columnNames: ['resolved_by'],
+          referencedColumnNames: ['id'],
+          referencedTableName: 'user',
+          onDelete: 'SET NULL',
+        }),
+      );
+    }
 
     // Create audit_logs table
     await queryRunner.createTable(
@@ -245,15 +262,17 @@ export class CreateReportsAndAuditLogs2025010100000 implements MigrationInterfac
     );
 
     // Create foreign key for audit_logs
-    await queryRunner.createForeignKey(
-      'audit_logs',
-      new TableForeignKey({
-        columnNames: ['admin_id'],
-        referencedColumnNames: ['id'],
-        referencedTableName: 'user',
-        onDelete: 'CASCADE',
-      }),
-    );
+    if (await queryRunner.hasTable('user')) {
+      await queryRunner.createForeignKey(
+        'audit_logs',
+        new TableForeignKey({
+          columnNames: ['admin_id'],
+          referencedColumnNames: ['id'],
+          referencedTableName: 'user',
+          onDelete: 'CASCADE',
+        }),
+      );
+    }
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {

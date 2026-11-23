@@ -1,9 +1,15 @@
 import { Injectable, Logger, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, LessThan } from 'typeorm';
+import { In, LessThan, Repository } from 'typeorm';
 import { StellarConfigService } from '../../stellar/stellar-config.service';
 import { DeploymentMetadataService } from '../../stellar/services/deployment-metadata.service';
 import { StellarAnchor, AnchorStatus } from '../../stellar/entities/stellar-anchor.entity';
+import { Tip, TipVerificationStatus } from '../../tipping/entities/tip.entity';
+import { SorobanEventCheckpoint } from '../../stellar/entities/soroban-event-checkpoint.entity';
+import {
+  SorobanEventCheckpointService,
+  SorobanIndexerSummary,
+} from '../../stellar/soroban-event-checkpoint.service';
 
 export type HorizonStatus = 'ok' | 'degraded' | 'unreachable';
 
@@ -26,6 +32,9 @@ export interface StellarDiagnosticsResult {
     loadError: string | null;
   };
   staleAnchorCount: number;
+  pendingTipCount: number;
+  staleTipCount: number;
+  sorobanIndexer: SorobanIndexerSummary;
   checkedAt: string;
 }
 
@@ -39,6 +48,14 @@ export class StellarDiagnosticsService {
     @Optional()
     @InjectRepository(StellarAnchor)
     private readonly anchorRepository?: Repository<StellarAnchor>,
+    @Optional()
+    @InjectRepository(Tip)
+    private readonly tipRepository?: Repository<Tip>,
+    @Optional()
+    @InjectRepository(SorobanEventCheckpoint)
+    private readonly checkpointRepository?: Repository<SorobanEventCheckpoint>,
+    @Optional()
+    private readonly sorobanEventCheckpointService?: SorobanEventCheckpointService,
   ) {}
 
   async getDiagnostics(): Promise<StellarDiagnosticsResult> {
@@ -49,6 +66,15 @@ export class StellarDiagnosticsService {
       await this.pingHorizon(config.horizonUrl);
 
     let staleAnchorCount = 0;
+    let pendingTipCount = 0;
+    let staleTipCount = 0;
+    let sorobanIndexer: SorobanIndexerSummary = {
+      checkpoints: 0,
+      indexedEvents: 0,
+      failedEvents: 0,
+      lastIndexedAt: null,
+      lastErrorAt: null,
+    };
     if (this.anchorRepository) {
       try {
         const SLA_MINUTES = 30;
@@ -62,6 +88,37 @@ export class StellarDiagnosticsService {
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err);
         this.logger.warn(`Failed to count stale anchors: ${msg}`);
+      }
+    }
+
+    if (this.tipRepository) {
+      try {
+        [pendingTipCount, staleTipCount] = await Promise.all([
+          this.tipRepository.count({
+            where: {
+              verificationStatus: In([
+                TipVerificationStatus.PENDING,
+                TipVerificationStatus.STALE_PENDING,
+              ]),
+            },
+          }),
+          this.tipRepository.count({
+            where: { verificationStatus: TipVerificationStatus.STALE_PENDING },
+          }),
+        ]);
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        this.logger.warn(`Failed to count pending tips: ${msg}`);
+      }
+    }
+
+    if (this.sorobanEventCheckpointService && this.checkpointRepository) {
+      try {
+        sorobanIndexer =
+          await this.sorobanEventCheckpointService.getSummary();
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        this.logger.warn(`Failed to summarize Soroban indexer state: ${msg}`);
       }
     }
 
@@ -87,6 +144,9 @@ export class StellarDiagnosticsService {
         loadError: this.deploymentMetadataService.getLoadError(),
       },
       staleAnchorCount,
+      pendingTipCount,
+      staleTipCount,
+      sorobanIndexer,
       checkedAt: new Date().toISOString(),
     };
   }

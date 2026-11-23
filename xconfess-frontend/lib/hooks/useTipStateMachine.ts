@@ -144,6 +144,7 @@ async function waitForHorizonConfirmation(
 export interface UseTipStateMachineOptions {
   confessionId: string;
   recipientAddress: string | undefined;
+  walletPin?: string;
   onConfirmed?: (txHash: string, amount: number) => void;
   onFailed?: (error: string) => void;
 }
@@ -151,6 +152,7 @@ export interface UseTipStateMachineOptions {
 export function useTipStateMachine({
   confessionId,
   recipientAddress,
+  walletPin,
   onConfirmed,
   onFailed,
 }: UseTipStateMachineOptions) {
@@ -197,7 +199,9 @@ export function useTipStateMachine({
         // Wallet rejection/disconnect during signing surfaces as a thrown
         // error here and lands in `failed` with no txHash — fully
         // recoverable: the input reappears and the user can retry from scratch.
-        const sendResult = await sendTip(confessionId, tipAmount, recipientAddress);
+        const sendResult = walletPin
+          ? await sendTip(confessionId, tipAmount, recipientAddress, walletPin)
+          : await sendTip(confessionId, tipAmount, recipientAddress);
         if (cancelledRef.current) return;
         if (!sendResult.success || !sendResult.txHash) {
           throw new Error(sendResult.error || "Failed to submit transaction");
@@ -243,7 +247,7 @@ export function useTipStateMachine({
         inFlightRef.current = false;
       }
     },
-    [confessionId, recipientAddress, isBusy, onConfirmed, onFailed],
+    [confessionId, recipientAddress, isBusy, onConfirmed, onFailed, walletPin],
   );
 
   /** Retry backend verification only — does NOT re-send the transaction. */

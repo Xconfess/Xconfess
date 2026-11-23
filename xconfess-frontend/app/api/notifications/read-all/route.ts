@@ -1,15 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createApiErrorResponse } from "@/lib/apiErrorHandler";
-import { getApiBaseUrl } from "@/app/lib/config";
+import { resolveBackendRoute } from "@/app/lib/api/proxy";
 
 
 export async function PATCH(request: NextRequest) {
-  const BACKEND_API_URL = getApiBaseUrl();
   try {
     const token = request.headers.get("authorization")?.replace("Bearer ", "");
+    const backend = resolveBackendRoute(request, "/notifications/read-all");
 
     const response = await fetch(
-      `${BACKEND_API_URL}/notifications/read-all`,
+      backend.url,
       {
         method: "PATCH",
         headers: {
@@ -37,4 +37,3 @@ export async function PATCH(request: NextRequest) {
     });
   }
 }
-

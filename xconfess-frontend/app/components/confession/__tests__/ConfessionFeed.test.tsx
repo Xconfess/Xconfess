@@ -5,27 +5,26 @@
 import React from "react";
 import { render, screen, fireEvent } from "@testing-library/react";
 import "@testing-library/jest-dom";
+import { axe, toHaveNoViolations } from "jest-axe";
 import { ConfessionFeed } from "../ConfessionFeed";
+
+expect.extend(toHaveNoViolations);
 import { useInfiniteConfessions } from "../../../lib/hooks/useConfessionsQuery";
+
+const mockReplace = jest.fn();
+let mockSearch = "";
+jest.mock("next/navigation", () => ({
+  useRouter: () => ({ replace: mockReplace }),
+  usePathname: () => "/confessions",
+  useSearchParams: () => new URLSearchParams(mockSearch),
+}));
+
+jest.mock("../../../lib/hooks/useScrollRestoration", () => ({
+  useScrollRestoration: jest.fn(),
+}));
 
 jest.mock("../../../lib/hooks/useConfessionsQuery", () => ({
   useInfiniteConfessions: jest.fn(),
-}));
-
-const mockPush = jest.fn();
-
-jest.mock("next/navigation", () => ({
-  useRouter: () => ({ push: mockPush }),
-}));
-
-const mockClearItems = jest.fn();
-let selectedIds: string[] = [];
-
-jest.mock("../../../lib/store/comparisonStore", () => ({
-  useComparisonStore: () => ({
-    selectedIds,
-    clearItems: mockClearItems,
-  }),
 }));
 
 jest.mock("@tanstack/react-virtual", () => ({
@@ -100,7 +99,7 @@ function mockFeedState(overrides: Record<string, unknown> = {}) {
 describe("ConfessionFeed", () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    selectedIds = [];
+    mockSearch = "";
     mockFeedState();
 
     class MockIntersectionObserver implements IntersectionObserver {
@@ -165,19 +164,100 @@ describe("ConfessionFeed", () => {
     expect(refetch).toHaveBeenCalledTimes(1);
   });
 
-  it("shows the comparison inspector when confessions are selected", () => {
-    selectedIds = ["1", "2"];
-
+  it("does not expose comparison controls in the public feed", () => {
     render(<ConfessionFeed />);
 
-    fireEvent.click(
-      screen.getByRole("button", { name: /compare 2 selected confessions/i }),
+    expect(screen.queryByText("Compare")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /compare/i })).not.toBeInTheDocument();
+  });
+
+  it("reads the active sort from the URL so back navigation keeps it", () => {
+    mockSearch = "sort=trending&q=kept";
+    render(<ConfessionFeed />);
+
+    expect(mockUseInfiniteConfessions).toHaveBeenCalledWith(
+      expect.objectContaining({ sort: "trending" }),
     );
+  });
 
-    expect(mockPush).toHaveBeenCalledWith("/compare?ids=1,2");
+  it("writes sort changes to the URL without dropping other params", () => {
+    mockSearch = "q=kept";
+    render(<ConfessionFeed />);
 
-    fireEvent.click(screen.getByRole("button", { name: /clear selection queue/i }));
+    fireEvent.click(screen.getByRole("tab", { name: "Most discussed" }));
 
-    expect(mockClearItems).toHaveBeenCalledTimes(1);
+    expect(mockReplace).toHaveBeenCalledWith(
+      "/confessions?q=kept&sort=most_discussed",
+      { scroll: false },
+    );
+  });
+
+  describe("accessibility announcements", () => {
+    it("announces a background refresh via aria-live", () => {
+      mockFeedState({ isFetching: true });
+      const { container } = render(<ConfessionFeed />);
+
+      const liveRegion = container.querySelector('[aria-live="polite"]');
+      expect(liveRegion).toHaveTextContent("Updating feed contents...");
+    });
+
+    it("announces an error via aria-live alongside the error state", () => {
+      mockFeedState({ data: undefined, error: new Error("Network Error") });
+      const { container } = render(<ConfessionFeed />);
+
+      expect(screen.getByTestId("error-state")).toBeInTheDocument();
+      const liveRegion = container.querySelector('[aria-live="polite"]');
+      expect(liveRegion).toHaveTextContent(/unable to load feed/i);
+    });
+
+    it("does not announce anything when idle", () => {
+      mockFeedState();
+      const { container } = render(<ConfessionFeed />);
+
+      const liveRegion = container.querySelector('[aria-live="polite"]');
+      expect(liveRegion).toHaveTextContent("");
+    });
+  });
+    describe("loading state transitions", () => {
+    it("shows skeleton on initial load and not pagination spinner", () => {
+      mockFeedState({ data: undefined, isLoading: true });
+      render(<ConfessionFeed />);
+      expect(screen.getByTestId("loading-skeleton")).toBeInTheDocument();
+      expect(screen.queryByText("Loading more...")).not.toBeInTheDocument();
+    });
+
+    it("shows pagination spinner when fetching next page and not switching filter", () => {
+      mockFeedState({ isFetchingNextPage: true, isPlaceholderData: false });
+      render(<ConfessionFeed />);
+      expect(screen.queryByTestId("loading-skeleton")).not.toBeInTheDocument();
+      expect(screen.getByText("Loading more...")).toBeInTheDocument();
+    });
+
+    it("does not show pagination spinner when switching filter", () => {
+      mockFeedState({ isFetchingNextPage: true, isPlaceholderData: true, isFetching: true });
+      render(<ConfessionFeed />);
+      expect(screen.getByTestId("loading-skeleton")).toBeInTheDocument();
+      expect(screen.queryByText("Loading more...")).not.toBeInTheDocument();
+    });
+  });
+
+  describe("axe accessibility checks", () => {
+    it("has no violations in the loaded state", async () => {
+      mockFeedState();
+      const { container } = render(<ConfessionFeed />);
+      expect(await axe(container)).toHaveNoViolations();
+    });
+
+    it("has no violations in the error state", async () => {
+      mockFeedState({ data: undefined, error: new Error("Network Error") });
+      const { container } = render(<ConfessionFeed />);
+      expect(await axe(container)).toHaveNoViolations();
+    });
+
+    it("has no violations in the loading state", async () => {
+      mockFeedState({ data: undefined, isLoading: true });
+      const { container } = render(<ConfessionFeed />);
+      expect(await axe(container)).toHaveNoViolations();
+    });
   });
 });

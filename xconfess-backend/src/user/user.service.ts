@@ -6,6 +6,7 @@ import {
   Logger,
   forwardRef,
   HttpStatus,
+  Optional,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -27,6 +28,7 @@ import { decryptConfession } from '../utils/confession-encryption';
 import { ConfigService } from '@nestjs/config';
 import { AppException } from '../common/errors/app-exception';
 import { ErrorCode } from '../common/errors/error-codes';
+import { AnalyticsEventService } from '../analytics/analytics-event.service';
 
 @Injectable()
 export class UserService {
@@ -38,6 +40,8 @@ export class UserService {
     @Inject(forwardRef(() => EmailService))
     private emailService: EmailService,
     private readonly configService: ConfigService,
+    @Optional()
+    private readonly analyticsEventService?: AnalyticsEventService,
   ) {}
 
   // =========================
@@ -84,10 +88,17 @@ export class UserService {
     email: string,
     password: string,
     username: string,
+    requestId?: string,
   ): Promise<User> {
+    // Correlation suffix for log lines so a failed registration can be traced
+    // from the frontend x-request-id to backend logs (#1730). Never log the
+    // email, password, or username values themselves.
+    const trace = requestId ? ` [requestId=${requestId}]` : '';
+
     const normalizedEmail = email.trim().toLowerCase();
     const existing = await this.findByEmail(normalizedEmail);
     if (existing) {
+      this.logger.warn(`Registration rejected: email already in use${trace}`);
       throw new AppException(
         'An account with this email already exists.',
         ErrorCode.ALREADY_EXISTS,
@@ -97,6 +108,7 @@ export class UserService {
     }
     const existingUsername = await this.findByUsername(username);
     if (existingUsername) {
+      this.logger.warn(`Registration rejected: username already taken${trace}`);
       throw new AppException(
         'This username is already taken.',
         ErrorCode.ALREADY_EXISTS,
@@ -122,15 +134,31 @@ export class UserService {
 
       const savedUser = await this.userRepository.save(user);
 
+      this.analyticsEventService
+        ?.record({
+          eventName: 'user_registered',
+          actorId: `user:${savedUser.id}`,
+          idempotencyKey: `user_registered:${savedUser.id}`,
+          metadata: { requestId: requestId ?? null, source: 'user_service' },
+        })
+        .catch((err) =>
+          this.logger.warn(
+            `Failed to record registration analytics${trace}: ${
+              err instanceof Error ? err.message : String(err)
+            }`,
+          ),
+        );
+
       try {
         await this.emailService.sendWelcomeEmail(
           normalizedEmail,
           savedUser.username,
         );
       } catch (err) {
-        // Ignore email sending failures as they shouldn't block user creation
+        // Ignore email sending failures as they shouldn't block user creation.
+        // Reference the new user by id — never log the email address.
         this.logger.warn(
-          `Failed to send welcome email to ${normalizedEmail}: ${
+          `Failed to send welcome email for user ${savedUser.id}${trace}: ${
             err instanceof Error ? err.message : err
           }`,
         );
@@ -141,6 +169,9 @@ export class UserService {
         throw error;
       }
       if ((error as { code?: string })?.code === '23505') {
+        this.logger.warn(
+          `Registration rejected: unique constraint violation${trace}`,
+        );
         throw new AppException(
           'Email or username already in use.',
           ErrorCode.ALREADY_EXISTS,
@@ -148,7 +179,7 @@ export class UserService {
         );
       }
       this.logger.error(
-        `Failed to create user: ${
+        `Failed to create user${trace}: ${
           error instanceof Error ? error.message : String(error)
         }`,
         error instanceof Error ? error.stack : undefined,
@@ -481,6 +512,24 @@ export class UserService {
           totalPages: Math.ceil(Number(totalRow?.total ?? 0) / safeLimit),
         },
       },
+    };
+  }
+
+  async getDashboardStats(userId: number) {
+    const summary = await this.getProfileSummary(userId, 1, 1);
+    const latestConfession = summary.history?.data?.[0]?.message;
+
+    return {
+      totalConfessions: Number(summary.stats?.confessions ?? 0),
+      totalReactions: Number(summary.stats?.reactions ?? 0),
+      mostPopularConfession:
+        typeof latestConfession === 'string' && latestConfession.length > 0
+          ? latestConfession
+          : 'No confessions yet',
+      badges: Array.isArray(summary.badges)
+        ? summary.badges.map((badge: any) => badge.name ?? badge.id ?? String(badge))
+        : [],
+      streak: 0,
     };
   }
 

@@ -18,6 +18,9 @@ type AnalyticsApiResponse = Partial<AnalyticsData> & {
   generatedAt?: string;
 };
 
+const AUTO_REFRESH_MS = 1000 * 60 * 5;
+const STALE_MS = 1000 * 60 * 5;
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -123,9 +126,6 @@ export const TrendingDashboard = () => {
   const [error, setError] = useState<string | null>(null);
   const [fetchedAt, setFetchedAt] = useState<number | null>(null);
   const autoRefreshRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  const AUTO_REFRESH_MS = 1000 * 60 * 5; // 5 minutes
-  const STALE_MS = 1000 * 60 * 5;
 
   const fetchAnalytics = useCallback(async () => {
     try {

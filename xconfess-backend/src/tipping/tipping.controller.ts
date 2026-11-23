@@ -3,6 +3,7 @@ import {
   Get,
   Post,
   Body,
+  Headers,
   Param,
   Req,
   UsePipes,
@@ -175,8 +176,13 @@ export class TippingController {
     @Param('id') confessionId: string,
     @Body() dto: VerifyTipDto,
     @Req() req: Request,
+    @Headers('idempotency-key') _idempotencyKey?: string,
   ): Promise<TipVerifyResponse> {
     const requestId = (req as any).requestId as string | undefined;
+    // The tipping service derives its own idempotency key from confessionId + txId
+    // (DB-level UNIQUE constraint). The optional Idempotency-Key header is accepted
+    // here for API consistency but does not alter the de-duplication logic — the
+    // txId uniqueness guarantee already makes retries safe.
     const result: TipVerificationResult =
       await this.tippingService.verifyAndRecordTip(confessionId, dto, requestId);
 

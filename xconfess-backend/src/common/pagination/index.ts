@@ -7,3 +7,4 @@ export {
   CursorPaginationMeta,
 } from './cursor-paginated-response.dto';
 export * from './cursor.util';
+export { IsValidCursor, IsValidCursorConstraint } from './cursor-validation.decorator';

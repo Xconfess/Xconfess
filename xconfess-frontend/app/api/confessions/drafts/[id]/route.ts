@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getApiBaseUrl } from "@/app/lib/config";
+import { resolveBackendRoute } from "@/app/lib/api/proxy";
 
 /**
  * ASSUMPTION: see app/api/confessions/drafts/route.ts — same proxy
@@ -14,7 +14,6 @@ function forwardAuth(req: NextRequest): HeadersInit {
 }
 
 export async function PATCH(req: NextRequest, { params }: RouteContext) {
-  const BACKEND_URL = getApiBaseUrl();
   const { id } = await params;
   const auth = req.headers.get("authorization");
   if (!auth) {
@@ -23,7 +22,8 @@ export async function PATCH(req: NextRequest, { params }: RouteContext) {
 
   try {
     const body = await req.json();
-    const res = await fetch(`${BACKEND_URL}/confessions/drafts/${id}`, {
+    const backend = resolveBackendRoute(req, `/confessions/drafts/${id}`);
+    const res = await fetch(backend.url, {
       method: "PATCH",
       headers: {
         "Content-Type": "application/json",
@@ -33,7 +33,7 @@ export async function PATCH(req: NextRequest, { params }: RouteContext) {
     });
     const data = await res.json().catch(() => null);
     return NextResponse.json(data, { status: res.status });
-  } catch (err) {
+  } catch {
     return NextResponse.json(
       { message: "Draft service unavailable" },
       { status: 502 },
@@ -42,7 +42,6 @@ export async function PATCH(req: NextRequest, { params }: RouteContext) {
 }
 
 export async function POST(req: NextRequest, { params }: RouteContext) {
-  const BACKEND_URL = getApiBaseUrl();
   const { id } = await params;
   const auth = req.headers.get("authorization");
   if (!auth) {
@@ -51,8 +50,12 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
 
   try {
     const body = await req.json();
+    const backend = resolveBackendRoute(
+      req,
+      `/confessions/drafts/${id}/autosave`,
+    );
     const res = await fetch(
-      `${BACKEND_URL}/confessions/drafts/${id}/autosave`,
+      backend.url,
       {
         method: "PATCH",
         headers: {
@@ -64,7 +67,7 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
     );
     const data = await res.json().catch(() => null);
     return NextResponse.json(data, { status: res.status });
-  } catch (err) {
+  } catch {
     return NextResponse.json(
       { message: "Draft service unavailable" },
       { status: 502 },
@@ -73,7 +76,6 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
 }
 
 export async function DELETE(req: NextRequest, { params }: RouteContext) {
-  const BACKEND_URL = getApiBaseUrl();
   const { id } = await params;
   const auth = req.headers.get("authorization");
   if (!auth) {
@@ -81,7 +83,8 @@ export async function DELETE(req: NextRequest, { params }: RouteContext) {
   }
 
   try {
-    const res = await fetch(`${BACKEND_URL}/confessions/drafts/${id}`, {
+    const backend = resolveBackendRoute(req, `/confessions/drafts/${id}`);
+    const res = await fetch(backend.url, {
       method: "DELETE",
       headers: forwardAuth(req),
     });
@@ -90,7 +93,7 @@ export async function DELETE(req: NextRequest, { params }: RouteContext) {
     }
     const data = await res.json().catch(() => null);
     return NextResponse.json(data, { status: res.status });
-  } catch (err) {
+  } catch {
     return NextResponse.json(
       { message: "Draft service unavailable" },
       { status: 502 },

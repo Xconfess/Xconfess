@@ -2,7 +2,7 @@
 
 This checklist is specific to the failed notification jobs dashboard release flow. For cross-system release gates covering backend, frontend, contracts, rollback, and post-release verification, start with [docs/release-readiness-checklist.md](docs/release-readiness-checklist.md) and then use this document for the dashboard-specific checks below.
 
-## Pre-Deployment Checklist
+## Pre-Deployment Checklist.
 
 ### Code Review
 - [ ] Review all new files for code quality

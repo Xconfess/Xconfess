@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-
-const BACKEND_URL = process.env.BACKEND_URL || "http://localhost:3001";
+import { resolveBackendRoute } from "@/app/lib/api/proxy";
 
 export async function PUT(
   request: NextRequest,
@@ -10,7 +9,8 @@ export async function PUT(
     const { name } = await params;
     const body = await request.json();
 
-    const res = await fetch(`${BACKEND_URL}/feature-flags/${name}`, {
+    const backend = resolveBackendRoute(request, `/feature-flags/${name}`);
+    const res = await fetch(backend.url, {
       method: "PUT",
       headers: {
         "Content-Type": "application/json",
@@ -21,7 +21,7 @@ export async function PUT(
 
     const data = await res.json();
     return NextResponse.json(data);
-  } catch (error) {
+  } catch {
     return NextResponse.json(
       { error: "Failed to update flag" },
       { status: 500 },
@@ -36,7 +36,8 @@ export async function DELETE(
   try {
     const { name } = await params;
 
-    const res = await fetch(`${BACKEND_URL}/feature-flags/${name}`, {
+    const backend = resolveBackendRoute(request, `/feature-flags/${name}`);
+    const res = await fetch(backend.url, {
       method: "DELETE",
       headers: {
         Cookie: request.headers.get("cookie") || "",
@@ -45,7 +46,7 @@ export async function DELETE(
 
     const data = await res.json();
     return NextResponse.json(data);
-  } catch (error) {
+  } catch {
     return NextResponse.json(
       { error: "Failed to delete flag" },
       { status: 500 },

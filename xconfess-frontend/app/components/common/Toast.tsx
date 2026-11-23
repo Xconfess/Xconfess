@@ -21,28 +21,28 @@ const ToastItem: React.FC<ToastProps> = ({ toast, onRemove }) => {
   const getBackgroundColor = () => {
     switch (toast.type) {
       case 'success':
-        return 'bg-green-900 border-green-700';
+        return 'bg-[var(--surface)] border-[var(--border)] border-l-4 border-l-emerald-500';
       case 'error':
-        return 'bg-red-900 border-red-700';
+        return 'bg-[var(--surface)] border-[var(--border)] border-l-4 border-l-rose-500';
       case 'warning':
-        return 'bg-yellow-900 border-yellow-700';
+        return 'bg-[var(--surface)] border-[var(--border)] border-l-4 border-l-amber-500';
       case 'info':
       default:
-        return 'bg-blue-900 border-blue-700';
+        return 'bg-[var(--surface)] border-[var(--border)] border-l-4 border-l-[var(--primary)]';
     }
   };
 
   const getTextColor = () => {
     switch (toast.type) {
       case 'success':
-        return 'text-green-100';
+        return 'text-emerald-700 dark:text-emerald-300';
       case 'error':
-        return 'text-red-100';
+        return 'text-rose-700 dark:text-rose-300';
       case 'warning':
-        return 'text-yellow-100';
+        return 'text-amber-700 dark:text-amber-300';
       case 'info':
       default:
-        return 'text-blue-100';
+        return 'text-[var(--secondary)]';
     }
   };
 
@@ -111,7 +111,7 @@ const ToastItem: React.FC<ToastProps> = ({ toast, onRemove }) => {
   return (
     <div
       className={`
-        flex items-start gap-3 p-4 rounded-lg border backdrop-blur-sm
+        flex items-start gap-3 rounded-xl border p-3
         animate-in slide-in-from-top-2 duration-300
         ${getBackgroundColor()}
       `}
@@ -137,7 +137,7 @@ const ToastItem: React.FC<ToastProps> = ({ toast, onRemove }) => {
           }}
           className={`
             flex-shrink-0 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider
-            bg-white/20 hover:bg-white/30 transition-colors duration-200
+            border border-[var(--border)] bg-[var(--surface-muted)] hover:bg-[var(--surface-strong)] transition-colors duration-200
             ${getTextColor()}
           `}
         >
@@ -170,7 +170,7 @@ const ToastContainer: React.FC<ToastContainerProps> = ({ toasts, onRemove }) => 
   if (toasts.length === 0) return null;
 
   return (
-    <div className="fixed top-4 right-4 z-50 flex flex-col gap-2 pointer-events-none">
+    <div className="fixed right-4 top-4 z-50 flex pointer-events-none flex-col gap-2">
       {toasts.map((toast) => (
         <div key={toast.id} className="pointer-events-auto">
           <ToastItem toast={toast} onRemove={onRemove} />

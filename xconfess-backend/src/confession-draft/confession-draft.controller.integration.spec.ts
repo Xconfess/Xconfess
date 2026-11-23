@@ -157,4 +157,96 @@ describe('ConfessionDraftController (integration)', () => {
       }),
     );
   });
+
+  describe('versioned updates (offline sync conflict handling)', () => {
+    const auth = (req: request.Test) =>
+      req.set('Authorization', 'Bearer test-token');
+
+    const seedDraft = async () => {
+      const res = await auth(
+        request(app.getHttpServer()).post('/api/confessions/drafts'),
+      )
+        .send({ content: 'base content' })
+        .expect(201);
+      return res.body as { id: string; version: number };
+    };
+
+    it('applies a version-matched update and bumps the version', async () => {
+      const draft = await seedDraft();
+
+      const res = await auth(
+        request(app.getHttpServer()).patch(
+          `/api/confessions/drafts/${draft.id}`,
+        ),
+      )
+        .send({ content: 'synced edit', version: draft.version })
+        .expect(200);
+
+      expect(res.body).toEqual(
+        expect.objectContaining({
+          id: draft.id,
+          content: 'synced edit',
+          version: draft.version + 1,
+        }),
+      );
+    });
+
+    it('rejects a stale update with a remote_updated conflict and returns the current draft', async () => {
+      const draft = await seedDraft();
+
+      await auth(
+        request(app.getHttpServer()).patch(
+          `/api/confessions/drafts/${draft.id}`,
+        ),
+      )
+        .send({ content: 'first writer wins', version: draft.version })
+        .expect(200);
+
+      const res = await auth(
+        request(app.getHttpServer()).patch(
+          `/api/confessions/drafts/${draft.id}`,
+        ),
+      )
+        .send({ content: 'stale offline edit', version: draft.version })
+        .expect(409);
+
+      expect(res.body).toEqual(
+        expect.objectContaining({
+          reason: 'remote_updated',
+          currentVersion: draft.version + 1,
+          currentDraft: expect.objectContaining({
+            id: draft.id,
+            content: 'first writer wins',
+          }),
+        }),
+      );
+    });
+
+    it('reports a remote_deleted conflict when a versioned update targets a missing draft', async () => {
+      const res = await auth(
+        request(app.getHttpServer()).patch(
+          '/api/confessions/drafts/00000000-0000-0000-0000-000000000000',
+        ),
+      )
+        .send({ content: 'offline edit for a deleted draft', version: 4 })
+        .expect(409);
+
+      expect(res.body).toEqual(
+        expect.objectContaining({
+          reason: 'remote_deleted',
+          draftId: '00000000-0000-0000-0000-000000000000',
+        }),
+      );
+    });
+
+    it('still 404s an unversioned update to a missing draft', async () => {
+      await auth(
+        request(app.getHttpServer()).patch(
+          '/api/confessions/drafts/00000000-0000-0000-0000-000000000000',
+        ),
+      )
+        .send({ content: 'no version supplied' })
+        .expect(404);
+    });
+  });
 });

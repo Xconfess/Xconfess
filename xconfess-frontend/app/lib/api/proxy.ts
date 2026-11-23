@@ -8,6 +8,14 @@ export interface ProxyRequestOptions extends RequestInit {
 }
 
 const DEFAULT_TIMEOUT = 30000;
+const FRONTEND_HOST_ENV_KEYS = [
+  'FRONTEND_URL',
+  'NEXT_PUBLIC_APP_URL',
+  'NEXT_PUBLIC_SITE_URL',
+  'VERCEL_URL',
+  'VERCEL_BRANCH_URL',
+  'VERCEL_PROJECT_PRODUCTION_URL',
+];
 
 export interface BackendRoute {
   url: string;
@@ -22,8 +30,9 @@ export function resolveBackendRoute(
   const baseApiUrl = getApiBaseUrl();
   const requestUrl = new URL(request.url);
   const backendApiUrl = new URL(baseApiUrl);
+  const frontendHosts = resolveFrontendHosts(requestUrl);
 
-  if (backendApiUrl.host === requestUrl.host) {
+  if (frontendHosts.has(backendApiUrl.host.toLowerCase())) {
     throw Object.assign(
       new Error(
         'Server misconfiguration: BACKEND_API_URL points to the frontend instead of the Render backend.',
@@ -39,19 +48,69 @@ export function resolveBackendRoute(
   };
 }
 
+function resolveFrontendHosts(requestUrl: URL): Set<string> {
+  const hosts = new Set<string>([requestUrl.host.toLowerCase()]);
+
+  for (const key of FRONTEND_HOST_ENV_KEYS) {
+    const host = normalizeHost(process.env[key]);
+    if (host) hosts.add(host);
+  }
+
+  return hosts;
+}
+
+function normalizeHost(value: string | undefined): string | null {
+  if (!value) return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+
+  try {
+    return new URL(/^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`)
+      .host
+      .toLowerCase();
+  } catch {
+    return null;
+  }
+}
+
 export function methodNotAllowed(method: string, allowed: string[]): Response {
-  return Response.json(
-    {
+  const allowHeader = allowed.join(', ');
+  return new Response(
+    JSON.stringify({
       code: 'METHOD_NOT_ALLOWED',
-      message: `Method ${method} is not allowed. Use ${allowed.join(', ')}.`,
-    },
+      message: `Method ${method} is not allowed. Use ${allowHeader}.`,
+    }),
     {
       status: 405,
       headers: {
-        Allow: allowed.join(', '),
+        'Content-Type': 'application/json',
+        Allow: allowHeader,
       },
     },
   );
+}
+
+// Methods a proxy route may need an explicit 405 for. OPTIONS/HEAD are left to
+// Next.js so CORS preflight and HEAD-of-GET keep working.
+const STANDARD_HTTP_METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'] as const;
+
+/**
+ * Build route handlers that return a standardized 405 for every standard HTTP
+ * method not in `allowed`. Spread the result into a route module, e.g.:
+ *
+ *   export const { PUT, PATCH, DELETE } = methodNotAllowedHandlers(['GET', 'POST']);
+ */
+export function methodNotAllowedHandlers(
+  allowed: string[],
+): Record<string, () => Response> {
+  const allowedSet = new Set(allowed.map((method) => method.toUpperCase()));
+  const handlers: Record<string, () => Response> = {};
+  for (const method of STANDARD_HTTP_METHODS) {
+    if (!allowedSet.has(method)) {
+      handlers[method] = () => methodNotAllowed(method, allowed);
+    }
+  }
+  return handlers;
 }
 
 export async function proxyRequest<T = unknown>(

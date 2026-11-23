@@ -17,6 +17,7 @@ build/
 .next/
 coverage/
 test-results/
+readiness-results/
 test_snapshots/
 target/
 *.tsbuildinfo

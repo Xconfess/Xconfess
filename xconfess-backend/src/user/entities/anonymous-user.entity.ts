@@ -4,6 +4,7 @@ import {
   CreateDateColumn,
   OneToMany,
   Column,
+  Index,
 } from 'typeorm';
 import { AnonymousConfession } from '../../confession/entities/confession.entity';
 import { Comment } from '../../comment/entities/comment.entity';
@@ -14,6 +15,11 @@ import { UserAnonymousUser } from './user-anonymous-link.entity';
 export class AnonymousUser {
   @PrimaryGeneratedColumn('uuid')
   id: string;
+
+  /** Keyed fingerprint of an optional Stellar wallet used for continuity. */
+  @Index({ unique: true })
+  @Column({ type: 'varchar', length: 64, nullable: true })
+  walletFingerprint: string | null;
 
   @CreateDateColumn()
   createdAt: Date;

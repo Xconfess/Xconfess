@@ -7,7 +7,7 @@
 
 ---
 
-## What Was Implemented
+## What Was Implemented.
 
 A **stable, versioned error code mapping system** for Soroban smart contracts that allows backend services to reliably distinguish retryable failures from terminal ones and generate appropriate API responses.
 

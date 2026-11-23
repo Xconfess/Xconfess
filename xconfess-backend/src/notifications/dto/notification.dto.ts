@@ -29,6 +29,10 @@ export class CreateNotificationDto {
   @IsOptional()
   @IsString()
   sourceKey?: string;
+
+  @IsOptional()
+  @IsString()
+  idempotencyKey?: string;
 }
 
 export class UpdateNotificationPreferenceDto {

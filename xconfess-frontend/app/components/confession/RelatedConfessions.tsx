@@ -3,6 +3,8 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { Card, CardContent, CardHeader } from "@/app/components/ui/card";
+import { cn } from "@/app/lib/utils/cn";
+import { focusVisible } from "@/app/lib/utils/focusStyles";
 import { formatDate } from "@/app/lib/utils/formatDate";
 import { getConfessions } from "@/app/lib/api/confessions";
 import type { NormalizedConfession } from "@/app/lib/utils/normalizeConfession";
@@ -70,7 +72,7 @@ export function RelatedConfessions({
           <li key={c.id}>
             <Link
               href={`/confessions/${c.id}`}
-              className="block hover:opacity-95 transition-opacity"
+              className={cn("block hover:opacity-95 transition-opacity", focusVisible)}
             >
               <Card className="h-full overflow-hidden">
                 <CardHeader className="py-3 px-4 text-xs text-zinc-500">

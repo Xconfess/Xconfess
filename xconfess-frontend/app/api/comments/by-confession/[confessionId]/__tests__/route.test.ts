@@ -1,11 +1,20 @@
 import { GET } from "../route";
 
 const mockFetch = jest.fn();
+const originalNextPublicApiUrl = process.env.NEXT_PUBLIC_API_URL;
 
 describe("GET /api/comments/by-confession/[confessionId]", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     global.fetch = mockFetch;
+  });
+
+  afterEach(() => {
+    if (originalNextPublicApiUrl === undefined) {
+      delete process.env.NEXT_PUBLIC_API_URL;
+    } else {
+      process.env.NEXT_PUBLIC_API_URL = originalNextPublicApiUrl;
+    }
   });
 
   it("normalizes backend data payloads and preserves backend hasMore", async () => {
@@ -83,5 +92,28 @@ describe("GET /api/comments/by-confession/[confessionId]", () => {
     await expect(response.json()).resolves.toEqual(
       expect.objectContaining({ hasMore: true }),
     );
+  });
+
+  it("rejects a self-referential Vercel backend URL before fetching", async () => {
+    const consoleError = jest
+      .spyOn(console, "error")
+      .mockImplementation(() => undefined);
+    process.env.NEXT_PUBLIC_API_URL = "https://xconfess.vercel.app/api";
+
+    try {
+      const response = await GET(
+        new Request(
+          "https://xconfess.vercel.app/api/comments/by-confession/confession-1",
+        ),
+        { params: Promise.resolve({ confessionId: "confession-1" }) },
+      );
+      const body = await response.json();
+
+      expect(response.status).toBe(503);
+      expect(body.message).toMatch(/BACKEND_API_URL points to the frontend/);
+      expect(mockFetch).not.toHaveBeenCalled();
+    } finally {
+      consoleError.mockRestore();
+    }
   });
 });

@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { getTipStats, type TipStats } from "@/lib/services/tipping.service";
 import { useTipStateMachine } from "@/lib/hooks/useTipStateMachine";
 import { useWallet } from "@/lib/hooks/useWallet";
@@ -9,6 +11,7 @@ import { useActivityStore } from "@/app/lib/store/activity.store";
 import { v4 as uuidv4 } from "uuid";
 import { Wallet, AlertCircle } from "lucide-react";
 import { cn } from "@/app/lib/utils/cn";
+import { focusVisible } from "@/app/lib/utils/focusStyles";
 
 interface TipButtonProps {
   confessionId: string;
@@ -62,6 +65,8 @@ export const TipButton = ({ confessionId, recipientAddress, initialStats }: TipB
   const [isOpen, setIsOpen] = useState(false);
   const [tipAmount, setTipAmount] = useState(String(MIN_TIP_AMOUNT));
   const [stats, setStats] = useState<TipStats | null>(initialStats || null);
+  const [walletPin, setWalletPin] = useState("");
+  const pathname = usePathname();
 
   const wallet = useWallet();
   const { isConnected, connect } = wallet;
@@ -69,7 +74,8 @@ export const TipButton = ({ confessionId, recipientAddress, initialStats }: TipB
   const { info, submit, retryVerify, cancel, reset } = useTipStateMachine({
     confessionId,
     recipientAddress,
-    onConfirmed: (hash, amount) => {
+    walletPin,
+    onConfirmed: (hash) => {
       if (activityIdRef.current) {
         updateActivity(activityIdRef.current, { txHash: hash, status: "confirmed", updatedAt: Date.now() });
       }
@@ -85,6 +91,12 @@ export const TipButton = ({ confessionId, recipientAddress, initialStats }: TipB
 
   const isBusy = info.isBusy;
   const walletCTA = getWalletCTAState(wallet, { extraDisabled: isBusy });
+
+  useEffect(() => {
+    if (typeof window !== "undefined" && new URLSearchParams(window.location.search).get("tip") === "1") {
+      setIsOpen(true);
+    }
+  }, []);
 
   useEffect(() => {
     Promise.resolve(getTipStats(confessionId))
@@ -116,6 +128,7 @@ export const TipButton = ({ confessionId, recipientAddress, initialStats }: TipB
     addActivity({ id, type: "tip", status: "submitted", createdAt: Date.now(), confessionId, amount });
 
     await submit(amount);
+    setWalletPin("");
   };
 
   const totalAmount = stats?.totalAmount || 0;
@@ -124,9 +137,19 @@ export const TipButton = ({ confessionId, recipientAddress, initialStats }: TipB
 
   const stateLabel = {
     idle: null,
-    submitting: "Sending…",
-    pending: "Waiting for Stellar confirmation…",
+    submitting: "Signing & submitting…",
+    pending: "Confirming on Stellar network…",
     verifying: "Verifying with backend…",
+    confirmed: null,
+    failed: null,
+    stale: null,
+  }[info.state];
+
+  const stateDescription = {
+    idle: null,
+    submitting: "Your wallet is signing this transaction. Please approve in your wallet extension.",
+    pending: "Transaction submitted to Stellar. Ledger finality takes 5–6 s.",
+    verifying: "Confirming the transaction was recorded on-chain.",
     confirmed: null,
     failed: null,
     stale: null,
@@ -142,6 +165,7 @@ export const TipButton = ({ confessionId, recipientAddress, initialStats }: TipB
           "flex items-center gap-2 px-4 py-2 rounded-full transition-opacity",
           needsWallet ? "bg-purple-600/40 hover:bg-purple-600/50" : "bg-purple-600 hover:bg-purple-700",
           "disabled:opacity-50",
+          focusVisible,
         )}
       >
         <span className="text-lg">💰</span>
@@ -158,7 +182,15 @@ export const TipButton = ({ confessionId, recipientAddress, initialStats }: TipB
             <div className="mb-3 p-3 rounded-lg bg-yellow-500/10 border border-yellow-500/30">
               <div className="flex items-start gap-2">
                 <AlertCircle className="h-4 w-4 flex-shrink-0 mt-0.5 text-yellow-500" />
-                <p className="text-xs text-yellow-400">{walletCTA.guidance}</p>
+                <div>
+                  <p className="text-xs text-yellow-400">{walletCTA.guidance}</p>
+                  <Link
+                    href={`/wallet?returnTo=${encodeURIComponent(`${pathname || `/confessions/${confessionId}`}?tip=1`)}`}
+                    className={cn("mt-2 inline-flex min-h-[36px] items-center rounded-lg bg-purple-600 px-3 py-2 text-xs font-semibold text-white hover:bg-purple-500", focusVisible)}
+                  >
+                    Create XConfess Wallet
+                  </Link>
+                </div>
               </div>
             </div>
           )}
@@ -168,7 +200,7 @@ export const TipButton = ({ confessionId, recipientAddress, initialStats }: TipB
                 <Wallet className="h-4 w-4 flex-shrink-0 mt-0.5 text-blue-400" />
                 <div>
                   <p className="text-xs text-blue-400 font-medium">Wallet not connected</p>
-                  <p className="text-xs text-blue-300/70 mt-0.5">Connect your Freighter wallet to send tips on Stellar.</p>
+                  <p className="text-xs text-blue-300/70 mt-0.5">Your XConfess Wallet signs this tip locally.</p>
                 </div>
               </div>
             </div>
@@ -189,9 +221,9 @@ export const TipButton = ({ confessionId, recipientAddress, initialStats }: TipB
                 <Spinner />
                 <span>{stateLabel}</span>
               </div>
-              {info.state === "pending" && (
+              {stateDescription && (
                 <p className="text-yellow-300 text-xs mt-1">
-                  Stellar ledger finality takes 5–6 s. Please wait…
+                  {stateDescription}
                 </p>
               )}
               {info.txHash && (
@@ -201,7 +233,7 @@ export const TipButton = ({ confessionId, recipientAddress, initialStats }: TipB
               )}
               <button
                 onClick={cancel}
-                className="mt-2 text-xs text-yellow-300 underline hover:text-yellow-200"
+                className={cn("mt-2 text-xs text-yellow-300 underline hover:text-yellow-200", focusVisible)}
                 aria-label="Cancel"
               >
                 Cancel
@@ -223,7 +255,7 @@ export const TipButton = ({ confessionId, recipientAddress, initialStats }: TipB
                 <button
                   onClick={retryVerify}
                   disabled={isBusy}
-                  className="flex-1 rounded py-1.5 text-xs text-white bg-orange-700 hover:bg-orange-600 transition-colors disabled:opacity-50"
+                  className={cn("flex-1 rounded py-1.5 text-xs text-white bg-orange-700 hover:bg-orange-600 transition-colors disabled:opacity-50", focusVisible)}
                   aria-label="Retry verification"
                 >
                   Retry Verification
@@ -233,7 +265,7 @@ export const TipButton = ({ confessionId, recipientAddress, initialStats }: TipB
                     href={info.explorerUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="rounded bg-zinc-700 px-2 py-1.5 text-xs text-zinc-300 hover:bg-zinc-600"
+                    className={cn("rounded bg-zinc-700 px-2 py-1.5 text-xs text-zinc-300 hover:bg-zinc-600", focusVisible)}
                   >
                     View on Explorer
                   </a>
@@ -259,7 +291,7 @@ export const TipButton = ({ confessionId, recipientAddress, initialStats }: TipB
                   href={info.explorerUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="block mt-1 text-xs text-green-400 underline hover:text-green-300 truncate"
+                  className={cn("block mt-1 text-xs text-green-400 underline hover:text-green-300 truncate", focusVisible)}
                 >
                   View on testnet.steexp.com
                 </a>
@@ -281,7 +313,7 @@ export const TipButton = ({ confessionId, recipientAddress, initialStats }: TipB
                 <button
                   onClick={retryVerify}
                   disabled={isBusy}
-                  className="flex-1 rounded py-1.5 text-xs text-white bg-red-700 hover:bg-red-600 transition-colors disabled:opacity-50"
+                  className={cn("flex-1 rounded py-1.5 text-xs text-white bg-red-700 hover:bg-red-600 transition-colors disabled:opacity-50", focusVisible)}
                   aria-label="Retry verification"
                 >
                   Retry Verification
@@ -291,7 +323,7 @@ export const TipButton = ({ confessionId, recipientAddress, initialStats }: TipB
                     href={info.explorerUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="rounded bg-zinc-700 px-2 py-1.5 text-xs text-zinc-300 hover:bg-zinc-600"
+                    className={cn("rounded bg-zinc-700 px-2 py-1.5 text-xs text-zinc-300 hover:bg-zinc-600", focusVisible)}
                   >
                     View on Explorer
                   </a>
@@ -307,7 +339,7 @@ export const TipButton = ({ confessionId, recipientAddress, initialStats }: TipB
               <p className="text-xs text-red-400">{info.error}</p>
               <button
                 onClick={reset}
-                className="mt-2 text-xs text-red-300 underline hover:text-red-200"
+                className={cn("mt-2 text-xs text-red-300 underline hover:text-red-200", focusVisible)}
               >
                 Dismiss
               </button>
@@ -326,7 +358,10 @@ export const TipButton = ({ confessionId, recipientAddress, initialStats }: TipB
                   min={MIN_TIP_AMOUNT}
                   step={TIP_STEP}
                   disabled={isBusy}
-                  className="w-full p-2 pr-12 bg-zinc-900 text-white rounded-lg border border-zinc-700 focus:border-purple-500 focus:outline-none disabled:opacity-50"
+                  className={cn(
+                    "w-full p-2 pr-12 bg-zinc-900 text-white rounded-lg border border-zinc-700 focus:border-purple-500 disabled:opacity-50",
+                    focusVisible,
+                  )}
                   aria-label="Tip amount in XLM"
                 />
                 <span className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 text-sm">XLM</span>
@@ -334,6 +369,11 @@ export const TipButton = ({ confessionId, recipientAddress, initialStats }: TipB
               <p className={cn("mt-2 text-xs", getTipAmountValidationError(tipAmount) ? "text-red-400" : "text-zinc-400")}>
                 {getTipAmountValidationError(tipAmount) ?? `Enter amount in ${TIP_UNIT} with ${TIP_STEP} precision. Minimum ${MIN_TIP_AMOUNT} ${TIP_UNIT}.`}
               </p>
+              {wallet.publicKey && (
+                <label className="mt-3 block text-left text-xs text-zinc-400">Wallet PIN
+                  <input type="password" inputMode="numeric" value={walletPin} onChange={(e) => setWalletPin(e.target.value)} placeholder="Required to sign locally" className="mt-1 w-full rounded-lg border border-zinc-700 bg-zinc-900 p-2 text-white" aria-label="Wallet PIN for tip" />
+                </label>
+              )}
               <button
                 onClick={handleTip}
                 disabled={walletCTA.disabled || isBusy || walletCTA.status === "not-installed"}
@@ -341,11 +381,12 @@ export const TipButton = ({ confessionId, recipientAddress, initialStats }: TipB
                   "w-full mt-3 py-2.5 rounded-lg text-white font-medium transition-colors flex items-center justify-center gap-2",
                   walletCTA.status === "not-connected" ? "bg-blue-600 hover:bg-blue-500" : "bg-purple-600 hover:bg-purple-500",
                   "disabled:opacity-50 disabled:cursor-not-allowed",
+                  focusVisible,
                 )}
                 aria-label={
                   isBusy ? stateLabel ?? "Processing…"
                   : walletCTA.status === "not-connected" ? "Connect Wallet to Tip"
-                  : walletCTA.status === "not-installed" ? "Wallet required — install Freighter"
+                  : walletCTA.status === "not-installed" ? "Create an XConfess Wallet to tip"
                   : `Send ${tipAmount} XLM tip`
                 }
               >

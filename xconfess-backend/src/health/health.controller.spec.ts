@@ -48,6 +48,22 @@ describe('HealthController', () => {
     jest.clearAllMocks();
 
     configService = { get: jest.fn().mockReturnValue('false') };
+    dbIndicator.isHealthy.mockResolvedValue(
+      UP('database', { latencyMs: 2, version: 'PostgreSQL 16.3', activeConnections: 5, maxConnections: 100 }),
+    );
+    redisIndicator.isHealthy.mockResolvedValue(
+      UP('redis', { host: 'localhost', port: 6379, latencyMs: 1, version: '7.2.0', connectedClients: 3 }),
+    );
+    schemaIndicator.isHealthy.mockResolvedValue(UP('schema'));
+    queueIndicator.isHealthy.mockResolvedValue(UP('queues'));
+    healthService.check.mockImplementation((checks: Array<() => Promise<unknown>>) =>
+      Promise.all(checks.map((fn) => fn())).then((results) => ({
+        status: 'ok',
+        info: Object.assign({}, ...results),
+        error: {},
+        details: Object.assign({}, ...results),
+      })),
+    );
 
     const module: TestingModule = await Test.createTestingModule({
       controllers: [HealthController],
@@ -166,4 +182,197 @@ describe('HealthController', () => {
       expect(result.subsystems).toHaveLength(4);
     });
   });
+
+  describe('GET /health/status', () => {
+    it('returns state "ready" when all checks pass', async () => {
+      const result = await controller.status();
+      expect(result.state).toBe('ready');
+      expect(result.timestamp).toBeDefined();
+      expect(result.checks.database.status).toBe('up');
+      expect(result.checks.redis.status).toBe('up');
+      expect(result.checks.queues.status).toBe('up');
+      expect(result.checks.schema.status).toBe('up');
+    });
+
+    it('returns state "down" when database is down', async () => {
+      healthService.check.mockImplementationOnce(() =>
+        Promise.reject({
+          response: {
+            status: 'error',
+            error: { database: { status: 'down' } },
+            details: { database: { status: 'down' } },
+          },
+        }),
+      );
+
+      const result = await controller.status();
+      expect(result.state).toBe('down');
+    });
+
+    it('returns state "down" when schema is down', async () => {
+      healthService.check.mockImplementationOnce(() =>
+        Promise.reject({
+          response: {
+            status: 'error',
+            error: { schema: { status: 'down' } },
+            details: { schema: { status: 'down' } },
+          },
+        }),
+      );
+
+      const result = await controller.status();
+      expect(result.state).toBe('down');
+    });
+
+    it('returns state "disabled" when Redis and queues are disabled but core is up', async () => {
+      healthService.check.mockResolvedValueOnce({
+        status: 'ok',
+        details: {
+          database: { status: 'up' },
+          redis: { status: 'up', mode: 'disabled' },
+          queues: { status: 'up', mode: 'disabled' },
+          schema: { status: 'up' },
+        },
+      });
+
+      const result = await controller.status();
+      expect(result.state).toBe('disabled');
+      expect(result.checks.redis.mode).toBe('disabled');
+      expect(result.checks.queues.mode).toBe('disabled');
+    });
+
+    it('returns state "degraded" when queues are down but core is up', async () => {
+      // NestJS Terminus rejects with { response: { error: { <failed> }, details: { <all> } } }
+      healthService.check.mockImplementationOnce(() =>
+        Promise.reject({
+          response: {
+            status: 'error',
+            error: { queues: { status: 'down' } },
+            details: {
+              database: { status: 'up' },
+              redis: { status: 'up' },
+              queues: { status: 'down' },
+              schema: { status: 'up' },
+            },
+          },
+        }),
+      );
+
+      const result = await controller.status();
+      expect(result.state).toBe('degraded');
+    });
+
+    it('returns state "degraded" when Redis is down but core is up', async () => {
+      healthService.check.mockImplementationOnce(() =>
+        Promise.reject({
+          response: {
+            status: 'error',
+            error: { redis: { status: 'down' } },
+            details: {
+              database: { status: 'up' },
+              redis: { status: 'down' },
+              queues: { status: 'up' },
+              schema: { status: 'up' },
+            },
+          },
+        }),
+      );
+
+      const result = await controller.status();
+      expect(result.state).toBe('degraded');
+    });
+  });
+
+  // ── Issue #1997: liveness vs readiness distinction ────────────────────────
+  describe('GET /health/live — liveness probe (#1997)', () => {
+    it('returns ok without checking any external dependency', () => {
+      const result = controller.liveness();
+      expect(result).toEqual({ status: 'ok' });
+      // No DB or Redis calls — process is alive regardless of dependency state
+      expect(healthService.check).not.toHaveBeenCalled();
+    });
+
+    it('returns ok even when readiness dependencies are down', async () => {
+      // Simulate all dependencies down — liveness should still return ok
+      healthService.check.mockRejectedValueOnce(new Error('DB down'));
+      const result = controller.liveness();
+      expect(result.status).toBe('ok');
+    });
+  });
+
+  describe('GET /health/ready — readiness with failed dependency (#1997)', () => {
+    it('reports Postgres as down in the subsystems list when DB check fails', async () => {
+      healthService.check.mockResolvedValueOnce({
+        status: 'error',
+        info: {
+          redis: { status: 'up' },
+          queues: { status: 'up' },
+          schema: { status: 'up' },
+        },
+        error: { database: { status: 'down' } },
+        details: {
+          database: { status: 'down' },
+          redis: { status: 'up' },
+          queues: { status: 'up' },
+          schema: { status: 'up' },
+        },
+      });
+
+      const result = await controller.readiness();
+      const dbSubsystem = result.subsystems?.find(
+        (s: { name: string }) => s.name === 'database',
+      );
+      expect(dbSubsystem?.status).toBe('down');
+    });
+
+    it('reports Redis as down in the subsystems list when Redis check fails', async () => {
+      healthService.check.mockResolvedValueOnce({
+        status: 'error',
+        info: {
+          database: { status: 'up' },
+          queues: { status: 'up' },
+          schema: { status: 'up' },
+        },
+        error: { redis: { status: 'down' } },
+        details: {
+          database: { status: 'up' },
+          redis: { status: 'down' },
+          queues: { status: 'up' },
+          schema: { status: 'up' },
+        },
+      });
+
+      const result = await controller.readiness();
+      const redisSubsystem = result.subsystems?.find(
+        (s: { name: string }) => s.name === 'redis',
+      );
+      expect(redisSubsystem?.status).toBe('down');
+    });
+
+    it('response does not expose connection credentials', async () => {
+      healthService.check.mockResolvedValueOnce({
+        status: 'ok',
+        info: {
+          database: { status: 'up', latencyMs: 3 },
+          redis: { status: 'up' },
+          queues: { status: 'up' },
+          schema: { status: 'up' },
+        },
+        error: {},
+        details: {
+          database: { status: 'up' },
+          redis: { status: 'up' },
+          queues: { status: 'up' },
+          schema: { status: 'up' },
+        },
+      });
+
+      const result = await controller.readiness();
+      const serialized = JSON.stringify(result);
+      expect(serialized).not.toMatch(/password/i);
+      expect(serialized).not.toMatch(/DATABASE_PASSWORD/);
+      expect(serialized).not.toMatch(/DATABASE_URL/);
+    });
+  });
 });
+

@@ -1,13 +1,12 @@
 import { createApiErrorResponse } from "@/lib/apiErrorHandler";
-import { buildProxyErrorResponse, internalProxyErrorResponse } from "@/app/lib/utils/proxyError";
-import { getApiBaseUrl } from "@/app/lib/config";
+import { internalProxyErrorResponse } from "@/app/lib/utils/proxyError";
+import { resolveBackendRoute } from "@/app/lib/api/proxy";
 
 
 export async function GET(
   _request: Request,
   context: { params: Promise<{ confessionId: string }> },
 ) {
-  const BASE_API_URL = getApiBaseUrl();
   try {
     const { confessionId } = await context.params;
     if (!confessionId) {
@@ -25,8 +24,11 @@ export async function GET(
     if (page) qs.set("page", page);
     if (limit) qs.set("limit", limit);
 
-    const url = `${BASE_API_URL}/comments/by-confession/${confessionId}${qs.toString() ? `?${qs.toString()}` : ""}`;
-    const response = await fetch(url, {
+    const backend = resolveBackendRoute(
+      _request,
+      `/comments/by-confession/${confessionId}${qs.toString() ? `?${qs.toString()}` : ""}`,
+    );
+    const response = await fetch(backend.url, {
       method: "GET",
       headers: { "Content-Type": "application/json" },
       next: { revalidate: 15 },

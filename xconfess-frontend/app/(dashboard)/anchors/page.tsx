@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { fetchUserAnchors } from "@/app/lib/api/stellar";
 import { getStellarExplorerUrl } from "@/app/lib/utils/stellar";
+import { EmptyState } from "@/components/ui/empty-state";
 
 type AnchorStatus = "pending" | "confirmed" | "failed" | "stale";
 
@@ -105,16 +106,12 @@ export default function AnchorsPage() {
       )}
 
       {!isLoading && !isError && data && data.data.length === 0 && (
-        <div className="flex flex-col items-center justify-center py-20 text-center">
-          <Inbox className="w-16 h-16 text-[var(--secondary)] mb-4" />
-          <h2 className="text-lg font-semibold text-[var(--foreground)] mb-2">
-            No anchors yet
-          </h2>
-          <p className="text-[var(--secondary)] max-w-md">
-            Confessions you anchor on the Stellar blockchain will appear here.
-            Anchor a confession from its detail page to get started.
-          </p>
-        </div>
+        <EmptyState
+          className="py-20"
+          icon={<Inbox className="w-16 h-16 text-[var(--secondary)]" />}
+          title="No anchors yet"
+          description="Confessions you anchor on the Stellar blockchain will appear here. Anchor a confession from its detail page to get started."
+        />
       )}
 
       {!isLoading && !isError && data && data.data.length > 0 && (

@@ -1,7 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { MessagesService } from './messages.service';
-import { Message } from './entities/message.entity';
+import { Message, MessageDeliveryStatus } from './entities/message.entity';
 import { AnonymousConfession } from '../confession/entities/confession.entity';
 import { UserAnonymousUser } from '../user/entities/user-anonymous-link.entity';
 import { OutboxEvent } from '../common/entities/outbox-event.entity';
@@ -109,6 +109,8 @@ describe('MessagesService', () => {
           provide: MessageRepository,
           useValue: {
             markThreadRead: jest.fn(),
+            markMessagesDelivered: jest.fn(),
+            markMessagesRead: jest.fn(),
           },
         },
         { provide: DataSource, useValue: { transaction: jest.fn() } },
@@ -161,7 +163,7 @@ describe('MessagesService', () => {
       ).rejects.toThrow(BadRequestException);
     });
 
-    it('should persist a valid E2E envelope', async () => {
+    it('should persist a valid E2E envelope with SENT delivery status', async () => {
       const confession = {
         id: mockConfessionId,
         anonymousUser: { id: mockAnonId, userLinks: [] },
@@ -188,6 +190,7 @@ describe('MessagesService', () => {
 
       expect(result.content).toBe(encryptedReply);
       expect(result.isEncrypted).toBe(true);
+      expect(result.deliveryStatus).toBe(MessageDeliveryStatus.SENT);
     });
   });
 
@@ -221,7 +224,7 @@ describe('MessagesService', () => {
       expect(messageRepo.createQueryBuilder).toHaveBeenCalledWith('message');
     });
 
-    it('should return messages if user is sender', async () => {
+    it('should return messages if user is sender and mark as delivered', async () => {
       const confession = {
         id: mockConfessionId,
         anonymousUser: { id: 'other-anon' },
@@ -247,6 +250,10 @@ describe('MessagesService', () => {
         mockSenderId,
         'SENDER',
       );
+      expect(customMessageRepository.markMessagesDelivered).toHaveBeenCalledWith(
+        mockConfessionId,
+        mockSenderId,
+      );
     });
 
     it('should throw NotFoundException if confession does not exist', async () => {
@@ -261,7 +268,7 @@ describe('MessagesService', () => {
       ).rejects.toThrow(NotFoundException);
     });
 
-    it('should throw NotFoundException if user is neither author nor sender', async () => {
+    it('should throw NotFoundException if user is neither author nor sender (forged IDs)', async () => {
       const confession = {
         id: mockConfessionId,
         anonymousUser: { id: 'other-anon' },
@@ -276,6 +283,40 @@ describe('MessagesService', () => {
       await expect(
         service.findForConfessionThread(
           mockConfessionId,
+          mockSenderId,
+          mockUser,
+        ),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('should throw NotFoundException for forged sender ID', async () => {
+      const confession = {
+        id: mockConfessionId,
+        anonymousUser: { id: mockAnonId },
+      };
+      jest
+        .spyOn(confessionRepo, 'findOne')
+        .mockResolvedValue(confession as any);
+      jest
+        .spyOn(userAnonRepo, 'find')
+        .mockResolvedValue([{ anonymousUserId: mockAnonId }] as any);
+
+      // User is author, but requests a thread with a forged sender ID
+      await expect(
+        service.findForConfessionThread(
+          mockConfessionId,
+          'forged-sender-id',
+          mockUser,
+        ),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('should throw NotFoundException for forged confession ID', async () => {
+      jest.spyOn(confessionRepo, 'findOne').mockResolvedValue(null);
+
+      await expect(
+        service.findForConfessionThread(
+          'forged-confession-id',
           mockSenderId,
           mockUser,
         ),
@@ -399,6 +440,58 @@ describe('MessagesService', () => {
         confessionId: 'c1',
         senderId: 's1',
       });
+    });
+  });
+
+  describe('markMessagesAsRead', () => {
+    it('should mark messages as read for sender', async () => {
+      const confession = {
+        id: mockConfessionId,
+        anonymousUser: { id: 'author-anon' },
+      };
+      jest.spyOn(confessionRepo, 'findOne').mockResolvedValue(confession as any);
+      jest
+        .spyOn(userAnonRepo, 'find')
+        .mockResolvedValue([{ anonymousUserId: mockSenderId }] as any);
+      jest
+        .spyOn(customMessageRepository, 'markMessagesRead')
+        .mockResolvedValue(5);
+
+      const result = await service.markMessagesAsRead(
+        mockConfessionId,
+        mockSenderId,
+        1,
+      );
+
+      expect(result.success).toBe(true);
+      expect(result.updatedCount).toBe(5);
+      expect(customMessageRepository.markMessagesRead).toHaveBeenCalledWith(
+        mockConfessionId,
+        mockSenderId,
+      );
+    });
+
+    it('should throw NotFoundException if user is not the sender', async () => {
+      const confession = {
+        id: mockConfessionId,
+        anonymousUser: { id: 'author-anon' },
+      };
+      jest.spyOn(confessionRepo, 'findOne').mockResolvedValue(confession as any);
+      jest
+        .spyOn(userAnonRepo, 'find')
+        .mockResolvedValue([{ anonymousUserId: 'other-anon' }] as any);
+
+      await expect(
+        service.markMessagesAsRead(mockConfessionId, mockSenderId, 1),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('should throw NotFoundException if confession does not exist', async () => {
+      jest.spyOn(confessionRepo, 'findOne').mockResolvedValue(null);
+
+      await expect(
+        service.markMessagesAsRead(mockConfessionId, mockSenderId, 1),
+      ).rejects.toThrow(NotFoundException);
     });
   });
 });

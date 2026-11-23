@@ -4,9 +4,10 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useState, useEffect } from 'react';
 import { useNetwork } from '@/app/lib/providers/NetworkStatusProvider';
 import { isNetworkError } from '@/app/lib/utils/errorHandler';
+import { readRetryDelay, shouldRetryRead } from '@/app/lib/api/readRetry';
 
 export default function QueryProvider({ children }: { children: React.ReactNode }) {
-  const { setDegraded, setApiOnline, checkApiStatus } = useNetwork();
+  const { setDegraded, setApiOnline } = useNetwork();
   const [client] = useState(
     () =>
       new QueryClient({
@@ -14,9 +15,9 @@ export default function QueryProvider({ children }: { children: React.ReactNode 
           queries: {
             staleTime: 60_000,
             refetchOnWindowFocus: false,
-            retry: 1,
+            retry: shouldRetryRead,
             refetchOnReconnect: true,
-            retryDelay: attemptIndex => Math.min(1000 * 2 ** attemptIndex, 30000),
+            retryDelay: readRetryDelay,
             throwOnError: (error) => {
               if (isNetworkError(error)) {
                 setDegraded(true);

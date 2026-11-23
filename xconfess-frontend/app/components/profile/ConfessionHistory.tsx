@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from "react";
 import { getConfessions } from "@/app/lib/api/confessions";
 import type { NormalizedConfession } from "@/app/lib/utils/normalizeConfession";
+import { EmptyState } from "@/components/ui/empty-state";
 
 interface Props {
   userId: string;
@@ -25,7 +26,7 @@ const ConfessionHistory = ({ userId }: Props) => {
   }, [userId]);
 
   if (loading) return <p>Loading confessions...</p>;
-  if (!confessions.length) return <p>No confessions yet.</p>;
+  if (!confessions.length) return <EmptyState title="No confessions yet." />;
 
   return (
     <div className="space-y-4">

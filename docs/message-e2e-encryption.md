@@ -90,9 +90,27 @@ sequenceDiagram
 
 ## Key storage and recovery
 
+### Current key lifecycle
+
+1. When a session first opens Messages, the client requests its key status from
+   `GET /api/messages/keys/me`.
+2. If neither the server nor IndexedDB has a key for that anonymous identity,
+   the browser generates an X25519 pair, saves it locally, and registers only
+   its public key with `PUT /api/messages/keys`.
+3. Subsequent visits use the private key stored under that anonymous identity
+   in IndexedDB. The server stores the current public key, its version, and an
+   optional encrypted backup; it never receives the private key or recovery
+   passphrase.
+4. The client fetches a peer's current public key whenever it encrypts or
+   decrypts a thread. There is no server-held copy of historical private keys.
+
 ### Default (device-bound)
 
-Private keys live in IndexedDB. Clearing site data or switching browsers generates a **new** key pair on next visit. Old messages become unreadable unless a backup exists.
+Private keys live in IndexedDB. Clearing site data or switching browsers leaves
+the device without its private key. If the server already has a public key for
+that identity, the client enters recovery mode instead of generating a
+replacement key. Old messages are unreadable unless the private key is
+restored from a backup.
 
 ### Optional passphrase backup
 
@@ -130,7 +148,24 @@ Restore on a new device:
 ### Key rotation
 
 - Registering a different `publicKey` for the same anonymous identity increments `messageKeyVersion`.
-- Messages encrypted to an older key remain decryptable only with the matching private key.
+- The current API keeps one public key per anonymous identity. It does not
+  retain previous public keys or attach a key version to individual message
+  envelopes.
+- Messages encrypted to an older key remain decryptable only with the matching
+  private key and the peer public key used when they were encrypted. Replacing
+  a public key can therefore make historical messages undecryptable in the
+  current client, even if a participant still has an old private key.
+- Rotation is intentionally manual today: it happens only when a user confirms
+  **Start fresh** after recovery is unavailable. The client never silently
+  rotates a key merely because IndexedDB is empty.
+
+### Rotation follow-up
+
+Automatic or routine rotation is not implemented. A future rotation design
+must preserve a versioned public-key history and record recipient key versions
+with each envelope (or use per-message key wrapping). It must also provide a
+safe migration and recovery flow before making rotation available outside the
+explicit destructive **Start fresh** action.
 
 ### Notifications
 

@@ -87,6 +87,17 @@ export function createApiErrorResponse(
 
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
 
+  // Always echo the correlation / request id so failed calls can be traced from
+  // the frontend to backend logs (issue #1729).
+  const requestId =
+    normalized.requestId ??
+    normalized.correlationId ??
+    context.upstreamResponse?.headers.get('x-request-id') ??
+    (context.correlationId && context.correlationId !== 'unknown'
+      ? context.correlationId
+      : undefined);
+  if (requestId) headers['X-Request-Id'] = requestId;
+
   // Forward rate-limit headers from the upstream backend response
   if (normalized.status === 429) {
     const upstream = context.upstreamResponse;

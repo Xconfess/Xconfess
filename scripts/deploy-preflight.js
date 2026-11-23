@@ -162,9 +162,54 @@ function validateRenderYaml() {
   }
 }
 
+// Guards the render:prestart baseline logic that protects sync-created Render
+// databases (#1727): it must never baseline a fresh DB and never duplicate
+// migration rows into an existing history.
+function validateRenderPrestartBaseline() {
+  let evaluateBaselineDecision;
+  try {
+    ({ evaluateBaselineDecision } = require('./render-prestart'));
+  } catch (error) {
+    fail(`Unable to load render-prestart baseline logic: ${error.message}`);
+    return;
+  }
+
+  if (typeof evaluateBaselineDecision !== 'function') {
+    fail('render-prestart must export evaluateBaselineDecision for baseline coverage.');
+    return;
+  }
+
+  const ready = {
+    baselineEnabled: true,
+    migrationsRunEnabled: true,
+    migrationsAvailable: true,
+    coreTablesPresent: true,
+    migrationHistoryCount: 0,
+  };
+
+  const cases = [
+    ['disabled baseline flag skips', { ...ready, baselineEnabled: false }, 'skip'],
+    ['disabled migrations run skips', { ...ready, migrationsRunEnabled: false }, 'skip'],
+    ['missing compiled migrations errors', { ...ready, migrationsAvailable: false }, 'error'],
+    ['fresh database is never baselined', { ...ready, coreTablesPresent: false }, 'skip'],
+    ['existing migration history is never re-baselined', { ...ready, migrationHistoryCount: 5 }, 'skip'],
+    ['synchronized schema with empty history is baselined', ready, 'baseline'],
+  ];
+
+  for (const [label, state, expected] of cases) {
+    const decision = evaluateBaselineDecision(state);
+    if (!decision || decision.action !== expected) {
+      fail(
+        `render-prestart baseline logic: "${label}" expected action "${expected}" but got "${decision && decision.action}".`,
+      );
+    }
+  }
+}
+
 const failures = [];
 validateWorkspaceDependencies();
 validateRenderYaml();
+validateRenderPrestartBaseline();
 validateMigrations();
 validateFrontendUrls();
 validateProductionSecrets();

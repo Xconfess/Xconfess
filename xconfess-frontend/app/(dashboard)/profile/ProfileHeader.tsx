@@ -77,7 +77,7 @@ export function ProfileHeader({
                     {badge.iconUrl ? (
                       <Image
                         src={badge.iconUrl}
-                        alt={badge.name}
+                        alt=""
                         width={20}
                         height={20}
                         className="w-5 h-5"

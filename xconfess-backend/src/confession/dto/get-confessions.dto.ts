@@ -5,6 +5,7 @@ import { CursorPaginationDto } from '../../common/pagination/cursor-pagination.d
 export enum SortOrder {
   TRENDING = 'trending',
   NEWEST = 'newest',
+  MOST_DISCUSSED = 'most_discussed',
 }
 
 export enum Gender {

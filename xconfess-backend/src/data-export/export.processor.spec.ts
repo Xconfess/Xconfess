@@ -123,5 +123,57 @@ describe('ExportProcessor', () => {
         'Test error',
       );
     });
+
+    it('should not update status to READY when compilation fails', async () => {
+      const mockJob = {
+        name: 'process-export',
+        data: { userId: '1', requestId: 'req-fail' },
+      } as Job;
+
+      dataExportService.compileUserData.mockRejectedValue(
+        new Error('timeout'),
+      );
+
+      await processor.process(mockJob);
+
+      expect(exportRepo.update).not.toHaveBeenCalledWith(
+        'req-fail',
+        expect.objectContaining({ status: 'READY' }),
+      );
+      expect(dataExportService.markExportFailed).toHaveBeenCalledWith(
+        'req-fail',
+        'timeout',
+      );
+    });
+
+    it('should call markExportFailed with error message on any failure', async () => {
+      const mockJob = {
+        name: 'process-export',
+        data: { userId: '1', requestId: 'req-err' },
+      } as Job;
+
+      dataExportService.markExportProcessing.mockRejectedValue(
+        new Error('DB connection lost'),
+      );
+
+      await processor.process(mockJob);
+
+      expect(dataExportService.markExportFailed).toHaveBeenCalledWith(
+        'req-err',
+        'DB connection lost',
+      );
+    });
+
+    it('should skip processing for non-process-export job names', async () => {
+      const mockJob = {
+        name: 'other-job',
+        data: { userId: '1', requestId: 'req-skip' },
+      } as Job;
+
+      await processor.process(mockJob);
+
+      expect(dataExportService.markExportProcessing).not.toHaveBeenCalled();
+      expect(dataExportService.markExportFailed).not.toHaveBeenCalled();
+    });
   });
 });

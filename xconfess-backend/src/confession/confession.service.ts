@@ -4,6 +4,7 @@ import {
   ConflictException,
   NotFoundException,
   InternalServerErrorException,
+  Optional,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
@@ -34,7 +35,7 @@ import {
 import { ModerationRepositoryService } from '../moderation/moderation-repository.service';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { AnonymousUserService } from '../user/anonymous-user.service';
-import { EntityManager, Repository } from 'typeorm';
+import { DataSource, EntityManager, Repository } from 'typeorm';
 import { AnonymousUser } from '../user/entities/anonymous-user.entity';
 import { AnonymousConfession } from './entities/confession.entity';
 import { AppLogger } from '../logger/logger.service';
@@ -52,6 +53,7 @@ import { GetUserConfessionsDto } from './dto/get-user-confessions.dto';
 import { mapToSlimConfession } from './utils/confession-mapper';
 import { AnomalyDetectionService } from '../anomaly/anomaly-detection.service';
 import { ConfessionIdempotencyService } from './confession-idempotency.service';
+import { AnalyticsEventService } from '../analytics/analytics-event.service';
 
 @Injectable()
 export class ConfessionService {
@@ -71,6 +73,9 @@ export class ConfessionService {
     private readonly configService: ConfigService,
     private readonly anomalyDetection: AnomalyDetectionService,
     private readonly idempotencyService: ConfessionIdempotencyService,
+    private readonly dataSource: DataSource,
+    @Optional()
+    private readonly analyticsEventService?: AnalyticsEventService,
   ) {}
 
   private get aesKey(): string {
@@ -85,10 +90,22 @@ export class ConfessionService {
     }).trim();
   }
 
-  async create(dto: CreateConfessionDto, manager?: EntityManager) {
+  async create(
+    dto: CreateConfessionDto,
+    manager?: EntityManager,
+    walletAddress?: string,
+  ) {
     // Only use 'message' as canonical field
     const msg = this.sanitizeMessage(dto.message);
     if (!msg) throw new BadRequestException('Invalid confession content');
+
+    // ── Maximum length enforcement at persistence boundary ─────────────────
+    const MAX_CONFESSION_LENGTH = 1000;
+    if (msg.length > MAX_CONFESSION_LENGTH) {
+      throw new BadRequestException(
+        `Confession cannot exceed ${MAX_CONFESSION_LENGTH} characters (received ${msg.length})`,
+      );
+    }
 
     // ── Idempotency check ─────────────────────────────────────────────────
     if (dto.idempotencyKey) {
@@ -116,7 +133,12 @@ export class ConfessionService {
       // First occurrence: run creation, then commit idempotency record.
       let savedConfession: AnonymousConfession;
       try {
-        savedConfession = await this.executeCreate(dto, msg, manager);
+        savedConfession = await this.executeCreate(
+          dto,
+          msg,
+          manager,
+          walletAddress,
+        );
       } catch (err) {
         await this.idempotencyService.commitFailure(idempotencyResult.record);
         throw err;
@@ -133,7 +155,7 @@ export class ConfessionService {
     }
 
     // No idempotency key – run creation directly (legacy / optional path).
-    return this.executeCreate(dto, msg, manager);
+    return this.executeCreate(dto, msg, manager, walletAddress);
   }
 
   /**
@@ -144,162 +166,207 @@ export class ConfessionService {
     dto: CreateConfessionDto,
     msg: string,
     manager?: EntityManager,
+    walletAddress?: string,
   ): Promise<AnonymousConfession> {
-    try {
-      // Step 0: Validate tags if provided
-      let validatedTags: any[] = [];
-      if (dto.tags && dto.tags.length > 0) {
-        validatedTags = await this.tagService.validateTags(dto.tags);
-      }
+    // Step 0: Validate tags if provided (external call - keep outside transaction)
+    let validatedTags: any[] = [];
+    if (dto.tags && dto.tags.length > 0) {
+      validatedTags = await this.tagService.validateTags(dto.tags);
+    }
 
-      // Step 1: Moderate the content BEFORE encryption
-      const moderationResult =
-        await this.aiModerationService.moderateContent(msg);
+    // Step 1: Moderate the content BEFORE encryption (external call - keep outside transaction)
+    const moderationResult =
+      await this.aiModerationService.moderateContent(msg);
 
-      // Step 1.5: Create an AnonymousUser to associate with this confession
-      const anonymousUser = manager
-        ? await manager
-            .getRepository(AnonymousUser)
-            .save(manager.getRepository(AnonymousUser).create())
-        : await this.anonymousUserService.create();
+    // Step 1.5: Create an AnonymousUser to associate with this confession
+    // This is a quick DB write - include in transaction
+    // Step 2: Encrypt
+    const encryptedMsg = encryptConfession(msg, this.aesKey);
+    assertEncryptedBeforeSave(encryptedMsg);
 
-      // Step 2: Encrypt and save the confession
-      const encryptedMsg = encryptConfession(msg, this.aesKey);
-      assertEncryptedBeforeSave(encryptedMsg);
-      const confessionRepo: Repository<AnonymousConfession> = manager
-        ? manager.getRepository(AnonymousConfession)
-        : (this.confessionRepo as unknown as Repository<AnonymousConfession>);
+    // Prepare Stellar anchoring data if transaction hash provided
+    let stellarData: {
+      stellarTxHash?: string;
+      stellarHash?: string;
+      isAnchored?: boolean;
+      anchoredAt?: Date;
+    } = {};
 
-      // Prepare Stellar anchoring data if transaction hash provided
-      let stellarData: {
-        stellarTxHash?: string;
-        stellarHash?: string;
-        isAnchored?: boolean;
-        anchoredAt?: Date;
-      } = {};
-
-      if (dto.stellarTxHash) {
-        const anchorData = this.stellarService.processAnchorData(
-          msg,
-          dto.stellarTxHash,
-        );
-        if (anchorData) {
-          stellarData = {
-            stellarTxHash: anchorData.stellarTxHash,
-            stellarHash: anchorData.stellarHash,
-            isAnchored: true,
-            anchoredAt: anchorData.anchoredAt,
-          };
-        }
-      }
-
-      const conf = confessionRepo.create({
-        message: encryptedMsg,
-        keyVersion: 'v1',
-        gender: dto.gender,
-        anonymousUser,
-        moderationScore: moderationResult.score,
-        moderationFlags: moderationResult.flags as any,
-        moderationStatus: moderationResult.status as any,
-        requiresReview: moderationResult.requiresReview,
-        isHidden: moderationResult.status === ModerationStatus.REJECTED,
-        moderationDetails: moderationResult.details,
-        ...stellarData,
-        ...(dto.idempotencyKey ? { idempotencyKey: dto.idempotencyKey } : {}),
-      });
-
-      const savedConfession = await confessionRepo.save(conf);
-
-      // Step 2.5: Create ConfessionTag entries if tags were provided
-      if (validatedTags.length > 0) {
-        const confessionTagRepo: Repository<ConfessionTag> = manager
-          ? manager.getRepository(ConfessionTag)
-          : this.confessionRepo.manager.getRepository(ConfessionTag);
-
-        const confessionTags = validatedTags.map((tag) =>
-          confessionTagRepo.create({
-            confession: savedConfession,
-            tag: tag,
-          }),
-        );
-
-        await confessionTagRepo.save(confessionTags);
-      }
-
-      await this.invalidateConfessionCache();
-
-      // Step 3: Log moderation decision
-      await this.moderationRepoService.createLog(
+    if (dto.stellarTxHash) {
+      const anchorData = this.stellarService.processAnchorData(
         msg,
-        moderationResult,
-        savedConfession.id,
-        undefined,
-        'openai',
-        manager,
+        dto.stellarTxHash,
+      );
+      if (anchorData) {
+        stellarData = {
+          stellarTxHash: anchorData.stellarTxHash,
+          stellarHash: anchorData.stellarHash,
+          isAnchored: true,
+          anchoredAt: anchorData.anchoredAt,
+        };
+      }
+    }
+
+    const confessionData = {
+      message: encryptedMsg,
+      keyVersion: 'v1',
+      gender: dto.gender,
+      moderationScore: moderationResult.score,
+      moderationFlags: moderationResult.flags as any,
+      moderationStatus: moderationResult.status as any,
+      requiresReview: moderationResult.requiresReview,
+      isHidden: moderationResult.status === ModerationStatus.REJECTED,
+      moderationDetails: moderationResult.details,
+      ...stellarData,
+      ...(dto.idempotencyKey ? { idempotencyKey: dto.idempotencyKey } : {}),
+    };
+
+    // Keep every database side effect in one transaction. Events and cache
+    // invalidation are published only after this transaction commits so a
+    // later insert failure cannot leave notifications for a rolled-back row.
+    const savedConfession = manager
+      ? await this.executeCreateInTransaction(
+          manager,
+          dto,
+          msg,
+          walletAddress,
+          validatedTags,
+          moderationResult,
+          confessionData,
+        )
+      : await this.dataSource.transaction((txManager) =>
+          this.executeCreateInTransaction(
+            txManager,
+            dto,
+            msg,
+            walletAddress,
+            validatedTags,
+            moderationResult,
+            confessionData,
+          ),
+        );
+
+    await this.publishConfessionCreated(savedConfession, dto, moderationResult);
+    return savedConfession;
+  }
+
+  /**
+   * Execute confession creation within a transaction.
+   * All database writes are atomic - either all commit or all roll back.
+   * External calls (moderation, tag validation) are done BEFORE the transaction.
+   */
+  private async executeCreateInTransaction(
+    txManager: EntityManager,
+    dto: CreateConfessionDto,
+    msg: string,
+    walletAddress: string | undefined,
+    validatedTags: any[],
+    moderationResult: any,
+    confessionData: any,
+  ): Promise<AnonymousConfession> {
+    // Create AnonymousUser within transaction
+    const anonymousUser = await txManager
+      .getRepository(AnonymousUser)
+      .save(txManager.getRepository(AnonymousUser).create());
+
+    // Create confession within transaction
+    const confessionRepo = txManager.getRepository(AnonymousConfession);
+    const conf = confessionRepo.create({
+      ...confessionData,
+      anonymousUser,
+    });
+
+    const savedConfession = (await confessionRepo.save(
+      conf,
+    )) as unknown as AnonymousConfession;
+
+    // Create ConfessionTag entries within transaction
+    if (validatedTags.length > 0) {
+      const confessionTagRepo = txManager.getRepository(ConfessionTag);
+      const confessionTags = validatedTags.map((tag) =>
+        confessionTagRepo.create({
+          confession: savedConfession,
+          tag: tag,
+        }),
+      );
+      await confessionTagRepo.save(confessionTags);
+    }
+
+    // Log moderation decision within transaction
+    await this.moderationRepoService.createLog(
+      msg,
+      moderationResult,
+      savedConfession.id,
+      undefined,
+      'openai',
+      txManager,
+    );
+
+    return savedConfession;
+  }
+
+  private async publishConfessionCreated(
+    confession: AnonymousConfession,
+    dto: CreateConfessionDto,
+    moderationResult: any,
+  ): Promise<void> {
+    try {
+      await this.invalidateConfessionCache();
+    } catch (err) {
+      this.logger.warn(
+        {
+          action: 'confession_cache_invalidation_failed',
+          confessionId: confession.id,
+          error: err instanceof Error ? err.message : String(err),
+        },
+        'ConfessionsService',
+      );
+    }
+
+    this.analyticsEventService
+      ?.record({
+        eventName: 'confession_created',
+        actorId: `anon:${confession.anonymousUser?.id ?? confession.anonymousUserId}`,
+        occurredAt: confession.created_at,
+        idempotencyKey: dto.idempotencyKey
+          ? `confession_created:${dto.idempotencyKey}`
+          : `confession_created:${confession.id}`,
+        metadata: {
+          source: 'confession_service',
+          confessionId: confession.id,
+        },
+      })
+      .catch((err) =>
+        this.logger.warn(
+          {
+            action: 'analytics_record_failed',
+            eventName: 'confession_created',
+            confessionId: confession.id,
+            error: err instanceof Error ? err.message : String(err),
+          },
+          'ConfessionsService',
+        ),
       );
 
-      // Step 4: Handle high-severity content – only emit once per creation
-      if (moderationResult.status === ModerationStatus.REJECTED) {
-        this.eventEmitter.emit('moderation.high-severity', {
-          confessionId: savedConfession.id,
-          score: moderationResult.score,
-          flags: moderationResult.flags,
-        });
-      }
-
-      // Step 5: Handle medium-severity content – only emit once per creation
-      if (moderationResult.status === ModerationStatus.FLAGGED) {
-        this.eventEmitter.emit('moderation.requires-review', {
-          confessionId: savedConfession.id,
-          score: moderationResult.score,
-          flags: moderationResult.flags,
-        });
-      }
-
-      return savedConfession;
-    } catch (error) {
-      if (error instanceof BadRequestException) throw error;
-      if (error instanceof ConflictException) throw error;
-
-      if (dto.idempotencyKey && (error as any)?.code === '23505') {
-        // The idempotency_key UNIQUE constraint on anonymous_confessions fired
-        // while the records table approach was bypassed (legacy path).
-        const existing = await this.confessionRepo.findOne({
-          where: { idempotencyKey: dto.idempotencyKey },
-        });
-        if (existing) {
-          const decryptedMessage = decryptConfession(
-            existing.message,
-            this.aesKey,
-          );
-          const hasSamePayload =
-            msg === decryptedMessage &&
-            (dto.gender ?? null) === (existing.gender ?? null) &&
-            (dto.stellarTxHash ?? null) === (existing.stellarTxHash ?? null);
-
-          if (hasSamePayload) {
-            existing.message = decryptedMessage;
-            return existing;
-          }
-
-          throw new ConflictException(
-            'Idempotency key replay conflict: request body does not match original submission.',
-          );
-        }
-      }
-
-      throw new InternalServerErrorException('Failed to create confession');
+    if (moderationResult.status === ModerationStatus.REJECTED) {
+      this.eventEmitter.emit('moderation.high-severity', {
+        confessionId: confession.id,
+        score: moderationResult.score,
+        flags: moderationResult.flags,
+      });
+    }
+    if (moderationResult.status === ModerationStatus.FLAGGED) {
+      this.eventEmitter.emit('moderation.requires-review', {
+        confessionId: confession.id,
+        score: moderationResult.score,
+        flags: moderationResult.flags,
+      });
     }
   }
 
   async getConfessions(dto: GetConfessionsDto) {
     const limit = dto.limit ?? 10;
     const sort = dto.sort || SortOrder.NEWEST;
-
-    // Use cursor if provided
-    const parsedCursor = decodeCursor<{ id: string; created_at: string }>(
-      dto.cursor,
-    );
 
     const cacheKey = this.cacheService.buildKey(
       'confessions',
@@ -319,7 +386,7 @@ export class ConfessionService {
       .createQueryBuilder('confession')
       .leftJoin('confession.anonymousUser', 'anonymousUser')
       .leftJoin('anonymousUser.userLinks', 'userLinks')
-      .leftJoin('userLinks.user', 'user')
+      .leftJoin('userLinks.user', 'linked_user')
       .andWhere('confession.isDeleted = false')
       .andWhere('confession.isHidden = false')
       .andWhere('confession.moderationStatus IN (:...statuses)', {
@@ -342,9 +409,9 @@ export class ConfessionService {
         new Brackets((sub) => {
           sub
             .where('userLinks.id IS NULL')
-            .orWhere('user.privacy_settings IS NULL')
+            .orWhere('linked_user.privacy_settings IS NULL')
             .orWhere(
-              "user.privacy_settings->>'isDiscoverable' IS DISTINCT FROM 'false'",
+              "linked_user.privacy_settings->>'isDiscoverable' IS DISTINCT FROM 'false'",
             );
         }),
       )
@@ -367,16 +434,7 @@ export class ConfessionService {
       qb.andWhere('confession.gender = :gender', { gender: dto.gender });
     }
 
-    // Apply cursor or page-based filter
-    if (parsedCursor && sort === SortOrder.NEWEST) {
-      qb.andWhere(
-        '(confession.created_at < :createdAt OR (confession.created_at = :createdAt AND confession.id < :id))',
-        { createdAt: parsedCursor.created_at, id: parsedCursor.id },
-      );
-    } else if (dto.page && dto.page > 1) {
-      const skip = (dto.page - 1) * limit;
-      qb.skip(skip);
-    }
+    const offset = this.applyFeedCursor(qb, sort, dto.cursor, dto.page, limit);
 
     if (sort === SortOrder.TRENDING) {
       qb.addSelect(
@@ -388,7 +446,21 @@ export class ConfessionService {
         'reaction_count',
       )
         .orderBy('reaction_count', 'DESC')
-        .addOrderBy('confession.created_at', 'DESC');
+        .addOrderBy('confession.created_at', 'DESC')
+        .addOrderBy('confession.id', 'DESC');
+    } else if (sort === SortOrder.MOST_DISCUSSED) {
+      qb.addSelect(
+        (sub) =>
+          sub
+            .select('COUNT(*)')
+            .from('comments', 'comment_count')
+            .where('comment_count."confessionId" = confession.id')
+            .andWhere('comment_count."isDeleted" = false'),
+        'comment_count',
+      )
+        .orderBy('comment_count', 'DESC')
+        .addOrderBy('confession.created_at', 'DESC')
+        .addOrderBy('confession.id', 'DESC');
     } else {
       qb.orderBy('confession.created_at', 'DESC').addOrderBy(
         'confession.id',
@@ -409,18 +481,9 @@ export class ConfessionService {
       return mapToSlimConfession(decrypted);
     });
 
-    let nextCursor: string | null = null;
-    if (hasMore && decryptedItems.length > 0) {
-      const lastItem = items[limit - 1];
-      nextCursor = encodeCursor({
-        id: lastItem.id,
-        created_at: lastItem.created_at.toISOString(),
-      });
-    }
-
     const response = new CursorPaginatedResponseDto(
       decryptedItems,
-      nextCursor,
+      this.buildFeedNextCursor(items, limit, sort, offset),
       hasMore,
       limit,
     );
@@ -925,21 +988,13 @@ export class ConfessionService {
       });
     }
 
-    // Apply cursor pagination
-    if (dto.cursor && sort === SortOrder.NEWEST) {
-      const parsedCursor = decodeCursor<{ id: string; created_at: string }>(
-        dto.cursor,
-      );
-      if (parsedCursor) {
-        queryBuilder.andWhere(
-          '(confession.created_at < :createdAt OR (confession.created_at = :createdAt AND confession.id < :id))',
-          { createdAt: parsedCursor.created_at, id: parsedCursor.id },
-        );
-      }
-    } else if (dto.page && dto.page > 1) {
-      const skip = (dto.page - 1) * limit;
-      queryBuilder.skip(skip);
-    }
+    const offset = this.applyFeedCursor(
+      queryBuilder,
+      sort,
+      dto.cursor,
+      dto.page,
+      limit,
+    );
 
     if (sort === SortOrder.TRENDING) {
       queryBuilder
@@ -952,7 +1007,22 @@ export class ConfessionService {
           'reaction_count',
         )
         .orderBy('reaction_count', 'DESC')
-        .addOrderBy('confession.created_at', 'DESC');
+        .addOrderBy('confession.created_at', 'DESC')
+        .addOrderBy('confession.id', 'DESC');
+    } else if (sort === SortOrder.MOST_DISCUSSED) {
+      queryBuilder
+        .addSelect(
+          (sub) =>
+            sub
+              .select('COUNT(*)')
+              .from('comments', 'comment_count')
+              .where('comment_count."confessionId" = confession.id')
+              .andWhere('comment_count."isDeleted" = false'),
+          'comment_count',
+        )
+        .orderBy('comment_count', 'DESC')
+        .addOrderBy('confession.created_at', 'DESC')
+        .addOrderBy('confession.id', 'DESC');
     } else {
       queryBuilder
         .orderBy('confession.created_at', 'DESC')
@@ -968,21 +1038,69 @@ export class ConfessionService {
       message: decryptConfession(item.message, this.aesKey),
     }));
 
-    let nextCursor: string | null = null;
-    if (hasMore && decryptedItems.length > 0) {
-      const lastItem = items[limit - 1];
-      nextCursor = encodeCursor({
-        id: lastItem.id,
-        created_at: lastItem.created_at.toISOString(),
-      });
-    }
-
     return new CursorPaginatedResponseDto(
       decryptedItems,
-      nextCursor,
+      this.buildFeedNextCursor(items, limit, sort, offset),
       hasMore,
       limit,
     );
+  }
+
+  /**
+   * Applies the feed cursor and returns the row offset of this page.
+   * NEWEST uses a keyset (created_at, id) cursor. Aggregate sorts (trending,
+   * most discussed) order by computed counts, so their cursor carries an
+   * offset instead. `page` is a fallback for clients without a cursor.
+   */
+  private applyFeedCursor(
+    qb: { andWhere: (...args: any[]) => unknown; skip: (n: number) => unknown },
+    sort: SortOrder,
+    cursor: string | undefined,
+    page: number | undefined,
+    limit: number,
+  ): number {
+    const parsed = decodeCursor<{
+      id: string;
+      created_at?: string;
+      offset?: number;
+    }>(cursor);
+
+    if (sort === SortOrder.NEWEST && parsed?.created_at) {
+      // Row comparison lets Postgres seek idx_confessions_feed_keyset directly.
+      qb.andWhere(
+        '(confession.created_at, confession.id) < (:createdAt, :id)',
+        { createdAt: parsed.created_at, id: parsed.id },
+      );
+      return 0;
+    }
+
+    const offset =
+      sort !== SortOrder.NEWEST &&
+      Number.isInteger(parsed?.offset) &&
+      parsed!.offset! >= 0
+        ? parsed!.offset!
+        : page && page > 1
+          ? (page - 1) * limit
+          : 0;
+    if (offset > 0) qb.skip(offset);
+    return offset;
+  }
+
+  /** Builds nextCursor from a limit+1 probe; null means the feed is exhausted. */
+  private buildFeedNextCursor(
+    items: { id: string; created_at: Date }[],
+    limit: number,
+    sort: SortOrder,
+    offset: number,
+  ): string | null {
+    if (items.length <= limit) return null;
+    const lastItem = items[limit - 1];
+    return sort === SortOrder.NEWEST
+      ? encodeCursor({
+          id: lastItem.id,
+          created_at: lastItem.created_at.toISOString(),
+        })
+      : encodeCursor({ id: lastItem.id, offset: offset + limit });
   }
 
   // Private methods (examples)
@@ -1288,5 +1406,72 @@ export class ConfessionService {
    */
   async getAllTags() {
     return this.tagService.getAllTags();
+  }
+
+  /**
+   * Soft-delete a confession owned by a user.
+   * Issue #1929: Deleted confessions disappear from public feeds but keep
+   * audit/moderation records and related reactions/comments intact.
+   */
+  async deleteConfession(
+    confessionId: string,
+    userId: string,
+  ): Promise<{ success: boolean; deleted: boolean }> {
+    const confession = await this.confessionRepo.findOne({
+      where: { id: confessionId },
+    });
+
+    if (!confession) {
+      throw new NotFoundException('Confession not found');
+    }
+
+    const now = new Date();
+    await this.confessionRepo.update(
+      { id: confessionId },
+      {
+        isDeleted: true,
+        deletedAt: now,
+        deletedBy: userId,
+      },
+    );
+
+    await this.invalidateConfessionCache();
+
+    return {
+      success: true,
+      deleted: true,
+    };
+  }
+
+  /**
+   * Restore a soft-deleted confession.
+   * Issue #1929: Restore allows reversing accidental deletions.
+   */
+  async restoreConfession(
+    confessionId: string,
+  ): Promise<{ success: boolean; restored: boolean }> {
+    const confession = await this.confessionRepo.findOne({
+      where: { id: confessionId },
+    });
+
+    if (!confession) {
+      throw new NotFoundException('Confession not found');
+    }
+
+    await this.confessionRepo.update(
+      { id: confessionId },
+      {
+        isDeleted: false,
+        deletedAt: null,
+        deletedBy: null,
+      },
+    );
+
+    await this.invalidateConfessionCache();
+
+    return {
+      success: true,
+      restored: true,
+    };
   }
 }

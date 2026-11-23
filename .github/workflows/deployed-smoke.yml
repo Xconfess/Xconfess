@@ -1,0 +1,52 @@
+name: Deployed Smoke Test
+
+on:
+  workflow_dispatch:
+    inputs:
+      frontend_url:
+        description: Frontend URL to test
+        required: true
+        default: https://xconfess.vercel.app
+        type: string
+      backend_url:
+        description: Backend URL to test
+        required: true
+        default: https://xconfess-backend.onrender.com
+        type: string
+      run_registration_mutation:
+        description: Create a disposable registration during the smoke test
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    name: Test deployed endpoints
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      SMOKE_FRONTEND_URL: ${{ inputs.frontend_url }}
+      SMOKE_BACKEND_URL: ${{ inputs.backend_url }}
+      SMOKE_RUN_MUTATION: ${{ inputs.run_registration_mutation }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Use repository npm version
+        run: npm install --global npm@10.9.3
+
+      - name: Install dependencies
+        run: npm ci --include=optional --no-audit --no-fund
+
+      - name: Run deployed smoke test
+        run: npm run deploy:smoke

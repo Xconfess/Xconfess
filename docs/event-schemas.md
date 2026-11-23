@@ -6,7 +6,7 @@
 
 ## Overview
 
-This document defines the standardized event naming conventions and payload structures for all Xconfess smart contracts. These conventions ensure consistency across contracts and provide clear, predictable schemas for off-chain indexers and event processors.
+This document defines the standardized event naming conventions and payload structures for all xConfess smart contracts. These conventions ensure consistency across contracts and provide clear, predictable schemas for off-chain indexers and event processors.
 
 > **Bumping `event_version` or fixtures?** Use the [Contract Event Version Bump Checklist](./contract-event-version-bump-checklist.md) before opening a PR. It lists required contract files, backend fixture tests, and changelog steps.
 

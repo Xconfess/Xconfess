@@ -38,8 +38,13 @@ function sanitizeForPlainText(value: string): string {
   return sanitizeHtml(value, PLAIN_TEXT_OPTIONS).trim();
 }
 
+/**
+ * Sanitizes a search query string.
+ *
+ * Strips HTML tags first, then escapes SQL/regex wildcard characters (`%`, `_`, `\`)
+ * so that user input cannot expand into unintended LIKE patterns or path traversals.
+ */
 function sanitizeForSearch(value: string): string {
-  // Strip HTML then escape SQL/regex special characters used in search
   const stripped = sanitizeHtml(value, PLAIN_TEXT_OPTIONS);
   return stripped.replace(/[%_\\]/g, '\\$&').trim();
 }

@@ -42,6 +42,7 @@ if (typeof globalThis.BroadcastChannel === "undefined") {
 }
 
 // Import msw server only after required globals exist.
+// eslint-disable-next-line @typescript-eslint/no-require-imports
 const { server } = require("./tests/mocks/server");
 
 // Mock window.matchMedia

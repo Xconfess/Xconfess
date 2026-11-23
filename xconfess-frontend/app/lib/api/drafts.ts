@@ -1,4 +1,10 @@
-import { Draft, DraftDTO, DraftInput, DraftUpdate } from "@/app/lib/types/draft";
+import {
+  Draft,
+  DraftConflictReason,
+  DraftDTO,
+  DraftInput,
+  DraftUpdate,
+} from "@/app/lib/types/draft";
 
 /**
  * REST contract for Drafts with revision/version safety & conflict handling:
@@ -10,7 +16,15 @@ import { Draft, DraftDTO, DraftInput, DraftUpdate } from "@/app/lib/types/draft"
 
 export interface DraftConflictErrorData {
   message: string;
-  currentDraft: DraftDTO;
+  /**
+   * Machine-readable cause. Absent on older backends — callers should
+   * default to "remote_updated" when a 409 carries no reason.
+   */
+  reason?: DraftConflictReason;
+  /** Present for "remote_updated"; absent when the remote draft was deleted. */
+  currentDraft?: DraftDTO;
+  currentVersion?: number;
+  draftId?: string;
 }
 
 export class DraftApiError extends Error {
@@ -24,7 +38,7 @@ export class DraftApiError extends Error {
   }
 }
 
-function toDraft(dto: DraftDTO): Draft {
+export function toDraft(dto: DraftDTO): Draft {
   const body = dto.content ?? "";
   const savedAt = dto.updatedAt ?? dto.savedAt ?? dto.createdAt ?? new Date().toISOString();
   return {

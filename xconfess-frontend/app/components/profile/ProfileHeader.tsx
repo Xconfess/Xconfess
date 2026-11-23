@@ -9,7 +9,7 @@ const ProfileHeader = ({ profile }: Props) => {
     <div className="flex flex-col lg:flex-row items-center gap-6">
       <Image
         src={profile.avatarUrl || "/default-avatar.png"}
-        alt={profile.username}
+        alt=""
         width={112}
         height={112}
         className="w-28 h-28 rounded-full object-cover shadow-lg"

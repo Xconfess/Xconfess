@@ -5,12 +5,13 @@ import { Anchor, CheckCircle2, ExternalLink, Loader2, AlertCircle, Wallet, Rotat
 import { v4 as uuidv4 } from "uuid";
 import { Button } from "@/app/components/ui/button";
 import { cn } from "@/app/lib/utils/cn";
+import { focusVisible } from "@/app/lib/utils/focusStyles";
 import { useActivityStore } from "@/app/lib/store/activity.store";
 import { useStellarWallet } from "@/lib/hooks/useStellarWallet";
 import { getWalletCTAState } from "@/lib/hooks/useWalletCTAState";
 import { getStellarExplorerUrl, mapAnchorApiError } from "@/app/lib/utils/stellar";
 
-type AnchorStatus = "idle" | "pending" | "confirmed" | "failed";
+type AnchorStatus = "idle" | "pending" | "submitted" | "confirmed" | "failed";
 
 interface AnchorButtonProps {
   confessionId: string;
@@ -35,15 +36,18 @@ export const AnchorButton: FC<AnchorButtonProps> = ({
 }) => {
   const {
     isAvailable,
+    isEmbeddedWallet,
     isConnected,
     isReady,
     readinessError,
     connect,
     anchor,
     isLoading,
+    network,
   } = useStellarWallet();
   const walletCTA = getWalletCTAState({
     isFreighterInstalled: isAvailable,
+    isEmbeddedWallet,
     isConnected,
     isReady,
     readinessError,
@@ -59,6 +63,7 @@ export const AnchorButton: FC<AnchorButtonProps> = ({
   const [txHash, setTxHash] = useState<string | null>(stellarTxHash);
   const [error, setError] = useState<string | null>(null);
   const [liveMessage, setLiveMessage] = useState("");
+  const [walletPin, setWalletPin] = useState("");
 
   const isPending = status === "pending";
 
@@ -90,7 +95,7 @@ export const AnchorButton: FC<AnchorButtonProps> = ({
     });
 
     try {
-      const result = await anchor(confessionContent);
+      const result = await anchor(confessionContent, walletPin);
 
       if (!result.success || !result.txHash) {
         updateActivity(activityId, { status: "failed", updatedAt: Date.now() });
@@ -127,7 +132,7 @@ export const AnchorButton: FC<AnchorButtonProps> = ({
           txHash: data.stellarTxHash,
         });
         setTxHash(data.stellarTxHash);
-        setStatus("confirmed");
+        setStatus("submitted");
         setLiveMessage("Confession anchor is pending on-chain.");
         onAnchorSuccess?.(data.stellarTxHash);
         return;
@@ -164,7 +169,10 @@ export const AnchorButton: FC<AnchorButtonProps> = ({
         aria-live="polite"
       >
         <CheckCircle2 className="h-4 w-4 text-green-400" aria-hidden="true" />
-        <span className="text-xs text-green-400">Anchored</span>
+        <span className="text-xs font-medium text-emerald-600 dark:text-emerald-400">Anchored</span>
+        <span className="rounded-full border border-[var(--border)] px-2 py-0.5 text-[10px] uppercase tracking-wide text-[var(--secondary)]">
+          {network === "PUBLIC_NETWORK" ? "Mainnet" : "Testnet"}
+        </span>
         <span className="font-mono text-xs text-zinc-500">{shortHash(txHash)}</span>
         {explorerUrl && (
           <a
@@ -183,6 +191,35 @@ export const AnchorButton: FC<AnchorButtonProps> = ({
     );
   }
 
+  if (status === "submitted" && txHash) {
+    const explorerUrl = getStellarExplorerUrl(txHash);
+    return (
+      <div
+        className={cn("stellar-anchor-action flex flex-wrap items-center gap-2", className)}
+        role="status"
+        aria-live="polite"
+      >
+        <Loader2 className="h-4 w-4 animate-spin text-amber-400" aria-hidden="true" />
+        <span className="text-xs font-medium text-amber-700 dark:text-amber-400">Anchor pending</span>
+        <span className="rounded-full border border-[var(--border)] px-2 py-0.5 text-[10px] uppercase tracking-wide text-[var(--secondary)]">
+          {network === "PUBLIC_NETWORK" ? "Mainnet" : "Testnet"}
+        </span>
+        {explorerUrl && (
+          <a
+            href={explorerUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={cn("flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300", focusVisible)}
+          >
+            Check transaction
+            <ExternalLink className="h-3 w-3" aria-hidden="true" />
+          </a>
+        )}
+        <span className="sr-only">{liveMessage || "Anchor transaction is pending."}</span>
+      </div>
+    );
+  }
+
   if (status === "failed") {
     return (
       <div
@@ -191,12 +228,13 @@ export const AnchorButton: FC<AnchorButtonProps> = ({
         aria-live="polite"
       >
         <AlertCircle className="h-4 w-4 text-red-400" aria-hidden="true" />
-        <span className="text-xs text-red-400">{error || "Anchoring failed"}</span>
+        <span className="text-xs font-medium text-amber-700 dark:text-amber-400">Anchor unavailable</span>
         <Button
           variant="outline"
           size="sm"
           onClick={handleAnchor}
           className="flex items-center gap-1"
+          title={error || "Retry Stellar anchoring"}
         >
           <RotateCcw className="h-3 w-3" />
           Retry
@@ -220,64 +258,24 @@ export const AnchorButton: FC<AnchorButtonProps> = ({
     );
   }
 
-  if (status === "failed") {
-    return (
-      <div
-        className={cn("stellar-anchor-action flex items-center gap-2", className)}
-        role="status"
-        aria-live="polite"
-      >
-        <AlertCircle className="h-4 w-4 text-red-400" aria-hidden="true" />
-        <span className="text-xs text-red-400">{error || "Anchoring failed"}</span>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={handleAnchor}
-          className="gap-1.5 rounded-full px-3 py-1 text-xs h-auto"
-          aria-label="Retry anchoring confession"
-        >
-          <RotateCcw className="h-3 w-3" />
-          Retry
-        </Button>
-        <span className="sr-only">{liveMessage}</span>
-      </div>
-    );
-  }
-
   return (
     <div className={cn("stellar-anchor-action flex flex-col gap-1.5", className)}>
       <span className="sr-only" aria-live="polite" aria-atomic="true">
         {liveMessage}
       </span>
-
-      {status === "failed" && error ? (
-        <div
-          className="flex flex-col gap-1.5 rounded-md border border-red-500/30 bg-red-500/10 px-2.5 py-2"
-          role="alert"
-        >
-          <div className="flex items-start gap-2">
-            <AlertCircle className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-red-400" aria-hidden="true" />
-            <p className="text-xs text-red-300">{error}</p>
-          </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleAnchor}
-            disabled={isPending || walletCTA.disabled}
-            aria-busy={isPending}
-            className="h-7 w-fit px-2 text-xs border-red-500/40 text-red-300 hover:bg-red-500/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
-          >
-            <RotateCcw className="mr-1 h-3 w-3" aria-hidden="true" />
-            Retry Anchoring
-          </Button>
-        </div>
-      ) : (
-        <Button
+      {isEmbeddedWallet && (
+        <label className="block text-xs text-[var(--secondary)]">
+          Wallet PIN
+          <input type="password" inputMode="numeric" value={walletPin} onChange={(event) => setWalletPin(event.target.value)} placeholder="Required to sign locally" aria-label="Wallet PIN for Stellar proof" className={cn("mt-1 h-9 w-full rounded-lg border border-[var(--border)] bg-[var(--surface-muted)] px-3 text-sm text-[var(--foreground)]", focusVisible)} />
+        </label>
+      )}
+      <Button
           variant="outline"
           size="sm"
           onClick={handleAnchor}
           disabled={isPending || walletCTA.disabled}
           aria-busy={isPending}
+          title="Anchor this confession on Stellar"
           className={cn(
             "h-7 px-2 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500",
             walletCTA.status === "not-connected" &&
@@ -297,17 +295,20 @@ export const AnchorButton: FC<AnchorButtonProps> = ({
           ) : (
             <>
               <Anchor className="mr-1 h-3 w-3" aria-hidden="true" />
-              Anchor
+              Anchor on Stellar
             </>
           )}
-        </Button>
-      )}
+      </Button>
+
+      <span className="text-[10px] uppercase tracking-wide text-[var(--secondary)]">
+        Not anchored · {network === "PUBLIC_NETWORK" ? "Mainnet" : "Testnet"}
+      </span>
 
       {walletCTA.status === "not-connected" && walletCTA.guidance && (
         <p className="text-xs text-zinc-500">{walletCTA.guidance}</p>
       )}
 
-      {walletCTA.status === "not-ready" && status !== "failed" && (
+      {walletCTA.status === "not-ready" && (
         <div className="text-xs text-orange-400" role="status" aria-live="polite">
           {walletCTA.guidance}
         </div>

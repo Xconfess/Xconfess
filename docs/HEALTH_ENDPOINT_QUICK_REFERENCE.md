@@ -1,6 +1,6 @@
 # Health Endpoint Quick Reference
 
-The backend exposes two health endpoints under the global `/api` prefix.
+The backend exposes health endpoints under the global `/api` prefix.
 
 ## Endpoints
 
@@ -8,6 +8,7 @@ The backend exposes two health endpoints under the global `/api` prefix.
 |----------|--------|---------|
 | `/api/health/live` | GET | **Liveness probe** — returns 200 while the Node process is responsive. No external dependency checks. Safe to poll at high frequency. |
 | `/api/health/ready` | GET | **Readiness probe** — returns 200 only when Postgres, Redis, BullMQ queues, and confession-table schema are all healthy. Returns 503 with per-check detail on failure. |
+| `/api/health/status` | GET | **State classification** — returns a flat JSON object with a `state` field: `live`, `ready`, `disabled`, `degraded`, or `down`. Use for dashboards and alerting. |
 | `/api/health` | GET | Backward-compatible alias for `/api/health/ready`. Prefer `/api/health/ready` for new integrations. |
 
 ## Usage
@@ -152,9 +153,48 @@ container.
 }
 ```
 
+## Health State Classification (`/api/health/status`)
+
+Returns a flat JSON object for machine consumption:
+
+| `state` | Meaning | Action |
+|---------|---------|--------|
+| `live` | Process responsive (liveness only) | None — normal |
+| `ready` | All dependencies healthy | None — normal |
+| `disabled` | Optional deps intentionally off | Expected in dev without Redis |
+| `degraded` | Non-critical dependency degraded | Monitor; investigate if persistent |
+| `down` | Critical dependency unreachable | Immediate action required |
+
+```json
+{
+  "state": "ready",
+  "timestamp": "2026-08-30T12:00:00.000Z",
+  "checks": {
+    "database": { "status": "up" },
+    "redis": { "status": "up" },
+    "queues": { "status": "up" },
+    "schema": { "status": "up" }
+  }
+}
+```
+
+```json
+{
+  "state": "degraded",
+  "timestamp": "2026-08-30T12:00:00.000Z",
+  "checks": {
+    "database": { "status": "up" },
+    "redis": { "status": "up" },
+    "queues": { "status": "down" },
+    "schema": { "status": "up" }
+  }
+}
+```
+
 ## Rate limits
 
 - `/api/health/live`: 120 requests per minute
-- `/api/health/ready`: 120 requests per minute
+- `/api/health/ready`: 30 requests per minute
+- `/api/health/status`: 30 requests per minute
 
 These limits are intentionally generous for local development. In production, use your load balancer's health check interval (typically 10-30 seconds).

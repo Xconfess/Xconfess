@@ -108,6 +108,7 @@ export const envValidationSchema = Joi.object({
     .valid('true', 'false')
     .default('false'),
   STELLAR_NETWORK: Joi.string().valid('testnet', 'mainnet').default('testnet'),
+  ENABLE_TESTNET_FUNDING: Joi.boolean().truthy('true').falsy('false').default(false),
   STELLAR_HORIZON_URL: Joi.string()
     .uri()
     .default('https://horizon-testnet.stellar.org'),
@@ -203,6 +204,21 @@ export const envValidationSchema = Joi.object({
   RATE_LIMIT_GET_MAX: Joi.number().default(50),
   RATE_LIMIT_GET_WINDOW: Joi.number().default(60),
   NOTIFICATION_DEDUPE_TTL_SECONDS: Joi.number().default(60),
+  ANALYTICS_ENABLED: Joi.string().valid('true', 'false').default('true'),
+  ANALYTICS_RETENTION_DAYS: Joi.number().min(1).default(365),
+  TRACTION_CACHE_TTL_SECONDS: Joi.number().min(1).max(3600).default(60),
+  TRACTION_EXCLUDED_USER_IDS: Joi.string()
+    .allow('')
+    .pattern(/^\d+(,\d+)*$/)
+    .default(''),
+  TRACTION_EXCLUDED_ANONYMOUS_USER_IDS: Joi.string()
+    .allow('')
+    .pattern(/^[A-Za-z0-9:_-]+(,[A-Za-z0-9:_-]+)*$/)
+    .default(''),
+  TRACTION_EXCLUDED_ACTOR_IDS: Joi.string()
+    .allow('')
+    .pattern(/^[A-Za-z0-9:_-]+(,[A-Za-z0-9:_-]+)*$/)
+    .default(''),
 
   // â”€â”€ DLQ retention â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   DLQ_RETENTION_DAYS: Joi.number().default(14),

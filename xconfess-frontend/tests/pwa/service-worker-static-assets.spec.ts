@@ -22,6 +22,8 @@ describe("development service worker cleanup", () => {
 
   it("unregisters service workers outside production", () => {
     expect(layoutSource).toContain("const unregisterServiceWorkerScript");
+    expect(layoutSource).toContain("navigator.serviceWorker");
+    expect(layoutSource).toContain(".getRegistrations()");
     expect(layoutSource).toContain("registration.unregister()");
     expect(layoutSource).toContain('process.env.NODE_ENV === "production"');
     expect(layoutSource).toContain(": unregisterServiceWorkerScript");

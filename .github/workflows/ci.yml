@@ -43,7 +43,7 @@ jobs:
       - run: ./scripts/secret-scanning-preflight.sh
 
   apps:
-    name: Apps
+    name: Apps / lint, typecheck, build
     needs: [audit, secret-scan]
     runs-on: ubuntu-latest
     services:
@@ -106,11 +106,6 @@ jobs:
       - run: npm install --global npm@10.9.3
       - run: npm ci --include=optional --no-audit --no-fund
       - run: npm run ci:apps
-  env:
-    BACKEND_API_URL: http://localhost:5000/api
-    NEXT_PUBLIC_API_URL: http://localhost:5000/api
-    NEXT_PUBLIC_WS_URL: ws://localhost:5000
-    NEXT_PUBLIC_APP_URL: http://localhost:3000
 
   contracts:
     name: Contracts
@@ -132,3 +127,5 @@ jobs:
       - run: cargo fmt --all -- --check
       - run: cargo clippy --workspace --all-targets -- -D warnings
       - run: cargo test --workspace
+      - name: Check contract ABI drift
+        run: bash scripts/check-abi-drift.sh

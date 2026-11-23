@@ -70,12 +70,17 @@ Update backend parsers and these specs in the **same PR** as contract event chan
 |-----------|---------|
 | [`xconfess-backend/src/stellar/__tests__/contract-event-fixtures.spec.ts`](../xconfess-backend/src/stellar/__tests__/contract-event-fixtures.spec.ts) | Anchor event parsing, error classification, `fixture_version` / `event_version` stability |
 | [`xconfess-backend/src/tipping/contract-fixtures.spec.ts`](../xconfess-backend/src/tipping/contract-fixtures.spec.ts) | Tip settlement fixtures and version compatibility |
+| [`xconfess-backend/src/stellar/event-parser/contract-event-parser.spec.ts`](../xconfess-backend/src/stellar/event-parser/contract-event-parser.spec.ts) | Versioned compatibility-layer registry: fixture coverage for every public event category, fixture/registry parity, typed error classification |
+| [`xconfess-backend/src/stellar/event-parser/contract-event-parser.doc-parity.spec.ts`](../xconfess-backend/src/stellar/event-parser/contract-event-parser.doc-parity.spec.ts) | Contract/backend parity — parses this doc's fixture table and diffs it against the compatibility-layer registry |
 
 ```bash
 cd xconfess-backend
 npm test -- contract-event-fixtures.spec.ts
 npm test -- contract-fixtures.spec.ts
+npx jest --config jest.config.js src/stellar/event-parser
 ```
+
+See [`docs/contract-event-parser-compatibility.md`](./contract-event-parser-compatibility.md) for the full compatibility-layer checklist and matrix.
 
 ---
 

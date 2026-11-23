@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { ErrorBoundary } from "@/app/components/common/ErrorBoundary";
 import { ConfessionFeed } from "@/app/components/confession/ConfessionFeed";
-import { useScrollRestoration } from "@/app/lib/hooks/useScrollRestoration";
 import { useAuthContext } from "../lib/providers/AuthProvider";
 import { fetchUserStats } from "@/app/api/user.api";
 
@@ -91,11 +90,13 @@ function UserSummarySection() {
       </div>
 
       {isError ? (
-        <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-center">
-          <p className="mb-2 text-sm text-red-700">Failed to load stats</p>
+        <div className="rounded-2xl border border-red-500/25 bg-red-950/30 p-4 text-center">
+          <p className="mb-2 text-sm text-red-200">
+            <span>Failed to load stats</span> <span>Stats are temporarily unavailable.</span>
+          </p>
           <button
             onClick={() => void refetch()}
-            className="text-xs font-semibold text-red-700 hover:underline"
+            className="text-xs font-semibold text-[var(--primary-deep)] hover:text-[var(--primary)]"
           >
             Retry
           </button>
@@ -146,8 +147,6 @@ function RecentConfessionsSection() {
 }
 
 export default function DashboardPage() {
-  useScrollRestoration("feed");
-
   return (
     <main className="mx-auto flex max-w-5xl flex-col gap-8 px-4 py-8 sm:px-6 md:px-8 lg:px-10">
       <UserSummarySection />

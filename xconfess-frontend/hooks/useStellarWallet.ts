@@ -2,6 +2,7 @@
  * useStellarWallet.ts
  * Issue #194 – Fix React Compiler preservation error & stabilise callback contract
  * Issue #196 – Expose network-mismatch state for callers to gate CTAs
+ * Issue #1965 – Freighter connection recovery: detect disconnects & account changes
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -15,6 +16,7 @@ export interface StellarWalletState {
   network: WalletNetwork;
   networkMismatch: boolean;
   error: string | null;
+  isValidating?: boolean;
 }
 
 export interface UseStellarWalletReturn extends StellarWalletState {
@@ -95,6 +97,54 @@ export function useStellarWallet(): UseStellarWalletReturn {
     });
   }, []);
 
+  // ── validateConnection ──────────────────────────────────────────────────
+  const validateConnection = useCallback(async () => {
+    const { publicKey, isConnected } = stateRef.current;
+
+    if (!isConnected || !publicKey) {
+      return true;
+    }
+
+    setState((s) => ({ ...s, isValidating: true }));
+    try {
+      const freighter = await import("@stellar/freighter-api");
+      const result = await freighter.getAddress();
+
+      if (result.error || !result.address) {
+        setState((s) => ({
+          ...s,
+          isValidating: false,
+          isConnected: false,
+          publicKey: null,
+          error: "Wallet disconnected. Please reconnect.",
+        }));
+        return false;
+      }
+
+      if (result.address !== publicKey) {
+        setState((s) => ({
+          ...s,
+          isValidating: false,
+          publicKey: result.address,
+          error: "Account changed in wallet. Refreshing state...",
+        }));
+        return false;
+      }
+
+      setState((s) => ({ ...s, isValidating: false }));
+      return true;
+    } catch (err) {
+      setState((s) => ({
+        ...s,
+        isValidating: false,
+        isConnected: false,
+        publicKey: null,
+        error: "Failed to validate wallet connection",
+      }));
+      return false;
+    }
+  }, []);
+
   // ── signAndSubmitAnchorTx ─────────────────────────────────────────────────
   const signAndSubmitAnchorTx = useCallback(
     async (xdr: string): Promise<string> => {
@@ -109,6 +159,13 @@ export function useStellarWallet(): UseStellarWalletReturn {
         );
       }
 
+      const isValid = await validateConnection();
+      if (!isValid) {
+        throw new Error(
+          "Wallet connection is no longer valid. Please reconnect.",
+        );
+      }
+
       const freighter = await import("@stellar/freighter-api");
       const networkPassphrase =
         APP_NETWORK === "mainnet"
@@ -120,13 +177,14 @@ export function useStellarWallet(): UseStellarWalletReturn {
       });
       return signedTxXdr;
     },
-    [],
-  ); // stable – reads from stateRef, not reactive state
+    [validateConnection],
+  );
 
   return {
     ...state,
     connect,
     disconnect,
     signAndSubmitAnchorTx,
+    validateConnection,
   };
 }

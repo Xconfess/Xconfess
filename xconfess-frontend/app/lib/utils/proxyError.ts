@@ -257,6 +257,12 @@ export function internalProxyErrorResponse(
 ): Response {
   const message =
     cause instanceof Error ? cause.message : "Internal server error";
+  const status =
+    cause &&
+    typeof cause === "object" &&
+    typeof (cause as { status?: unknown }).status === "number"
+      ? (cause as { status: number }).status
+      : 500;
   logProxyError("Internal error", ctx, cause);
-  return buildProxyErrorResponse(message, 500, ctx);
+  return buildProxyErrorResponse(message, status, ctx);
 }

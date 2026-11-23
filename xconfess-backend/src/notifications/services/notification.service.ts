@@ -17,6 +17,8 @@ import {
   NotificationDeliveryOutcome,
   NotificationDeliveryState,
 } from '../delivery-state';
+import { RequestContextStorage } from '../../common/request-context';
+import { createHash } from 'node:crypto';
 
 interface ChannelPreferences {
   inApp?: boolean;
@@ -37,6 +39,7 @@ export class NotificationService {
     private notificationQueue: Queue,
     private readonly appLogger: AppLogger,
     private readonly configService: ConfigService,
+    private readonly requestContextStorage: RequestContextStorage,
   ) {}
 
   async enqueueNotification(
@@ -86,13 +89,29 @@ export class NotificationService {
       }
     }
 
+    const requestId = this.requestContextStorage.getRequestId();
+    const eventKey =
+      payload?.idempotencyKey ||
+      payload?.sourceKey ||
+      payload?.notificationId ||
+      payload?.messageId ||
+      jobId;
+    const stableJobId =
+      jobId ||
+      (eventKey
+        ? `notification-${createHash('sha256')
+            .update(`${userId || 'unknown'}:${type}:${String(eventKey)}`)
+            .digest('hex')}`
+        : undefined);
     await this.notificationQueue.add(
       'send-notification',
       {
         ...payload,
         type,
+        ...(eventKey && { idempotencyKey: String(eventKey) }),
+        ...(requestId && { requestId }),
       },
-      { jobId },
+      { jobId: stableJobId },
     );
 
     this.appLogger.incrementCounter('notification_queue_enqueued_total', 1, {
@@ -241,6 +260,11 @@ export class NotificationService {
         {
           notificationId: notification.id,
           userId: dto.userId,
+          type: dto.type,
+          title: notification.title,
+          message: notification.message,
+          metadata: notification.metadata,
+          idempotencyKey: sourceKey ?? notification.id,
         },
         { jobId: `email-${notification.id}` },
       );
@@ -266,18 +290,59 @@ export class NotificationService {
   }
 
   private buildSourceKey(dto: CreateNotificationDto): string | null {
-    const metadata = dto.metadata || {};
-    const sourceId =
-      metadata.sourceEventId ||
-      metadata.messageId ||
-      metadata.commentId ||
-      metadata.reactionId;
-
-    if (!sourceId) {
-      return null;
+    if (dto.sourceKey) {
+      return dto.sourceKey;
     }
 
-    return `${dto.userId}:${dto.type}:${String(sourceId)}`;
+    if (dto.idempotencyKey) {
+      return `${dto.userId}:${dto.type}:${dto.idempotencyKey}`;
+    }
+
+    const metadata = dto.metadata || {};
+
+    // 1. Explicit idempotency or event deduplication keys
+    const explicitKey =
+      metadata.idempotencyKey ||
+      metadata.deduplicationKey ||
+      metadata.sourceEventId ||
+      metadata.eventId;
+    if (explicitKey) {
+      return `${dto.userId}:${dto.type}:${String(explicitKey)}`;
+    }
+
+    // 2. Action / event differentiation
+    const action = metadata.eventType || metadata.action || '';
+
+    // 3. Entity-specific identifiers
+    const entityId =
+      metadata.messageId ||
+      metadata.commentId ||
+      metadata.reactionId ||
+      metadata.tipId ||
+      metadata.badgeId ||
+      metadata.reportId;
+    if (entityId) {
+      return action
+        ? `${dto.userId}:${dto.type}:${action}:${String(entityId)}`
+        : `${dto.userId}:${dto.type}:${String(entityId)}`;
+    }
+
+    // 4. Confession-scoped events (e.g., moderation events, status transitions)
+    if (metadata.confessionId) {
+      const subAction = action || 'confession';
+      return `${dto.userId}:${dto.type}:${subAction}:${String(metadata.confessionId)}`;
+    }
+
+    // 5. Generic action with target identifier
+    if (action) {
+      const targetId = metadata.targetId || metadata.referenceId || metadata.subjectId;
+      if (targetId) {
+        return `${dto.userId}:${dto.type}:${action}:${String(targetId)}`;
+      }
+      return `${dto.userId}:${dto.type}:${action}`;
+    }
+
+    return null;
   }
 
   private isUniqueViolation(error: unknown): boolean {

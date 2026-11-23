@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
-import { getApiBaseUrl } from "@/app/lib/config";
+import { resolveBackendRoute } from "@/app/lib/api/proxy";
 
 const SESSION_COOKIE_NAME = "xconfess_session";
 
@@ -9,10 +9,9 @@ const SESSION_COOKIE_NAME = "xconfess_session";
  * Server-side proxy — browser-facing code must call this route, never the backend directly.
  */
 export async function POST(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const BASE_API_URL = getApiBaseUrl();
   const { id } = await params;
 
   const cookieStore = await cookies();
@@ -23,8 +22,9 @@ export async function POST(
   }
 
   try {
+    const backend = resolveBackendRoute(req, `/data-export/${id}/redownload`);
     const response = await fetch(
-      `${BASE_API_URL}/data-export/${id}/redownload`,
+      backend.url,
       {
         method: "POST",
         headers: {

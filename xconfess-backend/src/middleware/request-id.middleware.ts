@@ -16,10 +16,13 @@ import { v4 as uuidv4 } from 'uuid';
 export class RequestIdMiddleware implements NestMiddleware {
   use(req: Request, res: Response, next: NextFunction): void {
     const incomingId = req.headers['x-request-id'];
-    const requestId: string =
-      typeof incomingId === 'string' && incomingId.trim().length > 0
-        ? incomingId.trim()
-        : uuidv4();
+    const normalizedIncomingId =
+      typeof incomingId === 'string' ? incomingId.trim() : '';
+    // Keep client correlation IDs printable, bounded, and safe for both
+    // response headers and structured log fields.
+    const requestId = /^[A-Za-z0-9._:/-]{1,128}$/.test(normalizedIncomingId)
+      ? normalizedIncomingId
+      : uuidv4();
 
     // Attach to request object for downstream use
     (req as any).requestId = requestId;

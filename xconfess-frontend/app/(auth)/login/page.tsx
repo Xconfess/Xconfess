@@ -3,11 +3,13 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { UserPlus } from 'lucide-react';
 import { Button } from '@/app/components/ui/button';
 import { Input } from '@/app/components/ui/input';
 import { BrandLogo } from '@/app/components/brand/BrandLogo';
 import { useAuth } from '@/app/lib/hooks/useAuth';
+import { isSafeAuthRedirect } from '@/app/lib/utils/auth-redirect';
+import { extractRequestId } from '@/app/lib/utils/errorHandler';
+import { RequestIdNotice } from '@/app/components/auth/RequestIdNotice';
 import {
   validateLoginForm,
   parseLoginForm,
@@ -24,6 +26,7 @@ export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [errors, setErrors] = useState<ValidationErrors>({});
+  const [errorRequestId, setErrorRequestId] = useState<string | undefined>();
   const [loading, setLoading] = useState(false);
 
   const doMockAdminLogin = async () => {
@@ -62,6 +65,7 @@ export default function LoginPage() {
 
     setLoading(true);
     setErrors({});
+    setErrorRequestId(undefined);
     try {
       const user = await login({
         email: parsed.data.email,
@@ -75,6 +79,7 @@ export default function LoginPage() {
     } catch (e: unknown) {
       const message = e instanceof Error ? e.message : 'Login failed';
       setErrors({ password: message });
+      setErrorRequestId(extractRequestId(e));
     } finally {
       setLoading(false);
     }
@@ -117,6 +122,10 @@ export default function LoginPage() {
               <div className="mt-5 rounded-xl border border-red-500/25 bg-red-950/30 p-3 text-sm text-red-200">
                 {errors.password}
               </div>
+            )}
+
+            {errorRequestId && (errors.email || errors.password) && (
+              <RequestIdNotice requestId={errorRequestId} />
             )}
 
             <div className="mt-6 space-y-4">
@@ -164,8 +173,13 @@ export default function LoginPage() {
                 />
               </div>
 
-              <div className="text-sm text-[var(--primary-deep)] hover:text-[var(--primary)]">
-                <Link href="/forgot-password">Forgot password?</Link>
+              <div className="text-sm">
+                <Link
+                  href="/forgot-password"
+                  className="text-[var(--primary-deep)] hover:text-[var(--primary)]"
+                >
+                  Forgot password?
+                </Link>
               </div>
 
               <Button
@@ -179,12 +193,10 @@ export default function LoginPage() {
 
               <Button
                 type="button"
-                onClick={() => router.push(buildAuthSwitchUrl('/register'))}
-                disabled={loading}
                 variant="outline"
+                onClick={() => router.push('/register')}
                 className="w-full"
               >
-                <UserPlus className="h-4 w-4" aria-hidden="true" />
                 Create account
               </Button>
 
@@ -221,17 +233,4 @@ function getAuthRedirectTarget(fallback: string): string {
 
   const next = new URLSearchParams(window.location.search).get('next');
   return isSafeAuthRedirect(next) ? next : fallback;
-}
-
-function buildAuthSwitchUrl(path: '/register' | '/login'): string {
-  if (typeof window === 'undefined') return path;
-
-  const next = new URLSearchParams(window.location.search).get('next');
-  return isSafeAuthRedirect(next)
-    ? `${path}?next=${encodeURIComponent(next)}`
-    : path;
-}
-
-function isSafeAuthRedirect(value: string | null): value is string {
-  return Boolean(value && value.startsWith('/') && !value.startsWith('//'));
 }

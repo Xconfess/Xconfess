@@ -120,6 +120,11 @@ describe('NotificationService', () => {
         {
           notificationId: 'notif-1',
           userId: 'user-1',
+          type: NotificationType.NEW_MESSAGE,
+          title: 'Title',
+          message: 'Message',
+          metadata: undefined,
+          idempotencyKey: 'notif-1',
         },
         { jobId: 'email-notif-1' },
       );
@@ -278,6 +283,84 @@ describe('NotificationService', () => {
       expect(notificationRepoMock.findOne).toHaveBeenLastCalledWith({
         where: { sourceKey: 'user-1:new_message:message-7' },
       });
+    });
+
+    it('suppresses retried moderation and confession-scoped events for the same confession and eventType', async () => {
+      preferenceRepoMock.findOne.mockResolvedValue({
+        userId: 'admin-1',
+        enableInAppNotifications: true,
+        enableEmailNotifications: false,
+        inAppNewMessage: true,
+        enableQuietHours: false,
+      });
+
+      await service.createNotification({
+        userId: 'admin-1',
+        type: NotificationType.SYSTEM,
+        title: 'High-Severity Content',
+        message: 'Confession rejected',
+        metadata: {
+          confessionId: 'confession-100',
+          eventType: 'high-severity',
+        },
+      });
+
+      expect(notificationRepoMock.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          sourceKey: 'admin-1:system:high-severity:confession-100',
+        }),
+      );
+    });
+
+    it('creates distinct notifications for different actions on the same confession', async () => {
+      preferenceRepoMock.findOne.mockResolvedValue({
+        userId: 'admin-1',
+        enableInAppNotifications: true,
+        enableEmailNotifications: false,
+        inAppNewMessage: true,
+        enableQuietHours: false,
+      });
+
+      await service.createNotification({
+        userId: 'admin-1',
+        type: NotificationType.SYSTEM,
+        title: 'Review Required',
+        message: 'Confession flagged',
+        metadata: {
+          confessionId: 'confession-100',
+          eventType: 'requires-review',
+        },
+      });
+
+      expect(notificationRepoMock.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          sourceKey: 'admin-1:system:requires-review:confession-100',
+        }),
+      );
+    });
+
+    it('respects top-level or metadata idempotencyKey', async () => {
+      preferenceRepoMock.findOne.mockResolvedValue({
+        userId: 'user-2',
+        enableInAppNotifications: true,
+        enableEmailNotifications: false,
+        inAppNewMessage: true,
+        enableQuietHours: false,
+      });
+
+      await service.createNotification({
+        userId: 'user-2',
+        type: NotificationType.SYSTEM,
+        title: 'Action complete',
+        message: 'Done',
+        idempotencyKey: 'idemp-custom-key-99',
+      });
+
+      expect(notificationRepoMock.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          sourceKey: 'user-2:system:idemp-custom-key-99',
+        }),
+      );
     });
   });
 });

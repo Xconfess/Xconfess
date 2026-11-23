@@ -58,7 +58,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     refreshUser();
   }, []);
 
-  const login = async (_token: string) => {
+  const login = async (token: string) => {
+    void token;
     // Token is already stored in the HttpOnly session cookie by the /api/auth/session
     // proxy when the login POST was made. Just refresh the user state here.
     await refreshUser();

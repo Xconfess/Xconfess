@@ -7,6 +7,8 @@ export interface SlimConfession {
   isAnchored: boolean;
   stellarTxHash: string | null;
   reactions: Array<{ type: string; count: number }>;
+  /** Public safety signal; never expose scores or moderation categories. */
+  contentWarning: boolean;
 }
 
 export function aggregateReactions(reactions: any[]): Array<{ type: string; count: number }> {
@@ -43,5 +45,7 @@ export function mapToSlimConfession(confession: any): SlimConfession {
     isAnchored: confession.isAnchored ?? false,
     stellarTxHash: confession.stellarTxHash ?? null,
     reactions: aggregateReactions(confession.reactions),
+    contentWarning:
+      confession.requiresReview === true || confession.moderationStatus === 'flagged',
   };
 }

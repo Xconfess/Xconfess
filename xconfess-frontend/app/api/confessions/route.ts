@@ -1,10 +1,10 @@
 import { normalizeConfession } from "../../lib/utils/normalizeConfession";
 import { createApiErrorResponse } from "@/lib/apiErrorHandler";
-import { getApiBaseUrl } from "@/app/lib/config";
+import { resolveBackendRoute } from "@/app/lib/api/proxy";
 import { getOrCreateRequestId, requestIdResponseHeaders } from "@/app/lib/utils/requestId";
+import { methodNotAllowedHandlers } from "@/app/lib/api/proxy";
 
 export async function POST(request: Request) {
-  const BASE_API_URL = getApiBaseUrl();
   const correlationId = getOrCreateRequestId(request);
 
   try {
@@ -19,7 +19,7 @@ export async function POST(request: Request) {
     }
 
     const confessionContent = bodyContent || message;
-    const backendUrl = `${BASE_API_URL}/confessions`;
+    const backend = resolveBackendRoute(request, "/confessions");
 
     const backendBody: any = {
       message: confessionContent,
@@ -42,6 +42,13 @@ export async function POST(request: Request) {
       "x-request-id": correlationId,
     };
 
+    const clientCookie = request.headers.get("cookie");
+    const csrfToken = request.headers.get("x-xsrf-token");
+    const walletAddress = request.headers.get("x-stellar-wallet");
+    if (clientCookie) forwardHeaders.cookie = clientCookie;
+    if (csrfToken) forwardHeaders["x-xsrf-token"] = csrfToken;
+    if (walletAddress) forwardHeaders["x-stellar-wallet"] = walletAddress;
+
     if (clientIdempotencyKey) {
       forwardHeaders["Idempotency-Key"] = clientIdempotencyKey;
       // Also include in body for backends that read it from there.
@@ -49,7 +56,7 @@ export async function POST(request: Request) {
     }
 
     try {
-      const response = await fetch(backendUrl, {
+      const response = await fetch(backend.url, {
         method: "POST",
         headers: forwardHeaders,
         body: JSON.stringify(backendBody),
@@ -71,7 +78,13 @@ export async function POST(request: Request) {
 
       return new Response(JSON.stringify(normalized), {
         status: 201,
-        headers: { "Content-Type": "application/json", ...requestIdResponseHeaders(correlationId) },
+        headers: {
+          "Content-Type": "application/json",
+          ...(response.headers.get("set-cookie")
+            ? { "set-cookie": response.headers.get("set-cookie")! }
+            : {}),
+          ...requestIdResponseHeaders(correlationId),
+        },
       });
     } catch (fetchError) {
       return createApiErrorResponse(fetchError, {
@@ -91,7 +104,6 @@ export async function POST(request: Request) {
 }
 
 export async function GET(request: Request) {
-  const BASE_API_URL = getApiBaseUrl();
   const { searchParams } = new URL(request.url);
   const page = Math.max(1, parseInt(searchParams.get("page") ?? "1") || 1);
   const limit = Math.max(1, parseInt(searchParams.get("limit") ?? "10") || 10);
@@ -111,14 +123,18 @@ export async function GET(request: Request) {
   const correlationId = getOrCreateRequestId(request);
 
   try {
-    const backendUrl = `${BASE_API_URL}/confessions?${backendParams}`;
+    const backend = resolveBackendRoute(request, `/confessions?${backendParams}`);
 
-    const response = await fetch(backendUrl, {
+    const requestHeaders: Record<string, string> = {
+      "Content-Type": "application/json",
+      "x-request-id": correlationId,
+    };
+    const clientCookie = request.headers.get("cookie");
+    if (clientCookie) requestHeaders.cookie = clientCookie;
+
+    const response = await fetch(backend.url, {
       method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-        "x-request-id": correlationId,
-      },
+      headers: requestHeaders,
       next: {
         revalidate: 30, // Cache for 30 seconds
       },
@@ -158,7 +174,13 @@ export async function GET(request: Request) {
       }),
       {
         status: 200,
-        headers: { "Content-Type": "application/json", ...requestIdResponseHeaders(correlationId) },
+        headers: {
+          "Content-Type": "application/json",
+          ...(response.headers.get("set-cookie")
+            ? { "set-cookie": response.headers.get("set-cookie")! }
+            : {}),
+          ...requestIdResponseHeaders(correlationId),
+        },
       },
     );
   } catch (error) {
@@ -171,3 +193,4 @@ export async function GET(request: Request) {
   }
 }
 
+export const { PUT, PATCH, DELETE } = methodNotAllowedHandlers(["GET", "POST"]);

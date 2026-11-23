@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getApiBaseUrl } from '@/app/lib/config';
+import { resolveBackendRoute } from '@/app/lib/api/proxy';
 
 type RouteContext = { params: Promise<{ userId: string }> };
 
@@ -20,7 +20,6 @@ export async function GET(
   req: NextRequest,
   { params }: RouteContext,
 ) {
-  const BACKEND_URL = getApiBaseUrl();
   const { userId } = await params;
 
   // ── Proxy-layer auth ────────────────────────────────────────────────────────
@@ -35,7 +34,8 @@ export async function GET(
   }
 
   // ── Forward to backend ─────────────────────────────────────────────────────
-  const backendRes = await fetch(`${BACKEND_URL}/export/jobs/${userId}`, {
+  const backend = resolveBackendRoute(req, `/export/jobs/${userId}`);
+  const backendRes = await fetch(backend.url, {
     headers: buildForwardHeaders(req),
   });
 

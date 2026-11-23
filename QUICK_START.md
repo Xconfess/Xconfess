@@ -56,6 +56,18 @@ Minimum backend keys to set in `xconfess-backend/.env`:
 | `ENCRYPTION_CURRENT_KEY_VERSION` | `v1` |
 | `ENCRYPTION_MASTER_KEY_v1` | `0000000000000000000000000000000000000000000000000000000000000002` |
 
+Copy-paste-safe local dummy values (local dev only):
+
+```env
+JWT_SECRET=local-dev-jwt-secret-please-replace-with-32-plus-chars
+APP_SECRET=local-dev-app-secret-please-replace-with-32-plus-chars
+CONFESSION_ENCRYPTION_KEY=0000000000000000000000000000000000000000000000000000000000000000
+ENCRYPTION_CURRENT_KEY_VERSION=v1
+ENCRYPTION_MASTER_KEY_v1=0000000000000000000000000000000000000000000000000000000000000000
+```
+
+These examples are valid local placeholders, but they are not secure production secrets. Do not reuse them outside local development.
+
 All other values have safe defaults for local use. Frontend `.env.local` works out of the box with no changes.
 
 > **Never commit .env or .env.local files.** Only .env.example files belong in source control. These sample secret values are local-only and must not be reused in shared environments.

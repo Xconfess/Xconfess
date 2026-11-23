@@ -1,4 +1,4 @@
-﻿import { Logger, MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
+import { Logger, MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { SanitizationMiddleware } from './middleware/sanitization.middleware';
 import { RequestIdMiddleware } from './middleware/request-id.middleware'; // ADAPT: fix path if it lives elsewhere
 import { AppController } from './app.controller';
@@ -16,7 +16,7 @@ import { SearchDiscoveryModule } from './search-discovery/search-discovery.modul
 import { CommentModule } from './comment/comment.module';
 import { ReactionModule } from './reaction/reaction.module';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
-import { APP_GUARD } from '@nestjs/core';
+import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import throttleConfig from './config/throttle.config';
 import exportConfig from './config/export.config';
 import { HealthModule } from './health/health.module';
@@ -28,6 +28,7 @@ import { DataExportModule } from './data-export/data-export.module';
 import { StellarModule } from './stellar/stellar.module';
 import { CacheModule } from './cache/cache.module';
 import { TippingModule } from './tipping/tipping.module';
+import { WalletModule } from './wallet/wallet.module';
 import { LoggerModule } from './logger/logger.module';
 import { ScheduleModule } from '@nestjs/schedule';
 import { EncryptionModule } from './encryption/encryption.module';
@@ -36,9 +37,13 @@ import { DatabaseModule } from './database/database.module';
 import { FeatureFlagsModule } from './feature-flags/feature-flags.module';
 import { BookmarkModule } from './bookmark/bookmark.module';
 import { KeyRotationModule } from './key-rotation/key-rotation.module';
+import { AnalyticsModule } from './analytics/analytics.module';
+import { AttachmentModule } from './attachment/attachment.module';
 // âœ… Canonical queue stack: @nestjs/bullmq (BullMQ v4 + ioredis)
 // The legacy @nestjs/bull import has been removed. All queues use BullMQ.
 import { BullModule } from '@nestjs/bullmq';
+import { StructuredLoggingInterceptor } from './common/logging/structured-logging.interceptor';
+import { GracefulShutdownModule } from './common/graceful-shutdown.module';
 
 @Module({
   imports: [
@@ -126,6 +131,7 @@ import { BullModule } from '@nestjs/bullmq';
     EventEmitterModule.forRoot(),
     ScheduleModule.forRoot(),
     HealthModule,
+    AnalyticsModule,
     UserModule,
     AuthModule,
     ConfessionModule,
@@ -140,13 +146,16 @@ import { BullModule } from '@nestjs/bullmq';
     NotificationsModule,
     StellarModule,
     TippingModule,
+    WalletModule,
     LoggerModule,
     EncryptionModule,
     CacheModule,
     DatabaseModule,
-    FeatureFlagsModule,
+FeatureFlagsModule,
     BookmarkModule,
     KeyRotationModule,
+    AnalyticsModule,
+    AttachmentModule,
   ],
   controllers: [AppController],
   providers: [
@@ -154,6 +163,10 @@ import { BullModule } from '@nestjs/bullmq';
     {
       provide: APP_GUARD,
       useClass: ThrottlerGuard,
+    },
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: StructuredLoggingInterceptor,
     },
   ],
 })

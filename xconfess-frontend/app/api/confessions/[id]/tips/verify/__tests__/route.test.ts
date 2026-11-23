@@ -33,9 +33,14 @@ jest.mock("next/server", () => ({
 }));
 
 function makeRequest(body: unknown) {
-  return {
-    json: async () => body,
-  } as any;
+  return new Request(
+    "http://localhost/api/confessions/confession-1687/tips/verify",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    },
+  ) as any;
 }
 
 describe("POST /api/confessions/[id]/tips/verify", () => {
@@ -148,6 +153,8 @@ describe("POST /api/confessions/[id]/tips/verify", () => {
     });
 
     const badRequest = {
+      url: "http://localhost/api/confessions/confession-1687/tips/verify",
+      headers: new Headers(),
       json: async () => {
         throw new Error("Unexpected end of JSON input");
       },

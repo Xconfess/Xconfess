@@ -20,7 +20,11 @@ export function decodeCursor<T extends CursorObject>(
   if (!cursor) return undefined;
   try {
     const jsonString = Buffer.from(cursor, 'base64').toString('utf8');
-    return JSON.parse(jsonString) as T;
+    const parsed = JSON.parse(jsonString);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      return undefined;
+    }
+    return parsed as T;
   } catch (error) {
     return undefined;
   }

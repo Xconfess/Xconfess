@@ -17,6 +17,7 @@ import {
   Wallet,
 } from "lucide-react";
 import { Button } from "@/app/components/ui/button";
+import { getEmbeddedWallet, isEmbeddedWalletLocked } from "@/app/lib/crypto/embeddedWallet";
 import { Card, CardContent, CardHeader, CardTitle } from "@/app/components/ui/card";
 import apiClient from "@/app/lib/api";
 import { useAuth } from "@/app/lib/hooks/useAuth";
@@ -86,6 +87,59 @@ function initials(username: string) {
     .join("") || "?";
 }
 
+const LOCAL_AVATARS = ["🌙", "✨", "🌿", "🌊", "🪐", "🦋", "🌻", "🫧"];
+
+type LocalConfession = {
+  id: string;
+  title?: string;
+  body: string;
+  createdAt: string;
+  stellarTxHash?: string;
+};
+
+function LocalWalletProfile() {
+  const [wallet, setWallet] = useState<ReturnType<typeof getEmbeddedWallet>>(null);
+  const [locked, setLocked] = useState(false);
+  const [alias, setAlias] = useState("");
+  const [avatar, setAvatar] = useState("🌙");
+  const [confessions, setConfessions] = useState<LocalConfession[]>([]);
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    const stored = getEmbeddedWallet();
+    setWallet(stored);
+    setLocked(isEmbeddedWalletLocked());
+    if (!stored) return;
+    setAlias(localStorage.getItem("xconfess.wallet.alias." + stored.publicKey) || "");
+    setAvatar(localStorage.getItem("xconfess.wallet.avatar." + stored.publicKey) || "🌙");
+    try {
+      setConfessions(JSON.parse(localStorage.getItem("xconfess.wallet.confessions." + stored.publicKey) || "[]"));
+    } catch {
+      setConfessions([]);
+    }
+  }, []);
+
+  const saveIdentity = () => {
+    if (!wallet) return;
+    localStorage.setItem("xconfess.wallet.alias." + wallet.publicKey, alias.trim().slice(0, 32));
+    localStorage.setItem("xconfess.wallet.avatar." + wallet.publicKey, avatar);
+    setSaved(true);
+  };
+
+  if (!wallet) {
+    return <div className="mx-auto max-w-xl px-4 py-16 text-center"><div className="luxury-panel rounded-[var(--radius-panel)] p-8"><p className="eyebrow">Wallet identity</p><h1 className="mt-3 font-editorial text-4xl">Create your private identity.</h1><p className="mt-4 text-sm leading-7 text-[var(--secondary)]">Your wallet is your profile. No email, password, or login is required.</p><Link href="/wallet" className="mt-6 inline-flex rounded-xl bg-[var(--primary)] px-5 py-3 text-sm font-semibold text-white">Open XConfess Wallet</Link></div></div>;
+  }
+
+  if (locked) {
+    return <div className="mx-auto max-w-xl px-4 py-16 text-center"><div className="luxury-panel rounded-[var(--radius-panel)] p-8"><p className="eyebrow">Wallet identity</p><h1 className="mt-3 font-editorial text-4xl">Unlock to view your profile.</h1><p className="mt-4 text-sm leading-7 text-[var(--secondary)]">Your profile and confession history are protected by your wallet lock.</p><Link href="/wallet" className="mt-6 inline-flex rounded-xl bg-[var(--primary)] px-5 py-3 text-sm font-semibold text-white">Unlock wallet</Link></div></div>;
+  }
+
+  return <main className="mx-auto max-w-5xl space-y-6 px-4 py-8 sm:px-6 sm:py-12">
+    <section className="luxury-panel rounded-[var(--radius-panel)] p-6 sm:p-8"><div className="flex flex-wrap items-center gap-5"><div className="flex h-20 w-20 items-center justify-center rounded-full bg-[var(--accent-soft)] text-4xl">{avatar}</div><div className="min-w-0 flex-1"><p className="eyebrow">Wallet identity</p><h1 className="mt-2 font-editorial text-4xl">{alias || "Anonymous by design"}</h1><p className="mt-2 break-all font-mono text-xs text-[var(--secondary)]">{wallet.publicKey}</p></div></div><div className="mt-6 grid gap-4 sm:grid-cols-[1fr_auto]"><label className="text-sm font-medium">Display name<input value={alias} onChange={(e) => setAlias(e.target.value)} maxLength={32} placeholder="Optional alias" className="mt-2 h-11 w-full rounded-xl border bg-[var(--surface-muted)] px-3 text-sm" /></label><div><p className="text-sm font-medium">Avatar</p><div className="mt-2 flex flex-wrap gap-2">{LOCAL_AVATARS.map((option) => <button key={option} type="button" onClick={() => setAvatar(option)} className={"flex h-11 w-11 items-center justify-center rounded-xl border text-xl " + (avatar === option ? "border-[var(--primary)] bg-[var(--accent-soft)]" : "border-[var(--border)] bg-[var(--surface-muted)]")} aria-label={"Choose avatar " + option}>{option}</button>)}</div></div></div><Button className="mt-5" onClick={saveIdentity}>Save identity</Button>{saved && <p className="mt-3 text-sm text-[var(--success)]">Identity saved locally on this device.</p>}</section>
+    <section className="grid gap-4 sm:grid-cols-3"><div className="luxury-panel rounded-[var(--radius-panel)] p-5"><p className="eyebrow">Confessions</p><p className="mt-2 font-editorial text-4xl">{confessions.length}</p><p className="mt-1 text-sm text-[var(--secondary)]">Published from this wallet</p></div><div className="luxury-panel rounded-[var(--radius-panel)] p-5"><p className="eyebrow">Privacy</p><p className="mt-2 font-semibold">Anonymous by default</p><p className="mt-1 text-sm text-[var(--secondary)]">Your secret key never leaves this device.</p></div><div className="luxury-panel rounded-[var(--radius-panel)] p-5"><p className="eyebrow">Address</p><p className="mt-2 truncate font-mono text-sm">{wallet.publicKey.slice(0, 10)}…{wallet.publicKey.slice(-8)}</p><p className="mt-1 text-sm text-[var(--secondary)]">Wallet-based identity</p></div></section>
+    <section className="luxury-panel rounded-[var(--radius-panel)] p-6 sm:p-8"><div className="flex items-center justify-between gap-4"><div><p className="eyebrow">Your confessions</p><h2 className="mt-2 font-editorial text-3xl">A private record of what you shared</h2></div><Link href="/#composer" className="rounded-xl border border-[var(--border)] px-4 py-2 text-sm font-semibold">Write</Link></div>{confessions.length === 0 ? <p className="mt-6 rounded-xl bg-[var(--surface-muted)] p-5 text-sm leading-7 text-[var(--secondary)]">Your published confessions will appear here. XConfess keeps this local index tied to your wallet identity.</p> : <div className="mt-6 space-y-3">{confessions.map((item) => <Link key={item.id} href={"/confessions/" + item.id} className="block rounded-xl border border-[var(--border)] p-4 hover:bg-[var(--surface-muted)]"><div className="flex items-center justify-between gap-3 text-xs text-[var(--secondary)]"><span>{new Date(item.createdAt).toLocaleDateString()}</span>{item.stellarTxHash && <span className="text-[var(--success)]">Anchored</span>}</div><p className="mt-2 line-clamp-2 text-sm leading-6">{item.title || item.body}</p></Link>)}</div>}</section>
+  </main>;
+}
 export default function ProfilePage() {
   const router = useRouter();
   const { isAuthenticated, isLoading } = useAuth();
@@ -94,11 +148,6 @@ export default function ProfilePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!isLoading && !isAuthenticated) {
-      router.replace("/login");
-    }
-  }, [isAuthenticated, isLoading, router]);
 
   useEffect(() => {
     if (!isAuthenticated) return;
@@ -137,6 +186,7 @@ export default function ProfilePage() {
     ];
   }, [summary]);
 
+  if (!isLoading && !isAuthenticated) return <LocalWalletProfile />;
   if (isLoading || loading) return <ProfileSkeleton />;
   if (!isAuthenticated) return null;
 

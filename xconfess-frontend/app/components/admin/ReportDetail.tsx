@@ -47,8 +47,11 @@ export default function ReportDetail({
         queryClient.setQueriesData({ queryKey: ['admin-reports'] }, context.previousData);
       }
     },
-    onSettled: () => {
+    onSettled: (_data, _error, { id }) => {
       queryClient.invalidateQueries({ queryKey: ['admin-reports'] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.reports.detail(id) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.auditLogs.byEntity('report', id) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.auditLogs.byEntity('confession', report.confessionId) });
     },
   });
 
@@ -74,8 +77,11 @@ export default function ReportDetail({
         queryClient.setQueriesData({ queryKey: ['admin-reports'] }, context.previousData);
       }
     },
-    onSettled: () => {
+    onSettled: (_data, _error, { id }) => {
       queryClient.invalidateQueries({ queryKey: ['admin-reports'] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.reports.detail(id) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.auditLogs.byEntity('report', id) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.auditLogs.byEntity('confession', report.confessionId) });
     },
   });
 

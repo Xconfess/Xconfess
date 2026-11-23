@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
 import axios from "axios";
-import { getApiBaseUrl } from "@/app/lib/config";
+import { resolveBackendRoute } from "@/app/lib/api/proxy";
 import { createApiErrorResponse } from "@/lib/apiErrorHandler";
 
 // Do NOT resolve this at module scope. `next build` imports every route
 // module during "Collecting page data" to read static config, with no
 // request in flight and no guarantee runtime env vars are present. A
-// throw here (e.g. "BACKEND_API_URL is required...") kills the entire
+// throw here (e.g. a production backend URL guard) kills the entire
 // production build instead of failing a real request at runtime.
 // Resolve it lazily, once per request, inside the handler.
 
@@ -238,7 +238,6 @@ function seriesValues(rows: Array<{ date: string; value: number }>): number[] {
 }
 
 export async function GET(request: Request) {
-  const BACKEND_URL = getApiBaseUrl();
   const requestId = Math.random().toString(36).substring(7);
   const { searchParams } = new URL(request.url);
   const period = searchParams.get("period") || "7d";
@@ -251,6 +250,31 @@ export async function GET(request: Request) {
 
   try {
     const headers = authHeader ? { Authorization: authHeader } : {};
+    const statsUrl = resolveBackendRoute(request, "/analytics/stats").url;
+    const trendingUrl = resolveBackendRoute(
+      request,
+      `/analytics/trending?days=${days}`,
+    ).url;
+    const reactionsUrl = resolveBackendRoute(
+      request,
+      `/analytics/reactions?days=${days}`,
+    ).url;
+    const usersUrl = resolveBackendRoute(
+      request,
+      `/analytics/users?days=${days}`,
+    ).url;
+    const growthUrl = resolveBackendRoute(
+      request,
+      `/analytics/growth?days=${days}`,
+    ).url;
+    const trailingUsersUrl = resolveBackendRoute(
+      request,
+      "/analytics/users?days=30",
+    ).url;
+    const trailingGrowthUrl = resolveBackendRoute(
+      request,
+      "/analytics/growth?days=30",
+    ).url;
 
     const [
       statsRes,
@@ -260,15 +284,15 @@ export async function GET(request: Request) {
       growthRes,
       trailingComparison,
     ] = await Promise.allSettled([
-      axios.get(`${BACKEND_URL}/analytics/stats`, { headers }),
-      axios.get(`${BACKEND_URL}/analytics/trending?days=${days}`, { headers }),
-      axios.get(`${BACKEND_URL}/analytics/reactions?days=${days}`, { headers }),
-      axios.get(`${BACKEND_URL}/analytics/users?days=${days}`, { headers }),
-      axios.get(`${BACKEND_URL}/analytics/growth?days=${days}`, { headers }),
+      axios.get(statsUrl, { headers }),
+      axios.get(trendingUrl, { headers }),
+      axios.get(reactionsUrl, { headers }),
+      axios.get(usersUrl, { headers }),
+      axios.get(growthUrl, { headers }),
       comparisonEnabled && days === 7
         ? Promise.all([
-            axios.get(`${BACKEND_URL}/analytics/users?days=30`, { headers }),
-            axios.get(`${BACKEND_URL}/analytics/growth?days=30`, { headers }),
+            axios.get(trailingUsersUrl, { headers }),
+            axios.get(trailingGrowthUrl, { headers }),
           ]).catch(() => null)
         : Promise.resolve(null),
     ]);

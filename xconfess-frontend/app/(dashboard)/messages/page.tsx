@@ -9,10 +9,11 @@ import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Send, User as UserIcon, MessageSquare, WifiOff, RefreshCw, Inbox, AlertCircle, Lock } from 'lucide-react';
+import { Send, User as UserIcon, MessageSquare, WifiOff, RefreshCw, Inbox, AlertCircle, Lock, Wifi, WifiOff as WifiOffIcon } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { useGlobalToast } from '@/app/components/common/Toast';
 import { useMessageE2E } from '@/app/lib/hooks/useMessageE2E';
+import { useMessagesWebSocket, useMessageReconciliation } from '@/app/lib/hooks/useMessagesWebSocket';
 import { ENCRYPTED_PREVIEW } from '@/app/lib/crypto/messageE2E';
 import { ConfirmDialog } from '@/app/components/admin/ConfirmDialog';
 
@@ -74,6 +75,11 @@ function MobileThreadList({
   onSelect,
   onRetry,
   onBack,
+  isConnected,
+  isReconnecting,
+  reconnectAttempts,
+  pendingReconciliation,
+  onReconnect,
 }: {
   threads: Thread[];
   selectedThread: Thread | null;
@@ -82,6 +88,11 @@ function MobileThreadList({
   onSelect: (t: Thread) => void;
   onRetry: () => void;
   onBack: () => void;
+  isConnected: boolean;
+  isReconnecting: boolean;
+  reconnectAttempts: number;
+  pendingReconciliation: boolean;
+  onReconnect: () => void;
 }) {
   return (
     <div className="h-full flex flex-col bg-white dark:bg-gray-950">
@@ -95,6 +106,45 @@ function MobileThreadList({
           <MessageSquare className="w-5 h-5" />
           Messages
         </h1>
+        <div className="ml-auto flex items-center gap-2">
+          {isReconnecting && (
+            <span className="text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1">
+              <RefreshCw className="w-3 h-3 animate-spin" />
+              Reconnecting... ({reconnectAttempts})
+            </span>
+          )}
+          {pendingReconciliation && (
+            <span className="text-xs text-blue-600 dark:text-blue-400 flex items-center gap-1">
+              <RefreshCw className="w-3 h-3 animate-spin" />
+              Syncing...
+            </span>
+          )}
+          {!isReconnecting && !pendingReconciliation && (
+            <span className={`flex items-center gap-1 text-xs ${isConnected ? 'text-green-600 dark:text-green-400' : 'text-gray-400'}`}>
+              {isConnected ? (
+                <>
+                  <Wifi className="w-3 h-3" />
+                  Connected
+                </>
+              ) : (
+                <>
+                  <WifiOffIcon className="w-3 h-3" />
+                  Disconnected
+                </>
+              )}
+            </span>
+          )}
+          {!isConnected && !isReconnecting && (
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={onReconnect}
+              className="text-xs h-6 px-2"
+            >
+              Reconnect
+            </Button>
+          )}
+        </div>
       </div>
       {!selectedThread && (
         <ScrollArea className="flex-1">
@@ -197,6 +247,65 @@ export default function MessagesPage() {
   const inputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  // WebSocket for real-time message updates with reconnection and reconciliation
+  const {
+    status,
+    isConnected,
+    isReconnecting,
+    reconnectAttempts,
+    forceReconnect,
+  } = useMessagesWebSocket({
+    onNewMessage: (threadId, messageId, preview) => {
+      // Update thread list with new message
+      setThreads(prev => prev.map(t => 
+        `${t.confessionId}_${t.senderId}` === threadId
+          ? { ...t, lastMessage: preview, lastMessageAt: new Date().toISOString(), hasUnread: !t.isAuthor }
+          : t
+      ));
+      // If this thread is currently selected, fetch messages
+      if (selectedThread && `${selectedThread.confessionId}_${selectedThread.senderId}` === threadId) {
+        fetchMessages(selectedThread);
+      }
+    },
+    onNewReply: (threadId, messageId, replyPreview) => {
+      setThreads(prev => prev.map(t => 
+        `${t.confessionId}_${t.senderId}` === threadId
+          ? { ...t, lastMessage: replyPreview, lastMessageAt: new Date().toISOString(), hasUnread: t.isAuthor }
+          : t
+      ));
+      if (selectedThread && `${selectedThread.confessionId}_${selectedThread.senderId}` === threadId) {
+        fetchMessages(selectedThread);
+      }
+    },
+    onMessageRead: (threadId, messageIds) => {
+      // Update read state in messages if thread is selected
+      if (selectedThread && `${selectedThread.confessionId}_${selectedThread.senderId}` === threadId) {
+        setMessages(prev => prev.map(m => 
+          messageIds.includes(m.id) ? { ...m, readAt: new Date().toISOString() } : m
+        ));
+      }
+    },
+    onThreadUpdated: (threadId) => {
+      // Refresh thread list
+      fetchThreads();
+    },
+    enabled: e2eReady,
+  });
+
+  // Reconciliation hook for missed messages after reconnect
+  const { pendingReconciliation, onReconnect, reconcile } = useMessageReconciliation(
+    selectedThread ? `${selectedThread.confessionId}_${selectedThread.senderId}` : null,
+    () => selectedThread ? fetchMessages(selectedThread) : Promise.resolve(),
+    { enabled: e2eReady && isConnected }
+  );
+
+  // Trigger reconciliation on reconnect
+  useEffect(() => {
+    if (isConnected && !isReconnecting) {
+      onReconnect();
+    }
+  }, [isConnected, isReconnecting, onReconnect]);
+
   const fetchThreads = useCallback(async () => {
     try {
       setIsLoadingThreads(true);
@@ -263,18 +372,18 @@ export default function MessagesPage() {
               decryptedReply: m.replyContent ? ENCRYPTED_PREVIEW : null,
             }));
         setMessages(decrypted);
-    } catch (error) {
-      if (isExpectedDevOfflineError(error)) {
-        console.debug('Skipping expected local thread error while backend is offline.');
-        setMessagesError('Messages will appear once the local backend is running.');
-      } else {
-        console.error('Failed to fetch messages:', error);
-        setMessagesError('Unable to load messages for this conversation.');
+      } catch (error) {
+        if (isExpectedDevOfflineError(error)) {
+          console.debug('Skipping expected local thread error while backend is offline.');
+          setMessagesError('Messages will appear once the local backend is running.');
+        } else {
+          console.error('Failed to fetch messages:', error);
+          setMessagesError('Unable to load messages for this conversation.');
+        }
+      } finally {
+        setIsLoadingMessages(false);
       }
-    } finally {
-      setIsLoadingMessages(false);
-    }
-  }, [decryptMessages, e2eReady]);
+    }, [decryptMessages, e2eReady]);
 
   useEffect(() => {
     fetchThreads();
@@ -485,6 +594,11 @@ export default function MessagesPage() {
               onSelect={handleSelectThread}
               onRetry={fetchThreads}
               onBack={handleBackToList}
+              isConnected={isConnected}
+              isReconnecting={isReconnecting}
+              reconnectAttempts={reconnectAttempts}
+              pendingReconciliation={pendingReconciliation}
+              onReconnect={forceReconnect}
             />
           ) : (
             <div className="h-full flex flex-col">
@@ -492,13 +606,52 @@ export default function MessagesPage() {
                 <Button variant="ghost" size="sm" onClick={handleBackToList}>
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
                 </Button>
-                <div className="flex items-center gap-2 min-w-0">
+                <div className="flex items-center gap-2 min-w-0 flex-1">
                   <div className="bg-purple-100 dark:bg-purple-900/40 p-1.5 rounded-full text-purple-600 flex-shrink-0">
                     <UserIcon className="w-4 h-4" />
                   </div>
                   <div className="min-w-0">
                     <p className="text-sm font-bold text-gray-900 dark:text-gray-100 truncate">{selectedThread.confessionMessage}</p>
                     <Badge variant="outline" className="text-[9px] py-0 h-3.5">{selectedThread.isAuthor ? 'AUTHOR' : 'SENDER'}</Badge>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    {isReconnecting && (
+                      <span className="text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                        <RefreshCw className="w-3 h-3 animate-spin" />
+                        Reconnecting... ({reconnectAttempts})
+                      </span>
+                    )}
+                    {pendingReconciliation && (
+                      <span className="text-xs text-blue-600 dark:text-blue-400 flex items-center gap-1">
+                        <RefreshCw className="w-3 h-3 animate-spin" />
+                        Syncing...
+                      </span>
+                    )}
+                    {!isReconnecting && !pendingReconciliation && (
+                      <span className={`flex items-center gap-1 text-xs ${isConnected ? 'text-green-600 dark:text-green-400' : 'text-gray-400'}`}>
+                        {isConnected ? (
+                          <>
+                            <Wifi className="w-3 h-3" />
+                            Connected
+                          </>
+                        ) : (
+                          <>
+                            <WifiOffIcon className="w-3 h-3" />
+                            Disconnected
+                          </>
+                        )}
+                      </span>
+                    )}
+                    {!isConnected && !isReconnecting && (
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        onClick={forceReconnect}
+                        className="text-xs h-6 px-2"
+                      >
+                        Reconnect
+                      </Button>
+                    )}
                   </div>
                 </div>
               </div>
@@ -567,8 +720,8 @@ export default function MessagesPage() {
                   </div>
                 )}
               </ScrollArea>
-              <div className="p-3 bg-white dark:bg-gray-950 border-t border-gray-200 dark:border-gray-800">
-                <div className="flex gap-2">
+              <div className="p-2 sm:p-3 bg-white dark:bg-gray-950 border-t border-gray-200 dark:border-gray-800">
+                <div className="flex min-w-0 items-center gap-2 sm:gap-3">
                   <Input
                     ref={inputRef}
                     placeholder={selectedThread.isAuthor ? 'Type an encrypted reply...' : 'Send encrypted message...'}
@@ -576,9 +729,9 @@ export default function MessagesPage() {
                     onChange={(e) => setNewMessage(e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
                     disabled={isSending || !e2eReady}
-                    className="flex-1 text-sm"
+                    className="min-w-0 flex-1 text-sm"
                   />
-                  <Button onClick={handleSendMessage} disabled={isSending || !newMessage.trim() || !e2eReady} size="sm">
+                  <Button className="shrink-0" onClick={handleSendMessage} disabled={isSending || !newMessage.trim() || !e2eReady} size="sm">
                     <Send className="w-4 h-4" />
                   </Button>
                 </div>
@@ -673,9 +826,49 @@ export default function MessagesPage() {
                     <div className="bg-purple-100 dark:bg-purple-900/40 p-2 rounded-full text-purple-600">
                       <UserIcon className="w-5 h-5" />
                     </div>
-                    <div>
+                    <div className="flex-1 min-w-0">
                       <h2 className="text-sm font-bold text-gray-900 dark:text-gray-100 line-clamp-1">{selectedThread.confessionMessage}</h2>
                       <Badge variant="outline" className="text-[10px] py-0 h-4">{selectedThread.isAuthor ? 'AUTHOR VIEW' : 'SENDER VIEW'}</Badge>
+                    </div>
+                    {/* Connection status indicator */}
+                    <div className="flex items-center gap-2">
+                      {isReconnecting && (
+                        <span className="text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                          <RefreshCw className="w-3 h-3 animate-spin" />
+                          Reconnecting... ({reconnectAttempts})
+                        </span>
+                      )}
+                      {pendingReconciliation && (
+                        <span className="text-xs text-blue-600 dark:text-blue-400 flex items-center gap-1">
+                          <RefreshCw className="w-3 h-3 animate-spin" />
+                          Syncing messages...
+                        </span>
+                      )}
+                      {!isReconnecting && !pendingReconciliation && (
+                        <span className={`flex items-center gap-1 text-xs ${isConnected ? 'text-green-600 dark:text-green-400' : 'text-gray-400'}`}>
+                          {isConnected ? (
+                            <>
+                              <Wifi className="w-3 h-3" />
+                              Connected
+                            </>
+                          ) : (
+                            <>
+                              <WifiOffIcon className="w-3 h-3" />
+                              Disconnected
+                            </>
+                          )}
+                        </span>
+                      )}
+                      {!isConnected && !isReconnecting && (
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          onClick={forceReconnect}
+                          className="text-xs h-6 px-2"
+                        >
+                          Reconnect
+                        </Button>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -747,17 +940,17 @@ export default function MessagesPage() {
                   )}
                 </ScrollArea>
 
-                <div className="p-4 bg-white dark:bg-gray-950 border-t border-gray-200 dark:border-gray-800">
-                  <div className="flex gap-2">
+                <div className="p-3 sm:p-4 bg-white dark:bg-gray-950 border-t border-gray-200 dark:border-gray-800">
+                  <div className="flex min-w-0 items-center gap-2 sm:gap-3">
                     <Input
                       placeholder={selectedThread.isAuthor ? 'Type an encrypted reply...' : 'Send encrypted message...'}
                       value={newMessage}
                       onChange={(e) => setNewMessage(e.target.value)}
                       onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
                       disabled={isSending || !e2eReady}
-                      className="flex-1"
+                      className="min-w-0 flex-1"
                     />
-                    <Button onClick={handleSendMessage} disabled={isSending || !newMessage.trim() || !e2eReady}>
+                    <Button className="shrink-0" onClick={handleSendMessage} disabled={isSending || !newMessage.trim() || !e2eReady}>
                       <Send className="w-4 h-4" />
                     </Button>
                   </div>

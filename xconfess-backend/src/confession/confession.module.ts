@@ -5,8 +5,9 @@ import {
   MiddlewareConsumer,
   forwardRef,
 } from '@nestjs/common';
-import { TypeOrmModule } from '@nestjs/typeorm';
+import { TypeOrmModule, getDataSourceToken } from '@nestjs/typeorm';
 import { EventEmitterModule } from '@nestjs/event-emitter';
+import { DataSource } from 'typeorm';
 import { ConfessionController } from './confession.controller';
 import { ConfessionService } from './confession.service';
 import { AnonymousConfession } from './entities/confession.entity';
@@ -82,6 +83,7 @@ class MockRedis {
     ConfessionSchedulerService,
     ConfessionIdempotencyService,
     { provide: 'VIEW_CACHE_EXPIRY', useValue: 60 * 60 },
+    { provide: DataSource, useExisting: getDataSourceToken() },
     // Mock Redis provider for development without Redis server
     { provide: REDIS_TOKEN, useValue: new MockRedis() },
   ],

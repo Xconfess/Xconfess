@@ -4,6 +4,10 @@ export class AddDownloadTokenToExportRequests20260422000000 implements Migration
   name = 'AddDownloadTokenToExportRequests20260422000000';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
+    if (!(await queryRunner.hasTable('export_requests'))) {
+      return;
+    }
+
     await queryRunner.query(`
       ALTER TABLE "export_requests"
         ADD COLUMN IF NOT EXISTS "downloadTokenHash"  VARCHAR(64) NULL,

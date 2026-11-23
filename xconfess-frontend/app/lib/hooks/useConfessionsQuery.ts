@@ -4,6 +4,11 @@ import { useQuery, useInfiniteQuery } from "@tanstack/react-query";
 import { getConfessions } from "@/app/lib/api/confessions";
 import type { GetConfessionsParams } from "@/app/lib/api/confessions";
 import { queryKeys } from "@/app/lib/api/queryKeys";
+import {
+  QueryError,
+  exponentialBackoff,
+  retryOnTransientError,
+} from "@/app/lib/utils/retry";
 
 const DEFAULT_LIMIT = 10;
 
@@ -24,11 +29,13 @@ export function useConfessionsQuery(params: GetConfessionsParams = {}) {
         ...rest,
       });
       if (!result.ok) {
-        throw new Error(result.error.message);
+        throw new QueryError(result.error);
       }
       return result.data;
     },
     placeholderData: (previousData) => previousData,
+    retry: retryOnTransientError,
+    retryDelay: exponentialBackoff,
   });
 }
 
@@ -50,7 +57,7 @@ export function useInfiniteConfessions(
         ...rest,
       });
       if (!result.ok) {
-        throw new Error(result.error.message);
+        throw new QueryError(result.error);
       }
       return result.data;
     },
@@ -61,5 +68,10 @@ export function useInfiniteConfessions(
       }
       return undefined;
     },
+    // Keep previously loaded pages visible while a background refetch (or a
+    // retry after a transient failure) is in flight instead of wiping them.
+    placeholderData: (previousData) => previousData,
+    retry: retryOnTransientError,
+    retryDelay: exponentialBackoff,
   });
 }

@@ -18,6 +18,7 @@ import {
   freighterGetPublicKey,
   freighterSignTransaction,
 } from "../wallet/freighterAdapter";
+import { getEmbeddedWallet, unlockEmbeddedWallet } from "@/app/lib/crypto/embeddedWallet";
 
 const MIN_TIP_AMOUNT = 0.1;
 const MAX_TIP_AMOUNT = 10_000;
@@ -198,7 +199,8 @@ function shouldPollVerification(
 /**
  * Fake status checker — replace with actual backend or Stellar SDK call
  */
-export const checkTransactionStatus = async (_txHash?: string): Promise<ActivityStatus> => {
+export const checkTransactionStatus = async (txHash?: string): Promise<ActivityStatus> => {
+  void txHash;
   await sleep(2000);
 
   const random = Math.random();
@@ -219,6 +221,7 @@ export async function sendTip(
   confessionId: string,
   amount: number,
   recipientAddress: string,
+  walletPin?: string,
 ): Promise<{ success: boolean; txHash?: string; error?: string }> {
   try {
     if (amount < MIN_TIP_AMOUNT) {
@@ -245,17 +248,14 @@ export async function sendTip(
       };
     }
 
-    if (!isFreighterInstalled()) {
-      return { success: false, error: "Freighter wallet not found" };
-    }
-
+    const embeddedWallet = getEmbeddedWallet();
     let publicKey: string;
-    try {
-      publicKey = await freighterGetPublicKey();
-    } catch {
-      return { success: false, error: "Freighter wallet not found" };
+    if (embeddedWallet) {
+      publicKey = embeddedWallet.publicKey;
+    } else {
+      try { publicKey = await freighterGetPublicKey(); }
+      catch { return { success: false, error: "Create an XConfess Wallet or connect Freighter" }; }
     }
-
     const network = getStellarNetwork();
     const server = getStellarServer();
 
@@ -282,10 +282,15 @@ export async function sendTip(
       .setTimeout(30)
       .build();
 
-    const signedXDR = await freighterSignTransaction(
-      transaction.toXDR(),
-      network,
-    );
+    let signedXDR: string;
+    if (embeddedWallet) {
+      if (!walletPin) return { success: false, error: "Unlock your XConfess Wallet to tip" };
+      const keypair = await unlockEmbeddedWallet(walletPin);
+      transaction.sign(keypair);
+      signedXDR = transaction.toXDR();
+    } else {
+      signedXDR = await freighterSignTransaction(transaction.toXDR(), network);
+    }
     const tx = TransactionBuilder.fromXDR(signedXDR, network);
     const result = await server.submitTransaction(tx);
 

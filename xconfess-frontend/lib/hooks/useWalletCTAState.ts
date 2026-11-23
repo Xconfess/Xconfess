@@ -13,10 +13,7 @@ export interface WalletCTAState {
   guidance: string | null;
 }
 
-export type WalletCTAInput = Pick<
-  UseWalletReturn,
-  "isFreighterInstalled" | "isConnected" | "isReady" | "readinessError" | "isLoading"
->;
+export type WalletCTAInput = Pick<UseWalletReturn, "isFreighterInstalled" | "isConnected" | "isReady" | "readinessError" | "isLoading"> & { isEmbeddedWallet?: boolean };
 
 export function getWalletCTAState(
   wallet: WalletCTAInput,
@@ -26,11 +23,11 @@ export function getWalletCTAState(
     return { status: "loading", disabled: true, guidance: null };
   }
 
-  if (!wallet.isFreighterInstalled) {
+  if (!wallet.isFreighterInstalled && !wallet.isEmbeddedWallet) {
     return {
       status: "not-installed",
       disabled: true,
-      guidance: "Install the Freighter browser extension to connect your Stellar wallet.",
+      guidance: "Create an XConfess Wallet or connect an external Stellar wallet to perform on-chain actions.",
     };
   }
 
@@ -38,7 +35,7 @@ export function getWalletCTAState(
     return {
       status: "not-connected",
       disabled: false,
-      guidance: "Connect your Freighter wallet to perform on-chain actions.",
+      guidance: "Create an XConfess Wallet or connect an external Stellar wallet to perform on-chain actions.",
     };
   }
 

@@ -1,9 +1,29 @@
-﻿# xConfess
+# xConfess
 
-![CI](https://github.com/Dataguru-tech/Xconfess/actions/workflows/ci.yml/badge.svg)
-![License](https://img.shields.io/github/license/Dataguru-tech/Xconfess)
-![Node](https://img.shields.io/badge/node-%3E%3D18-brightgreen)
+![CI](https://github.com/Xconfess/Xconfess/actions/workflows/ci.yml/badge.svg)
+![License](https://img.shields.io/github/license/Xconfess/Xconfess)
+![Node](https://img.shields.io/badge/node-22.x-brightgreen)
 
+
+xConfess is a privacy-first anonymous social app powered by Stellar.
+
+- Live app: https://xconfess.vercel.app/
+- Public traction: https://xconfess.vercel.app/traction
+- Public traction API: `/api/public/traction`
+- Network: Stellar testnet by default, configurable for mainnet
+- Contract deployments: [deployments/README.md](deployments/README.md)
+- Metrics methodology: [docs/traction-metrics.md](docs/traction-metrics.md)
+- Readiness evidence: [docs/product-readiness.md](docs/product-readiness.md)
+
+## Live Product Metrics
+
+Current public metrics are calculated from persisted product records and privacy-safe analytics events. The repository does not manually seed or hard-code traction numbers; open the traction page or API endpoint for the latest aggregate snapshot.
+
+## Stellar Integration
+
+Xconfess uses Stellar/Soroban for optional confession anchoring, anonymous tipping, contract invocation diagnostics, deployment metadata, and reconciliation-oriented transaction verification. Wallet secrets, private keys, seed phrases, auth tokens, confession text, and private message bodies are never included in public traction metrics.
+
+## Architecture
 
 xConfess is a monorepo for an anonymous confession platform built with NestJS, Next.js 16, PostgreSQL, Redis-backed queues, WebSockets, and Soroban smart contracts on Stellar.
 
@@ -97,6 +117,8 @@ docker compose -f compose.yaml ps
 ### 3. Configure environment files
 
 > **Security reminder:** Never commit `.env` or `.env.local` files. Always commit only the `.env.example` template files (which contain no real secrets). Do not paste real secret values into issues, PR descriptions, or comments.
+>
+> **Local-only secret examples:** Use the placeholders below only for local development. Do not reuse these example values outside of a local dev environment, and do not treat them as secure production credentials.
 
 **Backend** - copy the sample and fill in the values marked `change-me`:
 
@@ -179,6 +201,16 @@ This starts the backend and frontend concurrently. Once both are ready:
 
 See [Health Endpoint Quick Reference](docs/HEALTH_ENDPOINT_QUICK_REFERENCE.md) for details on liveness vs readiness probes, Kubernetes config examples, and response formats.
 
+> **Render cold start notice:** The production backend is hosted on Render's free tier, which spins down instances after inactivity. The **first request after a period of inactivity may take 50 seconds or more** to respond while the instance wakes up. This is expected behaviour — it is not a broken deploy. To confirm the service is up, poll the health endpoints until you receive a `200`:
+>
+> ```bash
+> # Wait for the backend to wake up
+> curl https://<your-render-host>/api/health/live   # process alive
+> curl https://<your-render-host>/api/health/ready  # all dependencies ready
+> ```
+>
+> See [docs/production-critical-path.md](docs/production-critical-path.md) for more detail on Render cold starts and how to validate a fresh deploy.
+
 ### Common Local Startup Issues
 
 | Symptom | Cause | Fix |
@@ -234,7 +266,7 @@ cd xconfess-contracts
 # Format
 cargo fmt --all
 
-# Lint (clippy, warnings as errors â€” mirrors CI)
+# Lint (clippy, warnings as errors - mirrors CI)
 cargo clippy --workspace --all-targets --all-features -- -D warnings
 
 # Tests
@@ -283,6 +315,7 @@ npm run backend:schema:repair
 |-----------|---------|
 | Fresh Postgres container or CI run | `npm run backend:migration:run` |
 | Existing local dev database (may have been created via `synchronize`) | `npm run backend:schema:repair` |
+| Existing Render database with tables but no migration history | `npm run render:prestart` with `TYPEORM_BASELINE_EXISTING_SCHEMA=true` |
 | Debugging a migration list error | `npm run backend:migration:show` |
 
 After running either migration command, verify the readiness probe returns 200:
@@ -308,7 +341,7 @@ npm run contract:lint
 npm run ci
 ```
 
-This runs `ci:backend`, `ci:frontend`, and `ci:contract` in sequence â€” build, lint, and test for each package.
+This runs `ci:backend`, `ci:frontend`, and `ci:contract` in sequence - build, lint, and test for each package.
 
 ## Contributing
 
@@ -320,6 +353,10 @@ When your PR is ready for review, include a concise summary, validation results,
 
 When reporting bugs, see [Attaching Logs to Issues and PRs](docs/LOG_ATTACHING_GUIDE.md) for redaction guidelines.
 
+### Backend endpoint checklist
+
+When adding a new API endpoint, follow the [API endpoint contributor checklist](docs/contributing-api-endpoints.md) to cover controller, DTO, auth, tests, Swagger, and frontend proxy updates.
+
 ## Documentation
 
 - [Account Recovery Guide](docs/account-recovery.md) — What to do if you connect the wrong wallet or network
@@ -330,3 +367,8 @@ When reporting bugs, see [Attaching Logs to Issues and PRs](docs/LOG_ATTACHING_G
 - `xconfess-frontend/README.md`
 - `xconfess-contracts/README.md`
 - `docs/message-e2e-encryption.md` — E2E private messaging protocol
+## Native XConfess Wallet
+
+The app includes an optional embedded Stellar wallet at `/wallet`. Keypairs are generated or imported in the browser; the secret key is encrypted locally with a PIN-derived AES-GCM key. The backend stores only the public key and, when requested, ciphertext-only backups. Freighter remains an optional advanced provider and is not required for normal wallet, send, receive, or tipping flows.
+
+The default network is Stellar Testnet. Set `ENABLE_TESTNET_FUNDING=true` only in a controlled environment to enable the authenticated, rate-limited Friendbot endpoint. Mainnet is intentionally not enabled by default. See [docs/WALLET_ARCHITECTURE.md](docs/WALLET_ARCHITECTURE.md) for key lifecycle, recovery limitations, threat model, and deployment review requirements.

@@ -18,7 +18,7 @@ describe('MigrationVerificationService', () => {
         MigrationVerificationService,
         {
           provide: getDataSourceToken(),
-          useValue: { query },
+          useValue: { query, entityMetadatas: [] },
         },
       ],
     }).compile();
@@ -85,10 +85,7 @@ describe('MigrationVerificationService', () => {
       const result = await service.checkConfessionSchema();
 
       expect(result.ok).toBe(false);
-      expect(result.missingColumns).toEqual([
-        'search_vector',
-        'view_count',
-      ]);
+      expect(result.missingColumns).toEqual(['search_vector', 'view_count']);
       expect(result.missingIndexes).toEqual([]);
     });
 
@@ -97,9 +94,7 @@ describe('MigrationVerificationService', () => {
         .mockResolvedValueOnce(
           REQUIRED_CONFESSION_COLUMNS.map((column_name) => ({ column_name })),
         )
-        .mockResolvedValueOnce([
-          { indexname: 'idx_confession_search_vector' },
-        ]);
+        .mockResolvedValueOnce([{ indexname: 'idx_confession_search_vector' }]);
 
       const result = await service.checkConfessionSchema();
 
@@ -140,9 +135,7 @@ describe('MigrationVerificationService', () => {
     });
 
     it('returns degraded when both columns and both indexes are missing', async () => {
-      query
-        .mockResolvedValueOnce([])
-        .mockResolvedValueOnce([]);
+      query.mockResolvedValueOnce([]).mockResolvedValueOnce([]);
 
       const result = await service.checkConfessionSchema();
 
@@ -199,6 +192,76 @@ describe('MigrationVerificationService', () => {
       await service.checkConfessionSchema();
 
       expect(query).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  describe('checkForeignKeyIntegrity', () => {
+    const relation = {
+      isOwning: true,
+      joinColumns: [
+        {
+          databaseName: 'anonymous_user_id',
+          referencedColumn: { databaseName: 'id' },
+        },
+      ],
+      inverseEntityMetadata: { tableName: 'anonymous_users' },
+      onDelete: 'CASCADE',
+      onUpdate: undefined,
+    };
+
+    beforeEach(() => {
+      (service as any).dataSource.entityMetadatas = [
+        { tableName: 'anonymous_confessions', relations: [relation] },
+      ];
+    });
+
+    it('validates foreign-key columns, actions, and a leading-column index', async () => {
+      query
+        .mockResolvedValueOnce([
+          {
+            table_name: 'anonymous_confessions',
+            referenced_table: 'anonymous_users',
+            columns: ['anonymous_user_id'],
+            referenced_columns: ['id'],
+            delete_action: 'c',
+            update_action: 'a',
+          },
+        ])
+        .mockResolvedValueOnce([
+          {
+            table_name: 'anonymous_confessions',
+            columns: ['anonymous_user_id', 'created_at'],
+          },
+        ]);
+
+      await expect(service.checkForeignKeyIntegrity()).resolves.toEqual({
+        ok: true,
+        missingForeignKeys: [],
+        missingIndexes: [],
+      });
+    });
+
+    it('reports missing or incorrectly configured foreign keys and indexes', async () => {
+      query.mockResolvedValueOnce([]).mockResolvedValueOnce([]);
+
+      const result = await service.checkForeignKeyIntegrity();
+
+      expect(result.ok).toBe(false);
+      expect(result.missingForeignKeys).toEqual([
+        'anonymous_confessions(anonymous_user_id) -> anonymous_users(id)',
+      ]);
+      expect(result.missingIndexes).toEqual([
+        'anonymous_confessions(anonymous_user_id)',
+      ]);
+    });
+
+    it('returns query errors without throwing', async () => {
+      query.mockRejectedValueOnce(new Error('catalog unavailable'));
+
+      await expect(service.checkForeignKeyIntegrity()).resolves.toMatchObject({
+        ok: false,
+        queryError: 'catalog unavailable',
+      });
     });
   });
 
@@ -259,9 +322,7 @@ describe('MigrationVerificationService', () => {
       const origEnv = process.env.NODE_ENV;
       process.env.NODE_ENV = 'development';
 
-      query
-        .mockResolvedValueOnce([])
-        .mockResolvedValueOnce([]);
+      query.mockResolvedValueOnce([]).mockResolvedValueOnce([]);
 
       await service.onModuleInit();
 
@@ -300,6 +361,24 @@ describe('MigrationVerificationService', () => {
       const warnMessage: string = warnSpy.mock.calls[0][0];
       expect(warnMessage).toContain('backend:migration:run');
       process.env.NODE_ENV = origEnv;
+    });
+  });
+
+  // ── verifyMigrations ──────────────────────────────────────────────────
+
+  describe('verifyMigrations', () => {
+    it('reports duplicate migration timestamps across migration directories', async () => {
+      const issues = await service.verifyMigrations();
+      expect(issues).toEqual(
+        expect.arrayContaining([
+          expect.stringContaining('Duplicate migration timestamp:'),
+        ]),
+      );
+      expect(
+        issues.some((issue) =>
+          issue.startsWith('Migration has no rollback method:'),
+        ),
+      ).toBe(false);
     });
   });
 

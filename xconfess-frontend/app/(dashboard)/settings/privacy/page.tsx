@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { Shield, Eye, EyeOff, MessageSquare, Database, Save, Sun, Moon, Laptop, Lock, Globe, Bell, BellOff } from 'lucide-react';
 import { useGlobalToast } from '@/app/components/common/Toast';
+import { normalizeApiError } from '@/app/lib/api/errors';
 import { useTheme } from '@/app/lib/hooks/useTheme';
 
 interface PrivacySettings {
@@ -104,15 +105,16 @@ export default function PrivacySettingsPage() {
       });
 
       if (!response.ok) {
-        throw new Error('Failed to load settings');
+        const error = await normalizeApiError(response);
+        throw new Error(error.message);
       }
 
       const data: PrivacySettings = await response.json();
       setSettings(data);
       setDirty(false);
     } catch {
-      setLoadError('Failed to load privacy settings.');
-      toast.error('Failed to load privacy settings');
+      setLoadError("Failed to load privacy settings");
+      toast.error("Failed to load privacy settings");
     } finally {
       setLoading(false);
     }
@@ -138,7 +140,10 @@ export default function PrivacySettingsPage() {
         body: JSON.stringify(settings),
       });
 
-      if (!response.ok) throw new Error('Failed to save');
+      if (!response.ok) {
+        const error = await normalizeApiError(response);
+        throw new Error(error.message);
+      }
 
       const updated: PrivacySettings = await response.json();
       setSettings(updated);

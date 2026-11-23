@@ -21,7 +21,7 @@ describe("getWalletCTAState", () => {
     expect(getWalletCTAState(walletNotInstalled())).toEqual({
       status: "not-installed",
       disabled: true,
-      guidance: "Install the Freighter browser extension to connect your Stellar wallet.",
+      guidance: "Create an XConfess Wallet or connect an external Stellar wallet to perform on-chain actions.",
     });
   });
 
@@ -29,7 +29,7 @@ describe("getWalletCTAState", () => {
     expect(getWalletCTAState(disconnectedWallet())).toEqual({
       status: "not-connected",
       disabled: false,
-      guidance: "Connect your Freighter wallet to perform on-chain actions.",
+      guidance: "Create an XConfess Wallet or connect an external Stellar wallet to perform on-chain actions.",
     });
   });
 
@@ -46,6 +46,14 @@ describe("getWalletCTAState", () => {
       status: "not-ready",
       disabled: true,
       guidance: "Wallet not ready for transactions",
+    });
+  });
+
+  it("treats the native embedded wallet as ready without Freighter", () => {
+    expect(getWalletCTAState({ ...connectedWallet(), isFreighterInstalled: false, isEmbeddedWallet: true })).toEqual({
+      status: "ready",
+      disabled: false,
+      guidance: null,
     });
   });
 

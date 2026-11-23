@@ -4,6 +4,10 @@ export class AddIdempotencyKeyToConfessions20260423000001 implements MigrationIn
   name = 'AddIdempotencyKeyToConfessions20260423000001';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
+    if (!(await queryRunner.hasTable('anonymous_confessions'))) {
+      return;
+    }
+
     await queryRunner.query(`
       ALTER TABLE "anonymous_confessions"
         ADD COLUMN IF NOT EXISTS "idempotency_key" VARCHAR(64) NULL;

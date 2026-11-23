@@ -6,12 +6,14 @@ import { ChainReconciliationService } from './chain-reconciliation.service';
 import { Tip, TipVerificationStatus } from './entities/tip.entity';
 import { StellarService } from '../stellar/stellar.service';
 import { AuditLogService } from '../audit-log/audit-log.service';
+import { AnalyticsEventService } from '../analytics/analytics-event.service';
 
 describe('ChainReconciliationService - Issue #173', () => {
   let service: ChainReconciliationService;
   let tipRepository: Repository<Tip>;
   let stellarService: StellarService;
   let auditLogService: AuditLogService;
+  let analyticsEventService: AnalyticsEventService;
 
   const mockPendingTip: Tip = {
     id: 'tip-1',
@@ -59,6 +61,12 @@ describe('ChainReconciliationService - Issue #173', () => {
           },
         },
         {
+          provide: AnalyticsEventService,
+          useValue: {
+            record: jest.fn(),
+          },
+        },
+        {
           provide: ConfigService,
           useValue: {
             get: jest.fn(),
@@ -73,6 +81,8 @@ describe('ChainReconciliationService - Issue #173', () => {
     tipRepository = module.get<Repository<Tip>>(getRepositoryToken(Tip));
     stellarService = module.get<StellarService>(StellarService);
     auditLogService = module.get<AuditLogService>(AuditLogService);
+    analyticsEventService =
+      module.get<AnalyticsEventService>(AnalyticsEventService);
   });
 
   describe('Exponential Backoff with Jitter', () => {
@@ -164,6 +174,25 @@ describe('ChainReconciliationService - Issue #173', () => {
       expect(result.newStatus).toBe(TipVerificationStatus.VERIFIED);
     });
 
+    it('should not verify a placeholder sentinel without a valid persisted amount', async () => {
+      jest.spyOn(stellarService, 'verifyTransactionFull').mockResolvedValue({
+        hash: mockPendingTip.txId,
+        success: true,
+        ledger: 12345,
+        createdAt: '2026-05-27T00:00:00Z',
+        envelope: 'envelope-xdr',
+        result: 'result-xdr',
+      });
+
+      const result = await service['reconcileSingleTip']({
+        ...mockPendingTip,
+        amount: 0,
+      });
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('Cannot mark reconciled tip as verified');
+    });
+
     it('should mark tip as rejected when transaction fails on-chain', async () => {
       jest.spyOn(stellarService, 'verifyTransactionFull').mockResolvedValue({
         hash: mockPendingTip.txId,
@@ -251,6 +280,27 @@ describe('ChainReconciliationService - Issue #173', () => {
       expect(metrics?.reconciled).toBe(1);
       expect(metrics?.confirmed).toBe(1);
       expect(metrics?.duration).toBeGreaterThan(0);
+      expect(auditLogService.log).toHaveBeenCalledWith(
+        expect.objectContaining({
+          actionType: 'tip_settlement_verified',
+          metadata: expect.objectContaining({
+            entityType: 'tip',
+            tipId: mockPendingTip.id,
+            txId: mockPendingTip.txId,
+          }),
+        }),
+      );
+      expect(analyticsEventService.record).toHaveBeenCalledWith(
+        expect.objectContaining({
+          eventName: 'tip_completed',
+          txHash: mockPendingTip.txId,
+          amountAtomic: '15000000',
+          metadata: expect.objectContaining({
+            source: 'chain_reconciliation',
+            tipId: mockPendingTip.id,
+          }),
+        }),
+      );
     });
 
     it('should mark tips as stale after threshold', async () => {

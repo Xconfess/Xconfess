@@ -1,15 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createApiErrorResponse } from "@/lib/apiErrorHandler";
-import { getApiBaseUrl } from "@/app/lib/config";
+import { methodNotAllowedHandlers, resolveBackendRoute } from "@/app/lib/api/proxy";
 
 
 export async function GET(request: NextRequest) {
-  const BACKEND_API_URL = getApiBaseUrl();
   try {
     const token = request.headers.get("authorization")?.replace("Bearer ", "");
+    const backend = resolveBackendRoute(request, "/notifications/preferences");
 
     const response = await fetch(
-      `${BACKEND_API_URL}/notifications/preferences`,
+      backend.url,
       {
         headers: {
           Authorization: `Bearer ${token}`,
@@ -38,13 +38,13 @@ export async function GET(request: NextRequest) {
 }
 
 export async function PUT(request: NextRequest) {
-  const BACKEND_API_URL = getApiBaseUrl();
   try {
     const token = request.headers.get("authorization")?.replace("Bearer ", "");
     const body = await request.json();
+    const backend = resolveBackendRoute(request, "/notifications/preferences");
 
     const response = await fetch(
-      `${BACKEND_API_URL}/notifications/preferences`,
+      backend.url,
       {
         method: "PUT",
         headers: {
@@ -75,3 +75,4 @@ export async function PUT(request: NextRequest) {
   }
 }
 
+export const { POST, PATCH, DELETE } = methodNotAllowedHandlers(["GET", "PUT"]);

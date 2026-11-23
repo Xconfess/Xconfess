@@ -63,28 +63,32 @@ export class CreateUserAnonymousUsers2026012400000 implements MigrationInterface
       }),
     );
 
-    await queryRunner.createForeignKey(
-      'user_anonymous_users',
-      new TableForeignKey({
-        columnNames: ['user_id'],
-        referencedColumnNames: ['id'],
-        referencedTableName: 'user',
-        onDelete: 'CASCADE',
-      }),
-    );
+    if (await queryRunner.hasTable('user')) {
+      await queryRunner.createForeignKey(
+        'user_anonymous_users',
+        new TableForeignKey({
+          columnNames: ['user_id'],
+          referencedColumnNames: ['id'],
+          referencedTableName: 'user',
+          onDelete: 'CASCADE',
+        }),
+      );
+    }
 
-    await queryRunner.createForeignKey(
-      'user_anonymous_users',
-      new TableForeignKey({
-        columnNames: ['anonymous_user_id'],
-        referencedColumnNames: ['id'],
-        referencedTableName: 'anonymous_user',
-        onDelete: 'CASCADE',
-      }),
-    );
+    if (await queryRunner.hasTable('anonymous_user')) {
+      await queryRunner.createForeignKey(
+        'user_anonymous_users',
+        new TableForeignKey({
+          columnNames: ['anonymous_user_id'],
+          referencedColumnNames: ['id'],
+          referencedTableName: 'anonymous_user',
+          onDelete: 'CASCADE',
+        }),
+      );
+    }
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
-    await queryRunner.dropTable('user_anonymous_users');
+    await queryRunner.dropTable('user_anonymous_users', true);
   }
 }

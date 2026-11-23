@@ -3,13 +3,11 @@ import { ThrottlerException } from '@nestjs/throttler';
 import { ThrottlerExceptionFilter, RateLimitErrorBody } from './throttler-exception.filter';
 import { ErrorCode } from '../errors/error-codes';
 
-function makeHost(
-  reqOverrides: object = {},
-  throttlerResponseData: object = {},
-): ArgumentsHost {
+function makeHost(reqOverrides: object = {}, existingHeaders: Record<string, string> = {}): ArgumentsHost {
   const req = {
     method: 'POST',
     url: '/api/confessions',
+    path: '/api/confessions',
     ip: '127.0.0.1',
     requestId: 'test-req-id',
     headers: {},
@@ -18,9 +16,17 @@ function makeHost(
 
   const jsonMock = jest.fn();
   const statusMock = jest.fn().mockReturnThis();
-  const setHeaderMock = jest.fn().mockReturnThis();
+  const headers = new Map(Object.entries(existingHeaders).map(([k, v]) => [k.toLowerCase(), v]));
 
-  const res = { status: statusMock, setHeader: setHeaderMock, json: jsonMock };
+  const res = {
+    status: statusMock,
+    setHeader: jest.fn((name: string, value: string) => {
+      headers.set(name.toLowerCase(), value);
+      return res;
+    }),
+    getHeader: jest.fn((name: string) => headers.get(name.toLowerCase())),
+    json: jsonMock,
+  };
 
   return {
     switchToHttp: () => ({ getRequest: () => req, getResponse: () => res }),
@@ -96,6 +102,22 @@ describe('ThrottlerExceptionFilter', () => {
     const res = host.switchToHttp().getResponse() as any;
     filter.catch(makeException(30), host);
     expect(res.setHeader).toHaveBeenCalledWith('Retry-After', '30');
+  });
+
+  it('preserves the active throttler window and rate-limit values', () => {
+    const host = makeHost({}, {
+      'Retry-After': '17',
+      'X-RateLimit-Limit': '5',
+      'X-RateLimit-Remaining': '0',
+      'X-RateLimit-Reset': '1900000000',
+    });
+    const res = host.switchToHttp().getResponse() as any;
+
+    filter.catch(makeException(), host);
+
+    expect(res.setHeader).not.toHaveBeenCalledWith('Retry-After', '60');
+    expect(res.setHeader).not.toHaveBeenCalledWith('X-RateLimit-Limit', '0');
+    expect(res.json.mock.calls[0][0]).toEqual(expect.objectContaining({ retryAfter: 17 }));
   });
 
   it('sets X-Request-Id response header', () => {

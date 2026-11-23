@@ -1,23 +1,73 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useWindowVirtualizer } from "@tanstack/react-virtual";
-import { useRouter } from "next/navigation";
-import { ArrowRight, ArrowUp, Scale, X } from "lucide-react";
+import { ArrowUp } from "lucide-react";
 import { ConfessionCard } from "./ConfessionCard";
 import { ConfessionFeedSkeleton } from "./LoadingSkeleton";
 import { useInfiniteConfessions } from "../../lib/hooks/useConfessionsQuery";
-import { useComparisonStore } from "../../lib/store/comparisonStore";
 import ErrorState from "../common/ErrorState";
+import { useScrollRestoration } from "../../lib/hooks/useScrollRestoration";
+import { useLiveAnnouncement } from "../../lib/hooks/useLiveAnnouncement";
+import { useFeedPageRestoration } from "../../lib/hooks/useFeedPageRestoration";
 
 const ESTIMATED_CARD_HEIGHT = 300;
 const SCROLL_THRESHOLD = 400;
 const OVERSCAN = 3;
+type FeedSort = "newest" | "trending" | "most_discussed";
 
-export const ConfessionFeed = () => {
-  const router = useRouter();
-  const { selectedIds, clearItems } = useComparisonStore();
+const SORT_OPTIONS: Array<{ value: FeedSort; label: string }> = [
+  { value: "newest", label: "Recent" },
+  { value: "trending", label: "Popular" },
+  { value: "most_discussed", label: "Most discussed" },
+];
+
+interface ConfessionFeedProps {
+  initialSort?: FeedSort;
+  limit?: number;
+  preview?: boolean;
+}
+
+const isFeedSort = (value: string | null): value is FeedSort =>
+  SORT_OPTIONS.some((option) => option.value === value);
+
+// useSearchParams needs a Suspense boundary on statically rendered pages.
+// The fallback is the real feed on initialSort (no URL params yet) rather
+// than a skeleton, so prerendered pages don't flash a loading state.
+export const ConfessionFeed = (props: ConfessionFeedProps) => (
+  <Suspense fallback={<ConfessionFeedBody {...props} searchParams={null} />}>
+    <ConfessionFeedWithParams {...props} />
+  </Suspense>
+);
+
+const ConfessionFeedWithParams = (props: ConfessionFeedProps) => {
+  const searchParams = useSearchParams();
+  return <ConfessionFeedBody {...props} searchParams={searchParams} />;
+};
+
+const ConfessionFeedBody = ({
+  initialSort = "newest",
+  limit = 10,
+  preview = false,
+  searchParams,
+}: ConfessionFeedProps & { searchParams: URLSearchParams | null }) => {
   const [showScrollTop, setShowScrollTop] = useState(false);
+  const router = useRouter();
+  const pathname = usePathname();
+  // Full feeds keep sort in the URL so back/forward from a detail page
+  // returns to the same tab; preview feeds stay fixed on initialSort.
+  const urlSort = searchParams?.get("sort") ?? null;
+  const sort: FeedSort = !preview && isFeedSort(urlSort) ? urlSort : initialSort;
+  const setSort = useCallback(
+    (next: FeedSort) => {
+      const params = new URLSearchParams(searchParams?.toString());
+      params.set("sort", next);
+      router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+    },
+    [pathname, router, searchParams],
+  );
+  useScrollRestoration(pathname);
   const loadMoreRef = useRef<HTMLDivElement>(null);
 
   const {
@@ -25,17 +75,45 @@ export const ConfessionFeed = () => {
     isLoading,
     isFetching,
     isFetchingNextPage,
+    isPlaceholderData,
     hasNextPage,
     fetchNextPage,
     error,
     refetch,
-  } = useInfiniteConfessions();
+  } = useInfiniteConfessions({ sort, limit });
+
+  // placeholderData keeps the previous sort's pages visible while the new
+  // sort's first page is in flight (see useInfiniteConfessions). That's the
+  // right call for a background refetch of the *same* filter, but for a
+  // filter change it means the feed briefly shows confessions for the sort
+  // the user just left. Treat it as its own loading state, distinct from
+  // both the initial load and "loading more" pagination.
+  const isSwitchingFilter = isPlaceholderData && isFetching && !isFetchingNextPage;
+  const isPaginationLoading = isFetchingNextPage && !isSwitchingFilter;
+
+  const announcement = useLiveAnnouncement({
+    isLoading,
+    isFetching,
+    isFetchingNextPage,
+    isError: Boolean(error),
+    errorMessage: error instanceof Error ? error.message : undefined,
+  });
+
+  useFeedPageRestoration({
+    pathname,
+    pageCount: data?.pages.length ?? 0,
+    hasNextPage: Boolean(hasNextPage),
+    isFetchingNextPage,
+    fetchNextPage,
+    enabled: !preview,
+  });
 
   const allConfessions = data?.pages.flatMap((page) => page.confessions) ?? [];
+  const visibleConfessions = preview ? allConfessions.slice(0, 3) : allConfessions;
   const isEmpty = !isLoading && !error && allConfessions.length === 0;
 
   const virtualizer = useWindowVirtualizer({
-    count: allConfessions.length,
+    count: visibleConfessions.length,
     estimateSize: () => ESTIMATED_CARD_HEIGHT,
     overscan: OVERSCAN,
     scrollMargin: 0,
@@ -56,11 +134,30 @@ export const ConfessionFeed = () => {
     window.scrollTo({ top: 0, behavior: "smooth" });
   }, []);
 
-  const handleNavigateToComparison = () => {
-    if (selectedIds.length > 1) {
-      router.push(`/compare?ids=${selectedIds.join(",")}`);
-    }
-  };
+  const sortControls = (
+    <div
+      className="flex w-full items-stretch gap-1 overflow-x-auto rounded-2xl border border-[var(--border)] bg-[var(--surface-muted)] p-1.5 sm:flex-wrap sm:items-center sm:gap-2"
+      role="tablist"
+      aria-label="Feed sort"
+    >
+      {SORT_OPTIONS.map((option) => (
+        <button
+          key={option.value}
+          type="button"
+          role="tab"
+          aria-selected={sort === option.value}
+          onClick={() => setSort(option.value)}
+          className={`min-h-10 shrink-0 rounded-xl px-3 py-2 text-xs font-semibold transition-colors sm:px-3.5 sm:text-sm ${
+            sort === option.value
+              ? "bg-[var(--primary)] text-white shadow-[0_8px_18px_-10px_rgba(120,33,213,0.9)]"
+              : "text-[var(--secondary)] hover:bg-[var(--surface-strong)] hover:text-[var(--foreground)]"
+          }`}
+        >
+          {option.label}
+        </button>
+      ))}
+    </div>
+  );
 
   useEffect(() => {
     const el = loadMoreRef.current;
@@ -89,50 +186,69 @@ export const ConfessionFeed = () => {
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
-  if (isLoading) {
-    return <ConfessionFeedSkeleton />;
+  const liveRegion = (
+    <div className="sr-only" aria-live="polite" aria-atomic="true">
+      {announcement}
+    </div>
+  );
+
+  if (isLoading || isSwitchingFilter) {
+    return (
+      <>
+        {liveRegion}
+        {!preview && <div className="mb-5">{sortControls}</div>}
+        <ConfessionFeedSkeleton />
+      </>
+    );
   }
 
   if (error) {
     return (
-      <ErrorState
-        error={undefined}
-        title="Unable to load feed"
-        description="We couldn't load recent confessions. Please try again or check your connection."
-        showRetry
-        onRetry={handleRetry}
-      />
+      <>
+        {liveRegion}
+        <ErrorState
+          error="The backend service is not responding yet."
+          title="Unable to load feed"
+          description="This can happen while the Render instance is waking or a new backend deploy is finishing."
+          showRetry
+          onRetry={handleRetry}
+        />
+      </>
     );
   }
 
   if (isEmpty) {
     return (
-      <div
-        className="luxury-panel rounded-[30px] p-8 text-center"
-        role="region"
-        aria-label="Empty feed state"
-      >
-        <p className="mb-3 font-editorial text-3xl text-[var(--foreground)] sm:text-4xl">
-          No confessions yet.
-        </p>
-        <p className="mx-auto mb-4 max-w-xl text-sm leading-7 text-[var(--secondary)]">
-          Be the first to share.
-        </p>
-        <div className="flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
-          <button
-            type="button"
-            onClick={scrollToComposer}
-            className="rounded-full bg-[var(--brand-gradient)] px-5 py-2.5 text-sm font-medium text-white shadow-[0_18px_42px_-22px_rgba(91,46,255,0.58)] transition-colors hover:brightness-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
-          >
-            Begin writing
-          </button>
-          <button
-            type="button"
-            onClick={handleRetry}
-            className="rounded-full border border-[var(--border)] bg-[var(--surface-muted)] px-5 py-2.5 text-sm font-medium text-[var(--secondary)] transition-colors hover:bg-[var(--surface-strong)] hover:text-[var(--foreground)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
-          >
-            Refresh
-          </button>
+      <div className="space-y-4">
+        {liveRegion}
+        {!preview && sortControls}
+        <div
+          className="luxury-panel rounded-2xl p-8 text-center"
+          role="region"
+          aria-label="Empty feed state"
+        >
+          <p className="mb-3 font-editorial text-3xl text-[var(--foreground)] sm:text-4xl">
+            No confessions yet.
+          </p>
+          <p className="mx-auto mb-4 max-w-xl text-sm leading-7 text-[var(--secondary)]">
+            Be the first to share.
+          </p>
+          <div className="flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
+            <button
+              type="button"
+              onClick={scrollToComposer}
+              className="rounded-xl bg-[var(--brand-gradient)] px-5 py-2.5 text-sm font-medium text-white shadow-[0_18px_42px_-22px_rgba(0,0,0,0.85)] transition-colors hover:brightness-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]"
+            >
+              Begin writing
+            </button>
+            <button
+              type="button"
+              onClick={handleRetry}
+              className="rounded-xl border border-[var(--border)] bg-[var(--surface-muted)] px-5 py-2.5 text-sm font-medium text-[var(--secondary)] transition-colors hover:bg-[var(--surface-strong)] hover:text-[var(--foreground)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]"
+            >
+              Refresh
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -142,9 +258,8 @@ export const ConfessionFeed = () => {
 
   return (
     <div className="relative mx-auto w-full max-w-3xl py-2">
-      <div className="sr-only" aria-live="polite" aria-atomic="true">
-        {isFetching && !isFetchingNextPage ? "Updating feed contents..." : ""}
-      </div>
+      {!preview && <div className="mb-5">{sortControls}</div>}
+      {liveRegion}
 
       <div
         className="relative w-full transition-opacity duration-200"
@@ -156,7 +271,7 @@ export const ConfessionFeed = () => {
         aria-label="Confessions feed"
       >
         {virtualItems.map((virtualItem) => {
-          const confession = allConfessions[virtualItem.index];
+          const confession = visibleConfessions[virtualItem.index];
           if (!confession) return null;
 
           return (
@@ -170,7 +285,7 @@ export const ConfessionFeed = () => {
               }}
               role="article"
               aria-posinset={virtualItem.index + 1}
-              aria-setsize={allConfessions.length}
+              aria-setsize={visibleConfessions.length}
             >
               <ConfessionCard confession={confession} />
             </div>
@@ -178,8 +293,8 @@ export const ConfessionFeed = () => {
         })}
       </div>
 
-      <div ref={loadMoreRef} className="flex justify-center py-6">
-        {isFetchingNextPage && (
+      {!preview && <div ref={loadMoreRef} className="flex justify-center py-6">
+        {isPaginationLoading && (
           <div className="flex items-center gap-2 text-sm text-[var(--secondary)]">
             <svg
               className="h-4 w-4 animate-spin"
@@ -204,79 +319,24 @@ export const ConfessionFeed = () => {
             Loading more...
           </div>
         )}
-        {!hasNextPage && allConfessions.length > 0 && (
+        {!preview && !hasNextPage && visibleConfessions.length > 0 && (
           <p className="text-xs text-[var(--secondary)]">
             You&apos;ve reached the end of the feed
           </p>
         )}
-      </div>
+      </div>}
 
-      {showScrollTop && (
+      {!preview && showScrollTop && (
         <button
           type="button"
           onClick={scrollToTop}
-          className="fixed bottom-8 right-8 z-40 flex h-12 w-12 items-center justify-center rounded-full bg-[var(--primary)] text-white shadow-lg transition-all hover:-translate-y-1 hover:bg-[var(--primary-deep)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+          className="fixed bottom-5 right-4 z-40 flex h-11 w-11 items-center justify-center rounded-full bg-[var(--primary)] text-white shadow-lg transition-all hover:-translate-y-1 hover:bg-[var(--primary-deep)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)] sm:bottom-8 sm:right-8"
           aria-label="Scroll to top"
         >
           <ArrowUp className="h-5 w-5" aria-hidden="true" />
         </button>
       )}
 
-      {selectedIds.length > 0 && (
-        <aside
-          className="fixed bottom-6 left-1/2 z-50 flex w-[calc(100%-2rem)] max-w-md -translate-x-1/2 animate-in items-center justify-between gap-4 rounded-2xl border border-zinc-800 bg-zinc-950 p-4 shadow-2xl fade-in slide-in-from-bottom-4 duration-300"
-          aria-label="Metrics comparison inspector"
-        >
-          <div className="flex items-center gap-3">
-            <div
-              className="shrink-0 rounded-xl border border-zinc-800 bg-zinc-900 p-2 text-[var(--primary)]"
-              aria-hidden="true"
-            >
-              <Scale className="h-4 w-4" />
-            </div>
-            <div>
-              <p className="text-xs font-semibold text-white">
-                Compare
-              </p>
-              <p className="text-[11px] text-zinc-400" aria-live="polite">
-                {selectedIds.length === 1
-                  ? "Select one more"
-                  : `${selectedIds.length} selected`}
-              </p>
-            </div>
-          </div>
-
-          <div className="flex shrink-0 items-center gap-1.5">
-            <button
-              type="button"
-              onClick={clearItems}
-              className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-xl text-zinc-500 transition-colors hover:bg-zinc-900 hover:text-zinc-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
-              title="Clear selection queue"
-              aria-label="Clear selection queue"
-            >
-              <X className="h-4 w-4" aria-hidden="true" />
-            </button>
-            <button
-              type="button"
-              disabled={selectedIds.length < 2}
-              onClick={handleNavigateToComparison}
-              className={`flex h-8 items-center gap-1.5 rounded-xl px-3.5 text-xs font-semibold transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${
-                selectedIds.length >= 2
-                  ? "cursor-pointer bg-[var(--primary)] text-white shadow-md hover:brightness-105"
-                  : "cursor-not-allowed border border-zinc-800/60 bg-zinc-900 text-zinc-600 opacity-60"
-              }`}
-              aria-label={
-                selectedIds.length >= 2
-                  ? `Compare ${selectedIds.length} selected confessions`
-                  : "Compare selected confessions (requires at least 2)"
-              }
-            >
-              <span>Compare</span>
-              <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
-            </button>
-          </div>
-        </aside>
-      )}
     </div>
   );
 };

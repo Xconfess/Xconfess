@@ -16,17 +16,17 @@ export function NotificationItem({
 }: NotificationItemProps) {
     return (
         <div
-            className={`p-4 flex justify-between gap-3 ${notification.isRead ? "bg-white" : "bg-blue-50"
+            className={`p-3 sm:p-4 flex justify-between gap-2 sm:gap-3 ${notification.isRead ? "bg-white" : "bg-blue-50"
                 }`}
         >
-            <div>
-                <p className="text-sm font-medium text-gray-800">
+            <div className="min-w-0 flex-1">
+                <p className="break-words text-sm font-medium text-gray-800">
                     {notification.title}
                 </p>
-                <p className="text-xs text-gray-600">{notification.message}</p>
+                <p className="break-words text-xs text-gray-600">{notification.message}</p>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex shrink-0 items-center gap-2">
                 {!notification.isRead && (
                     <button
                         onClick={() => onMarkAsRead(notification.id)}

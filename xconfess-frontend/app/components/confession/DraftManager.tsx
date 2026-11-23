@@ -31,6 +31,8 @@ export const DraftManager: React.FC<DraftManagerProps> = ({
     isLoading,
     error: draftsError,
     isRemote,
+    conflicts,
+    resolveConflict,
     saveDraft,
     updateDraft,
     deleteDraft,
@@ -42,12 +44,15 @@ export const DraftManager: React.FC<DraftManagerProps> = ({
   const [currentDraftId, setCurrentDraftId] = useState<string | null>(null);
   const [clearDraftsOpen, setClearDraftsOpen] = useState(false);
   const [saveStatus, setSaveStatus] = useState<
-    "saved" | "saving" | "unsaved" | "failed"
+    "saved" | "saving" | "unsaved" | "failed" | "conflict"
   >("saved");
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
   const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
   const lastSavedRef = useRef<string>("");
   const toast = useGlobalToast();
+
+  const activeConflict =
+    conflicts.find((c) => c.draftId === currentDraftId) ?? null;
 
   const didAttemptRestoreRef = useRef(false);
   useEffect(() => {
@@ -75,7 +80,26 @@ export const DraftManager: React.FC<DraftManagerProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [drafts]);
 
+  // Surface a detected conflict on the inline status line.
+  useEffect(() => {
+    if (activeConflict) {
+      setSaveStatus("conflict");
+      setSaveMessage(null);
+    } else if (saveStatus === "conflict") {
+      setSaveStatus("saved");
+      setSaveMessage(null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeConflict]);
+
   const persistDraft = async () => {
+    // An unresolved offline-sync conflict is holding this draft. Stop
+    // auto-saving so we never re-send (and never blindly overwrite the
+    // newer remote copy) until the user resolves it.
+    if (currentDraftId && conflicts.some((c) => c.draftId === currentDraftId)) {
+      return false;
+    }
+
     const currentContent = JSON.stringify(currentDraft);
     if (currentContent === lastSavedRef.current) {
       return true;
@@ -186,6 +210,36 @@ export const DraftManager: React.FC<DraftManagerProps> = ({
     toast.success("All drafts cleared.");
   };
 
+  const handleResolveConflict = async (
+    resolution: "keep-local" | "keep-remote" | "discard-local",
+  ) => {
+    if (!activeConflict) return;
+    const { draftId, reason, remote } = activeConflict;
+    const ok = await resolveConflict(draftId, resolution);
+    if (!ok) return;
+
+    if (resolution === "keep-remote" && reason === "remote_updated" && remote) {
+      onLoadDraft(remote);
+      lastSavedRef.current = JSON.stringify({
+        title: remote.title,
+        body: remote.body,
+        gender: remote.gender,
+      });
+    }
+
+    if (resolution === "keep-remote" && reason === "remote_deleted") {
+      setCurrentDraftId(null);
+    }
+
+    if (resolution === "keep-local") {
+      // The retained local content is now the synced baseline.
+      lastSavedRef.current = JSON.stringify(currentDraft);
+    }
+
+    setSaveStatus("saved");
+    setSaveMessage(resolution === "discard-local" ? null : "Draft saved.");
+  };
+
   return (
     <>
       <ConfirmDialog
@@ -204,6 +258,7 @@ export const DraftManager: React.FC<DraftManagerProps> = ({
           size="sm"
           onClick={() => setIsModalOpen(true)}
           aria-label={drafts.length > 0 ? `Manage drafts (${drafts.length} saved)` : "Manage drafts"}
+          title={drafts.length > 0 ? `Manage drafts (${drafts.length} saved)` : "Manage drafts"}
           className="flex items-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
         >
           <FileText className="h-4 w-4" aria-hidden="true" />
@@ -233,7 +288,57 @@ export const DraftManager: React.FC<DraftManagerProps> = ({
               </button>
             </span>
           )}
+          {saveStatus === "conflict" && activeConflict && (
+            <span className="text-amber-300">
+              {activeConflict.reason === "remote_deleted"
+                ? "This draft was deleted remotely while you were offline."
+                : "This draft was changed elsewhere while you were offline."}
+            </span>
+          )}
         </div>
+
+        {activeConflict && (
+          <div
+            role="alert"
+            className="rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-100"
+          >
+            <p className="font-medium">
+              {activeConflict.reason === "remote_deleted"
+                ? "This draft was deleted remotely while you were offline."
+                : "This draft was changed elsewhere while you were offline."}
+            </p>
+            <p className="mt-1 text-amber-200/80">
+              Your local version is kept in the editor. Choose how to resolve:
+            </p>
+            <div className="mt-2 flex flex-wrap gap-3">
+              <button
+                type="button"
+                onClick={() => void handleResolveConflict("keep-local")}
+                className="underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 rounded"
+              >
+                {activeConflict.reason === "remote_deleted"
+                  ? "Save mine as a new draft"
+                  : "Keep my version"}
+              </button>
+              {activeConflict.reason === "remote_updated" && (
+                <button
+                  type="button"
+                  onClick={() => void handleResolveConflict("keep-remote")}
+                  className="underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 rounded"
+                >
+                  Use the newer version
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => void handleResolveConflict("discard-local")}
+                className="underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 rounded"
+              >
+                Dismiss
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       <Modal
@@ -295,6 +400,7 @@ export const DraftManager: React.FC<DraftManagerProps> = ({
                       size="sm"
                       onClick={(e) => handleDeleteDraft(draft.id, e)}
                       aria-label={`Delete draft from ${formatDate(new Date(draft.savedAt))}`}
+                      title={`Delete draft from ${formatDate(new Date(draft.savedAt))}`}
                       className="opacity-0 group-hover:opacity-100 group-focus:opacity-100 transition-opacity focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
                     >
                       <Trash2 className="h-4 w-4 text-red-400" aria-hidden="true" />

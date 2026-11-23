@@ -12,6 +12,9 @@ export default registerAs('app', () => ({
   backendUrl: process.env.BACKEND_URL ?? '',
   appSecret: process.env.APP_SECRET ?? '',
   confessionEncryptionKey: process.env.CONFESSION_ENCRYPTION_KEY ?? '',
+  // Backwards-compatible name used by confession, draft, user, and admin
+  // services. Keep both names mapped to the same validated secret.
+  confessionAesKey: process.env.CONFESSION_ENCRYPTION_KEY ?? '',
 
   /**
    * Search observability settings.

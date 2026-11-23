@@ -1,21 +1,22 @@
-﻿# Contributing to Xconfess
+# Contributing to Xconfess
 
 Thank you for your interest in contributing to Xconfess - an anonymous confession platform built on the Stellar blockchain. This guide covers everything you need to get started.
 
 ---
 
-## Table of Contents
+## Table of Contents.
 
 - [Prerequisites](#prerequisites)
 - [Environment Setup](#environment-setup)
 - [Development Workflow](#development-workflow)
 - [Code Style](#code-style)
 - [Testing Requirements](#testing-requirements)
+- [Validation Command Matrix](#validation-command-matrix)
 - [Pull Request Process](#pull-request-process)
 - [Wave / Drips Contribution Guidelines](#wave--drips-contribution-guidelines)
 
 ---
-
+.
 ## Prerequisites
 
 Make sure you have the following installed before cloning:
@@ -91,7 +92,7 @@ Both xconfess-postgres and xconfess-redis should show healthy.
 
 If you are contributing through an OSS campaign or grant program:
 
-- Start with issues labeled `good first issue`, `help wanted`, `Stellar Wave`, `GrantFox OSS`, or `Maybe Rewarded`.
+- Start with issues labeled `good first issue`, `help wanted`, `Stellar Wave`, `Maybe Rewarded`, or `Official Campaign`.
 - Comment on the issue before starting so maintainers can confirm it is still available.
 - Keep the PR focused on one issue. Do not bundle unrelated cleanup.
 - Follow the acceptance criteria and validation commands listed in the issue.
@@ -198,6 +199,12 @@ All CI checks must pass before a PR will be reviewed.
 
 ---
 
+## Validation Command Matrix
+
+Not sure which commands to run for your change? Refer to the **[Validation Command Matrix](docs/VALIDATION_COMMAND_MATRIX.md)** for a complete table mapping each change area (docs, frontend component, frontend route, backend service, migration, Stellar contract, ops script) to the exact copy-pasteable commands required.
+
+---
+
 ## Pull Request Process
 
 ### Before opening a PR
@@ -238,7 +245,7 @@ Use Conventional Commits format: feat(backend): add GDPR data export endpoint
 
 ## Wave / Drips Contribution Guidelines
 
-Xconfess participates in multiple OSS programs, including Stellar Wave and GrantFox OSS. If your contribution is tied to a program issue:
+Xconfess participates in multiple OSS programs, including Stellar Wave. If your contribution is tied to a program issue:
 
 - Reference the issue number in your PR description
 - Keep each program contribution as a single focused PR - one issue, one PR

@@ -12,13 +12,17 @@ import { RequestIdMiddleware } from './middleware/request-id.middleware';
 import { WebSocketAdapter } from './websocket/websocket.adapter';
 import { AppLogger } from './logger/logger.service';
 import { configureRequestBodyParsing } from './common/request-body-limits';
+import { GracefulShutdownService } from './common/graceful-shutdown.service';
+import { Queue } from 'bullmq';
+import { getQueueToken } from '@nestjs/bullmq';
+import { NotificationProcessor } from './notifications/processors/notification.processor';
+import { ExportProcessor } from './data-export/export.processor';
 
-import cookieParser from 'cookie-parser';
 import {
   cookieParserMiddleware,
   csrfMiddleware,
   csrfCookieSetter,
-} from './common/midleware/middleware';
+} from './common/middleware/middleware';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, { bodyParser: false });
   const configService = app.get(ConfigService);
@@ -79,7 +83,6 @@ async function bootstrap() {
       threshold: 1024,
     }),
   );
-
 
   // ── 6. Cookie parser (required by csurf) ────────────────────────────────────
   app.use(cookieParserMiddleware);
@@ -160,22 +163,105 @@ async function bootstrap() {
   const port = configService.get<number>('app.port', 3000);
   await app.listen(port);
 
-  // â”€â”€ Startup Summary â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // â”€â”€ Startup Summary â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const logger = app.get(AppLogger);
   const env = configService.get<string>('NODE_ENV', 'development');
   const dbHost = configService.get<string>('DB_HOST', 'localhost');
   const dbPort = configService.get<number>('DB_PORT', 55432);
   const redisHost = configService.get<string>('REDIS_HOST', 'localhost');
   const redisPort = configService.get<number>('REDIS_PORT', 6379);
-  const backgroundJobMode = configService.get<string>('ENABLE_BACKGROUND_JOBS', 'false');
-  
-  logger.log(
-    `ðŸš€ Application started successfully`,
-    'Bootstrap'
+  const backgroundJobMode = configService.get<string>(
+    'ENABLE_BACKGROUND_JOBS',
+    'false',
   );
+
+  logger.log(`ðŸš€ Application started successfully`, 'Bootstrap');
   logger.log(
     `Environment: ${env} | Port: ${port} | DB: ${dbHost}:${dbPort} | Redis: ${redisHost}:${redisPort} | Background Jobs: ${backgroundJobMode}`,
-    'Bootstrap'
+    'Bootstrap',
   );
+
+  // Register queues with graceful shutdown service
+  const gracefulShutdown = app.get(GracefulShutdownService);
+  const queueNames = [
+    'confession-draft-publisher',
+    'notifications',
+    'notifications-dlq',
+    'export-queue',
+  ] as const;
+  for (const name of queueNames) {
+    try {
+      const queue = app.get(getQueueToken(name), { strict: false });
+      if (queue) {
+        gracefulShutdown.registerQueue(name, queue);
+      }
+    } catch {
+      // Queue not registered, skip
+    }
+  }
+  for (const processor of [NotificationProcessor, ExportProcessor]) {
+    try {
+      const instance = app.get(processor, { strict: false });
+      if (instance?.worker) gracefulShutdown.registerWorker(instance.worker);
+    } catch {
+      // Worker is not registered when background processing is disabled.
+    }
+  }
+
+  // Set up event listeners for shutdown coordination
+  const eventEmitter = app.get(require('@nestjs/event-emitter').EventEmitter2);
+
+  eventEmitter.on('graceful-shutdown:close-database', async () => {
+    try {
+      const dataSource = app.get(require('@nestjs/typeorm').DataSource);
+      if (dataSource?.isInitialized) {
+        await dataSource.destroy();
+      }
+    } catch (error) {
+      logger.error(
+        `Error closing database: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+    eventEmitter.emit('graceful-shutdown:database-closed');
+  });
+
+  eventEmitter.on('graceful-shutdown:close-redis', async () => {
+    try {
+      const cacheManager = app.get(
+        require('@nestjs/cache-manager').CACHE_MANAGER,
+      );
+      if (cacheManager?.store?.client?.quit) {
+        await cacheManager.store.client.quit();
+      } else if (cacheManager?.store?.quit) {
+        await cacheManager.store.quit();
+      }
+    } catch (error) {
+      logger.error(
+        `Error closing Redis: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+    eventEmitter.emit('graceful-shutdown:redis-closed');
+  });
+
+  // Handle WebSocket drain
+  eventEmitter.on('graceful-shutdown:drain-websockets', () => {
+    const wsAdapter = app.get(
+      require('./websocket/websocket.adapter').WebSocketAdapter,
+    );
+    if (wsAdapter && typeof wsAdapter.closeAllConnections === 'function') {
+      wsAdapter.closeAllConnections().then(() => {
+        eventEmitter.emit('graceful-shutdown:websockets-drained');
+      });
+    } else {
+      // Fallback: emit drained after a short delay
+      setTimeout(
+        () => eventEmitter.emit('graceful-shutdown:websockets-drained'),
+        100,
+      );
+    }
+  });
+
+  // Wait for graceful shutdown to complete before exiting
+  await gracefulShutdown.waitForShutdown();
 }
 bootstrap();

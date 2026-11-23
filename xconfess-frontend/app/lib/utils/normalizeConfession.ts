@@ -12,6 +12,8 @@ export interface NormalizedConfession {
   isAnchored?: boolean;
   stellarTxHash?: string | null;
   tipStats?: TipStats | null;
+  /** Safe public signal; moderation scores and category details stay private. */
+  contentWarning?: boolean;
   author?: {
     id: string;
     username?: string;
@@ -43,6 +45,8 @@ export interface RawConfession {
   isAnchored?: boolean;
   stellarTxHash?: string | null;
   tipStats?: TipStats | null;
+  requiresReview?: boolean;
+  moderationStatus?: string;
   author?: {
     id: string;
     username?: string;
@@ -89,6 +93,8 @@ export function normalizeConfession(raw: RawConfession): NormalizedConfession {
     isAnchored: raw.isAnchored ?? false,
     stellarTxHash: raw.stellarTxHash ?? null,
     tipStats: raw.tipStats ?? null,
+    contentWarning:
+      raw.requiresReview === true || raw.moderationStatus === "flagged",
 
     author: raw.author
       ? {

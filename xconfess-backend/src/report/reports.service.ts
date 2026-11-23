@@ -236,7 +236,6 @@ export class ReportsService {
   ): Promise<Report> {
     const report = await this.reportRepository.findOne({
       where: { id: reportId },
-      lock: { mode: 'pessimistic_write' },
     });
 
     if (!report)
@@ -251,31 +250,62 @@ export class ReportsService {
     }
 
     const previousStatus = report.status;
+    const previousVersion = report.version;
     report.status = ReportStatus.RESOLVED;
     report.resolvedBy = admin.id;
     report.resolvedAt = new Date();
     report.resolutionNotes = options?.reason || 'Report resolved';
+    report.version = previousVersion + 1;
 
-    const updatedReport = await this.reportRepository.save(report);
+    try {
+      const updatedReport = await this.reportRepository
+        .createQueryBuilder()
+        .update(Report)
+        .set({
+          status: report.status,
+          resolvedBy: report.resolvedBy,
+          resolvedAt: report.resolvedAt,
+          resolutionNotes: report.resolutionNotes,
+          version: report.version,
+        })
+        .where('id = :id AND version = :version', {
+          id: reportId,
+          version: previousVersion,
+        })
+        .returning('*')
+        .execute()
+        .then((result) => result.raw[0]);
 
-    this.auditLogService
-      .logReportResolved(
-        reportId,
-        admin.id.toString(),
-        {
-          previousStatus,
-          reason: options?.reason,
-          confessionId: report.confessionId,
-          resolvedBy: admin.username,
-        },
-        { ipAddress: options?.ipAddress, userAgent: options?.userAgent },
-      )
-      .catch((e) =>
-        this.logger.error(`Failed to log report resolution: ${e.message}`),
-      );
+      if (!updatedReport) {
+        throw new BadRequestException(
+          'Report was modified by another moderator. Please refresh and try again.',
+        );
+      }
 
-    this.logger.log(`Report ${reportId} resolved by admin ${admin.id}`);
-    return updatedReport;
+      this.auditLogService
+        .logReportResolved(
+          reportId,
+          admin.id.toString(),
+          {
+            previousStatus,
+            reason: options?.reason,
+            confessionId: report.confessionId,
+            resolvedBy: admin.username,
+          },
+          { ipAddress: options?.ipAddress, userAgent: options?.userAgent },
+        )
+        .catch((e) =>
+          this.logger.error(`Failed to log report resolution: ${e.message}`),
+        );
+
+      this.logger.log(`Report ${reportId} resolved by admin ${admin.id}`);
+      return updatedReport;
+    } catch (error) {
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+      throw error;
+    }
   }
 
   async dismissReport(
@@ -285,7 +315,6 @@ export class ReportsService {
   ): Promise<Report> {
     const report = await this.reportRepository.findOne({
       where: { id: reportId },
-      lock: { mode: 'pessimistic_write' },
     });
 
     if (!report)
@@ -300,31 +329,62 @@ export class ReportsService {
     }
 
     const previousStatus = report.status;
+    const previousVersion = report.version;
     report.status = ReportStatus.DISMISSED;
     report.resolvedBy = admin.id;
     report.resolvedAt = new Date();
     report.resolutionNotes = options?.reason ?? 'Report dismissed';
+    report.version = previousVersion + 1;
 
-    const updatedReport = await this.reportRepository.save(report);
+    try {
+      const updatedReport = await this.reportRepository
+        .createQueryBuilder()
+        .update(Report)
+        .set({
+          status: report.status,
+          resolvedBy: report.resolvedBy,
+          resolvedAt: report.resolvedAt,
+          resolutionNotes: report.resolutionNotes,
+          version: report.version,
+        })
+        .where('id = :id AND version = :version', {
+          id: reportId,
+          version: previousVersion,
+        })
+        .returning('*')
+        .execute()
+        .then((result) => result.raw[0]);
 
-    this.auditLogService
-      .logReportDismissed(
-        reportId,
-        admin.id.toString(),
-        {
-          previousStatus,
-          reason: options?.reason,
-          confessionId: report.confessionId,
-          dismissedBy: admin.username,
-        },
-        { ipAddress: options?.ipAddress, userAgent: options?.userAgent },
-      )
-      .catch((e) =>
-        this.logger.error(`Failed to log report dismissal: ${e.message}`),
-      );
+      if (!updatedReport) {
+        throw new BadRequestException(
+          'Report was modified by another moderator. Please refresh and try again.',
+        );
+      }
 
-    this.logger.log(`Report ${reportId} dismissed by admin ${admin.id}`);
-    return updatedReport;
+      this.auditLogService
+        .logReportDismissed(
+          reportId,
+          admin.id.toString(),
+          {
+            previousStatus,
+            reason: options?.reason,
+            confessionId: report.confessionId,
+            dismissedBy: admin.username,
+          },
+          { ipAddress: options?.ipAddress, userAgent: options?.userAgent },
+        )
+        .catch((e) =>
+          this.logger.error(`Failed to log report dismissal: ${e.message}`),
+        );
+
+      this.logger.log(`Report ${reportId} dismissed by admin ${admin.id}`);
+      return updatedReport;
+    } catch (error) {
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+      throw error;
+    }
   }
 
   async actionReport(
@@ -335,7 +395,6 @@ export class ReportsService {
   ): Promise<Report> {
     const report = await this.reportRepository.findOne({
       where: { id },
-      lock: { mode: 'pessimistic_write' },
     });
 
     if (!report) throw new NotFoundException(`Report with ID ${id} not found`);
@@ -348,6 +407,7 @@ export class ReportsService {
 
     const action = dto.action;
     const previousStatus = report.status;
+    const previousVersion = report.version;
     const status =
       action === 'resolved' ? ReportStatus.RESOLVED : ReportStatus.DISMISSED;
     const defaultNote =
@@ -357,45 +417,75 @@ export class ReportsService {
     report.resolvedBy = admin.id;
     report.resolvedAt = new Date();
     report.resolutionNotes = dto.note ?? defaultNote;
+    report.version = previousVersion + 1;
 
-    const updatedReport = await this.reportRepository.save(report);
+    try {
+      const updatedReport = await this.reportRepository
+        .createQueryBuilder()
+        .update(Report)
+        .set({
+          status: report.status,
+          resolvedBy: report.resolvedBy,
+          resolvedAt: report.resolvedAt,
+          resolutionNotes: report.resolutionNotes,
+          version: report.version,
+        })
+        .where('id = :id AND version = :version', {
+          id,
+          version: previousVersion,
+        })
+        .returning('*')
+        .execute()
+        .then((result) => result.raw[0]);
 
-    if (action === 'resolved') {
-      this.auditLogService
-        .logReportResolved(
-          id,
-          admin.id.toString(),
-          {
-            previousStatus,
-            reason: dto.note,
-            confessionId: report.confessionId,
-            resolvedBy: admin.username,
-          },
-          { ipAddress: context?.ipAddress, userAgent: context?.userAgent },
-        )
-        .catch((e) =>
-          this.logger.error(`Failed to log report resolution: ${e.message}`),
+      if (!updatedReport) {
+        throw new BadRequestException(
+          'Report was modified by another moderator. Please refresh and try again.',
         );
-    } else {
-      this.auditLogService
-        .logReportDismissed(
-          id,
-          admin.id.toString(),
-          {
-            previousStatus,
-            reason: dto.note,
-            confessionId: report.confessionId,
-            dismissedBy: admin.username,
-          },
-          { ipAddress: context?.ipAddress, userAgent: context?.userAgent },
-        )
-        .catch((e) =>
-          this.logger.error(`Failed to log report dismissal: ${e.message}`),
-        );
+      }
+
+      if (action === 'resolved') {
+        this.auditLogService
+          .logReportResolved(
+            id,
+            admin.id.toString(),
+            {
+              previousStatus,
+              reason: dto.note,
+              confessionId: report.confessionId,
+              resolvedBy: admin.username,
+            },
+            { ipAddress: context?.ipAddress, userAgent: context?.userAgent },
+          )
+          .catch((e) =>
+            this.logger.error(`Failed to log report resolution: ${e.message}`),
+          );
+      } else {
+        this.auditLogService
+          .logReportDismissed(
+            id,
+            admin.id.toString(),
+            {
+              previousStatus,
+              reason: dto.note,
+              confessionId: report.confessionId,
+              dismissedBy: admin.username,
+            },
+            { ipAddress: context?.ipAddress, userAgent: context?.userAgent },
+          )
+          .catch((e) =>
+            this.logger.error(`Failed to log report dismissal: ${e.message}`),
+          );
+      }
+
+      this.logger.log(`Report ${id} ${action} by admin ${admin.id}`);
+      return updatedReport;
+    } catch (error) {
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+      throw error;
     }
-
-    this.logger.log(`Report ${id} ${action} by admin ${admin.id}`);
-    return updatedReport;
   }
 
   async getReportAuditLogs(reportId: string): Promise<any> {

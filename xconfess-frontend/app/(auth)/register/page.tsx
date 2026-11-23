@@ -4,13 +4,14 @@ import { useMemo, useState } from 'react';
 import type React from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { CheckCircle2, Eye, EyeOff, LogIn, ShieldCheck } from 'lucide-react';
+import { CheckCircle2, Eye, EyeOff, ShieldCheck } from 'lucide-react';
 import { Button } from '@/app/components/ui/button';
 import { Input } from '@/app/components/ui/input';
 import { BrandLogo } from '@/app/components/brand/BrandLogo';
 import { useAuth } from '@/app/lib/hooks/useAuth';
-import { getErrorMessage } from '@/app/lib/utils/errorHandler';
+import { getErrorMessage, extractRequestId } from '@/app/lib/utils/errorHandler';
 import { getAuthFieldError } from '@/app/lib/api/authService';
+import { RequestIdNotice } from '@/app/components/auth/RequestIdNotice';
 import {
   validateRegisterForm,
   parseRegisterForm,
@@ -21,7 +22,10 @@ import {
 type RegisterField = keyof ValidationErrors;
 
 const passwordChecks = [
-  { label: '8 to 72 characters', test: (value: string) => value.length >= 8 && value.length <= 72 },
+  {
+    label: '8 to 72 characters',
+    test: (value: string) => value.length >= 8 && value.length <= 72,
+  },
   { label: 'One uppercase letter', test: (value: string) => /[A-Z]/.test(value) },
   { label: 'One lowercase letter', test: (value: string) => /[a-z]/.test(value) },
   { label: 'One number', test: (value: string) => /\d/.test(value) },
@@ -40,6 +44,7 @@ export default function RegisterPage() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [errors, setErrors] = useState<ValidationErrors>({});
   const [submitError, setSubmitError] = useState('');
+  const [errorRequestId, setErrorRequestId] = useState<string | undefined>();
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -56,6 +61,7 @@ export default function RegisterPage() {
     if (field === 'confirmPassword') setConfirmPassword(value);
 
     setSubmitError('');
+    setErrorRequestId(undefined);
     if (errors[field]) {
       setErrors((prev) => ({ ...prev, [field]: undefined }));
     }
@@ -68,6 +74,7 @@ export default function RegisterPage() {
     const validationErrors = validateRegisterForm(formData);
     setErrors(validationErrors);
     setSubmitError('');
+    setErrorRequestId(undefined);
 
     if (hasErrors(validationErrors)) {
       return;
@@ -90,6 +97,7 @@ export default function RegisterPage() {
     } catch (error) {
       const field = getAuthFieldError(error);
       const message = getErrorMessage(error);
+      setErrorRequestId(extractRequestId(error));
       if (field) {
         setErrors((prev) => ({ ...prev, [field]: message }));
         setSubmitError('');
@@ -122,7 +130,7 @@ export default function RegisterPage() {
               </span>
               <span className="inline-flex items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-2">
                 <CheckCircle2 className="h-4 w-4 text-emerald-600" aria-hidden="true" />
-                Auto sign-in
+                Automatic sign-in
               </span>
             </div>
           </div>
@@ -135,7 +143,7 @@ export default function RegisterPage() {
               </h2>
               <p className="text-sm leading-7 text-[var(--secondary)]">
                 Already have an account?{' '}
-                <Link href="/login" className="text-[var(--primary-deep)] hover:text-[var(--primary)]">
+                <Link href={buildAuthSwitchUrl('/login')} className="text-[var(--primary-deep)] hover:text-[var(--primary)]">
                   Sign in
                 </Link>
               </p>
@@ -150,12 +158,12 @@ export default function RegisterPage() {
               </div>
             )}
 
+            {errorRequestId && (submitError || hasErrors(errors)) && (
+              <RequestIdNotice requestId={errorRequestId} />
+            )}
+
             <div className="mt-6 grid gap-4 sm:grid-cols-2">
-              <Field
-                id="register-username"
-                label="Username"
-                error={errors.username}
-              >
+              <Field id="register-username" label="Username" error={errors.username}>
                 <Input
                   id="register-username"
                   value={username}
@@ -272,12 +280,11 @@ export default function RegisterPage() {
 
             <Button
               type="button"
-              onClick={() => router.push(buildAuthSwitchUrl('/login'))}
-              disabled={loading}
               variant="outline"
+              onClick={() => router.push(buildAuthSwitchUrl('/login'))}
               className="mt-3 w-full"
+              disabled={loading}
             >
-              <LogIn className="h-4 w-4" aria-hidden="true" />
               Sign in
             </Button>
           </form>
@@ -325,7 +332,7 @@ function Field({
       </label>
       {children}
       {error && (
-        <p id={`${id}-error`} className="mt-2 text-sm text-red-600" role="alert">
+        <p id={`${id}-error`} className="mt-2 text-sm text-red-300" role="alert">
           {error}
         </p>
       )}

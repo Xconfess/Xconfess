@@ -16,6 +16,7 @@ import { UpdateConfessionDto } from '../confession/dto/update-confession.dto';
 import {
   COMMENT_REQUEST_MAX_BYTES,
   CONFESSION_REQUEST_MAX_BYTES,
+  DEFAULT_REQUEST_MAX_BYTES,
   DRAFT_REQUEST_MAX_BYTES,
   MESSAGE_REQUEST_MAX_BYTES,
   REPORT_REQUEST_MAX_BYTES,
@@ -115,6 +116,14 @@ class TestMessageController {
   }
 }
 
+@Controller('other')
+class TestOtherController {
+  @Post()
+  create(@Body() body: unknown) {
+    return { received: body !== undefined };
+  }
+}
+
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 /**
@@ -150,6 +159,7 @@ describe('request body limits', () => {
         TestReportController,
         TestDraftController,
         TestMessageController,
+        TestOtherController,
       ],
     }).compile();
 
@@ -506,6 +516,36 @@ describe('request body limits', () => {
 
       expect(res.status).toBe(413);
       expect(JSON.stringify(res.body)).not.toContain(sensitiveValue);
+    });
+  });
+
+  // ── Default limit and multipart separation ─────────────────────────────────
+
+  describe('other routes', () => {
+    it('accepts a JSON body exactly at the default limit', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/api/other')
+        .set('Content-Type', 'application/json')
+        .send(bodyAtByteSize({ a: 1 }, DEFAULT_REQUEST_MAX_BYTES));
+
+      expect(res.status).toBe(201);
+    });
+
+    it('rejects a JSON body over the default limit with 413', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/api/other')
+        .set('Content-Type', 'application/json')
+        .send(bodyAtByteSize({ a: 1 }, DEFAULT_REQUEST_MAX_BYTES + 1));
+
+      expect(res.status).toBe(413);
+    });
+
+    it('does not apply JSON limits to multipart uploads', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/api/confessions/drafts')
+        .attach('file', Buffer.alloc(DRAFT_REQUEST_MAX_BYTES * 2, 'a'), 'big.txt');
+
+      expect(res.status).not.toBe(413);
     });
   });
 });

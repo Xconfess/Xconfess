@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react";
 import { useStellarWallet } from "@/lib/hooks/useStellarWallet";
-import { freighterGetPublicKey } from "@/lib/wallet/freighterAdapter";
 import { getStellarExplorerUrl } from "@/app/lib/utils/stellar";
 import { Button } from "@/app/components/ui/button";
 import { ExternalLink, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
@@ -36,8 +35,7 @@ export const StellarAnchorToggle: React.FC<StellarAnchorToggleProps> = ({
       setIsConnecting(true);
       try {
         await connect();
-        const connected = await freighterGetPublicKey().catch(() => null);
-        if (connected) {
+        if (publicKey) {
           onToggle(true);
         }
       } catch (err) {
@@ -77,18 +75,18 @@ export const StellarAnchorToggle: React.FC<StellarAnchorToggleProps> = ({
         <div className="flex items-start gap-2 text-xs text-yellow-400 bg-yellow-400/10 border border-yellow-400/20 rounded-lg p-2">
           <AlertCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
           <div>
-            <p className="font-medium">Freighter wallet not found</p>
+            <p className="font-medium">No Stellar wallet connected</p>
             <p className="text-yellow-300/80 mt-1">
-              Install{" "}
+              Open{" "}
               <a
-                href="https://freighter.app"
+                href="/wallet"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="underline hover:text-yellow-300"
               >
-                Freighter extension
+                XConfess Wallet
               </a>{" "}
-              to anchor confessions on Stellar.
+              to add optional proof on Stellar.
             </p>
           </div>
         </div>
@@ -102,7 +100,7 @@ export const StellarAnchorToggle: React.FC<StellarAnchorToggleProps> = ({
             <Button
               variant="outline"
               size="sm"
-              onClick={connect}
+              onClick={() => window.location.assign("/wallet")}
               disabled={isConnecting || isLoading}
               className="mt-2"
             >

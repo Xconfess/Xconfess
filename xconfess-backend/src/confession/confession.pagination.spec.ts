@@ -13,7 +13,7 @@ import { StellarService } from '../stellar/stellar.service';
 import { ContractService } from '../stellar/contract.service';
 import { CacheService } from '../cache/cache.service';
 import { TagService } from './tag.service';
-import { SortOrder } from './dto/get-confessions.dto';
+import { Gender, SortOrder } from './dto/get-confessions.dto';
 import { encryptConfession } from '../utils/confession-encryption';
 import { encodeCursor } from '../common/pagination';
 import { AnomalyDetectionService } from '../anomaly/anomaly-detection.service';
@@ -211,6 +211,83 @@ describe('ConfessionService — feed pagination', () => {
     });
   });
 
+  describe('aggregate sorts (trending / most discussed)', () => {
+    it.each([SortOrder.TRENDING, SortOrder.MOST_DISCUSSED])(
+      '%s: first, middle, and final pages chain via offset cursor',
+      async (sort) => {
+        // first page
+        qb.getMany.mockResolvedValueOnce([
+          makeConfession('1'),
+          makeConfession('2'),
+          makeConfession('3'),
+        ]);
+        const first = await service.getConfessions({ limit: 2, sort });
+        expect(first.hasNextPage).toBe(true);
+        expect(first.nextCursor).not.toBeNull();
+        expect(qb.skip).not.toHaveBeenCalled();
+
+        // middle page: cursor from first page is honoured, not ignored
+        qb.getMany.mockResolvedValueOnce([
+          makeConfession('3'),
+          makeConfession('4'),
+          makeConfession('5'),
+        ]);
+        const middle = await service.getConfessions({
+          limit: 2,
+          sort,
+          cursor: first.nextCursor!,
+        });
+        expect(qb.skip).toHaveBeenLastCalledWith(2);
+        expect(middle.hasNextPage).toBe(true);
+
+        // final page
+        qb.getMany.mockResolvedValueOnce([makeConfession('5')]);
+        const final = await service.getConfessions({
+          limit: 2,
+          sort,
+          cursor: middle.nextCursor!,
+        });
+        expect(qb.skip).toHaveBeenLastCalledWith(4);
+        expect(final.hasNextPage).toBe(false);
+        expect(final.nextCursor).toBeNull();
+      },
+    );
+
+    it('adds an id tiebreaker so ordering is stable across pages', async () => {
+      qb.getMany.mockResolvedValue([]);
+
+      await service.getConfessions({ limit: 2, sort: SortOrder.TRENDING });
+
+      expect(qb.addOrderBy).toHaveBeenLastCalledWith('confession.id', 'DESC');
+    });
+
+    it('ignores a NEWEST keyset cursor instead of mis-reading it as an offset', async () => {
+      qb.getMany.mockResolvedValue([]);
+      const cursor = encodeCursor({ id: 'c1', created_at: '2026-01-01T00:00:00.000Z' });
+
+      await service.getConfessions({ limit: 2, sort: SortOrder.TRENDING, cursor });
+
+      expect(qb.skip).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('filters', () => {
+    it('keeps the gender filter alongside the cursor', async () => {
+      const cursor = encodeCursor({ id: 'c1', created_at: '2026-01-01T00:00:00.000Z' });
+      qb.getMany.mockResolvedValue([]);
+
+      await service.getConfessions({ cursor, limit: 2, gender: Gender.FEMALE });
+
+      expect(qb.andWhere).toHaveBeenCalledWith('confession.gender = :gender', {
+        gender: 'female',
+      });
+      expect(qb.andWhere).toHaveBeenCalledWith(
+        expect.stringContaining('confession.created_at'),
+        expect.anything(),
+      );
+    });
+  });
+
   describe('response metadata consistency', () => {
     it('always includes data, hasMore, nextCursor, and limit fields', async () => {
       qb.getMany.mockResolvedValue([makeConfession('a')]);
@@ -219,6 +296,7 @@ describe('ConfessionService — feed pagination', () => {
 
       expect(result).toHaveProperty('data');
       expect(result).toHaveProperty('hasMore');
+      expect(result).toHaveProperty('hasNextPage');
       expect(result).toHaveProperty('nextCursor');
       expect(result).toHaveProperty('limit');
       expect(result.limit).toBe(5);

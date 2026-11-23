@@ -1,17 +1,16 @@
 import { createApiErrorResponse } from "@/lib/apiErrorHandler";
-import { getApiBaseUrl } from "@/app/lib/config";
+import { resolveBackendRoute } from "@/app/lib/api/proxy";
 
 
 export async function GET(request: Request) {
-  const BASE_API_URL = getApiBaseUrl();
   const correlationId = request.headers.get("X-Correlation-ID") || "unknown";
 
   try {
-    const backendUrl = `${BASE_API_URL}/users/stats`;
+    const backend = resolveBackendRoute(request, "/users/stats");
 
     const cookie = request.headers.get("cookie") || "";
 
-    const response = await fetch(backendUrl, {
+    const response = await fetch(backend.url, {
       method: "GET",
       headers: {
         "X-Correlation-ID": correlationId,
@@ -45,4 +44,3 @@ export async function GET(request: Request) {
     });
   }
 }
-

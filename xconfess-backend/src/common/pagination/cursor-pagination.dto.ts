@@ -2,6 +2,7 @@ import { IsInt, IsOptional, Max, Min, IsString } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { PAGINATION } from './pagination.constants';
+import { IsValidCursor } from './cursor-validation.decorator';
 
 export class CursorPaginationDto {
   @ApiPropertyOptional({
@@ -10,7 +11,9 @@ export class CursorPaginationDto {
   })
   @IsOptional()
   @IsString()
+  @IsValidCursor()
   cursor?: string;
+
 
   @ApiPropertyOptional({
     description: `Items per page. Maximum ${PAGINATION.MAX_LIMIT}.`,
