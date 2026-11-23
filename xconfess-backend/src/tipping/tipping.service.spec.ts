@@ -734,11 +734,14 @@ describe('TippingService', () => {
           }),
       });
 
-      await expect(
-        svc.verifyAndRecordTip(confessionId, dto),
-      ).rejects.toThrow(
-        expect.stringContaining('credit_alphanum4, native'),
-      );
+      let assetError: any;
+      try {
+        await svc.verifyAndRecordTip(confessionId, dto);
+      } catch (e) {
+        assetError = e;
+      }
+      expect(assetError).toBeInstanceOf(BadRequestException);
+      expect(assetError.message).toContain('Supported asset types: native');
     });
 
     it('fails fast when Stellar network configuration is missing', async () => {

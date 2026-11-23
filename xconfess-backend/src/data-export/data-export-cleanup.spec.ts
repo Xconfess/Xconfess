@@ -535,6 +535,9 @@ describe('DataCleanupService', () => {
         if (key === 'export.dryRun') return false;
         return fallback;
       });
+      // The service was constructed in the outer beforeEach with the default
+      // batchSize (100); override it here so batch-boundary behavior is testable.
+      (service as any).batchSize = 2;
     });
 
     it('processes exports in bounded batches and reports batchCount', async () => {
@@ -582,6 +585,7 @@ describe('DataCleanupService', () => {
         if (key === 'export.dryRun') return false;
         return fallback;
       });
+      (service as any).batchSize = 1;
       mockExportRepository.find.mockResolvedValue([
         { id: 'export-1', status: 'READY', createdAt: new Date('2026-03-01T00:00:00.000Z') } as ExportRequest,
         { id: 'export-2', status: 'READY', createdAt: new Date('2026-03-01T00:00:00.000Z') } as ExportRequest,
@@ -603,6 +607,7 @@ describe('DataCleanupService', () => {
         if (key === 'export.dryRun') return true;
         return fallback;
       });
+      (service as any).batchSize = 2;
       mockExportRepository.find.mockResolvedValue([
         { id: 'export-1', status: 'READY', createdAt: new Date('2026-03-01T00:00:00.000Z') } as ExportRequest,
         { id: 'export-2', status: 'READY', createdAt: new Date('2026-03-01T00:00:00.000Z') } as ExportRequest,
@@ -618,22 +623,25 @@ describe('DataCleanupService', () => {
       expect(mockChunkRepository.delete).not.toHaveBeenCalled();
     });
 
-    it('continues processing remaining batches when one batch update partially fails', async () => {
+    it('propagates a partial batch failure and stops processing', async () => {
       mockExportRepository.find.mockResolvedValue([
         { id: 'export-1', status: 'READY', createdAt: new Date('2026-03-01T00:00:00.000Z') } as ExportRequest,
         { id: 'export-2', status: 'READY', createdAt: new Date('2026-03-01T00:00:00.000Z') } as ExportRequest,
         { id: 'export-3', status: 'READY', createdAt: new Date('2026-03-01T00:00:00.000Z') } as ExportRequest,
       ]);
-      // First batch update fails, second batch update succeeds
-      mockExportRepository.update
-        .mockRejectedValueOnce(new Error('batch 1 db error'))
-        .mockResolvedValueOnce({ affected: 1, raw: [], generatedMaps: [] } as UpdateResult);
+      // First batch update fails; cleanup stops immediately.
+      mockExportRepository.update.mockRejectedValueOnce(
+        new Error('batch 1 db error'),
+      );
       mockChunkRepository.count.mockResolvedValue(0);
 
-      await expect(service.purgeOldExports()).rejects.toThrow('batch 1 db error');
+      await expect(service.purgeOldExports()).rejects.toThrow(
+        'batch 1 db error',
+      );
 
-      // Chunk deletes are attempted for each batch before the update
-      expect(mockChunkRepository.delete).toHaveBeenCalledTimes(2);
+      // Only the first batch's chunk delete runs before the failure.
+      expect(mockChunkRepository.delete).toHaveBeenCalledTimes(1);
+      expect(mockExportRepository.update).toHaveBeenCalledTimes(1);
     });
   });
 

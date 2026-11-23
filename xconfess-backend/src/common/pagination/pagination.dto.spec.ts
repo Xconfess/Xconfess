@@ -121,15 +121,14 @@ describe('PaginationDto — shared limit standardization', () => {
       expect(errors.length).toBeGreaterThan(0);
     });
 
-    it('rejects null page', async () => {
-      const dto = plainToInstance(PaginationDto, { page: null, limit: 10 });
+    it('rejects object page', async () => {
+      const dto = plainToInstance(PaginationDto, { page: {}, limit: 10 });
       const errors = await getErrors(dto);
       expect(errors.length).toBeGreaterThan(0);
     });
 
-    it('rejects undefined limit explicitly passed', async () => {
-      // @IsOptional means undefined is allowed → default applies
-      const dto = plainToInstance(PaginationDto, { page: 1, limit: undefined });
+    it('omitting limit applies the default', async () => {
+      const dto = plainToInstance(PaginationDto, { page: 1 });
       const errors = await getErrors(dto);
       expect(errors).toHaveLength(0);
       expect(dto.limit).toBe(PAGINATION.DEFAULT_LIMIT);

@@ -62,6 +62,17 @@ describe('TippingService - Issue #170: Idempotent Tip Verification', () => {
             verifyTransaction: jest.fn(),
             verifyTransactionFull: jest.fn(),
             getHorizonTxUrl: jest.fn(),
+            getNetworkConfig: jest.fn().mockReturnValue({
+              network: 'testnet',
+              horizonUrl: 'https://horizon-testnet.stellar.org',
+              sorobanRpcUrl: 'https://soroban-rpc-testnet.stellar.org',
+              contractIds: {
+                confessionAnchor: 'CANCHORTESTNET',
+                reputationBadges: 'CBADGETESTNET',
+                tippingSystem: 'CTIPTESTNET',
+              },
+              deploymentMetadata: { loaded: true },
+            }),
           },
         },
         { provide: EventEmitter2, useValue: { emit: jest.fn() } },

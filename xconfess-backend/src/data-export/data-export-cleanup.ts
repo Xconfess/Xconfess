@@ -112,8 +112,9 @@ export class DataCleanupService {
             where: { exportRequestId: In(allRequestIds) },
           });
         }
+        batchCount = Math.ceil(eligibleCount / this.batchSize);
         this.logger.log(
-          `[DRY-RUN] Found ${eligibleCount} expired export request(s) and ${chunkCount} chunk(s) that WOULD be cleaned up in ${Math.ceil(eligibleCount / this.batchSize)} batch(es) of ${this.batchSize}. ${this.formatCleanupSummary(eligibleExports, cutoff, chunkCount)}`,
+          `[DRY-RUN] Found ${eligibleCount} expired export request(s) and ${chunkCount} chunk(s) that WOULD be cleaned up in ${batchCount} batch(es) of ${this.batchSize}. ${this.formatCleanupSummary(eligibleExports, cutoff, chunkCount)}`,
         );
       } else {
         this.logger.log(
