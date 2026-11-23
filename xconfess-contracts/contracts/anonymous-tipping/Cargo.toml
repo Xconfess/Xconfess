@@ -12,6 +12,7 @@ soroban-sdk = { workspace = true }
 
 [dev-dependencies]
 soroban-sdk = { workspace = true, features = ["testutils"] }
+proptest = "1"
 
 [[test]]
 name = "benchmarks"
@@ -32,3 +33,7 @@ path = "tests/interface_compat.rs"
 [[test]]
 name = "error_code_registry"
 path = "tests/error_code_registry.rs"
+
+[[test]]
+name = "tip_fuzz"
+path = "tests/tip_fuzz.rs"
