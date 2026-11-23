@@ -73,6 +73,27 @@ interface ProcessedTransactionData {
 const PG_UNIQUE_VIOLATION = '23505';
 
 /**
+ * Explicit asset and network assumptions at the tipping contract boundary.
+ *
+ * The anonymous-tipping Soroban contract only settles native XLM payments.
+ * Any payment operation using a non-native asset (e.g. credit_alphanum4 /
+ * credit_alphanum12) must be rejected safely — no credit is written and the
+ * caller receives a clear, deterministic error.
+ *
+ * Network configuration (testnet vs mainnet, contract IDs, Horizon/RPC URLs)
+ * is owned by StellarConfigService and validated at boot. The tipping layer
+ * asserts that the tipping-system contract ID is resolved before attempting
+ * any chain interaction, so a misconfigured or cross-network contract ID
+ * fails fast rather than silently submitting to the wrong network.
+ */
+export const NATIVE_ASSET_TYPE = 'native';
+export const SUPPORTED_ASSET_TYPES = [NATIVE_ASSET_TYPE];
+
+export function isSupportedAsset(assetType: string): boolean {
+  return SUPPORTED_ASSET_TYPES.includes(assetType);
+}
+
+/**
  * Tip amount bounds — must be consistent with contract and frontend.
  * - MIN_TIP_AMOUNT: 0.1 XLM (minimum viable tip)
  * - MAX_TIP_AMOUNT: 10,000 XLM (upper bound to prevent overflow and abuse)
@@ -194,6 +215,9 @@ export class TippingService {
         `Confession with ID ${confessionId} not found`,
       );
     }
+
+    // ── 1b. Assert Stellar network/contract configuration at the boundary ──
+    this.assertStellarNetworkConfigured();
 
     // ── 2. Derive idempotency key ────────────────────────────────────────
     const idempotencyKey = this.generateIdempotencyKey(confessionId, dto.txId);
@@ -516,6 +540,47 @@ export class TippingService {
       .digest('hex');
   }
 
+  /**
+   * Assert that the Stellar layer is configured for tipping on a known
+   * network before any chain interaction occurs. This makes the network
+   * assumption explicit at the contract boundary: a missing network or an
+   * unresolved tipping-system contract ID fails fast instead of silently
+   * submitting to the wrong network.
+   */
+  private assertStellarNetworkConfigured(): void {
+    const networkConfig = this.stellarService.getNetworkConfig?.();
+    if (!networkConfig) {
+      this.logger.warn({
+        message: 'Stellar service does not expose network configuration',
+        context: { actor: { type: 'system', id: 'tipping-service' } },
+      });
+      throw new BadRequestException(
+        'Tipping is unavailable: Stellar network configuration is missing.',
+      );
+    }
+
+    const { network, contractIds } = networkConfig;
+    if (!network || (network !== 'testnet' && network !== 'mainnet')) {
+      this.logger.warn({
+        message: 'Unsupported Stellar network configured for tipping',
+        network,
+      });
+      throw new BadRequestException(
+        `Tipping is unavailable: unsupported Stellar network "${network}". Expected "testnet" or "mainnet".`,
+      );
+    }
+
+    if (!contractIds?.tippingSystem) {
+      this.logger.warn({
+        message: 'Tipping-system contract ID not configured',
+        network,
+      });
+      throw new BadRequestException(
+        'Tipping is unavailable: tipping-system contract ID is not configured for this network.',
+      );
+    }
+  }
+
   private async findTipByIdempotencyKey(
     idempotencyKey: string,
   ): Promise<Tip | null> {
@@ -698,12 +763,12 @@ export class TippingService {
     try {
       const operations = txData._embedded?.operations ?? [];
       const paymentOps = operations.filter(
-        (op: any) => op.type === 'payment' && op.asset_type === 'native',
+        (op: any) => op.type === 'payment' && isSupportedAsset(op.asset_type),
       );
 
       if (!paymentOps || paymentOps.length === 0) {
         throw new BadRequestException(
-          'Transaction does not contain XLM payment',
+          `Transaction does not contain a ${NATIVE_ASSET_TYPE} (XLM) payment. Supported asset types: ${SUPPORTED_ASSET_TYPES.join(', ')}`,
         );
       }
 

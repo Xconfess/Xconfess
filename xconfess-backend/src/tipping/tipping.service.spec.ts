@@ -67,6 +67,17 @@ function makeService(overrides: {
   const stellarService: any = {
     verifyTransaction: jest.fn(),
     getHorizonTxUrl: jest.fn().mockReturnValue('https://horizon/testnet/txs/tx123'),
+    getNetworkConfig: jest.fn().mockReturnValue({
+      network: 'testnet',
+      horizonUrl: 'https://horizon-testnet.stellar.org',
+      sorobanRpcUrl: 'https://soroban-rpc-testnet.stellar.org',
+      contractIds: {
+        confessionAnchor: 'CANCHORTESTNET',
+        reputationBadges: 'CBADGETESTNET',
+        tippingSystem: 'CTIPTESTNET',
+      },
+      deploymentMetadata: { loaded: true },
+    }),
     ...overrides.stellarService,
   };
 
@@ -472,6 +483,302 @@ describe('TippingService', () => {
       expect(newCount).toBe(1);
       expect(idempotentCount).toBe(N - 1);
       expect(stellarService.verifyTransaction).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  // ── Domain event emission (issue: failed tips must not emit success events) ──
+  describe('verifyAndRecordTip — domain event emission', () => {
+    const confessionId = 'confession-events';
+    const dto = { txId: 'd'.repeat(64) };
+
+    function happyPathSetup({ svc, tipRepo, confessionRepo, stellarService }: any) {
+      confessionRepo.findOne.mockResolvedValue({ id: confessionId });
+      tipRepo.save
+        .mockResolvedValueOnce({ id: 'tip-events', txId: dto.txId, confessionId, amount: 0 })
+        .mockResolvedValue({ id: 'tip-events', txId: dto.txId, confessionId, amount: 1.0, verificationStatus: TipVerificationStatus.VERIFIED });
+      tipRepo.findOne.mockResolvedValue(null);
+      stellarService.verifyTransaction.mockResolvedValue(true);
+      mockHorizonFetch('1.0');
+    }
+
+    it('emits tip.verified only after a successful state change', async () => {
+      const { svc, tipRepo, confessionRepo, stellarService, eventEmitter } = makeService();
+      happyPathSetup({ svc, tipRepo, confessionRepo, stellarService });
+
+      const result = await svc.verifyAndRecordTip(confessionId, dto);
+
+      expect(result.state).toBe('verified');
+      expect(result.tip.amount).toBe(1.0);
+
+      const emitCalls = (eventEmitter.emit as jest.Mock).mock.calls;
+      const verifiedEvents = emitCalls.filter(([name]) => name === 'tip.verified');
+      expect(verifiedEvents).toHaveLength(1);
+      expect(verifiedEvents[0][1]).toMatchObject({
+        tipId: result.tip.id,
+        confessionId,
+        txId: dto.txId,
+        amount: 1.0,
+      });
+
+      // No failure event must accompany a successful settlement.
+      const failedEvents = emitCalls.filter(([name]) => name === 'tip.verification_failed');
+      expect(failedEvents).toHaveLength(0);
+    });
+
+    it('emits tip.verification_failed and leaves balance unchanged on invalid transaction', async () => {
+      const { svc, tipRepo, confessionRepo, stellarService, eventEmitter } = makeService();
+      confessionRepo.findOne.mockResolvedValue({ id: confessionId });
+      tipRepo.save.mockResolvedValue({ id: 'tip-events', txId: dto.txId, confessionId, amount: 0 });
+      tipRepo.findOne.mockResolvedValue(null);
+      stellarService.verifyTransaction.mockResolvedValue(false);
+
+      await expect(svc.verifyAndRecordTip(confessionId, dto)).rejects.toThrow(BadRequestException);
+
+      const emitCalls = (eventEmitter.emit as jest.Mock).mock.calls;
+      const failedEvents = emitCalls.filter(([name]) => name === 'tip.verification_failed');
+      expect(failedEvents).toHaveLength(1);
+      expect(failedEvents[0][1]).toMatchObject({ confessionId, txId: dto.txId });
+
+      // Sentinel row must remain a PENDING placeholder with no credit written.
+      expect(tipRepo.save).toHaveBeenCalledWith(
+        expect.objectContaining({ amount: 0, verificationStatus: TipVerificationStatus.PENDING }),
+      );
+    });
+
+    it('emits tip.verification_failed and leaves balance unchanged when amount is below minimum', async () => {
+      const { svc, tipRepo, confessionRepo, stellarService, eventEmitter } = makeService();
+      confessionRepo.findOne.mockResolvedValue({ id: confessionId });
+      tipRepo.save.mockResolvedValue({ id: 'tip-events', txId: dto.txId, confessionId, amount: 0 });
+      tipRepo.findOne.mockResolvedValue(null);
+      stellarService.verifyTransaction.mockResolvedValue(true);
+      mockHorizonFetch('0.01');
+
+      await expect(svc.verifyAndRecordTip(confessionId, dto)).rejects.toThrow(BadRequestException);
+
+      const emitCalls = (eventEmitter.emit as jest.Mock).mock.calls;
+      const failedEvents = emitCalls.filter(([name]) => name === 'tip.verification_failed');
+      expect(failedEvents).toHaveLength(1);
+      expect(failedEvents[0][1]).toMatchObject({ confessionId, txId: dto.txId });
+
+      expect(tipRepo.save).toHaveBeenCalledWith(
+        expect.objectContaining({ amount: 0, verificationStatus: TipVerificationStatus.PENDING }),
+      );
+    });
+
+    it('emits tip.verification_failed and leaves balance unchanged when amount exceeds maximum', async () => {
+      const { svc, tipRepo, confessionRepo, stellarService, eventEmitter } = makeService();
+      confessionRepo.findOne.mockResolvedValue({ id: confessionId });
+      tipRepo.save.mockResolvedValue({ id: 'tip-events', txId: dto.txId, confessionId, amount: 0 });
+      tipRepo.findOne.mockResolvedValue(null);
+      stellarService.verifyTransaction.mockResolvedValue(true);
+      mockHorizonFetch('20000');
+
+      await expect(svc.verifyAndRecordTip(confessionId, dto)).rejects.toThrow(BadRequestException);
+
+      const emitCalls = (eventEmitter.emit as jest.Mock).mock.calls;
+      const failedEvents = emitCalls.filter(([name]) => name === 'tip.verification_failed');
+      expect(failedEvents).toHaveLength(1);
+      expect(failedEvents[0][1]).toMatchObject({ confessionId, txId: dto.txId });
+
+      expect(tipRepo.save).toHaveBeenCalledWith(
+        expect.objectContaining({ amount: 0, verificationStatus: TipVerificationStatus.PENDING }),
+      );
+    });
+
+    it('emits tip.verification_failed and leaves balance unchanged when transaction has no XLM payment', async () => {
+      const { svc, tipRepo, confessionRepo, stellarService, eventEmitter } = makeService();
+      confessionRepo.findOne.mockResolvedValue({ id: confessionId });
+      tipRepo.save.mockResolvedValue({ id: 'tip-events', txId: dto.txId, confessionId, amount: 0 });
+      tipRepo.findOne.mockResolvedValue(null);
+      stellarService.verifyTransaction.mockResolvedValue(true);
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({ _embedded: { operations: [{ type: 'payment', asset_type: 'credit_alphanum4', amount: '1.0', from: 'GABC123' }] } }),
+      });
+
+      await expect(svc.verifyAndRecordTip(confessionId, dto)).rejects.toThrow(BadRequestException);
+
+      const emitCalls = (eventEmitter.emit as jest.Mock).mock.calls;
+      const failedEvents = emitCalls.filter(([name]) => name === 'tip.verification_failed');
+      expect(failedEvents).toHaveLength(1);
+      expect(failedEvents[0][1]).toMatchObject({ confessionId, txId: dto.txId });
+
+      expect(tipRepo.save).toHaveBeenCalledWith(
+        expect.objectContaining({ amount: 0, verificationStatus: TipVerificationStatus.PENDING }),
+      );
+    });
+
+    it('emits tip.verification_failed on network error during verification', async () => {
+      const { svc, tipRepo, confessionRepo, stellarService, eventEmitter } = makeService();
+      confessionRepo.findOne.mockResolvedValue({ id: confessionId });
+      tipRepo.save.mockResolvedValue({ id: 'tip-events', txId: dto.txId, confessionId, amount: 0 });
+      tipRepo.findOne.mockResolvedValue(null);
+      stellarService.verifyTransaction.mockRejectedValue(new Error('Horizon unreachable'));
+
+      await expect(svc.verifyAndRecordTip(confessionId, dto)).rejects.toThrow(ConflictException);
+
+      const emitCalls = (eventEmitter.emit as jest.Mock).mock.calls;
+      const failedEvents = emitCalls.filter(([name]) => name === 'tip.verification_failed');
+      expect(failedEvents).toHaveLength(1);
+      expect(failedEvents[0][1]).toMatchObject({ confessionId, txId: dto.txId });
+    });
+
+    it('does not emit tip.verified on any failure path', async () => {
+      const { svc, tipRepo, confessionRepo, stellarService, eventEmitter } = makeService();
+      confessionRepo.findOne.mockResolvedValue({ id: confessionId });
+      tipRepo.save.mockResolvedValue({ id: 'tip-events', txId: dto.txId, confessionId, amount: 0 });
+      tipRepo.findOne.mockResolvedValue(null);
+      stellarService.verifyTransaction.mockResolvedValue(false);
+
+      await expect(svc.verifyAndRecordTip(confessionId, dto)).rejects.toThrow();
+
+      const emitCalls = (eventEmitter.emit as jest.Mock).mock.calls;
+      const verifiedEvents = emitCalls.filter(([name]) => name === 'tip.verified');
+      expect(verifiedEvents).toHaveLength(0);
+    });
+  });
+
+  // ── Asset and network assumptions at the contract boundary ──
+  describe('verifyAndRecordTip — asset and network assumptions', () => {
+    const confessionId = 'confession-asset';
+    const dto = { txId: 'e'.repeat(64) };
+
+    function baseSetup({ svc, confessionRepo, tipRepo, stellarService }: any) {
+      confessionRepo.findOne.mockResolvedValue({ id: confessionId });
+      tipRepo.save.mockResolvedValue({
+        id: 'tip-asset',
+        txId: dto.txId,
+        confessionId,
+        amount: 0,
+      });
+      tipRepo.findOne.mockResolvedValue(null);
+      stellarService.verifyTransaction.mockResolvedValue(true);
+    }
+
+    it('accepts a native (XLM) payment operation', async () => {
+      const { svc, confessionRepo, tipRepo, stellarService, eventEmitter } =
+        makeService();
+      baseSetup({ svc, confessionRepo, tipRepo, stellarService });
+      mockHorizonFetch('1.0');
+
+      const result = await svc.verifyAndRecordTip(confessionId, dto);
+
+      expect(result.state).toBe('verified');
+      expect(result.tip.amount).toBe(1.0);
+      const emitCalls = (eventEmitter.emit as jest.Mock).mock.calls;
+      expect(emitCalls.filter(([name]) => name === 'tip.verified')).toHaveLength(1);
+    });
+
+    it('rejects a non-native asset (credit_alphanum4) with a clear error and no credit', async () => {
+      const { svc, confessionRepo, tipRepo, stellarService, eventEmitter } =
+        makeService();
+      baseSetup({ svc, confessionRepo, tipRepo, stellarService });
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            _embedded: {
+              operations: [
+                {
+                  type: 'payment',
+                  asset_type: 'credit_alphanum4',
+                  asset_code: 'USD',
+                  asset_issuer: 'GABC123',
+                  amount: '1.0',
+                  from: 'GABC123',
+                },
+              ],
+            },
+          }),
+      });
+
+      await expect(
+        svc.verifyAndRecordTip(confessionId, dto),
+      ).rejects.toThrow(BadRequestException);
+
+      const emitCalls = (eventEmitter.emit as jest.Mock).mock.calls;
+      const failedEvents = emitCalls.filter(
+        ([name]) => name === 'tip.verification_failed',
+      );
+      expect(failedEvents).toHaveLength(1);
+      expect(failedEvents[0][1]).toMatchObject({ confessionId, txId: dto.txId });
+
+      // No credit written — sentinel remains a PENDING placeholder at amount 0.
+      expect(tipRepo.save).toHaveBeenCalledWith(
+        expect.objectContaining({
+          amount: 0,
+          verificationStatus: TipVerificationStatus.PENDING,
+        }),
+      );
+    });
+
+    it('rejects a non-native asset (credit_alphanum12) with a clear error', async () => {
+      const { svc, confessionRepo, tipRepo, stellarService } = makeService();
+      baseSetup({ svc, confessionRepo, tipRepo, stellarService });
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            _embedded: {
+              operations: [
+                {
+                  type: 'payment',
+                  asset_type: 'credit_alphanum12',
+                  asset_code: 'BTC',
+                  asset_issuer: 'GBXYZ123',
+                  amount: '0.5',
+                  from: 'GABC123',
+                },
+              ],
+            },
+          }),
+      });
+
+      await expect(
+        svc.verifyAndRecordTip(confessionId, dto),
+      ).rejects.toThrow(
+        expect.stringContaining('credit_alphanum4, native'),
+      );
+    });
+
+    it('fails fast when Stellar network configuration is missing', async () => {
+      const { svc, confessionRepo, tipRepo, stellarService } = makeService();
+      stellarService.getNetworkConfig.mockReturnValue(undefined);
+      confessionRepo.findOne.mockResolvedValue({ id: confessionId });
+
+      await expect(
+        svc.verifyAndRecordTip(confessionId, dto),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('fails fast when an unsupported Stellar network is configured', async () => {
+      const { svc, confessionRepo, tipRepo, stellarService } = makeService();
+      stellarService.getNetworkConfig.mockReturnValue({
+        network: 'regtest',
+        horizonUrl: 'http://localhost:8000',
+        sorobanRpcUrl: 'http://localhost:8000',
+        contractIds: { tippingSystem: 'CTIPTESTNET' },
+      });
+      confessionRepo.findOne.mockResolvedValue({ id: confessionId });
+
+      await expect(
+        svc.verifyAndRecordTip(confessionId, dto),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('fails fast when the tipping-system contract ID is not configured', async () => {
+      const { svc, confessionRepo, tipRepo, stellarService } = makeService();
+      stellarService.getNetworkConfig.mockReturnValue({
+        network: 'testnet',
+        horizonUrl: 'https://horizon-testnet.stellar.org',
+        sorobanRpcUrl: 'https://soroban-rpc-testnet.stellar.org',
+        contractIds: { tippingSystem: null },
+      });
+      confessionRepo.findOne.mockResolvedValue({ id: confessionId });
+
+      await expect(
+        svc.verifyAndRecordTip(confessionId, dto),
+      ).rejects.toThrow(BadRequestException);
     });
   });
 
