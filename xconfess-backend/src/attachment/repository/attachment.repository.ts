@@ -182,4 +182,66 @@ export class AttachmentRepository {
       .execute();
     return result.affected ?? 0;
   }
+
+  /**
+   * Atomically claim an attachment for deletion: mark it ABANDONED only while
+   * it has no confession/message reference. Returns false when the row is
+   * missing or got referenced (so storage must NOT be touched). Re-claiming an
+   * already ABANDONED, unreferenced row succeeds, which keeps retries idempotent.
+   */
+  async claimUnreferencedForDeletion(id: string): Promise<boolean> {
+    const result = await this.attachmentRepository
+      .createQueryBuilder()
+      .update(Attachment)
+      .set({
+        status: AttachmentStatus.ABANDONED,
+        updatedAt: () => 'CURRENT_TIMESTAMP',
+      })
+      .where('id = :id', { id })
+      .andWhere('confession_id IS NULL')
+      .andWhere('message_id IS NULL')
+      .execute();
+    return (result.affected ?? 0) > 0;
+  }
+
+  /** Number of other non-abandoned rows sharing the same storage object. */
+  async countOtherLiveRowsForObjectKey(
+    objectKey: string,
+    excludeId: string,
+  ): Promise<number> {
+    return this.attachmentRepository
+      .createQueryBuilder('attachment')
+      .where('attachment.objectKey = :objectKey', { objectKey })
+      .andWhere('attachment.id != :excludeId', { excludeId })
+      .andWhere('attachment.status != :abandoned', {
+        abandoned: AttachmentStatus.ABANDONED,
+      })
+      .getCount();
+  }
+
+  /**
+   * Delete a claimed row, re-checking at write time that it is still
+   * ABANDONED and unreferenced. Returns the number of rows removed.
+   */
+  async deleteClaimedIfUnreferenced(id: string): Promise<number> {
+    const result = await this.attachmentRepository
+      .createQueryBuilder()
+      .delete()
+      .from(Attachment)
+      .where('id = :id', { id })
+      .andWhere('status = :abandoned', { abandoned: AttachmentStatus.ABANDONED })
+      .andWhere('confession_id IS NULL')
+      .andWhere('message_id IS NULL')
+      .execute();
+    return result.affected ?? 0;
+  }
+
+  /** Oldest ABANDONED rows still awaiting storage/row deletion. */
+  async findAbandonedForDeletion(limit: number): Promise<Attachment[]> {
+    return this.attachmentRepository.find({
+      where: { status: AttachmentStatus.ABANDONED },
+      order: { updatedAt: 'ASC' },
+      take: Math.max(1, Math.floor(limit)),
+    });
+  }
 }

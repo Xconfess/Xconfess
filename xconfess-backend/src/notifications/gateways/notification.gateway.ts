@@ -9,12 +9,22 @@ import {
   MessageBody,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
-import { Logger, UseGuards } from '@nestjs/common';
+import { Logger, Optional, UseGuards } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { WsJwtGuard } from '../../auth/guards/ws-jwt.guard';
 import { NotificationService } from '../services/notification.service';
 import { WebSocketLogger } from '../../websocket/websocket.logger';
+import {
+  WS_CONNECTION_REJECTED_EVENT,
+  WsConnectionLimiter,
+} from '../../websocket/ws-connection-limiter.service';
+import { OperationalMetricsService } from '../../observability/operational-metrics.service';
+import {
+  BoundedFanoutQueue,
+  DEFAULT_FANOUT_CONCURRENCY,
+  DEFAULT_FANOUT_MAX_QUEUE,
+} from '../services/notification-fanout-queue';
 
 /** Channel prefix for per-user private rooms */
 const USER_ROOM_PREFIX = 'user:';
@@ -32,13 +42,36 @@ export class NotificationGateway
 
   private readonly logger = new Logger(NotificationGateway.name);
   private userSockets = new Map<string, Set<string>>(); // userId -> Set of socket IDs
+  private readonly fanoutQueue: BoundedFanoutQueue;
 
   constructor(
     private notificationService: NotificationService,
     private configService: ConfigService,
     private readonly jwtService: JwtService,
     private readonly wsLogger: WebSocketLogger,
-  ) {}
+    @Optional() private readonly connectionLimiter?: WsConnectionLimiter,
+    @Optional() private readonly operationalMetrics?: OperationalMetricsService,
+  ) {
+    this.fanoutQueue = new BoundedFanoutQueue({
+      concurrency: this.readPositiveInt(
+        'NOTIFICATION_FANOUT_CONCURRENCY',
+        DEFAULT_FANOUT_CONCURRENCY,
+      ),
+      maxQueued: this.readPositiveInt(
+        'NOTIFICATION_FANOUT_MAX_QUEUE',
+        DEFAULT_FANOUT_MAX_QUEUE,
+      ),
+      metrics: this.operationalMetrics,
+    });
+  }
+
+  private readPositiveInt(key: string, fallback: number): number {
+    const raw = this.configService.get<number | string>(key, fallback);
+    const value = typeof raw === 'string' ? Number(raw) : raw;
+    return typeof value === 'number' && Number.isInteger(value) && value > 0
+      ? value
+      : fallback;
+  }
 
   afterInit(server: Server) {
     const frontendUrl =
@@ -110,6 +143,21 @@ export class NotificationGateway
       return;
     }
 
+    // Admission control: bound total and per-user connections before any
+    // per-socket state (rooms, sync queries) is allocated.
+    const admission = this.connectionLimiter?.admit(client.id, String(userId));
+    if (admission && !admission.admitted) {
+      this.wsLogger.logSubscriptionRejected({
+        socketId: client.id,
+        userId: String(userId),
+        channel: `${USER_ROOM_PREFIX}${userId}`,
+        reason: `Connection limit reached (${admission.payload.scope})`,
+      });
+      client.emit(WS_CONNECTION_REJECTED_EVENT, admission.payload);
+      client.disconnect(true);
+      return;
+    }
+
     // Add socket to user's socket set
     if (!this.userSockets.has(userId)) {
       this.userSockets.set(userId, new Set());
@@ -136,6 +184,9 @@ export class NotificationGateway
 
   handleDisconnect(client: Socket) {
     const userId = client.data.userId;
+
+    // No-op for sockets that were rejected and never held a slot.
+    this.connectionLimiter?.release(client.id);
 
     if (userId && this.userSockets.has(userId)) {
       const sockets = this.userSockets.get(userId);
@@ -309,7 +360,23 @@ export class NotificationGateway
   // All emissions target `user:<userId>` rooms — never broadcast to the full
   // namespace, ensuring strict per-user isolation.
 
-  async sendNotificationToUser(userId: string, notification: any) {
+  /**
+   * Bounded fanout: concurrent deliveries are capped and excess work waits in
+   * a bounded FIFO queue (callers are held back once it is full) instead of
+   * being dropped, so a burst cannot exhaust memory or the database pool.
+   */
+  sendNotificationToUser(userId: string, notification: any): Promise<void> {
+    return this.fanoutQueue.run(() =>
+      this.deliverNotificationToUser(userId, notification),
+    );
+  }
+
+  /** Current fanout queue state, for diagnostics and tests. */
+  getFanoutSnapshot() {
+    return this.fanoutQueue.snapshot();
+  }
+
+  private async deliverNotificationToUser(userId: string, notification: any) {
     const shouldDeliver = await this.notificationService.shouldDeliverRealtime(
       userId,
       notification.type,

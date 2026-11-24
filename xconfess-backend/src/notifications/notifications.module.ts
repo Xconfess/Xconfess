@@ -17,6 +17,7 @@ import {
 import { NotificationGateway } from './gateways/notification.gateway';
 import { DlqAdminController } from './dlq-admin.controller';
 import { WebSocketLogger } from '../websocket/websocket.logger';
+import { WsConnectionLimiter } from '../websocket/ws-connection-limiter.service';
 import { OutboxDispatcherService } from './services/outbox-dispatcher.service';
 import { createJwtSecretProvider } from '../auth/jwt-secret-rotation';
 import { RecipientResolver } from './services/recipient-resolver.service';
@@ -70,6 +71,7 @@ const jobsEnabled = process.env.ENABLE_BACKGROUND_JOBS === 'true';
     ...(jobsEnabled ? [NotificationProcessor] : []),
     NotificationGateway,
     WebSocketLogger,
+    WsConnectionLimiter,
     OutboxDispatcherService,
     RecipientResolver,
     JobManagementService,

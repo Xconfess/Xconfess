@@ -2,6 +2,16 @@ import { Injectable } from '@nestjs/common';
 import {
   CSRF_STATUS_LABELS,
   CsrfStatusLabel,
+  FANOUT_EVENT_LABELS,
+  FanoutEventLabel,
+  SEARCH_OUTCOME_LABELS,
+  SEARCH_ROUTE_LABELS,
+  SearchOutcomeLabel,
+  SearchRouteLabel,
+  WS_CONNECTION_EVENT_LABELS,
+  WS_NAMESPACE_LABELS,
+  WsConnectionEventLabel,
+  WsNamespaceLabel,
   DB_POOL_LABELS,
   DB_POOL_STATE_LABELS,
   FEED_OUTCOME_LABELS,
@@ -99,6 +109,42 @@ export class OperationalMetricsService {
     allowedLabels: this.feedQueries.allowedLabels,
   };
 
+  private readonly searchQueries: MetricDefinition = {
+    name: 'xconfess_search_queries_total',
+    help: 'Discovery search queries by route and outcome (success, timeout, cancelled, error). Never labelled by search term.',
+    allowedLabels: {
+      route: SEARCH_ROUTE_LABELS,
+      outcome: SEARCH_OUTCOME_LABELS,
+    },
+  };
+
+  private readonly searchDuration: MetricDefinition = {
+    name: 'xconfess_search_query_duration_seconds',
+    help: 'Discovery search query latency in seconds by route and outcome.',
+    allowedLabels: this.searchQueries.allowedLabels,
+  };
+
+  private readonly wsConnections: MetricDefinition = {
+    name: 'xconfess_ws_connections_total',
+    help: 'WebSocket connection admission events by namespace (accepted, rejected_global, rejected_user, closed).',
+    allowedLabels: {
+      namespace: WS_NAMESPACE_LABELS,
+      event: WS_CONNECTION_EVENT_LABELS,
+    },
+  };
+
+  private readonly fanoutEvents: MetricDefinition = {
+    name: 'xconfess_notification_fanout_total',
+    help: 'Notification fanout queue events (enqueued, processed, failed, overflow).',
+    allowedLabels: { event: FANOUT_EVENT_LABELS },
+  };
+
+  private readonly fanoutQueueDelay: MetricDefinition = {
+    name: 'xconfess_notification_fanout_queue_delay_seconds',
+    help: 'Time notification fanout work waited in the bounded queue before starting.',
+    allowedLabels: {},
+  };
+
   private readonly csrfChecks: MetricDefinition = {
     name: 'xconfess_csrf_checks_total',
     help: 'CSRF-protected requests by safe route category and check status.',
@@ -135,6 +181,8 @@ export class OperationalMetricsService {
   private histograms = new Map<string, Map<string, HistogramSeries>>();
   private dbPools = new Map<string, DbPoolSnapshot>();
   private droppedSeries = 0;
+  private wsActiveConnections = 0;
+  private fanoutQueueDepth = 0;
 
   // ---------------------------------------------------------------------------
   // Public emission API
@@ -186,6 +234,67 @@ export class OperationalMetricsService {
     }
   }
 
+  /** Record one discovery search query. `route` must be a fixed label. */
+  recordSearchQuery(
+    route: SearchRouteLabel,
+    outcome: SearchOutcomeLabel,
+    durationSeconds: number,
+  ): void {
+    const labels: LabelValues = { route: String(route), outcome };
+    this.incrementCounter(this.searchQueries, labels);
+    this.observeHistogram(this.searchDuration, labels, durationSeconds);
+  }
+
+  /**
+   * Time an async search query. The outcome is derived from the thrown error
+   * by `classify`; the error is re-thrown untouched and is never inspected for
+   * message text beyond that classification, so no search term can leak.
+   */
+  async observeSearchQuery<T>(
+    route: SearchRouteLabel,
+    run: () => Promise<T>,
+    classify: (error: unknown) => SearchOutcomeLabel,
+  ): Promise<T> {
+    const start = process.hrtime.bigint();
+    try {
+      const result = await run();
+      this.recordSearchQuery(route, 'success', elapsedSeconds(start));
+      return result;
+    } catch (error) {
+      this.recordSearchQuery(route, classify(error), elapsedSeconds(start));
+      throw error;
+    }
+  }
+
+  /** Record a WebSocket admission event and keep the active gauge in step. */
+  recordWsConnection(
+    namespace: WsNamespaceLabel,
+    event: WsConnectionEventLabel,
+  ): void {
+    this.incrementCounter(this.wsConnections, {
+      namespace: String(namespace),
+      event,
+    });
+    if (event === 'accepted') this.wsActiveConnections += 1;
+    if (event === 'closed') {
+      this.wsActiveConnections = Math.max(this.wsActiveConnections - 1, 0);
+    }
+  }
+
+  /** Record a notification fanout queue event. */
+  recordFanoutEvent(event: FanoutEventLabel): void {
+    this.incrementCounter(this.fanoutEvents, { event });
+  }
+
+  /** Record how long a fanout job waited in the queue before it started. */
+  recordFanoutQueueDelay(delaySeconds: number): void {
+    this.observeHistogram(this.fanoutQueueDelay, {}, delaySeconds);
+  }
+
+  setFanoutQueueDepth(depth: number): void {
+    this.fanoutQueueDepth = nonNegative(depth);
+  }
+
   /** Record one CSRF check result. Inputs are reduced to closed label sets. */
   recordCsrfCheck(routeCategory: string, status: CsrfStatusLabel): void {
     this.incrementCounter(this.csrfChecks, {
@@ -229,6 +338,9 @@ export class OperationalMetricsService {
     for (const def of [
       this.httpRequests,
       this.feedQueries,
+      this.searchQueries,
+      this.wsConnections,
+      this.fanoutEvents,
       this.csrfChecks,
     ]) {
       lines.push(`# HELP ${def.name} ${def.help}`);
@@ -238,7 +350,12 @@ export class OperationalMetricsService {
       }
     }
 
-    for (const def of [this.httpDuration, this.feedDuration]) {
+    for (const def of [
+      this.httpDuration,
+      this.feedDuration,
+      this.searchDuration,
+      this.fanoutQueueDelay,
+    ]) {
       lines.push(`# HELP ${def.name} ${def.help}`);
       lines.push(`# TYPE ${def.name} histogram`);
       for (const series of this.histograms.get(def.name)?.values() ?? []) {
@@ -290,6 +407,19 @@ export class OperationalMetricsService {
     }
 
     lines.push(
+      '# HELP xconfess_ws_active_connections WebSocket connections currently admitted.',
+    );
+    lines.push('# TYPE xconfess_ws_active_connections gauge');
+    lines.push(`xconfess_ws_active_connections ${this.wsActiveConnections}`);
+    lines.push(
+      '# HELP xconfess_notification_fanout_queue_depth Notification fanout jobs currently waiting in the bounded queue.',
+    );
+    lines.push('# TYPE xconfess_notification_fanout_queue_depth gauge');
+    lines.push(
+      `xconfess_notification_fanout_queue_depth ${this.fanoutQueueDepth}`,
+    );
+
+    lines.push(
       `# HELP ${this.droppedSeriesDefinition.name} ${this.droppedSeriesDefinition.help}`,
     );
     lines.push(`# TYPE ${this.droppedSeriesDefinition.name} counter`);
@@ -304,6 +434,8 @@ export class OperationalMetricsService {
     this.histograms.clear();
     this.dbPools.clear();
     this.droppedSeries = 0;
+    this.wsActiveConnections = 0;
+    this.fanoutQueueDepth = 0;
   }
 
   // ---------------------------------------------------------------------------
