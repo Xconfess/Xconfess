@@ -1,9 +1,10 @@
 import { Processor, OnWorkerEvent, InjectQueue, WorkerHost } from '@nestjs/bullmq';
-import { Logger } from '@nestjs/common';
+import { Inject, Logger, forwardRef } from '@nestjs/common';
 import { Job, JobsOptions, Queue, UnrecoverableError } from 'bullmq';
 import { createHash, randomUUID } from 'node:crypto';
 import type Redis from 'ioredis';
 import { EmailNotificationService } from '../services/email-notification.service';
+import { NotificationService } from '../services/notification.service';
 import { NotificationType } from '../entities/notification.entity';
 import { AppLogger } from '../../logger/logger.service';
 
@@ -82,6 +83,13 @@ export class NotificationProcessor extends WorkerHost {
     @InjectQueue(NOTIFICATION_QUEUE)
     private readonly notificationQueue: Queue<NotificationJobData>,
     private readonly appLogger: AppLogger,
+    // Issue #2128: re-check the user's preference at job pickup so a
+    // preference flipped off between enqueue and worker pickup is still
+    // honoured. The gate is the one in `NotificationService.shouldDispatch`.
+    // Injected via `forwardRef` to break the module's circular import
+    // without rearranging it.
+    @Inject(forwardRef(() => NotificationService))
+    private readonly notificationService: NotificationService,
   ) {
     super();
   }
@@ -101,6 +109,26 @@ export class NotificationProcessor extends WorkerHost {
         queue: NOTIFICATION_QUEUE,
         jobName: job.name,
       });
+
+      // Issue #2128: re-check the preference gate at pickup. A user who
+      // disabled email between enqueue and processing must not receive
+      // the email just because the enqueue-time check said yes.
+      const allowed = await this.notificationService.shouldDispatch(
+        job.data.userId,
+        job.data.type,
+        'email',
+      );
+      if (!allowed) {
+        this.logger.log(
+          `Skipping notification job ${job.id}: preference disabled at pickup (userId=${job.data.userId} type=${job.data.type})`,
+        );
+        this.appLogger.incrementCounter('notification_delivery_skipped_total', 1, {
+          queue: NOTIFICATION_QUEUE,
+          notificationType: job.data.type,
+          reason: 'preference_disabled_at_pickup',
+        });
+        return;
+      }
 
       const startedAt = Date.now();
       try {
