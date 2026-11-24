@@ -12,6 +12,7 @@ import { JwtService } from '@nestjs/jwt';
 import { UserService } from '../user/user.service';
 import { EmailService } from '../email/email.service';
 import { PasswordResetService } from './password-reset.service';
+import { SessionRevocationService } from './session-revocation.service';
 import { AnonymousUserService } from '../user/anonymous-user.service';
 import { LockoutService } from './lockout.service';
 import * as bcrypt from 'bcryptjs';
@@ -40,6 +41,12 @@ export class AuthService {
     private lockoutService: LockoutService,
     @Optional()
     private readonly analyticsEventService?: AnalyticsEventService,
+    // #2130: injected so a successful password reset revokes every prior
+    // session. Optional to match the pattern already used in jwt.strategy
+    // and keep the test harness small; when wired, revocation is an
+    // operational alert rather than a request failure (see resetPassword).
+    @Optional()
+    private readonly sessionRevocationService?: SessionRevocationService,
   ) {}
 
   async validateUser(
@@ -200,6 +207,34 @@ export class AuthService {
       }
 
       await this.userService.updatePassword(reset.userId, newPassword);
+
+      // #2130: invalidate every session that was issued before the
+      // password changed. `jwt.strategy` reads the revocation timestamp
+      // from the cache on every request, so any JWT whose `iat` is
+      // earlier than this moment is rejected next time it is presented.
+      // Revocation runs after the password write - a failure here never
+      // undoes the reset. The cache outage is logged at `error` so the
+      // alerting path can see it; the request still succeeds because
+      // the credential the attacker could have reused (the old password)
+      // is already dead.
+      if (this.sessionRevocationService) {
+        try {
+          await this.sessionRevocationService.revokeUserSessions(reset.userId);
+        } catch (revocationError) {
+          const message =
+            revocationError instanceof Error
+              ? revocationError.message
+              : 'Unknown error';
+          this.logger.error(
+            `Session revocation after password reset failed`,
+            {
+              maskedUserId: maskUserId(reset.userId),
+              tokenId: reset.id,
+              reason: message,
+            },
+          );
+        }
+      }
 
       this.logger.log(`Password reset successful`, {
         maskedUserId: maskUserId(reset.userId),
