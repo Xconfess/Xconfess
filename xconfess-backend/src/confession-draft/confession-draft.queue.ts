@@ -4,6 +4,11 @@ import { Queue, Worker, Job } from 'bullmq';
 import { ConfigService } from '@nestjs/config';
 import { ConfessionDraftService } from './confession-draft.service';
 import { GracefulShutdownService } from '../common/graceful-shutdown.service';
+import {
+  correlationLogTag,
+  readCorrelationId,
+  withCorrelationId,
+} from '../common/correlation-id';
 
 @Injectable()
 export class ConfessionDraftQueue implements OnModuleDestroy {
@@ -34,6 +39,16 @@ export class ConfessionDraftQueue implements OnModuleDestroy {
     this.worker = new Worker(
       'confession-draft-publisher',
       async (job: Job) => {
+        // Issue #2126: every job log carries the correlation id so a
+        // failure that surfaces after the originating request has
+        // returned is still traceable to it. The parent `publish-due`
+        // job propagates its id to the `publish-one` children it
+        // enqueues.
+        const parentCorrelationId = readCorrelationId(job.data);
+        this.logger.log(
+          `ConfessionDraftQueue job starting name=${job.name} id=${job.id}${correlationLogTag(job.data)}`,
+        );
+
         if (job.name === 'publish-due') {
           const ids = await this.draftService.enqueueDueDraftIds();
 
@@ -41,7 +56,11 @@ export class ConfessionDraftQueue implements OnModuleDestroy {
             ids.map((id) =>
               this.queue.add(
                 'publish-one',
-                { id },
+                // Carry the parent correlation id into each child so
+                // a `publish-one` worker log and the originating
+                // `publish-due` log share the same id. New children
+                // get a fresh UUID when the parent did not have one.
+                withCorrelationId({ id }, parentCorrelationId),
                 {
                   attempts: 5,
                   backoff: { type: 'exponential', delay: 1000 },
@@ -77,8 +96,11 @@ export class ConfessionDraftQueue implements OnModuleDestroy {
     this.worker.on('failed', (job, err) => {
       const trace = err instanceof Error ? err.stack : String(err);
 
+      // Issue #2126: the correlation id is the first piece of context
+      // on every failure line so an on-call engineer can grep one id
+      // through enqueue, processing and failure logs.
       this.logger.error(
-        `ConfessionDraftQueue job failed: name=${job?.name} id=${job?.id} data=${JSON.stringify(job?.data ?? {})}`,
+        `ConfessionDraftQueue job failed:${correlationLogTag(job?.data)} name=${job?.name} id=${job?.id} data=${JSON.stringify(job?.data ?? {})}`,
         trace,
       );
     });
@@ -87,7 +109,11 @@ export class ConfessionDraftQueue implements OnModuleDestroy {
       try {
         await this.queue.add(
           'publish-due',
-          {},
+          // Issue #2126: the scheduler-born parent job also carries a
+          // correlation id so its children inherit it. A fresh UUID
+          // per repeat window is good enough - there is no upstream
+          // request to tie this to.
+          withCorrelationId({}),
           {
             repeat: { pattern: '* * * * *' },
             removeOnComplete: true,
