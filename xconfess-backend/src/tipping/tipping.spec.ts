@@ -38,6 +38,17 @@ describe('Tipping Service Tests with Seed Helpers', () => {
     stellarService = {
       verifyTransaction: jest.fn(),
       getHorizonTxUrl: jest.fn().mockReturnValue('https://horizon.example/tx'),
+      getNetworkConfig: jest.fn().mockReturnValue({
+        network: 'testnet',
+        horizonUrl: 'https://horizon-testnet.stellar.org',
+        sorobanRpcUrl: 'https://soroban-rpc-testnet.stellar.org',
+        contractIds: {
+          confessionAnchor: 'CANCHORTESTNET',
+          reputationBadges: 'CBADGETESTNET',
+          tippingSystem: 'CTIPTESTNET',
+        },
+        deploymentMetadata: { loaded: true },
+      }),
     };
     eventEmitter = { emit: jest.fn() };
     auditLogService = { createLog: jest.fn(), log: jest.fn() };

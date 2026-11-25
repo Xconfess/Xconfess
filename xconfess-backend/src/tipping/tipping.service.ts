@@ -4,11 +4,8 @@ import {
   BadRequestException,
   GatewayTimeoutException,
   Logger,
-  Optional,
-  ServiceUnavailableException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { ConfigService } from '@nestjs/config';
 import { DataSource, QueryFailedError, Repository } from 'typeorm';
 import { Tip, TipVerificationStatus } from './entities/tip.entity';
 import { AnonymousConfession } from '../confession/entities/confession.entity';
@@ -18,25 +15,6 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { AuditActionType } from '../audit-log/audit-log.entity';
 import * as crypto from 'crypto';
-import { AnalyticsEventService } from '../analytics/analytics-event.service';
-import { AnalyticsNetwork } from '../analytics/entities/analytics-event.entity';
-import { ErrorUtils } from '../common/errors/error-utils';
-import { StellarAddressValidator } from '../stellar/validators/stellar-address.validator';
-import {
-  backOffOrFailTransient,
-  isTransientRpcError,
-  StellarRpcUnavailableException,
-} from '../stellar/utils/rpc-rate-limit';
-import {
-  MAX_TIP_AMOUNT,
-  MIN_TIP_AMOUNT,
-  TIP_PRECISION,
-  SUPPORTED_TIP_ASSETS,
-  DEFAULT_TIP_ASSET,
-  validateTipAsset,
-  validateTipPrecision,
-  validateTipAmountBounds,
-} from './tipping.constants';
 
 export interface TipStats {
   totalAmount: number;
@@ -103,11 +81,36 @@ interface ProcessedTransactionData {
 const PG_UNIQUE_VIOLATION = '23505';
 
 /**
+ * Explicit asset and network assumptions at the tipping contract boundary.
+ *
+ * The anonymous-tipping Soroban contract only settles native XLM payments.
+ * Any payment operation using a non-native asset (e.g. credit_alphanum4 /
+ * credit_alphanum12) must be rejected safely — no credit is written and the
+ * caller receives a clear, deterministic error.
+ *
+ * Network configuration (testnet vs mainnet, contract IDs, Horizon/RPC URLs)
+ * is owned by StellarConfigService and validated at boot. The tipping layer
+ * asserts that the tipping-system contract ID is resolved before attempting
+ * any chain interaction, so a misconfigured or cross-network contract ID
+ * fails fast rather than silently submitting to the wrong network.
+ */
+export const NATIVE_ASSET_TYPE = 'native';
+export const SUPPORTED_ASSET_TYPES = [NATIVE_ASSET_TYPE];
+
+export function isSupportedAsset(assetType: string): boolean {
+  return SUPPORTED_ASSET_TYPES.includes(assetType);
+}
+
+/**
  * Tip amount bounds — must be consistent with contract and frontend.
  * - MIN_TIP_AMOUNT: 0.1 XLM (minimum viable tip)
  * - MAX_TIP_AMOUNT: 10,000 XLM (upper bound to prevent overflow and abuse)
  * - TIP_PRECISION: 7 decimal places (Stellar's native precision for assets)
  */
+export const MIN_TIP_AMOUNT = 0.1;
+export const MAX_TIP_AMOUNT = 10_000;
+export const TIP_PRECISION = 7;
+
 @Injectable()
 export class TippingService {
   private static readonly MAX_RECEIPT_PROOF_METADATA_LEN = 128;
@@ -125,12 +128,6 @@ export class TippingService {
     private readonly stellarService: StellarService,
     private readonly eventEmitter: EventEmitter2,
     private readonly auditLogService: AuditLogService,
-    @Optional()
-    private readonly configService?: ConfigService,
-    @Optional()
-    private readonly analyticsEventService?: AnalyticsEventService,
-    @Optional()
-    private readonly stellarAddressValidator?: StellarAddressValidator,
   ) {}
 
   // ──────────────────────────────────────────────────────────────────────────
@@ -303,7 +300,8 @@ export class TippingService {
       );
     }
 
-    this.assertIdempotencyKeyBinding(confessionId, dto, requestId, callerContext);
+    // ── 1b. Assert Stellar network/contract configuration at the boundary ──
+    this.assertStellarNetworkConfigured();
 
     // ── 2. Derive idempotency key ────────────────────────────────────────
     const idempotencyKey = this.generateIdempotencyKey(confessionId, dto.txId);
@@ -490,6 +488,49 @@ export class TippingService {
 
       const processedData = await this.processTransactionData(txData, dto.txId);
 
+      // ── 7. Amount bounds validation ─────────────────────────────────────
+      if (processedData.amount < MIN_TIP_AMOUNT) {
+        await this.updateRetryMetadata(sentinelTip.id, 'invalid_amount', {
+          amount: processedData.amount,
+          minRequired: MIN_TIP_AMOUNT,
+          maxAllowed: MAX_TIP_AMOUNT,
+          reason: 'below_minimum',
+        });
+        await this.releaseProcessingLock(sentinelTip.id);
+        throw new BadRequestException(
+          `Tip amount ${processedData.amount} XLM is below minimum of ${MIN_TIP_AMOUNT} XLM`,
+        );
+      }
+
+      if (processedData.amount > MAX_TIP_AMOUNT) {
+        await this.updateRetryMetadata(sentinelTip.id, 'invalid_amount', {
+          amount: processedData.amount,
+          minRequired: MIN_TIP_AMOUNT,
+          maxAllowed: MAX_TIP_AMOUNT,
+          reason: 'above_maximum',
+        });
+        await this.releaseProcessingLock(sentinelTip.id);
+        throw new BadRequestException(
+          `Tip amount ${processedData.amount} XLM exceeds maximum of ${MAX_TIP_AMOUNT} XLM`,
+        );
+      }
+
+      // Validate precision: no more than TIP_PRECISION decimal places
+      const amountStr = processedData.amount.toString();
+      const decimalPart = amountStr.includes('.') ? amountStr.split('.')[1] : '';
+      if (decimalPart.length > TIP_PRECISION) {
+        await this.updateRetryMetadata(sentinelTip.id, 'invalid_amount', {
+          amount: processedData.amount,
+          decimalPlaces: decimalPart.length,
+          maxPrecision: TIP_PRECISION,
+          reason: 'excess_precision',
+        });
+        await this.releaseProcessingLock(sentinelTip.id);
+        throw new BadRequestException(
+          `Tip amount has ${decimalPart.length} decimal places, maximum allowed is ${TIP_PRECISION}`,
+        );
+      }
+
       // ── 8. Finalise the sentinel row as VERIFIED (single write) ────────
       const reconciliationMetadata = {
         verifiedBy: 'user_request',
@@ -514,53 +555,6 @@ export class TippingService {
       sentinelTip.lockedBy = null;
 
       const savedTip = await this.tipRepository.save(sentinelTip);
-      const amountAtomic = Math.round(
-        processedData.amount * 10_000_000,
-      ).toString();
-      const network = this.getAnalyticsNetwork();
-
-      this.analyticsEventService
-        ?.record({
-          eventName: 'tip_completed',
-          txHash: dto.txId,
-          assetCode: 'XLM',
-          amountAtomic,
-          network,
-          idempotencyKey: `tip_completed:${dto.txId}`,
-          metadata: {
-            source: 'tipping_service',
-            tipId: savedTip.id,
-            confessionId,
-            requestId: requestId ?? null,
-          },
-        })
-        .catch((err) =>
-          this.logger.warn({
-            message: 'Failed to record tip analytics',
-            requestId,
-            confessionId,
-            txHash: dto.txId,
-            error: err instanceof Error ? err.message : String(err),
-          }),
-        );
-      this.analyticsEventService
-        ?.record({
-          eventName: 'stellar_tx_confirmed',
-          txHash: dto.txId,
-          assetCode: 'XLM',
-          amountAtomic,
-          network,
-          idempotencyKey: `stellar_tx_confirmed:${dto.txId}`,
-          metadata: { source: 'tipping_service', requestId: requestId ?? null },
-        })
-        .catch((err) =>
-          this.logger.warn({
-            message: 'Failed to record Stellar confirmation analytics',
-            requestId,
-            txHash: dto.txId,
-            error: err instanceof Error ? err.message : String(err),
-          }),
-        );
 
       // ── 9. Post-success side-effects (emitted exactly once) ───────────
 
@@ -624,19 +618,6 @@ export class TippingService {
         requestId,
         error: error instanceof Error ? error.message : 'Unknown error',
       });
-      this.analyticsEventService
-        ?.record({
-          eventName: 'stellar_tx_failed',
-          txHash: dto.txId,
-          network: this.getAnalyticsNetwork(),
-          idempotencyKey: `stellar_tx_failed:${dto.txId}`,
-          metadata: {
-            source: 'tipping_service',
-            state: 'failed',
-            requestId: requestId ?? null,
-          },
-        })
-        .catch(() => undefined);
 
       throw error;
     }
@@ -657,10 +638,45 @@ export class TippingService {
       .digest('hex');
   }
 
-  private getAnalyticsNetwork(): AnalyticsNetwork {
-    return this.configService?.get<string>('STELLAR_NETWORK') === 'mainnet'
-      ? 'mainnet'
-      : 'testnet';
+  /**
+   * Assert that the Stellar layer is configured for tipping on a known
+   * network before any chain interaction occurs. This makes the network
+   * assumption explicit at the contract boundary: a missing network or an
+   * unresolved tipping-system contract ID fails fast instead of silently
+   * submitting to the wrong network.
+   */
+  private assertStellarNetworkConfigured(): void {
+    const networkConfig = this.stellarService.getNetworkConfig?.();
+    if (!networkConfig) {
+      this.logger.warn({
+        message: 'Stellar service does not expose network configuration',
+        context: { actor: { type: 'system', id: 'tipping-service' } },
+      });
+      throw new BadRequestException(
+        'Tipping is unavailable: Stellar network configuration is missing.',
+      );
+    }
+
+    const { network, contractIds } = networkConfig;
+    if (!network || (network !== 'testnet' && network !== 'mainnet')) {
+      this.logger.warn({
+        message: 'Unsupported Stellar network configured for tipping',
+        network,
+      });
+      throw new BadRequestException(
+        `Tipping is unavailable: unsupported Stellar network "${network}". Expected "testnet" or "mainnet".`,
+      );
+    }
+
+    if (!contractIds?.tippingSystem) {
+      this.logger.warn({
+        message: 'Tipping-system contract ID not configured',
+        network,
+      });
+      throw new BadRequestException(
+        'Tipping is unavailable: tipping-system contract ID is not configured for this network.',
+      );
+    }
   }
 
   private normalizeSenderAddress(raw: string | null): string | null {
@@ -1028,36 +1044,17 @@ export class TippingService {
     try {
       const operations = txData._embedded?.operations ?? [];
       const paymentOps = operations.filter(
-        (op: any) => op.type === 'payment',
+        (op: any) => op.type === 'payment' && isSupportedAsset(op.asset_type),
       );
 
       if (!paymentOps || paymentOps.length === 0) {
         throw new BadRequestException(
-          'Transaction does not contain a payment operation',
+          `Transaction does not contain a ${NATIVE_ASSET_TYPE} (XLM) payment. Supported asset types: ${SUPPORTED_ASSET_TYPES.join(', ')}`,
         );
       }
 
       const paymentOp = paymentOps[0];
-
-      // Validate supported asset before processing
-      const assetCode = paymentOp.asset_code ?? 'XLM';
-      const assetIssuer = paymentOp.asset_issuer ?? null;
-      const assetType = paymentOp.asset_type;
-
-      const supportedAsset = validateTipAsset(
-        assetCode,
-        assetIssuer,
-        assetType,
-      );
-
       const amount = parseFloat(paymentOp.amount);
-
-      // Validate amount bounds (zero/negative, min, max)
-      validateTipAmountBounds(amount);
-
-      // Validate precision against asset configuration
-      validateTipPrecision(amount, supportedAsset.precision);
-
       const receiptMetadata = this.extractSettlementReceiptMetadata(txData);
       const senderAddress = this.normalizeSenderAddress(
         receiptMetadata.anonymousSender ? null : paymentOp.from ?? null,

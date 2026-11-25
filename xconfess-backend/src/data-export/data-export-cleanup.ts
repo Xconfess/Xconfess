@@ -11,6 +11,7 @@ export interface RetentionPolicyConfig {
   retentionDays: number;
   auditCleanupActions: boolean;
   dryRun: boolean;
+  batchSize: number;
 }
 
 type CleanupCandidate = Pick<ExportRequest, 'id' | 'status' | 'createdAt'>;
@@ -18,6 +19,7 @@ type CleanupCandidate = Pick<ExportRequest, 'id' | 'status' | 'createdAt'>;
 export interface CleanupRunResult {
   dryRun: boolean;
   retentionDays: number;
+  batchSize: number;
   cutoff: string;
   eligibleCount: number;
   expiredCount: number;
@@ -25,6 +27,7 @@ export interface CleanupRunResult {
   statusCounts: Record<string, number>;
   requestIds: string[];
   omittedRequestIds: number;
+  batchCount: number;
 }
 
 const CLEANUP_ELIGIBLE_STATUSES = ['PENDING', 'PROCESSING', 'READY', 'FAILED', 'EXPIRED'];
@@ -35,6 +38,7 @@ export class DataCleanupService {
   private readonly retentionDays: number;
   private readonly auditCleanupActions: boolean;
   private readonly configuredDryRun: boolean;
+  private readonly batchSize: number;
 
   constructor(
     @InjectRepository(ExportRequest) private repo: Repository<ExportRequest>,
@@ -53,6 +57,10 @@ export class DataCleanupService {
     this.configuredDryRun = this.configService.get<boolean>(
       'export.dryRun',
       false,
+    );
+    this.batchSize = this.configService.get<number>(
+      'export.batchSize',
+      100,
     );
   }
 
@@ -76,7 +84,7 @@ export class DataCleanupService {
     let eligibleExports: CleanupCandidate[] = [];
 
     this.logger.log(
-      `Starting ${dryRun ? 'DRY-RUN ' : ''}export retention cleanup. Retaining exports created after ${cutoff.toISOString()} (${this.retentionDays} days)`,
+      `Starting ${dryRun ? 'DRY-RUN ' : ''}export retention cleanup. Retaining exports created after ${cutoff.toISOString()} (${this.retentionDays} days), batchSize=${this.batchSize}`,
     );
 
     try {
@@ -88,51 +96,72 @@ export class DataCleanupService {
         select: ['id', 'status', 'createdAt'],
       });
 
-      const requestIds = eligibleExports.map((e) => e.id);
+      const eligibleCount = eligibleExports.length;
       let chunkCount = 0;
-
-      if (requestIds.length > 0) {
-        chunkCount = await this.chunkRepo.count({
-          where: { exportRequestId: In(requestIds) },
-        });
-      }
-
       let expiredCount = 0;
+      let batchCount = 0;
 
-      if (eligibleExports.length === 0) {
+      if (eligibleCount === 0) {
         this.logger.log(
-          `No expired exports found to clean up. ${this.formatCleanupSummary(eligibleExports, cutoff, chunkCount)}`,
+          `No expired exports found to clean up. ${this.formatCleanupSummary(eligibleExports, cutoff, 0)}`,
         );
       } else if (dryRun) {
+        const allRequestIds = eligibleExports.map((e) => e.id);
+        if (allRequestIds.length > 0) {
+          chunkCount = await this.chunkRepo.count({
+            where: { exportRequestId: In(allRequestIds) },
+          });
+        }
+        batchCount = Math.ceil(eligibleCount / this.batchSize);
         this.logger.log(
-          `[DRY-RUN] Found ${eligibleExports.length} expired export request(s) and ${chunkCount} chunk(s) that WOULD be cleaned up. ${this.formatCleanupSummary(eligibleExports, cutoff, chunkCount)}`,
+          `[DRY-RUN] Found ${eligibleCount} expired export request(s) and ${chunkCount} chunk(s) that WOULD be cleaned up in ${batchCount} batch(es) of ${this.batchSize}. ${this.formatCleanupSummary(eligibleExports, cutoff, chunkCount)}`,
         );
       } else {
         this.logger.log(
-          `Found ${eligibleExports.length} expired export request(s) eligible for cleanup. ${this.formatCleanupSummary(eligibleExports, cutoff, chunkCount)}`,
+          `Found ${eligibleCount} expired export request(s) eligible for cleanup, processing in batches of ${this.batchSize}. ${this.formatCleanupSummary(eligibleExports, cutoff, 0)}`,
         );
 
-        if (requestIds.length > 0) {
-          await this.chunkRepo.delete({ exportRequestId: In(requestIds) });
+        // Process in bounded batches so a single retention sweep never
+        // issues an unbounded delete/update against the database.
+        for (let offset = 0; offset < eligibleCount; offset += this.batchSize) {
+          const batch = eligibleExports.slice(offset, offset + this.batchSize);
+          const batchRequestIds = batch.map((e) => e.id);
+          batchCount++;
+
+          const batchChunkCount = await this.chunkRepo.count({
+            where: { exportRequestId: In(batchRequestIds) },
+          });
+          chunkCount += batchChunkCount;
+
+          if (batchRequestIds.length > 0) {
+            await this.chunkRepo.delete({
+              exportRequestId: In(batchRequestIds),
+            });
+          }
+
+          const batchResult = await this.repo.update(
+            {
+              createdAt: LessThan(cutoff),
+              status: In(CLEANUP_ELIGIBLE_STATUSES),
+              id: In(batchRequestIds),
+            },
+            {
+              fileData: null,
+              status: 'EXPIRED',
+              expiredAt: new Date(),
+              downloadTokenHash: null,
+            },
+          );
+
+          expiredCount += batchResult.affected ?? 0;
+
+          this.logger.log(
+            `Batch ${batchCount}: expired ${batchResult.affected ?? 0} export request(s) and removed ${batchChunkCount} chunk(s).`,
+          );
         }
 
-        const result = await this.repo.update(
-          {
-            createdAt: LessThan(cutoff),
-            status: In(CLEANUP_ELIGIBLE_STATUSES),
-          },
-          {
-            fileData: null,
-            status: 'EXPIRED',
-            expiredAt: new Date(),
-            downloadTokenHash: null,
-          },
-        );
-
-        expiredCount = result.affected ?? 0;
-
         this.logger.log(
-          `Expired ${expiredCount} export request(s) and removed ${chunkCount} chunk(s). ${this.formatCleanupSummary(eligibleExports, cutoff, chunkCount)}`,
+          `Expired ${expiredCount} export request(s) and removed ${chunkCount} chunk(s) across ${batchCount} batch(es). ${this.formatCleanupSummary(eligibleExports, cutoff, chunkCount)}`,
         );
       }
 
@@ -142,6 +171,7 @@ export class DataCleanupService {
         chunkCount,
         expiredCount,
         dryRun,
+        batchCount,
       );
 
       if (this.auditCleanupActions) {
@@ -165,6 +195,7 @@ export class DataCleanupService {
     chunkCount: number,
     expiredCount: number,
     dryRun: boolean,
+    batchCount: number,
   ): CleanupRunResult {
     const statusCounts = exports.reduce<Record<string, number>>(
       (counts, exportRecord) => ({
@@ -179,6 +210,7 @@ export class DataCleanupService {
     return {
       dryRun,
       retentionDays: this.retentionDays,
+      batchSize: this.batchSize,
       cutoff: cutoff.toISOString(),
       eligibleCount: exports.length,
       expiredCount,
@@ -186,6 +218,7 @@ export class DataCleanupService {
       statusCounts,
       requestIds,
       omittedRequestIds,
+      batchCount,
     };
   }
 
@@ -232,6 +265,7 @@ export class DataCleanupService {
 
     return [
       `retentionDays=${this.retentionDays}`,
+      `batchSize=${this.batchSize}`,
       `cutoff=${cutoff.toISOString()}`,
       `eligibleCount=${exports.length}`,
       `chunkCount=${chunkCount}`,
@@ -246,6 +280,7 @@ export class DataCleanupService {
       retentionDays: this.retentionDays,
       auditCleanupActions: this.auditCleanupActions,
       dryRun: this.configuredDryRun,
+      batchSize: this.batchSize,
     };
   }
 }
