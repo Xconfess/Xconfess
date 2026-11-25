@@ -28,6 +28,17 @@ interface ChannelPreferences {
   push?: boolean;
 }
 
+/**
+ * Issue #2128: notification types that bypass user preferences because
+ * suppressing them would compromise account security (password resets,
+ * login-from-new-device, 2FA changes, etc.). None of the current
+ * `NotificationType` values fall into this bucket today - password
+ * resets send through `EmailService` directly, not the notification
+ * queue - but the set is the documented extension point for any future
+ * type that must deliver regardless of preference.
+ */
+export const SECURITY_NOTIFICATION_TYPES = new Set<string>([]);
+
 @Injectable()
 export class NotificationService {
   constructor(
@@ -128,6 +139,42 @@ export class NotificationService {
       jobName: 'send-notification',
       jobId,
     };
+  }
+
+  /**
+   * Issue #2128: the one canonical preference gate every dispatch path
+   * consults. API-triggered sends, background workers and the realtime
+   * gateway all call this instead of reading preferences themselves, so
+   * the answer never drifts between the four paths and a preference flip
+   * between enqueue and worker pickup is honoured.
+   *
+   * Behaviour:
+   *   - Missing preference record: `getUserPreference` creates one with the
+   *     defaults declared on `NotificationPreference` (all channels on,
+   *     all per-type toggles on). That is the deliver-by-default answer
+   *     for a brand-new account.
+   *   - Security and account notices in `SECURITY_NOTIFICATION_TYPES`
+   *     bypass preferences. Email-based password-reset and comparable
+   *     account-safety messages go through `EmailService` directly, not
+   *     this queue, so they are unaffected either way; this bypass is
+   *     the documented hook for future types that do flow through the
+   *     queue.
+   *   - `inApp` delegates to `shouldDeliverRealtime` and `email` to
+   *     `shouldDeliverEmail` so the per-channel semantics stay in one
+   *     place.
+   */
+  async shouldDispatch(
+    userId: string,
+    type: string,
+    channel: 'inApp' | 'email',
+  ): Promise<boolean> {
+    if (SECURITY_NOTIFICATION_TYPES.has(type)) {
+      return true;
+    }
+    if (channel === 'email') {
+      return this.shouldDeliverEmail(userId, type);
+    }
+    return this.shouldDeliverRealtime(userId, type);
   }
 
   /**

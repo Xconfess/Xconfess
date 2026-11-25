@@ -12,6 +12,7 @@ describe('NotificationProcessor', () => {
   let redisValues: Map<string, string>;
   let redisAvailable: boolean;
   let appLogger: { incrementCounter: jest.Mock; observeTimer: jest.Mock };
+  let notificationService: { shouldDispatch: jest.Mock };
 
   beforeEach(() => {
     emailNotificationService = {
@@ -48,11 +49,19 @@ describe('NotificationProcessor', () => {
       observeTimer: jest.fn(),
     };
 
+    // Issue #2128: processor consults the preference gate at pickup.
+    // Default: allow (existing tests do not care about preferences).
+    // The #2128-specific tests below override this.
+    notificationService = {
+      shouldDispatch: jest.fn().mockResolvedValue(true),
+    };
+
     processor = new NotificationProcessor(
       emailNotificationService as unknown as EmailNotificationService,
       dlqQueue as unknown as Queue<NotificationJobData>,
       notificationQueue as unknown as Queue<NotificationJobData>,
       appLogger as unknown as AppLogger,
+      notificationService as unknown as import('../services/notification.service').NotificationService,
     );
   });
 
@@ -326,6 +335,7 @@ describe('NotificationProcessor', () => {
       dlqQueue as unknown as Queue<NotificationJobData>,
       notificationQueue as unknown as Queue<NotificationJobData>,
       appLogger as unknown as AppLogger,
+      notificationService as unknown as import('../services/notification.service').NotificationService,
     );
     const duplicateJob = { ...job, id: 'job-idempotent-duplicate-2' } as Job<NotificationJobData>;
     const outcomes = await Promise.allSettled([
@@ -548,5 +558,55 @@ describe('NotificationProcessor', () => {
       Object.assign(new Error('timeout'), { code: 'ETIMEDOUT' }),
     );
     expect(dlqQueue.add).toHaveBeenCalledTimes(1);
+  });
+
+  // Issue #2128: the processor re-checks the user's preference at job
+  // pickup, so a preference flipped off between enqueue and the worker
+  // picking up the job is still honoured.
+  describe('preference gate at pickup (#2128)', () => {
+    const makeJob = (type = 'test'): Job<NotificationJobData> =>
+      ({
+        name: 'send-notification',
+        id: 'job-pref-pickup',
+        attemptsMade: 0,
+        data: { userId: 'user-pref', type, title: 'T', message: 'M' },
+        opts: {},
+      }) as unknown as Job<NotificationJobData>;
+
+    it('skips delivery when the preference gate says no at pickup', async () => {
+      notificationService.shouldDispatch.mockResolvedValue(false);
+      await processor.process(makeJob());
+      expect(emailNotificationService.sendEmail).not.toHaveBeenCalled();
+      expect(notificationService.shouldDispatch).toHaveBeenCalledWith(
+        'user-pref',
+        'test',
+        'email',
+      );
+      expect(appLogger.incrementCounter).toHaveBeenCalledWith(
+        'notification_delivery_skipped_total',
+        1,
+        {
+          queue: NOTIFICATION_QUEUE,
+          notificationType: 'test',
+          reason: 'preference_disabled_at_pickup',
+        },
+      );
+    });
+
+    it('delivers when the preference gate says yes at pickup', async () => {
+      notificationService.shouldDispatch.mockResolvedValue(true);
+      await processor.process(makeJob());
+      expect(emailNotificationService.sendEmail).toHaveBeenCalledTimes(1);
+    });
+
+    it('consults the gate for every job (fresh pull, not a cached decision)', async () => {
+      notificationService.shouldDispatch
+        .mockResolvedValueOnce(true)
+        .mockResolvedValueOnce(false);
+      await processor.process(makeJob('type-a'));
+      await processor.process(makeJob('type-b'));
+      expect(notificationService.shouldDispatch).toHaveBeenCalledTimes(2);
+      expect(emailNotificationService.sendEmail).toHaveBeenCalledTimes(1);
+    });
   });
 });

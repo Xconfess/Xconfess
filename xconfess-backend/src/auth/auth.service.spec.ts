@@ -3,6 +3,7 @@ import { AuthService } from './auth.service';
 import { UserService } from '../user/user.service';
 import { EmailService } from '../email/email.service';
 import { PasswordResetService } from './password-reset.service';
+import { SessionRevocationService } from './session-revocation.service';
 import { LockoutService } from './lockout.service';
 import { JwtService } from '@nestjs/jwt';
 import { HttpStatus } from '@nestjs/common';
@@ -102,6 +103,12 @@ describe('AuthService', () => {
     clearLockout: jest.fn(),
   };
 
+  const mockSessionRevocationService = {
+    revokeUserSessions: jest.fn(),
+    isSessionValid: jest.fn(),
+    clearSessionRevocation: jest.fn(),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -129,6 +136,10 @@ describe('AuthService', () => {
         {
           provide: LockoutService,
           useValue: mockLockoutService,
+        },
+        {
+          provide: SessionRevocationService,
+          useValue: mockSessionRevocationService,
         },
       ],
     }).compile();
@@ -206,6 +217,77 @@ describe('AuthService', () => {
         const response = (error as AppException).getResponse() as any;
         expect(response.code).toBe(ErrorCode.AUTH_TOKEN_INVALID);
       }
+    });
+
+    // Issue #2130: invalidate every prior session after a successful
+    // password reset. Revocation runs after the password write so a
+    // cache outage never undoes the reset. The downstream check that
+    // revoked sessions cannot authenticate lives in jwt.strategy via
+    // SessionRevocationService.isSessionValid.
+    describe('session revocation (#2130)', () => {
+      it('revokes prior sessions once the password write succeeds', async () => {
+        mockPasswordResetService.consumeValidToken.mockResolvedValue({
+          reset: { userId: 42, id: 'token-id' },
+          reason: 'valid',
+        });
+        mockUserService.updatePassword.mockResolvedValue(undefined);
+        mockSessionRevocationService.revokeUserSessions.mockResolvedValue(undefined);
+
+        await service.resetPassword('valid-token', 'newPassword123');
+
+        expect(mockUserService.updatePassword).toHaveBeenCalledWith(42, 'newPassword123');
+        expect(mockSessionRevocationService.revokeUserSessions).toHaveBeenCalledTimes(1);
+        expect(mockSessionRevocationService.revokeUserSessions).toHaveBeenCalledWith(42);
+        const updateOrder = (mockUserService.updatePassword as jest.Mock).mock.invocationCallOrder[0];
+        const revokeOrder = (mockSessionRevocationService.revokeUserSessions as jest.Mock)
+          .mock.invocationCallOrder[0];
+        expect(updateOrder).toBeLessThan(revokeOrder);
+      });
+
+      it('does not revoke when the token is invalid', async () => {
+        mockPasswordResetService.consumeValidToken.mockResolvedValue({
+          reset: null,
+          reason: 'invalid',
+        });
+
+        try {
+          await service.resetPassword('invalid-token', 'newPassword123');
+        } catch {
+          // expected
+        }
+        expect(mockUserService.updatePassword).not.toHaveBeenCalled();
+        expect(mockSessionRevocationService.revokeUserSessions).not.toHaveBeenCalled();
+      });
+
+      it('does not revoke when the token is expired', async () => {
+        mockPasswordResetService.consumeValidToken.mockResolvedValue({
+          reset: null,
+          reason: 'expired',
+        });
+        try {
+          await service.resetPassword('stale-token', 'newPassword123');
+        } catch {
+          // expected
+        }
+        expect(mockSessionRevocationService.revokeUserSessions).not.toHaveBeenCalled();
+      });
+
+      it('succeeds even when revocation is unavailable, so the reset is not undone', async () => {
+        mockPasswordResetService.consumeValidToken.mockResolvedValue({
+          reset: { userId: 7, id: 'token-id' },
+          reason: 'valid',
+        });
+        mockUserService.updatePassword.mockResolvedValue(undefined);
+        mockSessionRevocationService.revokeUserSessions.mockRejectedValue(
+          new Error('cache unavailable'),
+        );
+
+        const result = await service.resetPassword('valid-token', 'newPassword123');
+        expect(result).toEqual({
+          message: 'Password has been reset successfully',
+        });
+        expect(mockUserService.updatePassword).toHaveBeenCalledWith(7, 'newPassword123');
+      });
     });
   });
 
