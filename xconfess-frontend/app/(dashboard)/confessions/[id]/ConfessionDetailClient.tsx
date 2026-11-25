@@ -135,50 +135,50 @@ export function ConfessionDetailClient({
   // ==========================================
   if (isLoading && !confession) {
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-zinc-950 animate-pulse">
+      <div className="min-h-screen animate-pulse">
         <div className="max-w-3xl mx-auto px-4 py-6 sm:py-8">
           {/* Breadcrumb Skeleton */}
           <div className="mb-6 flex items-center gap-4 h-9">
-            <div className="h-8 w-16 bg-zinc-200 dark:bg-zinc-800 rounded" />
-            <div className="h-4 w-32 bg-zinc-200 dark:bg-zinc-800 rounded" />
+            <div className="h-8 w-16 bg-[var(--skeleton)] rounded" />
+            <div className="h-4 w-32 bg-[var(--skeleton)] rounded" />
           </div>
 
           {/* Main Card Layout Mimic Block */}
-          <Card className="mb-8 border border-zinc-200 dark:border-zinc-800">
+          <Card className="mb-8 border border-[var(--border)]">
             <CardHeader className="pb-4">
-              <div className="h-4 w-40 bg-zinc-200 dark:bg-zinc-800 rounded" />
+              <div className="h-4 w-40 bg-[var(--skeleton)] rounded" />
             </CardHeader>
             <CardContent>
               {/* Main text content layout mocks */}
               <div className="space-y-3">
-                <div className="h-5 w-full bg-zinc-200 dark:bg-zinc-800 rounded" />
-                <div className="h-5 w-11/12 bg-zinc-200 dark:bg-zinc-800 rounded" />
-                <div className="h-5 w-4/5 bg-zinc-200 dark:bg-zinc-800 rounded" />
+                <div className="h-5 w-full bg-[var(--skeleton)] rounded" />
+                <div className="h-5 w-11/12 bg-[var(--skeleton)] rounded" />
+                <div className="h-5 w-4/5 bg-[var(--skeleton)] rounded" />
               </div>
 
               {/* Action Rows explicitly matched to prevent overlap jumps */}
-              <div className="mt-6 pt-6 border-t border-zinc-200 dark:border-zinc-800 flex items-center justify-between">
+              <div className="mt-6 pt-6 border-t border-[var(--border)] flex items-center justify-between">
                 <div className="flex gap-3">
-                  <div className="h-9 w-16 bg-zinc-200 dark:bg-zinc-800 rounded-full" />
-                  <div className="h-9 w-16 bg-zinc-200 dark:bg-zinc-800 rounded-full" />
-                  <div className="h-9 w-24 bg-zinc-200 dark:bg-zinc-800 rounded-full" />
+                  <div className="h-9 w-16 bg-[var(--skeleton)] rounded-full" />
+                  <div className="h-9 w-16 bg-[var(--skeleton)] rounded-full" />
+                  <div className="h-9 w-24 bg-[var(--skeleton)] rounded-full" />
                 </div>
-                <div className="h-9 w-12 bg-zinc-200 dark:bg-zinc-800 rounded-full" />
+                <div className="h-9 w-12 bg-[var(--skeleton)] rounded-full" />
               </div>
             </CardContent>
           </Card>
 
           {/* Report Pin Skeleton */}
           <div className="mb-8 flex justify-end">
-            <div className="h-8 w-20 bg-zinc-200 dark:bg-zinc-800 rounded" />
+            <div className="h-8 w-20 bg-[var(--skeleton)] rounded" />
           </div>
 
           {/* Comment Thread Skeleton block layout */}
-          <div className="mb-10 p-4 border border-zinc-200 dark:border-zinc-800 rounded-xl space-y-4">
-            <div className="h-10 w-full bg-zinc-200 dark:bg-zinc-800 rounded-lg" />
+          <div className="mb-10 p-4 border border-[var(--border)] rounded-xl space-y-4">
+            <div className="h-10 w-full bg-[var(--skeleton)] rounded-lg" />
             <div className="space-y-2 pt-2">
-              <div className="h-4 w-1/4 bg-zinc-200 dark:bg-zinc-800 rounded" />
-              <div className="h-4 w-full bg-zinc-200 dark:bg-zinc-800 rounded" />
+              <div className="h-4 w-1/4 bg-[var(--skeleton)] rounded" />
+              <div className="h-4 w-full bg-[var(--skeleton)] rounded" />
             </div>
           </div>
         </div>
@@ -191,15 +191,15 @@ export function ConfessionDetailClient({
   // ==========================================
   if (isError && error?.message === "NOT_FOUND") {
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-zinc-950 flex items-center justify-center p-4">
-        <Card className="max-w-md w-full border border-zinc-200 dark:border-zinc-800 text-center p-6 shadow-xl">
-          <div className="mx-auto w-12 h-12 rounded-full bg-amber-100 dark:bg-amber-950 flex items-center justify-center mb-4">
-            <FileQuestion className="h-6 w-6 text-amber-600 dark:text-amber-400" />
+      <div className="min-h-screen flex items-center justify-center p-4">
+        <Card className="max-w-md w-full border border-[var(--border)] text-center p-6">
+          <div className="mx-auto w-12 h-12 rounded-full bg-[var(--warning)]/10 flex items-center justify-center mb-4">
+            <FileQuestion className="h-6 w-6 text-[var(--warning)]" />
           </div>
-          <h2 className="text-xl font-bold text-zinc-900 dark:text-zinc-50 mb-2">
+          <h2 className="text-xl font-semibold text-[var(--foreground)] mb-2">
             Confession Missing
           </h2>
-          <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-6">
+          <p className="text-sm text-[var(--text-muted)] mb-6">
             The record you are looking for does not exist in our cryptographic
             memory database. It may have been retracted or modified.
           </p>
@@ -222,15 +222,15 @@ export function ConfessionDetailClient({
   // ==========================================
   if (isError || !confession) {
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-zinc-950 flex items-center justify-center p-4">
-        <Card className="max-w-md w-full border border-zinc-200 dark:border-zinc-800 text-center p-6 shadow-xl">
-          <div className="mx-auto w-12 h-12 rounded-full bg-red-100 dark:bg-red-950 flex items-center justify-center mb-4">
-            <AlertCircle className="h-6 w-6 text-red-600 dark:text-red-400" />
+      <div className="min-h-screen flex items-center justify-center p-4">
+        <Card className="max-w-md w-full border border-[var(--border)] text-center p-6">
+          <div className="mx-auto w-12 h-12 rounded-full bg-[var(--danger)]/10 flex items-center justify-center mb-4">
+            <AlertCircle className="h-6 w-6 text-[var(--danger)]" />
           </div>
-          <h2 className="text-xl font-bold text-zinc-900 dark:text-zinc-50 mb-2">
+          <h2 className="text-xl font-semibold text-[var(--foreground)] mb-2">
             Connection Interrupted
           </h2>
-          <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-6">
+          <p className="text-sm text-[var(--text-muted)] mb-6">
             Could not fetch data from Xconfess server network. Check your data
             stream and reload.
           </p>
@@ -275,7 +275,7 @@ export function ConfessionDetailClient({
   // STATE 4: STANDARD RENDER DATA SUITE
   // ==========================================
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-zinc-950">
+    <div className="min-h-screen">
       <div className="max-w-3xl mx-auto px-4 py-6 sm:py-8">
         {/* Navigation: Back + Breadcrumbs */}
         <nav
@@ -292,12 +292,12 @@ export function ConfessionDetailClient({
             <ArrowLeft className="h-4 w-4" />
             Back
           </Button>
-          <ol className="flex items-center gap-2 text-zinc-500">
+          <ol className="flex items-center gap-2 text-[var(--text-muted)]">
             <li>
               <Link
                 href="/"
                 className={cn(
-                  "text-zinc-500 hover:text-zinc-300 transition-colors",
+                  "text-[var(--text-muted)] hover:text-[var(--secondary)] transition-colors",
                   focusVisible,
                 )}
               >
@@ -307,7 +307,7 @@ export function ConfessionDetailClient({
             <li aria-hidden>
               <ChevronRight className="h-4 w-4" />
             </li>
-            <li className="text-zinc-300 truncate max-w-50" aria-current="page">
+            <li className="text-[var(--secondary)] truncate max-w-50" aria-current="page">
               Confession
             </li>
           </ol>
@@ -316,7 +316,7 @@ export function ConfessionDetailClient({
         {/* Main confession card */}
         <Card className="mb-8">
           <CardHeader className="flex flex-row items-center justify-between gap-4 pb-2">
-            <div className="flex items-center gap-3 text-sm text-zinc-500">
+            <div className="flex items-center gap-3 text-sm text-[var(--text-muted)]">
               <time dateTime={confession.createdAt}>{dateLabel}</time>
               {confession.viewCount != null && confession.viewCount > 0 && (
                 <span className="flex items-center gap-1.5">
@@ -324,21 +324,21 @@ export function ConfessionDetailClient({
                   {confession.viewCount} views
                 </span>
               )}
-              <span className="flex items-center gap-1.5 rounded-full border border-zinc-200 px-2.5 py-1 text-xs dark:border-zinc-800">
+              <span className="flex items-center gap-1.5 rounded-full border border-[var(--border)] px-2.5 py-1 text-xs">
                 <AnchorIcon className="h-3.5 w-3.5" />
                 {anchorLabel}
               </span>
             </div>
           </CardHeader>
           <CardContent className="pt-0">
-            <div className="prose prose-zinc max-w-none text-zinc-900 dark:prose-invert dark:text-white prose-p:text-lg prose-p:leading-relaxed prose-a:break-all">
+            <div className="max-w-[65ch] whitespace-pre-line break-words font-editorial text-[1.1875rem] leading-[1.7] text-[var(--foreground)] [&_a]:break-all [&_a]:text-[var(--primary-deep)] [&_a]:underline [&_p+p]:mt-4">
               <ReactMarkdown remarkPlugins={[remarkGfm]}>
                 {sanitizeMarkdown(confession.content)}
               </ReactMarkdown>
             </div>
 
             {/* Reactions + Anchor + Share */}
-            <div className="mt-6 pt-6 border-t border-zinc-200 dark:border-zinc-800 flex flex-wrap items-center justify-between gap-4">
+            <div className="mt-6 pt-6 border-t border-[var(--border)] flex flex-wrap items-center justify-between gap-4">
               <div className="flex flex-wrap items-center gap-3">
                 <ReactionButton
                   type="like"
@@ -366,7 +366,7 @@ export function ConfessionDetailClient({
               </div>
               <div className="flex items-center gap-2">
                 {confession.stellarTxHash && (
-                  <span className="hidden items-center gap-1 text-xs text-zinc-500 sm:inline-flex">
+                  <span className="hidden items-center gap-1 text-xs text-[var(--text-muted)] sm:inline-flex">
                     <Link2 className="h-3.5 w-3.5" />
                     {confession.stellarTxHash.slice(0, 8)}...
                   </span>
@@ -377,14 +377,14 @@ export function ConfessionDetailClient({
 
             {/* Comment count link */}
             {(confession.commentCount ?? 0) > 0 && (
-              <p className="mt-3 text-sm text-zinc-500">
+              <p className="mt-3 text-sm text-[var(--text-muted)]">
                 💬 {confession.commentCount} comment
                 {(confession.commentCount ?? 0) !== 1 ? "s" : ""}
               </p>
             )}
 
             {isFetching && (
-              <p className="mt-2 text-xs text-zinc-500">Updating…</p>
+              <p className="mt-2 text-xs text-[var(--text-muted)]">Updating…</p>
             )}
           </CardContent>
         </Card>
@@ -395,7 +395,7 @@ export function ConfessionDetailClient({
             <Button
               variant="ghost"
               size="sm"
-              className="text-zinc-500 hover:text-zinc-400"
+              className="text-[var(--text-muted)] hover:text-[var(--text-muted)]"
               disabled={
                 reportStatus === "pending" || reportStatus === "success"
               }
@@ -411,15 +411,15 @@ export function ConfessionDetailClient({
             </Button>
 
             {reportStatus === "pending" && (
-              <p className="mt-2 text-xs text-zinc-500">Submitting report…</p>
+              <p className="mt-2 text-xs text-[var(--text-muted)]">Submitting report…</p>
             )}
             {reportStatus === "success" && (
-              <p className="mt-2 text-xs text-emerald-600 dark:text-emerald-400">
+              <p className="mt-2 text-xs text-[var(--success)]">
                 Report submitted. Thank you!
               </p>
             )}
             {reportStatus === "error" && (
-              <p className="mt-2 text-xs text-red-600 dark:text-red-400">
+              <p className="mt-2 text-xs text-[var(--danger)]">
                 {reportError || "Report submission failed."}
               </p>
             )}

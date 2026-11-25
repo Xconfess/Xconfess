@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Tip } from './entities/tip.entity';
+import { Tip, TipVerificationStatus } from './entities/tip.entity';
 import { StellarService } from '../stellar/stellar.service';
 
 export enum TipSubmissionStatus {
@@ -45,7 +45,7 @@ export class SorobanLifecycleService {
       ...metadata,
       confirmedLedgerSequence: ledgerSequence,
     };
-    tip.verificationStatus = 'verified';
+    tip.verificationStatus = TipVerificationStatus.VERIFIED;
     tip.verifiedAt = new Date();
 
     return this.tipRepository.save(tip);
@@ -64,7 +64,7 @@ export class SorobanLifecycleService {
       ...metadata,
       failureTimestamp: new Date().toISOString(),
     };
-    tip.verificationStatus = 'rejected';
+    tip.verificationStatus = TipVerificationStatus.REJECTED;
     tip.rejectionReason = reason;
 
     return this.tipRepository.save(tip);
@@ -78,7 +78,7 @@ export class SorobanLifecycleService {
     tip.failedAt = new Date();
     tip.expiryBlockHeight = blockHeight;
     tip.failureReason = 'Transaction expired before confirmation';
-    tip.verificationStatus = 'rejected';
+    tip.verificationStatus = TipVerificationStatus.REJECTED;
     tip.rejectionReason = 'Transaction expired';
 
     return this.tipRepository.save(tip);
@@ -95,6 +95,9 @@ export class SorobanLifecycleService {
       const txResult = await this.stellarService.verifyTransactionFull(txHash);
 
       if (txResult.success) {
+        if (txResult.ledger === undefined) {
+          throw new Error('Confirmed transaction is missing its ledger sequence');
+        }
         return this.recordConfirmation(tip, txResult.ledger);
       } else {
         return this.recordFailure(tip, 'Transaction marked as failed on chain');

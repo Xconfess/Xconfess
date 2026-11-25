@@ -11,6 +11,7 @@ import { NOTIFICATION_QUEUE } from '../processors/notification.processor';
 import { AppLogger } from '../../logger/logger.service';
 import { ConfigService } from '@nestjs/config';
 import { User } from '../../user/entities/user.entity';
+import { RequestContextStorage } from '../../common/request-context';
 
 describe('NotificationService', () => {
   let service: NotificationService;
@@ -83,6 +84,14 @@ describe('NotificationService', () => {
             get: jest.fn((key: string) =>
               key === 'ENABLE_BACKGROUND_JOBS' ? 'true' : undefined,
             ),
+          },
+        },
+        {
+          provide: RequestContextStorage,
+          useValue: {
+            getRequestId: jest.fn().mockReturnValue(undefined),
+            setRequestId: jest.fn(),
+            clear: jest.fn(),
           },
         },
       ],

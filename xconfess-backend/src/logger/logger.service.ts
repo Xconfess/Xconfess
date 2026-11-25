@@ -267,6 +267,35 @@ export class AppLogger implements NestLoggerService {
   }
 
   /**
+   * Emit a warning when a search is cancelled by its statement timeout.
+   * Logs how long it ran and the configured limit, with the term redacted
+   * to its shape, the same as the slow-query log.
+   */
+  logSearchTimeout(opts: {
+    durationMs: number;
+    timeoutMs: number;
+    rawTerm: string;
+    searchType: 'fulltext' | 'hybrid' | 'ilike';
+    page: number;
+    limit: number;
+  }): void {
+    const redactedTerm = `[REDACTED:len=${opts.rawTerm.length},words=${opts.rawTerm.trim().split(/\s+/).filter(Boolean).length}]`;
+
+    this.emitWarningEvent(
+      'search.query_timeout',
+      {
+        durationMs: opts.durationMs,
+        timeoutMs: opts.timeoutMs,
+        searchType: opts.searchType,
+        termShape: redactedTerm,
+        page: opts.page,
+        limit: opts.limit,
+      },
+      'SearchObservability',
+    );
+  }
+
+  /**
    * Emit a structured info log for a sampled (non-slow) search query.
    * Same redaction rules apply.
    */

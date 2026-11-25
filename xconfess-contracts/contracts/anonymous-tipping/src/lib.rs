@@ -1,5 +1,8 @@
 #![no_std]
 
+#[path = "../../event_bounds.rs"]
+pub mod event_bounds;
+
 use soroban_sdk::{
     contract, contracterror, contractevent, contractimpl, contracttype, token::TokenClient,
     Address, Env, MuxedAddress, String as SorobanString,
@@ -20,6 +23,10 @@ pub mod codes {
     pub const SETTLEMENT_REPLAY: u32 = 6010;
     pub const SETTLEMENT_NOT_FOUND: u32 = 6011;
     pub const RECIPIENT_MISMATCH: u32 = 6012;
+    pub const INSUFFICIENT_BALANCE: u32 = 6013;
+    pub const UNSUPPORTED_SCHEMA_VERSION: u32 = 6014;
+    /// Alias used by clients when the configured asset is not supported.
+    pub const UNSUPPORTED_ASSET: u32 = TOKEN_NOT_CONFIGURED;
 }
 
 /// Error classification for backend retry strategy
@@ -49,6 +56,8 @@ pub enum Error {
     SettlementReplay = 10,
     SettlementNotFound = 11,
     RecipientMismatch = 12,
+    InsufficientBalance = 13,
+    UnsupportedSchemaVersion = 14,
 }
 
 impl Error {
@@ -68,6 +77,8 @@ impl Error {
             Error::SettlementReplay => codes::SETTLEMENT_REPLAY,
             Error::SettlementNotFound => codes::SETTLEMENT_NOT_FOUND,
             Error::RecipientMismatch => codes::RECIPIENT_MISMATCH,
+            Error::InsufficientBalance => codes::INSUFFICIENT_BALANCE,
+            Error::UnsupportedSchemaVersion => codes::UNSUPPORTED_SCHEMA_VERSION,
         }
     }
 
@@ -86,6 +97,8 @@ impl Error {
             Error::SettlementReplay => "settlement id reuse detected",
             Error::SettlementNotFound => "settlement receipt not found",
             Error::RecipientMismatch => "settlement recipient mismatch",
+            Error::InsufficientBalance => "sender token balance is insufficient",
+            Error::UnsupportedSchemaVersion => "stored schema version is newer than this contract",
         }
     }
 
@@ -101,6 +114,8 @@ impl Error {
             Error::SettlementReplay => ErrorClassification::Terminal,
             Error::SettlementNotFound => ErrorClassification::Terminal,
             Error::RecipientMismatch => ErrorClassification::Terminal,
+            Error::InsufficientBalance => ErrorClassification::Terminal,
+            Error::UnsupportedSchemaVersion => ErrorClassification::Terminal,
 
             // Retryable: transient state (pause, rate limit) may resolve
             Error::ContractPaused => ErrorClassification::Retryable,
@@ -125,7 +140,7 @@ pub const SCHEMA_VERSION_CURRENT: u32 = 3;
 
 #[contracttype]
 #[derive(Clone)]
-enum DataKey {
+pub enum DataKey {
     RecipientTotal(Address),
     SettlementNonce,
     Owner,
@@ -208,7 +223,8 @@ pub struct PauseChangedEvent {
 
 #[contractimpl]
 impl AnonymousTipping {
-    pub const MAX_PROOF_METADATA_LEN: u32 = 128;
+    /// Sourced from the shared per-event bounds table.
+    pub const MAX_PROOF_METADATA_LEN: u32 = event_bounds::MAX_TIPPING_PROOF_METADATA_LEN;
     pub const DEFAULT_MAX_TIPS_PER_WINDOW: u32 = 1_000;
     pub const DEFAULT_RATE_WINDOW_SECONDS: u64 = 60;
 
@@ -271,9 +287,10 @@ impl AnonymousTipping {
 
         let metadata = match proof_metadata {
             Some(value) => {
-                if value.len() > Self::MAX_PROOF_METADATA_LEN {
-                    return Err(Error::MetadataTooLong);
-                }
+                // Stable rejection with a per-event bound; prevents an
+                // oversized settlement payload from inflating resource usage.
+                event_bounds::validate_tipping_metadata(&value)
+                    .map_err(|_| Error::MetadataTooLong)?;
                 value
             }
             None => SorobanString::from_str(&env, ""),
@@ -285,8 +302,12 @@ impl AnonymousTipping {
             .get::<_, Address>(&DataKey::XlmToken)
             .ok_or(Error::TokenNotConfigured)?;
         if xlm_token != env.current_contract_address() {
+            let token = TokenClient::new(&env, &xlm_token);
+            if token.balance(&sender) < amount {
+                return Err(Error::InsufficientBalance);
+            }
             let token_recipient = MuxedAddress::from(recipient.clone());
-            TokenClient::new(&env, &xlm_token).transfer(&sender, &token_recipient, &amount);
+            token.transfer(&sender, &token_recipient, &amount);
         }
 
         let previous = env
@@ -363,7 +384,12 @@ impl AnonymousTipping {
         Ok(settlement_id)
     }
 
-    /// Get tip history for a recipient
+    /// Return the cumulative tip balance as a Soroban `i128`.
+    ///
+    /// A recipient with no stored balance returns the integer `0`, never null.
+    /// Clients must preserve this value as an integer/bigint (or a decimal
+    /// string in JSON); converting it through an IEEE-754 floating point value
+    /// can lose precision for large balances.
     pub fn get_tips(env: Env, recipient: Address) -> i128 {
         env.storage()
             .persistent()
@@ -371,7 +397,7 @@ impl AnonymousTipping {
             .unwrap_or(0_i128)
     }
 
-    /// Return the cumulative tip amount received by an address.
+    /// Return the same integer balance as [`Self::get_tips`].
     pub fn get_tip_balance(env: Env, recipient: Address) -> i128 {
         Self::get_tips(env, recipient)
     }
@@ -424,6 +450,7 @@ impl AnonymousTipping {
 
     pub fn pause(env: Env, caller: Address, reason: SorobanString) -> Result<(), Error> {
         Self::require_owner(&env, &caller)?;
+        event_bounds::validate_pause_reason(&reason).map_err(|_| Error::MetadataTooLong)?;
         env.storage().instance().set(&DataKey::IsPaused, &true);
         PauseChangedEvent {
             actor: caller,
@@ -437,6 +464,7 @@ impl AnonymousTipping {
 
     pub fn unpause(env: Env, caller: Address, reason: SorobanString) -> Result<(), Error> {
         Self::require_owner(&env, &caller)?;
+        event_bounds::validate_pause_reason(&reason).map_err(|_| Error::MetadataTooLong)?;
         env.storage().instance().set(&DataKey::IsPaused, &false);
         PauseChangedEvent {
             actor: caller,
@@ -504,6 +532,10 @@ impl AnonymousTipping {
             .instance()
             .get::<_, u32>(&DataKey::SchemaVersion)
             .unwrap_or(SCHEMA_VERSION_INITIAL);
+
+        if current_version > SCHEMA_VERSION_CURRENT {
+            return Err(Error::UnsupportedSchemaVersion);
+        }
 
         if current_version >= SCHEMA_VERSION_CURRENT {
             return Ok(current_version);

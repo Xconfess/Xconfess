@@ -6,6 +6,7 @@ import {
   CreateDateColumn,
   JoinColumn,
   UpdateDateColumn,
+  Index,
 } from 'typeorm';
 import { AnonymousUser } from '../../user/entities/anonymous-user.entity';
 import { AnonymousConfession } from '../../confession/entities/confession.entity';
@@ -34,6 +35,10 @@ export class Message {
 
   @Column({ type: 'text' })
   content: string;
+
+  @Index('IDX_messages_idempotency_key', { unique: true })
+  @Column({ name: 'idempotency_key', type: 'varchar', length: 64, nullable: true })
+  idempotencyKey: string | null;
 
   /** True when content/replyContent are E2E ciphertext envelopes. */
   @Column({ default: true })

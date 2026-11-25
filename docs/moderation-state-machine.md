@@ -1,79 +1,84 @@
-# Moderation State Machine
+# Report and Moderation States
 
-Admin reference for content moderation transitions.
+The API stores report workflow status separately from content moderation status.
+Both sets use lowercase values in API responses.
 
-## States
+## Reports
 
 | State | Meaning |
 |---|---|
-| `pending` | Awaiting initial review |
-| `approved` | Passes moderation; visible to users |
-| `flagged` | Suspicious; needs human review |
-| `escalated` | Referred to senior moderators |
-| `resolved` | Handled by a moderator |
-| `hidden` | Removed from public view |
-| `rejected` | Permanently denied |
+| `pending` | Newly submitted report; the default state. |
+| `reviewing` | Report marked as under review. The status is supported for filtering; the guarded admin actions do not assign it. |
+| `resolved` | Report handled by a moderator. This records the report outcome; any action on the confession is separate. |
+| `dismissed` | Report closed without action. |
 
-## Allowed Transitions
+New reports start at `pending`. The guarded admin endpoints can resolve or
+dismiss any report that is not already in the requested state, so `resolved`
+and `dismissed` can be changed to one another. Bulk resolve processes only
+`pending` reports and skips the others. There is no guarded transition into
+`reviewing`. The legacy unguarded `PATCH /api/reports/:id` directly writes the
+submitted status without applying a transition graph or runtime DTO validation.
 
-| From | To | Trigger / Side Effect |
-|---|---|---|
-| `pending` | `approved` | Auto-approval or manual review — content becomes visible |
-| `pending` | `flagged` | AI score above medium threshold — queued for review |
-| `pending` | `rejected` | AI score above high threshold or manual reject |
-| `approved` | `flagged` | Post-approval report or delayed AI flag |
-| `flagged` | `escalated` | Moderator escalates to senior review |
-| `flagged` | `resolved` | Moderator dismisses the flag |
-| `flagged` | `hidden` | Moderator removes content |
-| `flagged` | `rejected` | Moderator rejects content |
-| `escalated` | `resolved` | Senior moderator clears the flag |
-| `escalated` | `hidden` | Senior moderator removes content |
-| `escalated` | `rejected` | Senior moderator rejects content |
-| `resolved` | `flagged` | Re-flagged if new reports arrive |
-| `hidden` | `resolved` | Content restored after review |
-| `rejected` | `pending` | Appeal or manual requeue for re-review |
+## Content moderation
 
-Self-transitions (`X → X`) are always rejected.
+| State | Meaning |
+|---|---|
+| `pending` | Awaiting a decision or manual review. |
+| `approved` | Passed moderation. |
+| `flagged` | Needs human review. |
+| `escalated` | Referred for further review. |
+| `resolved` | Review closed without hiding or rejecting the content. |
+| `hidden` | Content is hidden from public view. |
+| `rejected` | Content was rejected. |
 
-## Side Effects
+When automatic action is enabled, the moderation service assigns `rejected` at
+or above the high score threshold, `flagged` at or above the medium threshold,
+and `approved` below it. With automatic action disabled, it assigns `pending`.
 
-- **Audit log** — every transition is recorded via `ModerationLog`
-- **Notifications** — users are notified on `approved`, `rejected`, and `hidden` transitions
-- **Event emitter** — `moderation.status.changed` event fired on every valid transition
+The validated state-machine endpoint allows these transitions:
 
-## Code References
+| From | Allowed next states |
+|---|---|
+| `pending` | `approved`, `flagged`, `rejected` |
+| `approved` | `flagged` |
+| `flagged` | `escalated`, `resolved`, `hidden`, `rejected` |
+| `escalated` | `resolved`, `hidden`, `rejected` |
+| `resolved` | `flagged` |
+| `hidden` | `resolved` |
+| `rejected` | `pending` |
 
-- State machine logic: `src/moderation/moderation-state-machine.ts`
-- State machine tests: `src/moderation/moderation-state-machine.spec.ts`
-- AI moderation service: `src/moderation/ai-moderation.service.ts`
-- Moderation controller: `src/moderation/moderation.controller.ts`
-- Moderation log entity: `src/moderation/entities/moderation-log.entity.ts`
+Self-transitions and all omitted transitions are rejected by
+`PATCH /api/admin/moderation/:id/transition` with `400 Bad Request`. A reason
+of at least three characters is required.
 
-## Audit Log Retention (#2023)
+## Moderator-only actions and implementation notes
 
-Every moderation state transition is recorded as an `AuditLog` row
-(`action: moderation_state_transition`) via `AuditLogService.logModerationStateTransition`,
-written in the same DB transaction as the state change itself (see
-`ModerationRepositoryService.transitionState`). The entry records the actor,
-the previous and next state, the moderation log ID as target, a reason, and
-a timestamp. It never stores confession or private-message bodies â€”
-only the confession's ID (`confessionId`), matching the pattern already
-used by `logReportResolved` and `logConfessionDelete`.
+Admin routes require a valid JWT and the `admin` role. This includes report
+listing, resolving, dismissing, bulk resolving, and the moderation queue and
+transition routes. The validated content transition endpoint sends the
+moderator, review time, reason, and state change to the audit logger. A
+transition can still succeed if the audit-log write fails.
 
-**Current status: no automated retention job exists yet for the `audit_logs`
-table.** Other subsystems in this repo already have one â€” see
-`EXPORT_RETENTION_DAYS` / `data-export-cleanup.ts` for exports and
-`DLQ_RETENTION_DAYS` for the notification dead-letter queue â€” and a future
-audit-log cleanup job should follow the same shape:
+Two older controller paths do not enforce the same workflow: the legacy
+`POST /api/admin/moderation/review/:id` passes `dto.status` to a direct status
+update without checking the transition table, and its DTO lacks validation
+decorators; the legacy `/api/reports` list/update controller has no
+authentication or role guard. Use the guarded `/api/admin` routes for moderator
+actions. The legacy `review` endpoint does not write the transition audit entry.
 
-- A configurable `AUDIT_LOG_RETENTION_DAYS` env var (suggested default: 365
-  days, matching `ANALYTICS_RETENTION_DAYS`, since audit trails are typically
-  needed longer than operational data).
-- A scheduled job that deletes (or archives) `audit_logs` rows older than the
-  cutoff, following the batching pattern in `data-export-cleanup.ts`.
-- The cleanup run itself should be audited, the same way
-  `logExportRetentionCleanup` records its own dry-run/real cleanup summary.
+The AI moderation webhook is authenticated with its configured HMAC secret. It
+can synchronize moderation statuses and emits high-severity or review-required
+events; those automated updates do not use the moderator transition endpoint.
 
-Until that job exists, `audit_logs` grows unbounded. This is a known gap,
-not a silent omission â€” flagging it here so it's tracked rather than
-rediscovered later.
+## Code references
+
+- Report states and entity: [report.entity.ts](../xconfess-backend/src/admin/entities/report.entity.ts)
+- Guarded report actions: [admin.controller.ts](../xconfess-backend/src/admin/admin.controller.ts)
+- Moderation states and score thresholds: [ai-moderation.service.ts](../xconfess-backend/src/moderation/ai-moderation.service.ts)
+- Allowed transition graph: [moderation-state-machine.ts](../xconfess-backend/src/moderation/moderation-state-machine.ts)
+- Validated transition persistence: [moderation-repository.service.ts](../xconfess-backend/src/moderation/moderation-repository.service.ts)
+- Admin moderation routes: [moderation.controller.ts](../xconfess-backend/src/moderation/moderation.controller.ts)
+- Legacy unguarded report routes: [report.controller.ts](../xconfess-backend/src/report/report.controller.ts)
+
+The audit-log service has no automated retention job in the current backend;
+`audit_logs` rows therefore have no application-managed expiry.

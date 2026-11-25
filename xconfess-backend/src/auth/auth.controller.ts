@@ -10,6 +10,7 @@ import {
   UseGuards,
   UnauthorizedException,
   HttpException,
+  Optional,
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import {
@@ -32,6 +33,8 @@ import { JwtAuthGuard } from './jwt-auth.guard';
 import { GetUser } from './get-user.decorator';
 import { User } from '../user/entities/user.entity';
 import { RateLimit } from './guard/rate-limit.decorator';
+import { RecoveryCodeService } from './recovery-code.service';
+import { SessionRevocationService } from './session-revocation.service';
 
 @ApiTags('Auth')
 @Controller('auth')
@@ -39,6 +42,9 @@ export class AuthController {
   constructor(
     private readonly authService: AuthService,
     private readonly stepUpService: StepUpService,
+    private readonly recoveryCodes: RecoveryCodeService,
+    @Optional()
+    private readonly sessionRevocationService?: SessionRevocationService,
   ) {}
 
   @Post('step-up')
@@ -113,12 +119,13 @@ export class AuthController {
       enc.tag,
     );
 
-    // generate recovery codes
-    const codes = Array.from({ length: 10 }, () =>
-      Math.random().toString(36).slice(2, 10).toUpperCase(),
+    // Recovery codes are generated with a CSPRNG, stored only as hashes and
+    // returned once. Any earlier codes are invalidated.
+    const { codes } = await this.recoveryCodes.generateForUser(
+      userId,
+      { type: 'user', id: userId },
+      'setup',
     );
-    const recEnc = CryptoUtil.encrypt(JSON.stringify(codes));
-    await (this as any).authService.userService.setRecoveryCodes(userId, recEnc.encrypted, recEnc.iv, recEnc.tag);
 
     return { success: true, recoveryCodes: codes };
   }
@@ -128,6 +135,11 @@ export class AuthController {
   @ApiOperation({ summary: 'Disable TOTP for current user' })
   async disable2fa(@GetUser('id') userId: number): Promise<{ success: boolean }> {
     await (this as any).authService.userService.disableTotp(userId);
+    await this.recoveryCodes.revokeAll(
+      userId,
+      { type: 'user', id: userId },
+      'two_factor_disabled',
+    );
     return { success: true };
   }
 
@@ -151,7 +163,11 @@ export class AuthController {
     const { CryptoUtil } = require('../common/crypto.util');
 
     if (recoveryCode) {
-      const consumed = await svc.consumeRecoveryCode(userId, recoveryCode);
+      // Single-use, hashed, and rate limited per user (429 once locked).
+      const consumed = await this.recoveryCodes.verifyAndConsume(
+        Number(userId),
+        String(recoveryCode),
+      );
       if (!consumed) throw new UnauthorizedException('Invalid recovery code');
       const payload = {
         email: user.email,
@@ -214,6 +230,16 @@ export class AuthController {
           username: 'alice_42',
           role: 'user',
           is_active: true,
+          email: 'alice@example.com',
+          notificationPreferences: {},
+          privacy: {
+            isDiscoverable: true,
+            canReceiveReplies: true,
+            showReactions: true,
+            dataProcessingConsent: true,
+          },
+          createdAt: '2026-04-25T10:00:00.000Z',
+          updatedAt: '2026-04-25T10:00:00.000Z',
         },
       },
     },
@@ -305,13 +331,20 @@ export class AuthController {
   @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.OK)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Log out current user (client-side token discard)' })
+  @ApiOperation({
+    summary: 'Log out current user and revoke sessions issued before logout',
+  })
   @ApiResponse({
     status: 200,
-    description: 'Logout acknowledged.',
+    description:
+      'Session revoked. Subsequent requests with tokens issued before logout return 401 AUTH_SESSION_REVOKED.',
     schema: { example: { message: 'Logged out successfully' } },
   })
-  async logout(): Promise<{ message: string }> {
+  @ApiResponse({ status: 401, description: 'Missing, expired, malformed, or already revoked token.' })
+  async logout(@GetUser('id') userId: number): Promise<{ message: string }> {
+    if (this.sessionRevocationService) {
+      await this.sessionRevocationService.revokeUserSessions(userId);
+    }
     return { message: 'Logged out successfully' };
   }
 

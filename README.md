@@ -60,6 +60,41 @@ Follow these steps from a fresh clone to get the full stack running.
 - Node.js 22.x and npm >= 9
 - Docker (for Postgres and Redis)
 - Rust + `cargo` (only needed if working on contracts; see `docs/SOROBAN_SETUP.md`)
+- A Stellar testnet keypair (only needed for Stellar/Soroban work; see [Stellar Testnet Development Guide](docs/STELLAR_TESTNET_GUIDE.md))
+
+### Node.js 22 setup
+
+This repository requires Node.js **22.x** and npm **9+**. The `npm run setup:check` preflight fails before the rest of the development workflow when the runtime is unsupported.
+
+**Unix / macOS (nvm):**
+
+```bash
+nvm install 22
+nvm use 22
+nvm alias default 22
+node --version
+npm run setup:check
+```
+
+**Windows (PowerShell):** use fnm, nvm-windows, or Volta:
+
+```powershell
+# fnm
+fnm install 22
+fnm use 22
+
+# or nvm-windows
+nvm install 22
+nvm use 22
+
+# or Volta
+volta install node@22
+
+node --version
+npm.cmd run setup:check
+```
+
+If PowerShell blocks `npm.ps1`, use `npm.cmd` as shown above.
 
 ### Contributor Quick Start
 
@@ -151,6 +186,8 @@ ENCRYPTION_MASTER_KEY_v1=0000000000000000000000000000000000000000000000000000000
 These values are valid for local bootstrapping only. Never reuse them in shared development, staging, production, demos, screenshots, issues, or PR comments.
 
 Mail (`MAIL_HOST`, `MAIL_USER`, `MAIL_PASSWORD`) and Stellar contract IDs are pre-filled with testnet values in the example file and can be left as-is for local development. Leave `STELLAR_FEATURES_ENABLED=false` (default) to boot without enforcing every contract ID; set it to `true` only when you need full on-chain anchoring and tipping.
+
+For a full walkthrough of running Stellar/Soroban functionality locally against testnet — required configuration, testnet wallet prerequisites, safe key-handling guidance, and how to disable Stellar features for normal local development — see [docs/STELLAR_TESTNET_GUIDE.md](docs/STELLAR_TESTNET_GUIDE.md).
 
 **Frontend** - copy the sample (no secrets required for basic local use):
 
@@ -327,6 +364,34 @@ curl http://localhost:5000/api/health/ready
 If the schema is still out of sync, the response body includes `missingColumns`,
 `missingIndexes`, and a `hint` with the exact command to run.
 
+#### Reproduce the clean-database migration smoke test
+
+CI runs every migration against an empty PostgreSQL 16 database, then checks
+the migration history and required tables and indexes. To reproduce it locally,
+start a disposable database (the local trust setting is limited to the
+loopback port):
+
+```bash
+docker run --rm -d --name xconfess-migration-smoke \
+  -e POSTGRES_DB=xconfess_migration_smoke \
+  -e POSTGRES_USER=postgres \
+  -e POSTGRES_HOST_AUTH_METHOD=trust \
+  -p 127.0.0.1:55433:5432 postgres:16-alpine
+
+DB_HOST=127.0.0.1 DB_PORT=55433 DB_READ_HOST=127.0.0.1 \
+  DB_READ_PORT=55433 DB_USERNAME=postgres \
+  DB_PASSWORD=unused DB_NAME=xconfess_migration_smoke \
+  npm run backend:migration:smoke
+
+docker stop xconfess-migration-smoke
+```
+
+The smoke command refuses a database with existing public tables so it cannot
+silently test an already-initialized schema. If a migration fails, the output
+names the failing migration or missing schema objects; use the same disposable
+database and command while fixing it, then stop and recreate the container to
+rerun from an empty database.
+
 ### Lint
 
 ```bash
@@ -361,12 +426,13 @@ When adding a new API endpoint, follow the [API endpoint contributor checklist](
 
 - [Account Recovery Guide](docs/account-recovery.md) — What to do if you connect the wrong wallet or network
 - [Contributor Guide](docs/CONTRIBUTOR_GUIDE.md) — Local setup, branch hygiene, PR expectations, and validation commands
+- [Data Export Retention & Deletion](docs/data-export-retention.md) — Export generation, download expiry, cooldown periods, and scheduled cleanup
 
 ## Package Docs
 - `xconfess-backend/README.md`
 - `xconfess-frontend/README.md`
 - `xconfess-contracts/README.md`
-- `docs/message-e2e-encryption.md` — E2E private messaging protocol
+- [E2E Messaging Protocol and Local Test Guide](docs/message-e2e-encryption.md) — protocol, safe generated fixtures, expected failures, and focused test commands
 ## Native XConfess Wallet
 
 The app includes an optional embedded Stellar wallet at `/wallet`. Keypairs are generated or imported in the browser; the secret key is encrypted locally with a PIN-derived AES-GCM key. The backend stores only the public key and, when requested, ciphertext-only backups. Freighter remains an optional advanced provider and is not required for normal wallet, send, receive, or tipping flows.

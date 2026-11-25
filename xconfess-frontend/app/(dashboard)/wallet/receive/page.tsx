@@ -38,8 +38,8 @@ export default function WalletReceivePage() {
         {wallet ? (
           <>
             <QRCodeCanvas value={wallet.publicKey} size={208} aria-label="QR code for wallet address" className="mx-auto mt-6" />
-            <p className="mx-auto mt-6 max-w-xl break-all font-mono text-sm text-[var(--foreground)]">{wallet.publicKey}</p>
-            <div className="mt-6 flex flex-wrap justify-center gap-3"><Button variant="outline" onClick={copyAddress}><Copy className="mr-2 h-4 w-4" /> Copy address</Button><Button variant="outline" onClick={shareAddress}><Share2 className="mr-2 h-4 w-4" /> Share address</Button></div>
+            <p className="mx-auto mt-6 w-full min-w-0 max-w-xl break-all [overflow-wrap:anywhere] font-mono text-sm leading-relaxed text-[var(--foreground)]">{wallet.publicKey}</p>
+            <div className="mt-6 flex w-full flex-wrap justify-center gap-3"><Button variant="outline" onClick={copyAddress}><Copy className="mr-2 h-4 w-4" /> Copy address</Button><Button variant="outline" onClick={shareAddress}><Share2 className="mr-2 h-4 w-4" /> Share address</Button></div>
           </>
         ) : (
           <p className="mx-auto mt-5 max-w-md text-sm leading-7 text-[var(--secondary)]">

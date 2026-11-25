@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getDataSourceToken } from '@nestjs/typeorm';
 import { Logger } from '@nestjs/common';
+import { DataSource } from 'typeorm';
 import {
   MigrationVerificationService,
   REQUIRED_CONFESSION_COLUMNS,
@@ -379,6 +380,133 @@ describe('MigrationVerificationService', () => {
           issue.startsWith('Migration has no rollback method:'),
         ),
       ).toBe(false);
+    });
+  });
+
+  // ── checkEntityColumnCompatibility ──────────────────────────────────────────
+
+  describe('checkEntityColumnCompatibility', () => {
+    type ColumnSpec = [databaseName: string, isNullable: boolean];
+
+    function entity(tableName: string, columns: ColumnSpec[]) {
+      return {
+        tableName,
+        columns: columns.map(([databaseName, isNullable]) => ({
+          databaseName,
+          isNullable,
+        })),
+      };
+    }
+
+    function catalogRow(
+      table_name: string,
+      column_name: string,
+      nullable: boolean,
+    ) {
+      return { table_name, column_name, is_nullable: nullable ? 'YES' : 'NO' };
+    }
+
+    function serviceWith(entities: unknown[], rows: unknown, error?: Error) {
+      const queryFn = error
+        ? jest.fn().mockRejectedValue(error)
+        : jest.fn().mockResolvedValue(rows);
+      return new MigrationVerificationService({
+        query: queryFn,
+        entityMetadatas: entities,
+      } as unknown as DataSource);
+    }
+
+    it('returns ok when every entity column exists with a matching nullability', async () => {
+      const svc = serviceWith(
+        [entity('users', [['id', false], ['nickname', true]])],
+        [
+          catalogRow('users', 'id', false),
+          catalogRow('users', 'nickname', true),
+        ],
+      );
+
+      await expect(svc.checkEntityColumnCompatibility()).resolves.toEqual({
+        ok: true,
+        missingTables: [],
+        missingColumns: [],
+        nullabilityMismatches: [],
+      });
+    });
+
+    it('reports an entity whose table does not exist', async () => {
+      const svc = serviceWith(
+        [entity('reports', [['id', false]])],
+        [catalogRow('users', 'id', false)],
+      );
+
+      const result = await svc.checkEntityColumnCompatibility();
+      expect(result.ok).toBe(false);
+      expect(result.missingTables).toEqual(['reports']);
+      expect(result.missingColumns).toEqual([]);
+    });
+
+    it('reports a column declared on the entity but absent from the table', async () => {
+      const svc = serviceWith(
+        [entity('users', [['id', false], ['deleted_at', true]])],
+        [catalogRow('users', 'id', false)],
+      );
+
+      const result = await svc.checkEntityColumnCompatibility();
+      expect(result.ok).toBe(false);
+      expect(result.missingColumns).toEqual(['users.deleted_at']);
+    });
+
+    it('reports NULL / NOT NULL drift in both directions with both sides named', async () => {
+      const svc = serviceWith(
+        [entity('users', [['email', false], ['bio', true]])],
+        [catalogRow('users', 'email', true), catalogRow('users', 'bio', false)],
+      );
+
+      const result = await svc.checkEntityColumnCompatibility();
+      expect(result.ok).toBe(false);
+      expect(result.nullabilityMismatches).toEqual([
+        'users.email (entity NOT NULL, database NULL)',
+        'users.bio (entity NULL, database NOT NULL)',
+      ]);
+    });
+
+    it('lists a missing table once even when several entities map to it', async () => {
+      const svc = serviceWith(
+        [
+          entity('reports', [['id', false]]),
+          entity('reports', [['id', false], ['reason', true]]),
+        ],
+        [],
+      );
+
+      const result = await svc.checkEntityColumnCompatibility();
+      expect(result.missingTables).toEqual(['reports']);
+    });
+
+    it('matches tables and columns case-sensitively, as PostgreSQL stores them', async () => {
+      const svc = serviceWith(
+        [entity('users', [['createdAt', false]])],
+        [catalogRow('users', 'created_at', false)],
+      );
+
+      const result = await svc.checkEntityColumnCompatibility();
+      expect(result.missingColumns).toEqual(['users.createdAt']);
+    });
+
+    it('returns queryError instead of throwing when the catalog query fails', async () => {
+      const svc = serviceWith(
+        [entity('users', [['id', false]])],
+        undefined,
+        new Error('connection refused'),
+      );
+
+      await expect(svc.checkEntityColumnCompatibility()).resolves.toEqual({
+        ok: false,
+        missingTables: [],
+        missingColumns: [],
+        nullabilityMismatches: [],
+        queryError: 'connection refused',
+      });
     });
   });
 

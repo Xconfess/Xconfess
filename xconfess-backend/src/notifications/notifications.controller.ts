@@ -64,4 +64,10 @@ export class NotificationController {
     const userId = req.user.id;
     return this.notificationService.updateUserPreference(userId, dto);
   }
+
+  @Get(':id')
+  async getById(@Request() req, @Param('id') id: string) {
+    const userId = req.user.id;
+    return this.notificationService.getNotificationById(id, userId);
+  }
 }

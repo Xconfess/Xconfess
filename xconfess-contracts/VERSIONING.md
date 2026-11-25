@@ -44,6 +44,16 @@ For runtime compatibility, consumers should prefer:
 When SemVer and runtime markers disagree, runtime markers are the canonical
 compatibility contract for downstream consumers.
 
+## Upgrade Compatibility Checklist
+
+Every contract change must keep `deployments/contract-abi-manifest.json`, the
+contract's `abi.json`, and `Cargo.toml` version aligned. The manifest's listed
+functions are the minimum compatibility surface that must remain callable,
+while `event_schema_version` and `error_registry_version` must be incremented
+for breaking event or error changes. CI runs
+`npm run contracts:compatibility` to enforce this checklist before a release
+can merge.
+
 ## Contract Versions
 
 | Contract | Version | Notes |

@@ -87,6 +87,30 @@ describe('EmailService template variable schema validation', () => {
     }
   });
 
+  it('escapes script-like values in html but keeps them raw in text', () => {
+    const payload = '<script>alert("x")</script>';
+    const rendered = renderTemplate('welcome', template, {
+      username: payload,
+      age: 30,
+    });
+
+    expect(rendered.html).not.toContain('<script>');
+    expect(rendered.html).toContain(
+      '&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt;',
+    );
+    expect(rendered.text).toBe(payload);
+  });
+
+  it('removes line breaks from the subject so values cannot add mail headers', () => {
+    const rendered = renderTemplate('welcome', template, {
+      username: 'Alice\r\nBcc: attacker@example.com',
+      age: 30,
+    });
+
+    expect(rendered.subject).not.toMatch(/[\r\n]/);
+    expect(rendered.subject).toBe('Hello Alice Bcc: attacker@example.com');
+  });
+
   it('fails for primitive type mismatches', () => {
     expect(() =>
       renderTemplate('welcome', template, {

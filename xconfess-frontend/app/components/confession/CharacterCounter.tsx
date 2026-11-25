@@ -25,9 +25,9 @@ export const CharacterCounter: React.FC<CharacterCounterProps> = ({
       className={cn(
         "text-xs transition-colors",
         {
-          "text-green-400": warning === "none",
-          "text-yellow-400": warning === "warning",
-          "text-red-400": warning === "error",
+          "text-[var(--success)]": warning === "none",
+          "text-[var(--warning)]": warning === "warning",
+          "text-[var(--danger)]": warning === "error",
         },
         className
       )}

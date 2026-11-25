@@ -22,13 +22,13 @@ export const AppHeader: React.FC = () => {
           {wallet && (
             <div className="flex items-center gap-2 text-sm">
               {wallet.isConnected ? (
-                <div className="flex items-center gap-2 text-emerald-300">
-                  <span className="inline-block w-2 h-2 rounded-full bg-green-400 animate-pulse"></span>
+                <div className="flex items-center gap-2 text-[var(--success)]">
+                  <span className="inline-block w-2 h-2 rounded-full bg-[var(--success)] animate-pulse"></span>
                   <span className="hidden sm:inline">Connected</span>
                 </div>
               ) : (
-                <div className="flex items-center gap-2 text-slate-300">
-                  <span className="inline-block w-2 h-2 rounded-full bg-gray-500"></span>
+                <div className="flex items-center gap-2 text-[var(--secondary)]">
+                  <span className="inline-block w-2 h-2 rounded-full bg-[var(--text-muted)]"></span>
                   <span className="hidden sm:inline">Not Connected</span>
                 </div>
               )}

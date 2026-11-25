@@ -15,6 +15,10 @@ if [[ -z "${PYTHON_BIN:-}" ]]; then
   fi
 fi
 
+NODE_BIN="${XCONFESS_NODE_BIN:-node}"
+REVIEW_DELAY_CLI="$SCRIPT_DIR/contract-review-delay.js"
+CRITICAL_ACTION_ID=""
+
 CONTRACT_CRATES=(
   "confession-anchor"
   "confession-registry"
@@ -65,16 +69,31 @@ crate_to_wasm_name() {
 
 verify_wasm_outputs() {
   local missing=0
+  local missing_artifacts=()
+
   for crate in "${CONTRACT_CRATES[@]}"; do
     local wasm_file
     wasm_file="$(crate_to_wasm_name "$crate")"
-    if [[ ! -f "$TARGET_DIR/$wasm_file" ]]; then
-      echo "Missing artifact: $TARGET_DIR/$wasm_file" >&2
+    local wasm_path="$TARGET_DIR/$wasm_file"
+    if [[ ! -f "$wasm_path" ]]; then
+      echo "Missing artifact: $wasm_path" >&2
+      missing_artifacts+=("$crate")
       missing=1
     fi
   done
 
   if [[ "$missing" -ne 0 ]]; then
+    echo "Build failed: expected WASM artifacts not found." >&2
+    echo "" >&2
+    echo "Missing contracts: ${missing_artifacts[*]}" >&2
+    echo "" >&2
+    echo "To build artifacts, run:" >&2
+    echo "  $SCRIPT_DIR/contracts-release.sh build" >&2
+    echo "" >&2
+    echo "Or manually:" >&2
+    echo "  cd $CONTRACTS_DIR" >&2
+    echo "  cargo build --locked --workspace --release --target wasm32v1-none" >&2
+    echo "" >&2
     exit 1
   fi
 }
@@ -131,6 +150,55 @@ write_manifest() {
   } > "$output_file"
 }
 
+check_manifest() {
+  local manifest_file="$1"
+  require_cmd "$PYTHON_BIN" "$PYTHON_BIN"
+  if [[ ! -f "$manifest_file" ]]; then
+    echo "Release manifest is missing: $manifest_file" >&2
+    echo "Run ./scripts/contracts-release.sh build and commit deployments/contract-wasm-manifest.json." >&2
+    exit 1
+  fi
+  "$PYTHON_BIN" - "$manifest_file" "$CONTRACTS_DIR" "$TARGET_TRIPLE" "${CONTRACT_CRATES[@]}" <<'PY'
+import hashlib
+import json
+import pathlib
+import sys
+manifest_path, contracts_dir, target = pathlib.Path(sys.argv[1]), pathlib.Path(sys.argv[2]), sys.argv[3]
+try:
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+except (OSError, json.JSONDecodeError) as exc:
+    raise SystemExit(f"Release manifest cannot be read ({manifest_path}): {exc}")
+errors = []
+if manifest.get("target") != target:
+    errors.append(f"target: manifest has {manifest.get('target')!r}, build used {target!r}")
+entries = manifest.get("contracts")
+if not isinstance(entries, dict):
+    errors.append("contracts: missing or not an object")
+    entries = {}
+for crate in sys.argv[4:]:
+    entry = entries.get(crate)
+    if not isinstance(entry, dict):
+        errors.append(f"{crate}: missing contract entry")
+        continue
+    expected_path = f"target/{target}/release/{crate.replace('-', '_')}.wasm"
+    if entry.get("wasm_file") != expected_path:
+        errors.append(f"{crate}: wasm_file is {entry.get('wasm_file')!r}, expected {expected_path!r}")
+    wasm_path = contracts_dir / expected_path
+    if not wasm_path.is_file():
+        errors.append(f"{crate}: built artifact is missing at {wasm_path}")
+        continue
+    actual_sha = hashlib.sha256(wasm_path.read_bytes()).hexdigest()
+    if entry.get("sha256") != actual_sha:
+        errors.append(f"{crate}: sha256 mismatch (manifest {entry.get('sha256')!r}; rebuilt {actual_sha})")
+if errors:
+    print("Release manifest is stale or does not describe the rebuilt WASM:", file=sys.stderr)
+    for error in errors: print(f"  - {error}", file=sys.stderr)
+    print("Fix: run ./scripts/contracts-release.sh build, review the SHA-256 changes, and commit deployments/contract-wasm-manifest.json.", file=sys.stderr)
+    raise SystemExit(1)
+print(f"Release manifest matches rebuilt {target} WASM artifacts: {manifest_path}")
+PY
+}
+
 build_all() {
   local cargo_bin
   local rustup_bin
@@ -154,12 +222,50 @@ build_all() {
   echo "Build complete. Manifest: $manifest_file"
 }
 
+check_all() {
+  local cargo_bin rustup_bin
+  cargo_bin="$(resolve_cmd cargo)" || { echo "Missing required command: cargo" >&2; exit 1; }
+  rustup_bin="$(resolve_cmd rustup)" || { echo "Missing required command: rustup" >&2; exit 1; }
+  pushd "$CONTRACTS_DIR" >/dev/null
+  "$rustup_bin" target add "$TARGET_TRIPLE" >/dev/null
+  "$cargo_bin" build --locked --workspace --release --target "$TARGET_TRIPLE"
+  popd >/dev/null
+  verify_wasm_outputs
+  check_manifest "$REPO_ROOT/deployments/contract-wasm-manifest.json"
+}
+
 verify_only() {
   verify_wasm_outputs
   [[ -d "$REPO_ROOT/deployments" ]] || mkdir -p "$REPO_ROOT/deployments"
   local manifest_file="$REPO_ROOT/deployments/contract-wasm-manifest.json"
   write_manifest "$manifest_file"
   echo "Verification complete. Manifest: $manifest_file"
+}
+
+enforce_review_delay() {
+  local network="$1"
+  local action
+  action="$("$NODE_BIN" "$REVIEW_DELAY_CLI" action-for-network "$network" 2>/dev/null || true)"
+  if [[ -z "$action" ]]; then
+    echo "Review window: network '$network' is not classified as critical; no delay required."
+    return 0
+  fi
+
+  echo "Review window: '$action' requires an approved, elapsed review delay."
+  if ! "$NODE_BIN" "$REVIEW_DELAY_CLI" check \
+      --action "$action" \
+      --actor "${XCONFESS_REVIEW_ACTOR:-unknown}" \
+      --reference "${XCONFESS_REVIEW_REFERENCE:-$network}"; then
+    echo "" >&2
+    echo "Blocked: critical contract change cannot execute before its review delay expires." >&2
+    echo "Schedule the window with:" >&2
+    echo "  $NODE_BIN $REVIEW_DELAY_CLI schedule --action '$action' --actor <you> --reference <PR-or-ticket>" >&2
+    echo "Inspect it with:" >&2
+    echo "  $NODE_BIN $REVIEW_DELAY_CLI status --action '$action'" >&2
+    echo "Abort a pending window with 'cancel' or 'clear' (see docs/contract-review-delay-policy.md)." >&2
+    exit 1
+  fi
+  CRITICAL_ACTION_ID="$action"
 }
 
 deploy_all() {
@@ -192,6 +298,10 @@ deploy_all() {
     echo "No contracts were deployed. To execute the deployment, rerun without --dry-run."
     return 0
   fi
+
+  # Critical networks are gated by an elapsed review window. --force never
+  # bypasses this gate; it only relaxes the first-deployment rollback guard.
+  enforce_review_delay "$network"
 
   local generated_at
   generated_at="$(timestamp_utc)"
@@ -227,6 +337,15 @@ source_key = sys.argv[6]
 ids_file = pathlib.Path(sys.argv[7])
 crates = sys.argv[8:]
 
+CONTRACT_ID_RE = re.compile(r"C[A-Z2-7]{55}")
+NETWORK_ALIAS_RE = re.compile(r"[a-z][a-z0-9-]*")
+SEMVER_RE = re.compile(r"\d+\.\d+\.\d+")
+
+# Refuse to write metadata that the env verifier would later reject. Failing
+# here leaves any previous <network>.json untouched.
+if not NETWORK_ALIAS_RE.fullmatch(network):
+    raise SystemExit(f"Refusing to write deployment metadata: invalid network alias {network!r}")
+
 ids = {}
 for line in ids_file.read_text(encoding="utf-8").splitlines():
     crate, contract_id = line.split("=", 1)
@@ -238,10 +357,16 @@ def crate_version(crate: str) -> str:
     match = re.search(r'(?m)^version\s*=\s*"([^"]+)"\s*$', text)
     if not match:
         raise RuntimeError(f"No version found in {cargo_toml}")
+    if not SEMVER_RE.fullmatch(match.group(1)):
+        raise RuntimeError(f"Version in {cargo_toml} must be MAJOR.MINOR.PATCH, got {match.group(1)!r}")
     return match.group(1)
 
 contracts = {}
 for crate in crates:
+    if crate not in ids:
+        raise SystemExit(f"Refusing to write deployment metadata: no contract ID returned for {crate}")
+    if not CONTRACT_ID_RE.fullmatch(ids[crate]):
+        raise SystemExit(f"Refusing to write deployment metadata: invalid contract ID for {crate}: {ids[crate]!r}")
     wasm_name = crate.replace("-", "_") + ".wasm"
     wasm_path = target_dir / wasm_name
     content = wasm_path.read_bytes()
@@ -265,6 +390,15 @@ PY
 
   rm -f "$ids_file"
   echo "Deployment metadata written to: $output_file"
+
+  if [[ -n "$CRITICAL_ACTION_ID" ]]; then
+    if ! "$NODE_BIN" "$REVIEW_DELAY_CLI" record \
+        --action "$CRITICAL_ACTION_ID" \
+        --actor "${XCONFESS_REVIEW_ACTOR:-unknown}" \
+        --reference "$network"; then
+      echo "Warning: could not record the review-delay execution event." >&2
+    fi
+  fi
 }
 
 print_help() {
@@ -272,16 +406,26 @@ print_help() {
 Usage:
   ./scripts/contracts-release.sh build
   ./scripts/contracts-release.sh verify
+  ./scripts/contracts-release.sh check
   ./scripts/contracts-release.sh deploy --network <network> --source <stellar-key-name> [--dry-run] [--force]
 
 Commands:
   build    Build all contract crates reproducibly and generate a manifest
   verify   Verify all expected artifacts exist and regenerate the manifest
+  check    Rebuild artifacts and fail if the committed manifest SHA-256 values are stale
   deploy   Deploy all artifacts and write per-network deployment metadata
 
 Options:
   --dry-run  Verify build artifacts and deployment readiness without deploying contracts
   --force    Allow deploy to proceed even when no prior deployment metadata exists
+
+Review delay:
+  Deployments to public/mainnet networks are gated by
+  scripts/contract-review-delay.js. Schedule a window first:
+    node scripts/contract-review-delay.js schedule --action contract.deploy.mainnet \\
+      --actor <you> --reference <PR-or-ticket>
+  Use 'status', 'cancel', 'clear', and 'events' to manage or inspect the window.
+  See docs/contract-review-delay-policy.md for the full policy.
 EOF
 }
 
@@ -298,6 +442,9 @@ main() {
       ;;
     verify)
       verify_only
+      ;;
+    check)
+      check_all
       ;;
     deploy)
       shift || true

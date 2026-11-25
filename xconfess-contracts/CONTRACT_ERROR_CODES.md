@@ -138,6 +138,13 @@ Unknown error codes (not in this registry) are treated as terminal failures. Thi
 | 6007 | `RATE_LIMITED` | Retryable | Rate limit exceeded for this recipient | 503 |
 | 6008 | `INVALID_RATE_LIMIT_CONFIG` | Terminal | Invalid rate limit configuration | 400 |
 | 6009 | `TOKEN_NOT_CONFIGURED` | Terminal | XLM token contract is not configured | 500 |
+| 6010 | `SETTLEMENT_REPLAY` | Terminal | Settlement ID reuse detected | 409 |
+| 6011 | `SETTLEMENT_NOT_FOUND` | Terminal | No settlement receipt exists for the given ID (never created or expired) | 404 |
+| 6012 | `RECIPIENT_MISMATCH` | Terminal | Settlement receipt belongs to a different recipient | 400 |
+| 6013 | `INSUFFICIENT_BALANCE` | Terminal | Sender token balance is lower than the requested tip | 400 |
+| 6014 | `UNSUPPORTED_SCHEMA_VERSION` | Terminal | Stored schema version is newer than this contract | 500 |
+
+`UNSUPPORTED_ASSET` is an explicit client-facing alias for `TOKEN_NOT_CONFIGURED` (6009). A tipping deployment accepts only its configured Soroban token; missing or unsupported asset configuration therefore has one stable code.
 
 ## Backend Integration Guide
 
@@ -429,7 +436,7 @@ function mapContractErrorToUserMessage(code: number, fallback: string): string {
 #### Version 1 (Current)
 - Initial stable registry
 - 21 anchor contract errors (1000–5005)
-- 9 tipping contract errors (6001–6009)
+- 14 tipping contract errors (6001–6014), plus the `UNSUPPORTED_ASSET` alias for 6009
 - Classification system (Retryable, Terminal, Unknown)
 
 ### Future Changes

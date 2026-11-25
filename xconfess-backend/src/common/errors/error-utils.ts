@@ -1,4 +1,4 @@
-import { HttpStatus } from '@nestjs/common';
+import { ConflictException, HttpStatus } from '@nestjs/common';
 import { ErrorCode } from '../errors/error-codes';
 import { AppException, AppExceptionResponse } from '../errors/app-exception';
 
@@ -185,6 +185,52 @@ export class ErrorUtils {
       HttpStatus.CONFLICT,
       details,
     );
+  }
+
+  static operationConflict(
+    operation: string,
+    reason: string,
+    options: {
+      message?: string;
+      canRetry?: boolean;
+      retryAfter?: number;
+      retryWith?: string;
+      state?: string;
+      details?: Record<string, unknown>;
+    } = {},
+  ): ConflictException {
+    const canRetry = options.canRetry ?? false;
+    const details: Record<string, unknown> = {
+      ...(options.details ?? {}),
+      operation,
+      reason,
+      canRetry,
+    };
+    if (options.retryWith) {
+      details.retryWith = options.retryWith;
+    }
+    if (options.state) {
+      details.state = options.state;
+    }
+
+    const response: Record<string, unknown> = {
+      ...(options.details ?? {}),
+      message:
+        options.message ??
+        `The ${operation} operation conflicts with the current state`,
+      code: ErrorCode.CONFLICT,
+      details,
+      conflictReason: reason,
+      canRetry,
+    };
+    if (options.state) {
+      response.state = options.state;
+    }
+    if (options.retryAfter !== undefined) {
+      response.retryAfter = options.retryAfter;
+    }
+
+    return new ConflictException(response);
   }
 
   /**

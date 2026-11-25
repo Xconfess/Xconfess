@@ -82,7 +82,6 @@ fn anchor_pause_reason_exact_limit_succeeds() {
 }
 
 #[test]
-#[should_panic(expected = "pause reason too long")]
 fn anchor_pause_reason_limit_plus_one_rejected() {
     let env = Env::default();
     env.mock_all_auths();
@@ -93,7 +92,10 @@ fn anchor_pause_reason_limit_plus_one_rejected() {
 
     client.initialize(&owner);
 
-    let _ = client.pause(&owner, &reason);
+    assert_eq!(
+        client.try_pause(&owner, &reason),
+        Err(Ok(confession_anchor::Error::PauseReasonTooLong))
+    );
 }
 
 #[test]

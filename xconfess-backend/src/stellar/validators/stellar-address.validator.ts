@@ -60,7 +60,7 @@ export class StellarAddressValidator {
     }
 
     try {
-      const decoded = StellarSDK.StrKey.decodeContractId(trimmed);
+      const decoded = StellarSDK.StrKey.decodeContract(trimmed);
       if (!decoded || decoded.length === 0) {
         throw new Error('Contract ID decode produced empty result');
       }
@@ -95,8 +95,9 @@ export class StellarAddressValidator {
     }
 
     try {
-      const parsedMuxed = StellarSDK.MuxedAccount.parseMuxedAddress(trimmed);
-      return parsedMuxed.accountId;
+      if (StellarSDK.StrKey.isValidEd25519PublicKey(trimmed)) return trimmed;
+      const parsedMuxed = StellarSDK.MuxedAccount.fromAddress(trimmed, '0');
+      return parsedMuxed.baseAccount().accountId();
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
       this.logger.warn({

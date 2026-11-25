@@ -1,12 +1,13 @@
 import { BadRequestException } from '@nestjs/common';
 import { StellarValidator } from './stellar-validator';
+import { StrKey } from '@stellar/stellar-sdk';
 
 describe('StellarValidator', () => {
   describe('validatePublicKey', () => {
     it('accepts valid Stellar public keys', () => {
       const validKeys = [
-        'GBRPYHIL2CI3WHZDTOOQFC6EB4KJJGUJOMB52XSBTBNZWAY2O7LQMJX',
-        'GBPV4UNQZUGUQTJ3QVWVG63CPEKQ3K35ZDB5SJMX5BCFUYDMCKZ7M3D',
+        StrKey.encodeEd25519PublicKey(Buffer.alloc(32, 1)),
+        StrKey.encodeEd25519PublicKey(Buffer.alloc(32, 2)),
       ];
 
       for (const key of validKeys) {
@@ -49,8 +50,8 @@ describe('StellarValidator', () => {
   describe('validateContractId', () => {
     it('accepts valid Soroban contract IDs', () => {
       const validContracts = [
-        'CCHDY246UUPY6VUGIDVSK266KXA64CXM6RR2QLTKJD7E7IGV74ZP5XFB',
-        'CBPV4UNQZUGUQTJ3QVWVG63CPEKQ3K35ZDB5SJMX5BCFUYDMCKZ7M3D',
+        StrKey.encodeContract(Buffer.alloc(32, 1)),
+        StrKey.encodeContract(Buffer.alloc(32, 2)),
       ];
 
       for (const id of validContracts) {
@@ -146,7 +147,7 @@ describe('StellarValidator', () => {
       it('returns true for valid keys', () => {
         expect(
           StellarValidator.isValidPublicKey(
-            'GBRPYHIL2CI3WHZDTOOQFC6EB4KJJGUJOMB52XSBTBNZWAY2O7LQMJX',
+            StrKey.encodeEd25519PublicKey(Buffer.alloc(32, 3)),
           ),
         ).toBe(true);
       });
@@ -162,7 +163,7 @@ describe('StellarValidator', () => {
       it('returns true for valid contract IDs', () => {
         expect(
           StellarValidator.isValidContractId(
-            'CCHDY246UUPY6VUGIDVSK266KXA64CXM6RR2QLTKJD7E7IGV74ZP5XFB',
+            StrKey.encodeContract(Buffer.alloc(32, 3)),
           ),
         ).toBe(true);
       });

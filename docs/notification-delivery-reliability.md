@@ -63,6 +63,42 @@ connect and subscription confirmation it emits `notifications:sync` with the
 latest unread notifications and unread count, so a websocket reconnect does not
 depend on replaying every missed socket event.
 
+## Redis outage and recovery
+
+When Redis is temporarily unavailable, BullMQ-backed delivery is unavailable too.
+The API must not report an email as delivered: the job remains retryable and the
+readiness endpoint reports the Redis/queue dependency as down. After Redis
+reconnects, BullMQ retries the same job. The stable `idempotencyKey`, delivery
+marker, and five-minute processing lock ensure that a recovered job is delivered
+once even if more than one worker observes it.
+
+Run the outage regression tests locally without real credentials or an external
+Redis instance:
+
+```bash
+npm test --workspace=xconfess-backend -- \
+  src/notifications/processors/notification.processor.spec.ts
+```
+
+The tests simulate a connection failure before processing and a disconnect during
+a failed delivery, then restore the mock Redis connection and verify successful
+retry plus duplicate suppression. In a live environment, use
+`GET /api/health/ready` to confirm recovery; never paste `REDIS_URL` or its
+password into test output or issue comments.
+
+## REST response schema
+
+Notification REST responses use a reduced projection. `GET /api/notifications`
+returns `{ notifications, total, unreadCount }`, `GET /api/notifications/:id`
+and `PATCH /api/notifications/:id/read` return one notification object, and
+`GET /api/notifications/unread-count` returns `{ unreadCount }`.
+
+Each notification object contains exactly `id`, `type`, `title`, `message`,
+`isRead`, `readAt`, `createdAt`, `updatedAt`, and optional `metadata`. The
+projection excludes `userId`, `user`, `sourceKey`, `isEmailSent`, `emailSentAt`,
+and the metadata keys `senderId`, `senderAnonymousId`, and `sourceEventId`.
+Contract tests assert that no extra fields are returned.
+
 ## Diagnostics
 
 Failed async jobs are visible through the existing admin DLQ endpoints:

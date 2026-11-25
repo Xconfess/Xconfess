@@ -341,6 +341,80 @@ describe("useReactions", () => {
     expect(result.current.optimisticState).toBeNull();
   });
 
+  it("keeps gateway counts when a rejected reaction rolls back", async () => {
+    const { wrapper } = createTestHarness();
+
+    mockAddReaction.mockResolvedValue({
+      ok: false,
+      error: { message: "Server error", code: "API_ERROR" },
+    });
+
+    const { result } = renderHook(
+      () => useReactions({
+        confessionId: "confession-1",
+        initialCounts: { like: 2, love: 1 },
+      }),
+      { wrapper },
+    );
+
+    await act(async () => {
+      triggerSocketEvent("reaction:added", {
+        confessionId: "confession-1",
+        reactionType: "like",
+        totalCount: 7,
+      });
+    });
+    expect(result.current.liveCounts).toEqual({ like: 7, love: 1 });
+
+    await act(async () => {
+      await result.current.addReaction("confession-1", "love");
+    });
+
+    expect(result.current.liveCounts).toEqual({ like: 7, love: 1 });
+    expect(result.current.optimisticState).toBeNull();
+  });
+
+  it("shares one request when the same reaction is clicked again while pending", async () => {
+    const { wrapper } = createTestHarness();
+
+    let resolveReaction:
+      | ((value: Awaited<ReturnType<typeof addReaction>>) => void)
+      | undefined;
+    mockAddReaction.mockReturnValue(
+      new Promise<Awaited<ReturnType<typeof addReaction>>>((resolve) => {
+        resolveReaction = resolve;
+      }),
+    );
+
+    const { result } = renderHook(
+      () => useReactions({ initialCounts: { like: 2, love: 1 } }),
+      { wrapper },
+    );
+
+    let firstCall: Promise<unknown> | undefined;
+    let secondCall: Promise<unknown> | undefined;
+    await act(async () => {
+      firstCall = result.current.addReaction("confession-1", "like");
+      secondCall = result.current.addReaction("confession-1", "like");
+      await Promise.resolve();
+    });
+
+    await waitFor(() => {
+      expect(mockAddReaction).toHaveBeenCalledTimes(1);
+    });
+
+    await act(async () => {
+      resolveReaction?.({
+        ok: true,
+        data: { success: true, reactions: { like: 3, love: 1 } },
+      });
+      await Promise.all([firstCall, secondCall]);
+    });
+
+    expect(await secondCall).toBe(await firstCall);
+    expect(result.current.liveCounts).toEqual({ like: 3, love: 1 });
+  });
+
   it("subscribes to the reaction websocket and reports connection state", async () => {
     const { wrapper } = createTestHarness();
     const { result } = renderHook(

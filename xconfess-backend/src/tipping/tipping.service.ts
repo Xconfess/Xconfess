@@ -2,7 +2,6 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
-  ConflictException,
   GatewayTimeoutException,
   Logger,
 } from '@nestjs/common';
@@ -57,6 +56,15 @@ export interface TipVerificationResult {
   };
 }
 
+interface IdempotencyRecord {
+  key: string;
+  txId: string;
+  confessionId: string;
+  operation: 'verify_tip';
+  caller: string;
+  expiresAt: number;
+}
+
 interface SettlementReceiptMetadata {
   settlementId: string | null;
   proofMetadata: string | null;
@@ -107,7 +115,10 @@ export const TIP_PRECISION = 7;
 export class TippingService {
   private static readonly MAX_RECEIPT_PROOF_METADATA_LEN = 128;
   private static readonly LOCK_TIMEOUT_MS = 30_000; // 30 seconds
+  private static readonly IDEMPOTENCY_TTL_MS = 24 * 60 * 60 * 1000;
+  private static readonly IDEMPOTENCY_MAX_KEYS = 10_000;
   private readonly logger = new Logger(TippingService.name);
+  private readonly idempotencyRecords = new Map<string, IdempotencyRecord>();
 
   constructor(
     @InjectRepository(Tip)
@@ -163,6 +174,78 @@ export class TippingService {
   }
 
   /**
+   * Public-safe tip status lookup scoped to a confession.
+   * Distinguishes pending/confirmed/failed lifecycle states and does not expose
+   * internal reconciliation/lock metadata or unrelated account data.
+   */
+  async getTipStatusForConfession(
+    confessionId: string,
+    txId: string,
+  ): Promise<{
+    confessionId: string;
+    txId: string;
+    tipId: string;
+    lifecycleStatus: 'pending' | 'confirmed' | 'failed';
+    verificationStatus: TipVerificationStatus;
+    amount: number;
+    verifiedAt: Date | null;
+    createdAt: Date;
+    updatedAtHint: Date | null;
+  }> {
+    const confession = await this.confessionRepository.findOne({
+      where: { id: confessionId },
+    });
+    if (!confession) {
+      throw new NotFoundException(
+        `Confession with ID ${confessionId} not found`,
+      );
+    }
+
+    const normalizedTxId = txId?.trim();
+    if (!/^[a-fA-F0-9]{64}$/.test(normalizedTxId ?? '')) {
+      throw new BadRequestException({
+        message: 'Invalid transaction ID format.',
+        code: 'VALIDATION_FAILED',
+        details: { field: 'txId' },
+      });
+    }
+
+    const tip = await this.tipRepository.findOne({
+      where: { txId: normalizedTxId, confessionId },
+    });
+
+    if (!tip) {
+      throw new NotFoundException(`Tip transaction ${normalizedTxId} not found`);
+    }
+
+    const lifecycleStatus = this.toPublicLifecycleStatus(tip.verificationStatus);
+    return {
+      confessionId: tip.confessionId,
+      txId: tip.txId,
+      tipId: tip.id,
+      lifecycleStatus,
+      verificationStatus: tip.verificationStatus,
+      amount: Number(tip.amount),
+      verifiedAt: tip.verifiedAt ?? null,
+      createdAt: tip.createdAt,
+      updatedAtHint: tip.verifiedAt ?? tip.lastCheckedAt ?? tip.createdAt ?? null,
+    };
+  }
+
+  private toPublicLifecycleStatus(
+    status: TipVerificationStatus,
+  ): 'pending' | 'confirmed' | 'failed' {
+    if (status === TipVerificationStatus.VERIFIED) return 'confirmed';
+    if (
+      status === TipVerificationStatus.PENDING ||
+      status === TipVerificationStatus.STALE_PENDING
+    ) {
+      return 'pending';
+    }
+    return 'failed';
+  }
+
+  /**
    * Verify a Stellar tip transaction and record exactly one credit.
    *
    * Double-credit prevention strategy (issue #1480):
@@ -191,6 +274,7 @@ export class TippingService {
     confessionId: string,
     dto: VerifyTipDto,
     requestId?: string,
+    callerContext?: { ip?: string | null },
   ): Promise<TipVerificationResult> {
     this.logger.log({
       message: 'Tip verify started',
@@ -268,11 +352,11 @@ export class TippingService {
       if (!canonical) {
         // Extremely unlikely — row was deleted between our INSERT failure and
         // this read.  Let the caller retry.
-        throw new ConflictException({
+        throw ErrorUtils.operationConflict('tip', 'ALREADY_PROCESSING', {
           message: `Transaction ${dto.txId} is currently being processed. Please retry in a moment.`,
           state: 'pending' as TipResponseState,
-          conflictReason: 'ALREADY_PROCESSING',
           canRetry: true,
+          retryAfter: 2,
         });
       }
 
@@ -309,12 +393,11 @@ export class TippingService {
         originalConfessionId: tipByTxId.confessionId,
       });
 
-      throw new ConflictException({
+      throw ErrorUtils.operationConflict('tip', 'DIFFERENT_CONFESSION', {
         message: `Transaction ${dto.txId} was already used for a different confession`,
         state: 'conflict' as TipResponseState,
-        conflictReason: 'DIFFERENT_CONFESSION',
-        originalConfessionId: tipByTxId.confessionId,
         canRetry: false,
+        details: { originalConfessionId: tipByTxId.confessionId },
       });
     }
 
@@ -327,6 +410,15 @@ export class TippingService {
           requestId,
         );
       } catch (verifyError: any) {
+        if (verifyError instanceof StellarRpcUnavailableException) {
+          await this.updateRetryMetadata(sentinelTip.id, 'rpc_unavailable', {
+            error: verifyError.message,
+            attemptedAt: new Date().toISOString(),
+          });
+          await this.releaseProcessingLock(sentinelTip.id);
+          throw verifyError;
+        }
+
         this.logger.warn({
           message: 'Network error verifying transaction, marking for retry',
           requestId,
@@ -339,11 +431,11 @@ export class TippingService {
           attemptedAt: new Date().toISOString(),
         });
         await this.releaseProcessingLock(sentinelTip.id);
-        throw new ConflictException({
+        throw ErrorUtils.operationConflict('tip', 'NETWORK_ERROR', {
           message: `Transaction ${dto.txId} verification temporarily failed due to network error. Will be retried.`,
           state: 'failed' as TipResponseState,
-          conflictReason: 'NETWORK_ERROR',
           canRetry: true,
+          retryAfter: 5,
         });
       }
 
@@ -369,20 +461,26 @@ export class TippingService {
       try {
         txData = await this.fetchTransactionData(dto.txId);
       } catch (fetchError: any) {
-        const isRetryable =
-          fetchError instanceof GatewayTimeoutException ||
-          fetchError instanceof NotFoundException;
-        if (isRetryable) {
+        if (fetchError instanceof StellarRpcUnavailableException) {
+          await this.updateRetryMetadata(sentinelTip.id, 'rpc_unavailable', {
+            error: fetchError.message,
+            attemptedAt: new Date().toISOString(),
+          });
+          await this.releaseProcessingLock(sentinelTip.id);
+          throw fetchError;
+        }
+
+        if (fetchError instanceof GatewayTimeoutException) {
           await this.updateRetryMetadata(sentinelTip.id, 'fetch_retryable', {
             error: fetchError.message,
             attemptedAt: new Date().toISOString(),
           });
           await this.releaseProcessingLock(sentinelTip.id);
-          throw new ConflictException({
+          throw ErrorUtils.operationConflict('tip', 'NETWORK_ERROR', {
             message: `Transaction ${dto.txId} data fetch failed temporarily. Will be retried.`,
             state: 'failed' as TipResponseState,
-            conflictReason: 'NETWORK_ERROR',
             canRetry: true,
+            retryAfter: 5,
           });
         }
         throw fetchError;
@@ -581,10 +679,139 @@ export class TippingService {
     }
   }
 
+  private normalizeSenderAddress(raw: string | null): string | null {
+    if (raw === null || raw === undefined) return null;
+    const trimmed = String(raw).trim();
+    if (!trimmed) return null;
+
+    const validator = this.stellarAddressValidator;
+    if (validator) {
+      try {
+        if (trimmed.startsWith('M')) {
+          return validator.validateMuxedAddress(trimmed);
+        }
+        return validator.validateAccountId(trimmed, 'sender address');
+      } catch {
+        throw new BadRequestException({
+          message: 'Invalid sender address in transaction payload.',
+          code: 'INVALID_STELLAR_ADDRESS',
+          state: 'failed' as TipResponseState,
+          details: { field: 'senderAddress' },
+          canRetry: false,
+        });
+      }
+    }
+
+    // Fallback when validator is not injected (tests/legacy wiring).
+    const isG = /^G[A-Z2-7]{55}$/.test(trimmed);
+    const isM = /^M[A-Z2-7]{68}$/.test(trimmed);
+    if (!isG && !isM) {
+      throw new BadRequestException({
+        message: 'Invalid sender address in transaction payload.',
+        code: 'INVALID_STELLAR_ADDRESS',
+        state: 'failed' as TipResponseState,
+        details: { field: 'senderAddress' },
+        canRetry: false,
+      });
+    }
+    return trimmed;
+  }
+
   private async findTipByIdempotencyKey(
     idempotencyKey: string,
   ): Promise<Tip | null> {
     return this.tipRepository.findOne({ where: { idempotencyKey } });
+  }
+
+  private getIdempotencyCaller(callerContext?: { ip?: string | null }): string {
+    const ip = callerContext?.ip?.trim();
+    return ip && ip.length > 0 ? `ip:${ip}` : 'ip:unknown';
+  }
+
+  private getIdempotencyScope(confessionId: string): string {
+    return `verify_tip:${confessionId}`;
+  }
+
+  private getIdempotencyStoreKey(caller: string, confessionId: string, key: string): string {
+    return `${caller}::${this.getIdempotencyScope(confessionId)}::${key}`;
+  }
+
+  private pruneIdempotencyRecords(now = Date.now()): void {
+    for (const [storeKey, record] of this.idempotencyRecords.entries()) {
+      if (record.expiresAt <= now) {
+        this.idempotencyRecords.delete(storeKey);
+      }
+    }
+
+    if (this.idempotencyRecords.size <= TippingService.IDEMPOTENCY_MAX_KEYS) {
+      return;
+    }
+
+    const overflow =
+      this.idempotencyRecords.size - TippingService.IDEMPOTENCY_MAX_KEYS;
+    let removed = 0;
+    for (const storeKey of this.idempotencyRecords.keys()) {
+      this.idempotencyRecords.delete(storeKey);
+      removed += 1;
+      if (removed >= overflow) break;
+    }
+  }
+
+  private assertIdempotencyKeyBinding(
+    confessionId: string,
+    dto: VerifyTipDto,
+    requestId?: string,
+    callerContext?: { ip?: string | null },
+  ): void {
+    const key = dto.idempotencyKey?.trim();
+    if (!key) return;
+
+    const now = Date.now();
+    this.pruneIdempotencyRecords(now);
+
+    const caller = this.getIdempotencyCaller(callerContext);
+    const storeKey = this.getIdempotencyStoreKey(caller, confessionId, key);
+    const existing = this.idempotencyRecords.get(storeKey);
+
+    if (existing) {
+      if (existing.expiresAt <= now) {
+        this.idempotencyRecords.delete(storeKey);
+      } else if (
+        existing.txId !== dto.txId ||
+        existing.confessionId !== confessionId ||
+        existing.operation !== 'verify_tip' ||
+        existing.caller !== caller
+      ) {
+        this.logger.warn({
+          message: 'Idempotency key replay rejected due to payload/caller mismatch',
+          requestId,
+          confessionId,
+          txHash: dto.txId,
+        });
+        throw ErrorUtils.operationConflict('tip', 'IDEMPOTENCY_KEY_CONFLICT', {
+          message:
+            'Idempotency key has already been used for a different tipping request.',
+          state: 'conflict' as TipResponseState,
+          canRetry: false,
+          retryWith: 'a new idempotency key',
+          details: { field: 'idempotencyKey' },
+        });
+      } else {
+        existing.expiresAt = now + TippingService.IDEMPOTENCY_TTL_MS;
+        this.idempotencyRecords.delete(storeKey);
+        this.idempotencyRecords.set(storeKey, existing);
+        return;
+      }
+    }
+
+    this.idempotencyRecords.set(storeKey, {
+      key,
+      txId: dto.txId,
+      confessionId,
+      operation: 'verify_tip',
+      caller,
+      expiresAt: now + TippingService.IDEMPOTENCY_TTL_MS,
+    });
   }
 
   /**
@@ -601,19 +828,19 @@ export class TippingService {
         return { tip, isNew: false, isIdempotent: true, state: 'duplicate' };
 
       case TipVerificationStatus.PENDING:
-        throw new ConflictException({
+        throw ErrorUtils.operationConflict('tip', 'ALREADY_PROCESSING', {
           message: `Transaction ${tip.txId} is currently being processed. Please retry in a moment.`,
           state: 'pending' as TipResponseState,
-          conflictReason: 'ALREADY_PROCESSING',
           canRetry: true,
+          retryAfter: 2,
         });
 
       case TipVerificationStatus.STALE_PENDING:
-        throw new ConflictException({
+        throw ErrorUtils.operationConflict('tip', 'STALE_PENDING', {
           message: `Transaction ${tip.txId} verification has exceeded the expected processing time and is under review. It has not failed — check back shortly or contact support with this reference.`,
           state: 'stale' as TipResponseState,
-          conflictReason: 'ALREADY_PROCESSING',
           canRetry: true,
+          retryAfter: 30,
         });
 
       case TipVerificationStatus.REJECTED:
@@ -625,10 +852,9 @@ export class TippingService {
 
       case TipVerificationStatus.CONFLICT:
       default:
-        throw new ConflictException({
+        throw ErrorUtils.operationConflict('tip', 'DIFFERENT_CONFESSION', {
           message: `Transaction ${tip.txId} could not be processed due to a conflicting prior record.`,
           state: 'conflict' as TipResponseState,
-          conflictReason: 'DIFFERENT_CONFESSION',
           canRetry: false,
         });
     }
@@ -721,39 +947,94 @@ export class TippingService {
   // Horizon helpers (unchanged)
   // ──────────────────────────────────────────────────────────────────────────
 
+  private getRpcRetryConfig() {
+    return {
+      rpcMaxRetries: Number(this.configService?.get('STELLAR_RPC_MAX_RETRIES') ?? 3),
+      rpcRetryBaseDelayMs: Number(
+        this.configService?.get('STELLAR_RPC_RETRY_BASE_DELAY_MS') ?? 1000,
+      ),
+      rpcRetryMaxDelayMs: Number(
+        this.configService?.get('STELLAR_RPC_RETRY_MAX_DELAY_MS') ?? 10000,
+      ),
+      rpcTimeoutMs: Number(this.configService?.get('STELLAR_RPC_TIMEOUT_MS') ?? 15000),
+    };
+  }
+
   private async fetchTransactionData(txId: string): Promise<any> {
     const horizonUrl = this.stellarService.getHorizonTxUrl(txId);
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10_000);
+    const rpcConfig = this.getRpcRetryConfig();
 
-    let response: Response;
-    try {
-      response = await fetch(horizonUrl, { signal: controller.signal });
-    } catch (error: any) {
-      clearTimeout(timeoutId);
-      if (error.name === 'AbortError') {
-        throw new GatewayTimeoutException('Horizon request timed out');
+    for (let attempt = 0; attempt <= rpcConfig.rpcMaxRetries; attempt++) {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), rpcConfig.rpcTimeoutMs);
+
+      try {
+        const response = await fetch(horizonUrl, { signal: controller.signal });
+
+        if (response.status === 429) {
+          throw Object.assign(new Error('Stellar RPC rate limited (429)'), {
+            status: 429,
+            response: { status: 429, headers: response.headers },
+          });
+        }
+
+        if (response.status === 404) {
+          throw new NotFoundException('Transaction not found on Stellar network');
+        }
+
+        if (response.status >= 500) {
+          throw Object.assign(new Error(`Horizon returned ${response.status}`), {
+            status: response.status,
+            response: { status: response.status, headers: response.headers },
+          });
+        }
+
+        if (!response.ok) {
+          const body = await response.text().catch(() => '');
+          this.logger.warn({ event: 'horizon_error', txId, status: response.status, body });
+          throw new BadRequestException(
+            `Horizon returned status ${response.status}`,
+          );
+        }
+
+        return await response.json();
+      } catch (error: any) {
+        if (
+          error instanceof NotFoundException ||
+          error instanceof BadRequestException ||
+          error instanceof ServiceUnavailableException
+        ) {
+          throw error;
+        }
+
+        const isAbort = error instanceof DOMException && error.name === 'AbortError';
+        const normalizedError = isAbort
+          ? Object.assign(new Error('Horizon request timed out'), {
+              status: 504,
+              cause: error,
+            })
+          : error;
+
+        if (isTransientRpcError(normalizedError)) {
+          await backOffOrFailTransient(
+            'fetchTransactionData',
+            normalizedError,
+            attempt,
+            rpcConfig,
+            this.logger,
+          );
+          continue;
+        }
+
+        throw new BadRequestException(
+          `Failed to fetch transaction data: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        );
+      } finally {
+        clearTimeout(timeoutId);
       }
-      throw new GatewayTimeoutException(
-        `Network error fetching transaction: ${error.message}`,
-      );
-    } finally {
-      clearTimeout(timeoutId);
     }
 
-    if (response.status === 404) {
-      throw new NotFoundException('Transaction not found on Stellar network');
-    }
-
-    if (!response.ok) {
-      const body = await response.text().catch(() => '');
-      this.logger.warn({ event: 'horizon_error', txId, status: response.status, body });
-      throw new BadRequestException(
-        `Horizon returned status ${response.status}`,
-      );
-    }
-
-    return response.json();
+    throw new StellarRpcUnavailableException(1);
   }
 
   private async processTransactionData(
@@ -775,9 +1056,9 @@ export class TippingService {
       const paymentOp = paymentOps[0];
       const amount = parseFloat(paymentOp.amount);
       const receiptMetadata = this.extractSettlementReceiptMetadata(txData);
-      const senderAddress = receiptMetadata.anonymousSender
-        ? null
-        : paymentOp.from ?? null;
+      const senderAddress = this.normalizeSenderAddress(
+        receiptMetadata.anonymousSender ? null : paymentOp.from ?? null,
+      );
 
       return { amount, senderAddress, receiptMetadata };
     } catch (error) {

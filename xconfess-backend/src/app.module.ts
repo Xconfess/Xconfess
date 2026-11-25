@@ -19,6 +19,8 @@ import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import throttleConfig from './config/throttle.config';
 import exportConfig from './config/export.config';
+import commentConfig from './config/comment.config';
+import attachmentConfig from './config/attachment.config';
 import { HealthModule } from './health/health.module';
 import { MessagesModule } from './messages/messages.module';
 import { AdminModule } from './admin/admin.module';
@@ -43,14 +45,17 @@ import { AttachmentModule } from './attachment/attachment.module';
 // The legacy @nestjs/bull import has been removed. All queues use BullMQ.
 import { BullModule } from '@nestjs/bullmq';
 import { StructuredLoggingInterceptor } from './common/logging/structured-logging.interceptor';
+import { DeprecationHeadersInterceptor } from './common/interceptors/deprecation-headers.interceptor';
 import { GracefulShutdownModule } from './common/graceful-shutdown.module';
+import { ObservabilityModule } from './observability/observability.module';
+import { HttpMetricsMiddleware } from './observability/http-metrics.middleware';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: '.env',
-      load: [throttleConfig, appConfig, exportConfig],
+      load: [throttleConfig, appConfig, exportConfig, commentConfig, attachmentConfig],
       validationSchema: envValidationSchema,
       validationOptions: { abortEarly: false },
     }),
@@ -67,6 +72,13 @@ import { GracefulShutdownModule } from './common/graceful-shutdown.module';
             name: 'strict',
             ttl: (config.get<number>('throttle.strictTtlSeconds') || 60) * 1000,
             limit: config.get<number>('throttle.strictLimit') || 5,
+          },
+          {
+            // Issue #2121: abuse throttle on POST /confessions. See
+            // confession.controller.ts and config/throttle.config.ts.
+            name: 'confessionSubmit',
+            ttl: config.get<number>('throttle.confessionSubmitTtlMs') || 60_000,
+            limit: config.get<number>('throttle.confessionSubmitLimit') || 10,
           },
         ],
       }),
@@ -130,6 +142,7 @@ import { GracefulShutdownModule } from './common/graceful-shutdown.module';
     }),
     EventEmitterModule.forRoot(),
     ScheduleModule.forRoot(),
+    ObservabilityModule,
     HealthModule,
     AnalyticsModule,
     UserModule,
@@ -168,12 +181,20 @@ FeatureFlagsModule,
       provide: APP_INTERCEPTOR,
       useClass: StructuredLoggingInterceptor,
     },
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: DeprecationHeadersInterceptor,
+    },
   ],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
     // RequestIdMiddleware first so downstream handlers/loggers can read
     // req.requestId, and so it's set even if SanitizationMiddleware throws.
-    consumer.apply(RequestIdMiddleware, SanitizationMiddleware).forRoutes('*');
+    // HttpMetricsMiddleware is first so latency covers the whole middleware
+    // chain and it still records requests rejected later (401/403/404/429).
+    consumer
+      .apply(HttpMetricsMiddleware, RequestIdMiddleware, SanitizationMiddleware)
+      .forRoutes('*');
   }
 }

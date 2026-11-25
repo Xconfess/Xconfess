@@ -12,11 +12,11 @@ const ProfileHeader = ({ profile }: Props) => {
         alt=""
         width={112}
         height={112}
-        className="w-28 h-28 rounded-full object-cover shadow-lg"
+        className="w-28 h-28 rounded-full object-cover"
       />
       <div>
-        <h1 className="text-3xl font-bold">{profile.isAnonymous ? "Anonymous" : profile.username}</h1>
-        <p className="text-gray-400 text-sm">Member of Xconfess</p>
+        <h1 className="text-3xl font-semibold">{profile.isAnonymous ? "Anonymous" : profile.username}</h1>
+        <p className="text-[var(--text-muted)] text-sm">Member of Xconfess</p>
       </div>
     </div>
   );

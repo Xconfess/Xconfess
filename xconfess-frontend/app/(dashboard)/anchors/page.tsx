@@ -45,25 +45,25 @@ export default function AnchorsPage() {
     switch (status) {
       case "confirmed":
         return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-[var(--success)]/10 text-[var(--foreground)]">
             <CheckCircle2 className="w-3 h-3" /> Confirmed
           </span>
         );
       case "pending":
         return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-[var(--accent-soft)] text-[var(--primary-deep)]">
             <Clock className="w-3 h-3 animate-pulse" /> Pending
           </span>
         );
       case "stale":
         return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-[var(--warning)]/10 text-[var(--foreground)]">
             <AlertTriangle className="w-3 h-3" /> Stale
           </span>
         );
       case "failed":
         return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-[var(--danger)]/10 text-[var(--foreground)]">
             <XCircle className="w-3 h-3" /> Failed
           </span>
         );
@@ -73,15 +73,15 @@ export default function AnchorsPage() {
   return (
     <div className="max-w-4xl mx-auto px-4 py-8 sm:px-6">
       <div className="flex items-center gap-3 mb-8">
-        <Anchor className="w-6 h-6 text-blue-600" />
-        <h1 className="text-2xl font-bold text-[var(--foreground)]">
+        <Anchor className="w-6 h-6 text-[var(--primary-deep)]" />
+        <h1 className="text-2xl font-semibold text-[var(--foreground)]">
           My On-Chain Anchors
         </h1>
       </div>
 
       {isLoading && (
         <div className="flex items-center justify-center py-20">
-          <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+          <Loader2 className="w-8 h-8 animate-spin text-[var(--primary-deep)]" />
           <span className="ml-3 text-[var(--secondary)]">
             Loading anchors...
           </span>
@@ -90,7 +90,7 @@ export default function AnchorsPage() {
 
       {isError && (
         <div className="flex flex-col items-center justify-center py-20 text-center">
-          <AlertCircle className="w-12 h-12 text-red-500 mb-4" />
+          <AlertCircle className="w-12 h-12 text-[var(--danger)] mb-4" />
           <p className="text-[var(--secondary)] mb-4">
             {error instanceof Error
               ? error.message
@@ -98,7 +98,7 @@ export default function AnchorsPage() {
           </p>
           <button
             onClick={() => refetch()}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
+            className="px-4 py-2 bg-[var(--primary)] text-white rounded-lg hover:bg-[var(--primary-hover)] transition"
           >
             Retry
           </button>
@@ -116,45 +116,45 @@ export default function AnchorsPage() {
 
       {!isLoading && !isError && data && data.data.length > 0 && (
         <>
-          <div className="bg-white rounded-xl shadow-md overflow-hidden">
+          <div className="bg-[var(--surface)] rounded-xl overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
-                  <tr className="border-b border-gray-200 bg-gray-50">
-                    <th className="text-left px-6 py-3 text-sm font-semibold text-gray-700">
+                  <tr className="border-b border-[var(--border)] bg-[var(--surface-muted)]">
+                    <th className="text-left px-6 py-3 text-sm font-semibold text-[var(--secondary)]">
                       Confession ID
                     </th>
-                    <th className="text-left px-6 py-3 text-sm font-semibold text-gray-700">
+                    <th className="text-left px-6 py-3 text-sm font-semibold text-[var(--secondary)]">
                       Status
                     </th>
-                    <th className="text-left px-6 py-3 text-sm font-semibold text-gray-700">
+                    <th className="text-left px-6 py-3 text-sm font-semibold text-[var(--secondary)]">
                       Anchored At
                     </th>
-                    <th className="text-left px-6 py-3 text-sm font-semibold text-gray-700">
+                    <th className="text-left px-6 py-3 text-sm font-semibold text-[var(--secondary)]">
                       Contract ID
                     </th>
-                    <th className="text-right px-6 py-3 text-sm font-semibold text-gray-700">
+                    <th className="text-right px-6 py-3 text-sm font-semibold text-[var(--secondary)]">
                       Explorer / Action
                     </th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-200">
+                <tbody className="divide-y divide-[var(--border)]">
                   {data.data.map((anchor: AnchorItem) => {
                     const status = anchor.status || "confirmed";
                     return (
                       <tr
                         key={anchor.confessionId}
-                        className="hover:bg-gray-50 transition"
+                        className="hover:bg-[var(--surface-muted)] transition"
                       >
                         <td className="px-6 py-4">
-                          <code className="text-xs font-mono text-gray-900 bg-gray-100 px-2 py-1 rounded">
+                          <code className="text-xs font-mono text-[var(--foreground)] bg-[var(--surface-muted)] px-2 py-1 rounded">
                             {anchor.confessionId.substring(0, 8)}...
                           </code>
                         </td>
                         <td className="px-6 py-4">
                           {renderStatusBadge(status)}
                         </td>
-                        <td className="px-6 py-4 text-sm text-gray-700">
+                        <td className="px-6 py-4 text-sm text-[var(--secondary)]">
                           {new Date(anchor.anchoredAt).toLocaleDateString(
                             "en-US",
                             {
@@ -167,7 +167,7 @@ export default function AnchorsPage() {
                           )}
                         </td>
                         <td className="px-6 py-4">
-                          <code className="text-xs font-mono text-gray-600 bg-gray-100 px-2 py-1 rounded">
+                          <code className="text-xs font-mono text-[var(--secondary)] bg-[var(--surface-muted)] px-2 py-1 rounded">
                             {anchor.contractId.substring(0, 12)}...
                           </code>
                         </td>
@@ -177,7 +177,7 @@ export default function AnchorsPage() {
                               href={getStellarExplorerUrl(anchor.stellarTxHash) as string}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 text-sm font-medium"
+                              className="inline-flex items-center gap-1 text-[var(--primary-deep)] hover:text-[var(--primary-deep)] text-sm font-medium"
                             >
                               View
                               <ExternalLink className="w-3.5 h-3.5" />
@@ -188,12 +188,12 @@ export default function AnchorsPage() {
                                 // Trigger retry action or refetch
                                 refetch();
                               }}
-                              className="inline-flex items-center gap-1 text-xs px-2.5 py-1 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition"
+                              className="inline-flex items-center gap-1 text-xs px-2.5 py-1 bg-[var(--primary)] text-white rounded-md hover:bg-[var(--primary-hover)] transition"
                             >
                               <RefreshCw className="w-3 h-3" /> Retry
                             </button>
                           ) : (
-                            <span className="text-xs text-gray-400">Processing</span>
+                            <span className="text-xs text-[var(--text-muted)]">Processing</span>
                           )}
                         </td>
                       </tr>
@@ -209,7 +209,7 @@ export default function AnchorsPage() {
               <button
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
                 disabled={page <= 1}
-                className="inline-flex items-center gap-1 px-4 py-2 text-sm rounded-lg border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition"
+                className="inline-flex items-center gap-1 px-4 py-2 text-sm rounded-lg border border-[var(--accent-border)] bg-[var(--surface)] text-[var(--secondary)] hover:bg-[var(--surface-muted)] disabled:opacity-40 disabled:cursor-not-allowed transition"
               >
                 <ChevronLeft className="w-4 h-4" />
                 Previous
@@ -220,7 +220,7 @@ export default function AnchorsPage() {
               <button
                 onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                 disabled={page >= totalPages}
-                className="inline-flex items-center gap-1 px-4 py-2 text-sm rounded-lg border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition"
+                className="inline-flex items-center gap-1 px-4 py-2 text-sm rounded-lg border border-[var(--accent-border)] bg-[var(--surface)] text-[var(--secondary)] hover:bg-[var(--surface-muted)] disabled:opacity-40 disabled:cursor-not-allowed transition"
               >
                 Next
                 <ChevronRight className="w-4 h-4" />

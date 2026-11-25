@@ -27,6 +27,13 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
       };
     }
 
+    if (normalized.includes('session revoked')) {
+      return {
+        message: 'Authentication session has been revoked',
+        code: ErrorCode.AUTH_SESSION_REVOKED,
+      };
+    }
+
     if (
       normalized.includes('invalid token') ||
       normalized.includes('invalid signature') ||

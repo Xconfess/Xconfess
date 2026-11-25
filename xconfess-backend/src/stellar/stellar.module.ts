@@ -51,6 +51,7 @@ import { StellarAddressValidator } from './validators/stellar-address.validator'
     ContractService,
     DeploymentMetadataService,
     SorobanEventCheckpointService,
+    StellarAddressValidator,
   ],
 })
 export class StellarModule {}

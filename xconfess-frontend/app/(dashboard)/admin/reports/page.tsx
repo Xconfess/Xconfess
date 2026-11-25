@@ -7,7 +7,7 @@ export default function ReportsPage() {
     <div className="min-w-0 space-y-6">
       <div>
         <p className="eyebrow">Moderation</p>
-        <h1 className="mt-2 text-2xl font-bold text-[var(--foreground)]">
+        <h1 className="mt-2 text-2xl font-semibold text-[var(--foreground)]">
           Reports
         </h1>
       </div>

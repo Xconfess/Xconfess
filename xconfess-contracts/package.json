@@ -20,7 +20,8 @@
     "abi:check": "bash scripts/check-abi-drift.sh"
   },
   "engines": {
-    "node": ">=18"
+    "node": "22.x",
+    "npm": ">=9.0.0"
   }
 }
 

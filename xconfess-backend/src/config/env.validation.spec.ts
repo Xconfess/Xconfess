@@ -124,9 +124,7 @@ describe('Environment Validation', () => {
       ...baseConfig,
       CONFESSION_ENCRYPTION_KEY: validKey,
       STELLAR_FEATURES_ENABLED: 'true',
-      CONFESSION_ANCHOR_CONTRACT_ID: 'CANCHOR',
-      REPUTATION_BADGES_CONTRACT_ID: 'CBADGES',
-      TIPPING_SYSTEM_CONTRACT_ID: 'CTIP',
+      ...productionContractIds,
     };
     const { error } = envValidationSchema.validate(config);
     expect(error).toBeUndefined();

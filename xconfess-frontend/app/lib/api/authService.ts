@@ -19,6 +19,11 @@ import {
     getAuthErrorMessage,
 } from '@/lib/normalizeAuthError';
 import { getApiBaseUrl } from '@/app/lib/config';
+import {
+  coordinateSessionExpiry,
+  resetSessionExpiryCoordinator,
+} from '@/app/lib/auth/sessionExpiry';
+import { useAuthStore } from '@/app/lib/store/authStore';
 
 export type AuthFieldError = 'email' | 'username' | 'password' | 'confirmPassword';
 
@@ -60,9 +65,7 @@ apiClient.interceptors.response.use(
   (response) => response,
   async (error: AxiosError) => {
     if (error.response?.status === 401) {
-      // Session expired or invalid - clear session cookie
-      // AuthGuard will handle the deterministic redirect
-      await fetch('/api/auth/session', { method: 'DELETE' }).catch(() => { });
+      await coordinateSessionExpiry(() => useAuthStore.getState().logout());
     }
     return Promise.reject(error);
   }
@@ -153,7 +156,9 @@ export const authApi = {
         throw apiError;
       }
 
-      return await response.json();
+      const result = await response.json();
+      resetSessionExpiryCoordinator();
+      return result;
     } catch (error) {
       const appError =
         error instanceof AppError ? error : toAppError(error, 'Login failed');

@@ -1,6 +1,10 @@
 import { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { ConfessionDetailClient } from "./ConfessionDetailClient";
+import {
+  buildConfessionMetadata,
+  isConfessionPreviewable,
+} from "@/app/lib/utils/confessionMetadata";
 
 const APP_URL =
   process.env.APP_URL ||
@@ -25,6 +29,7 @@ async function getConfession(id: string) {
     return {
       id: data.id,
       content,
+      previewable: isConfessionPreviewable(data),
       createdAt: data.createdAt ?? data.created_at,
       viewCount: data.viewCount ?? data.view_count ?? 0,
       reactions: data.reactions ?? { like: 0, love: 0 },
@@ -50,43 +55,7 @@ export async function generateMetadata({
 }: PageProps): Promise<Metadata> {
   const { id } = await params;
   const confession = await getConfession(id);
-  const title = confession
-    ? `Confession — xConfess`
-    : "Confession not found — xConfess";
-  const description = confession
-    ? confession.content.slice(0, 155).replace(/\n/g, " ") +
-      (confession.content.length > 155 ? "…" : "")
-    : "View confession on xConfess";
-  const url = `${APP_URL}/confessions/${id}`;
-  const ogImage = confession
-    ? `${APP_URL}/api/og?text=${encodeURIComponent(confession.content.slice(0, 150))}`
-    : `${APP_URL}/api/og?text=XConfess`;
-
-  return {
-    title,
-    description,
-    openGraph: {
-      title,
-      description,
-      url,
-      type: "article",
-      images: [
-        {
-          url: ogImage,
-          width: 1200,
-          height: 630,
-          alt: "XConfess - Anonymous Confession",
-        },
-      ],
-    },
-    twitter: {
-      card: "summary_large_image",
-      title,
-      description,
-      images: [ogImage],
-    },
-    alternates: { canonical: url },
-  };
+  return buildConfessionMetadata(APP_URL, id, confession);
 }
 
 export default async function ConfessionDetailPage({ params }: PageProps) {

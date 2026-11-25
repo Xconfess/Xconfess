@@ -1,6 +1,11 @@
 import { Injectable, OnModuleInit, Logger } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
+import {
+  formatMigrationDriftReport,
+  inspectMigrationDrift,
+  MigrationDriftResult,
+} from './migration-drift';
 
 /** Columns required on `anonymous_confessions` for search and analytics paths. */
 export const REQUIRED_CONFESSION_COLUMNS = [
@@ -27,6 +32,27 @@ export interface ForeignKeyReadinessResult {
   missingForeignKeys: string[];
   missingIndexes: string[];
   queryError?: string;
+}
+
+/**
+ * Result of comparing TypeORM entity metadata with the live `public` schema.
+ * Every list holds `table.column` labels (or table names) that need a fix.
+ */
+export interface EntityColumnReadinessResult {
+  ok: boolean;
+  /** Entity tables with no matching table in the database. */
+  missingTables: string[];
+  /** Columns declared on an entity but absent from its table. */
+  missingColumns: string[];
+  /** Columns whose NULL / NOT NULL constraint differs from the entity. */
+  nullabilityMismatches: string[];
+  queryError?: string;
+}
+
+interface CatalogColumn {
+  table_name: string;
+  column_name: string;
+  is_nullable: 'YES' | 'NO';
 }
 
 interface CatalogForeignKey {
@@ -85,6 +111,18 @@ export class MigrationVerificationService implements OnModuleInit {
     }
     const result = await this.checkConfessionSchema();
     this.logStartupOutcome(result);
+    const drift = await this.checkMigrationDrift();
+    if (drift.status === 'in_sync') {
+      this.logger.log(
+        `migration_drift_ok applied=${drift.appliedCount} shipped=${drift.expectedCount}`,
+      );
+    } else if (drift.status === 'skipped') {
+      this.logger.log(`migration_drift_skipped ${drift.skippedReason ?? ''}`);
+    } else {
+      this.logger.warn(
+        `migration_drift_detected\n${formatMigrationDriftReport(drift)}`,
+      );
+    }
     const foreignKeys = await this.checkForeignKeyIntegrity();
     if (foreignKeys.queryError) {
       this.logger.error(
@@ -146,6 +184,15 @@ export class MigrationVerificationService implements OnModuleInit {
         queryError: message,
       };
     }
+  }
+
+  /**
+   * Compare the migrations shipped with this build against the migrations
+   * table of the connected database. Used at startup and by the schema
+   * readiness indicator so pending migrations fail `/api/health/ready`.
+   */
+  async checkMigrationDrift(): Promise<MigrationDriftResult> {
+    return inspectMigrationDrift(this.dataSource);
   }
 
   /**
@@ -266,15 +313,85 @@ export class MigrationVerificationService implements OnModuleInit {
   }
 
   /**
-   * Verify migration files across both migration directories for duplicates
-   * and out-of-order timestamps.
+   * Compare every entity column with the live `public` schema.
+   *
+   * Catches an entity that changed without a matching migration (a missing
+   * table or column, or a NULL / NOT NULL mismatch), which otherwise only
+   * shows up later as a runtime SQL error.
    */
-  async verifyMigrations(): Promise<string[]> {
+  async checkEntityColumnCompatibility(): Promise<EntityColumnReadinessResult> {
+    try {
+      const catalogRows = await this.dataSource.query<CatalogColumn[]>(`
+        SELECT table_name, column_name, is_nullable
+        FROM information_schema.columns
+        WHERE table_schema = 'public';
+      `);
+
+      const catalog = new Map<string, Map<string, boolean>>();
+      for (const row of catalogRows) {
+        const columns =
+          catalog.get(row.table_name) ?? new Map<string, boolean>();
+        columns.set(row.column_name, row.is_nullable === 'YES');
+        catalog.set(row.table_name, columns);
+      }
+
+      const missingTables = new Set<string>();
+      const missingColumns: string[] = [];
+      const nullabilityMismatches: string[] = [];
+
+      for (const entity of this.dataSource.entityMetadatas) {
+        const columns = catalog.get(entity.tableName);
+        if (!columns) {
+          missingTables.add(entity.tableName);
+          continue;
+        }
+        for (const column of entity.columns) {
+          const label = `${entity.tableName}.${column.databaseName}`;
+          const databaseNullable = columns.get(column.databaseName);
+          if (databaseNullable === undefined) {
+            missingColumns.push(label);
+          } else if (databaseNullable !== column.isNullable) {
+            nullabilityMismatches.push(
+              `${label} (entity ${column.isNullable ? 'NULL' : 'NOT NULL'}, database ${databaseNullable ? 'NULL' : 'NOT NULL'})`,
+            );
+          }
+        }
+      }
+
+      const result = {
+        missingTables: [...missingTables],
+        missingColumns,
+        nullabilityMismatches,
+      };
+      return {
+        ...result,
+        ok:
+          result.missingTables.length === 0 &&
+          result.missingColumns.length === 0 &&
+          result.nullabilityMismatches.length === 0,
+      };
+    } catch (err: unknown) {
+      return {
+        ok: false,
+        missingTables: [],
+        missingColumns: [],
+        nullabilityMismatches: [],
+        queryError: err instanceof Error ? err.message : String(err),
+      };
+    }
+  }
+
+  /**
+   * Verify migration files across both migration directories for duplicates
+   * and out-of-order timestamps. Pass `dirs` to check a different set of
+   * directories; the default is the two migration folders of the backend.
+   */
+  async verifyMigrations(dirs?: string[]): Promise<string[]> {
     const issues: string[] = [];
     const fs = await import('fs');
     const path = await import('path');
 
-    const dirs = [
+    const migrationDirs = dirs ?? [
       path.join(process.cwd(), 'migrations'),
       path.join(process.cwd(), 'src', 'migrations'),
     ];
@@ -282,7 +399,7 @@ export class MigrationVerificationService implements OnModuleInit {
     const seenTimestamps = new Map<string, string[]>();
     const seenNames = new Map<string, string[]>();
 
-    for (const dir of dirs) {
+    for (const dir of migrationDirs) {
       if (!fs.existsSync(dir)) continue;
       const files = fs.readdirSync(dir).filter((f) => f.endsWith('.ts'));
       for (const file of files) {

@@ -1,6 +1,7 @@
 import {
   QueryError,
   exponentialBackoff,
+  isPaginationCursorExpired,
   isRetryableError,
   retryOnTransientError,
 } from "../retry";
@@ -56,5 +57,62 @@ describe("exponentialBackoff", () => {
     expect(exponentialBackoff(1)).toBe(2000);
     expect(exponentialBackoff(2)).toBe(4000);
     expect(exponentialBackoff(10)).toBe(30000);
+  });
+});
+
+describe("isPaginationCursorExpired (#2311)", () => {
+  it("matches the explicit expired codes", () => {
+    for (const code of [
+      "PAGINATION_CURSOR_EXPIRED",
+      "BAD_CURSOR",
+      "INVALID_CURSOR",
+      "PAGINATION_INVALID_PAGE",
+    ]) {
+      const err = new QueryError({ status: 400, code, message: "stale" });
+      expect(isPaginationCursorExpired(err)).toBe(true);
+    }
+  });
+
+  it("matches 410 Gone and 404 Not Found regardless of code", () => {
+    expect(
+      isPaginationCursorExpired(
+        new QueryError({ status: 410, code: "GONE", message: "gone" }),
+      ),
+    ).toBe(true);
+    expect(
+      isPaginationCursorExpired(
+        new QueryError({ status: 404, code: "NOT_FOUND", message: "missing" }),
+      ),
+    ).toBe(true);
+  });
+
+  it("matches 400 with a cursor-ish code", () => {
+    expect(
+      isPaginationCursorExpired(
+        new QueryError({ status: 400, code: "CURSOR_SIGNATURE_MISMATCH", message: "" }),
+      ),
+    ).toBe(true);
+  });
+
+  it("does NOT match ordinary client errors", () => {
+    expect(
+      isPaginationCursorExpired(
+        new QueryError({ status: 401, code: "UNAUTHORIZED", message: "" }),
+      ),
+    ).toBe(false);
+    expect(
+      isPaginationCursorExpired(
+        new QueryError({ status: 429, code: "RATE_LIMITED", message: "" }),
+      ),
+    ).toBe(false);
+  });
+
+  it("retryOnTransientError refuses to retry an expired cursor", () => {
+    const expired = new QueryError({
+      status: 410,
+      code: "GONE",
+      message: "stale",
+    });
+    expect(retryOnTransientError(0, expired)).toBe(false);
   });
 });

@@ -1,31 +1,31 @@
 {
   "contracts": {
     "confession-anchor": {
-      "bytes": 40556,
-      "sha256": "fc4f4e6ccb4b38ad71ace722a69dc3470a675d3f112788abba94bb3b443ce7d7",
+      "bytes": 41256,
+      "sha256": "8e035c14c6de69d4bce6cdca63a4c1c5cd54124e95bdec684ce051d5600c1c24",
       "version": "0.1.0",
       "wasm_file": "target/wasm32v1-none/release/confession_anchor.wasm"
     },
     "confession-registry": {
-      "bytes": 55169,
-      "sha256": "0a4708682d777075100f5fb7f4e6d3222fef83ccf49a252b0f49c5167bcdfdce",
+      "bytes": 55916,
+      "sha256": "53add226d5282221e24ef10ad347111ba61b14a56ff4e3781ceb6ce8b64a326d",
       "version": "0.1.0",
       "wasm_file": "target/wasm32v1-none/release/confession_registry.wasm"
     },
     "anonymous-tipping": {
-      "bytes": 29389,
-      "sha256": "38c3d5d76bc026a1a3d25dabc473d9b37a2dd60787145400a1bb327624b76928",
+      "bytes": 29778,
+      "sha256": "209e6608863df4389201104d5aba6081dcb8d7a9cc6a4c593e50fa385d6365b5",
       "version": "1.0.0",
       "wasm_file": "target/wasm32v1-none/release/anonymous_tipping.wasm"
     },
     "reputation-badges": {
-      "bytes": 42694,
-      "sha256": "a1737b45c44ded77f714769f3a16fcfb876ae0658e3db5262cc7d64d9c3274f7",
+      "bytes": 43217,
+      "sha256": "a94ddbabe16b20800842d73e8e54a3ab8fc07519d1fa830637577e41928720b6",
       "version": "0.0.0",
       "wasm_file": "target/wasm32v1-none/release/reputation_badges.wasm"
     }
   },
-  "generated_at_utc": "2026-08-22T10:41:02Z",
+  "generated_at_utc": "2026-10-22T14:05:43Z",
   "profile": "release",
   "target": "wasm32v1-none"
 }

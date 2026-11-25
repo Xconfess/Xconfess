@@ -10,6 +10,7 @@ describe('NotificationProcessor', () => {
   let dlqQueue: { add: jest.Mock };
   let notificationQueue: { client: Promise<any> };
   let redisValues: Map<string, string>;
+  let redisAvailable: boolean;
   let appLogger: { incrementCounter: jest.Mock; observeTimer: jest.Mock };
 
   beforeEach(() => {
@@ -22,14 +23,20 @@ describe('NotificationProcessor', () => {
     };
 
     redisValues = new Map();
+    redisAvailable = true;
     const redis = {
-      get: jest.fn(async (key: string) => redisValues.get(key) ?? null),
+      get: jest.fn(async (key: string) => {
+        if (!redisAvailable) throw new Error('Redis connection unavailable');
+        return redisValues.get(key) ?? null;
+      }),
       set: jest.fn(async (key: string, value: string, ...options: unknown[]) => {
+        if (!redisAvailable) throw new Error('Redis connection unavailable');
         if (options.includes('NX') && redisValues.has(key)) return null;
         redisValues.set(key, value);
         return 'OK';
       }),
       eval: jest.fn(async (_script: string, _numKeys: number, key: string, token: string) => {
+        if (!redisAvailable) throw new Error('Redis connection unavailable');
         if (redisValues.get(key) === token) redisValues.delete(key);
         return 1;
       }),
@@ -130,7 +137,7 @@ describe('NotificationProcessor', () => {
       'dead-letter',
       expect.objectContaining({
         ...job.data,
-        _meta: expect.objectContaining({ originalJobId: String(job.id), attemptsMade: job.attemptsMade, lastError: 'terminal failure' }),
+        _meta: expect.objectContaining({ originalJobId: String(job.id), attemptsMade: job.attemptsMade, lastError: 'DELIVERY_FAILED' }),
       }),
       expect.objectContaining({ removeOnComplete: false, removeOnFail: false }),
     );
@@ -230,7 +237,7 @@ describe('NotificationProcessor', () => {
         _meta: expect.objectContaining({
           originalJobId: 'job-dlq-meta',
           attemptsMade: 3,
-          lastError: 'perm fail',
+          lastError: 'DELIVERY_FAILED',
           failedAt: expect.any(String),
         }),
       }),
@@ -332,6 +339,66 @@ describe('NotificationProcessor', () => {
     expect(emailNotificationService.sendEmail).toHaveBeenCalledTimes(1);
   });
 
+  it('retries after a temporary Redis outage and delivers exactly once after reconnect', async () => {
+    const job = {
+      name: 'send-notification',
+      id: 'job-redis-recovery',
+      attemptsMade: 0,
+      data: {
+        userId: 'user-recovery',
+        type: 'test',
+        title: 'T',
+        message: 'M',
+        idempotencyKey: 'redis-outage-event',
+      },
+      opts: { attempts: 5 },
+    } as unknown as Job<NotificationJobData>;
+
+    redisAvailable = false;
+    await expect(processor.process(job)).rejects.toThrow(
+      'Redis connection unavailable',
+    );
+    expect(emailNotificationService.sendEmail).not.toHaveBeenCalled();
+
+    redisAvailable = true;
+    await expect(processor.process(job)).resolves.toBeUndefined();
+    await expect(processor.process(job)).resolves.toBeUndefined();
+
+    expect(emailNotificationService.sendEmail).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not leave a stale delivery lock when Redis drops after delivery fails', async () => {
+    const job = {
+      name: 'send-notification',
+      id: 'job-redis-mid-delivery',
+      attemptsMade: 0,
+      data: {
+        userId: 'user-mid-delivery',
+        type: 'test',
+        title: 'T',
+        message: 'M',
+        idempotencyKey: 'redis-mid-delivery-event',
+      },
+      opts: { attempts: 5 },
+    } as unknown as Job<NotificationJobData>;
+    emailNotificationService.sendEmail
+      .mockImplementationOnce(async () => {
+        redisAvailable = false;
+        throw new Error('temporary delivery failure');
+      })
+      .mockResolvedValueOnce(undefined);
+
+    await expect(processor.process(job)).rejects.toThrow();
+
+    // Redis TTLs recover abandoned locks in production. Simulate expiry before
+    // BullMQ retries after the connection has returned.
+    redisValues.clear();
+    redisAvailable = true;
+    await expect(processor.process(job)).resolves.toBeUndefined();
+
+    expect(emailNotificationService.sendEmail).toHaveBeenCalledTimes(2);
+  });
+
   it('should process multiple jobs sequentially with independent retry tracking', async () => {
     const job1 = {
       name: 'send-notification',
@@ -359,5 +426,127 @@ describe('NotificationProcessor', () => {
       1,
       expect.objectContaining({ attempt: 2 }),
     );
+  });
+
+  // -------------------------------------------------------------------
+  // Issue #2127: retryable vs non-retryable classification
+  //
+  // The attack surface is a notification job that will always fail the
+  // same way on retry (bad credentials, invalid recipient, malformed
+  // message). Burning the retry budget on it delays the DLQ landing
+  // for the real problem and blocks a worker slot. These tests pin the
+  // three cases from the acceptance criteria: recovery on transient
+  // error, exhaustion still routes to DLQ, and permanent failure
+  // short-circuits the retry budget.
+  // -------------------------------------------------------------------
+
+  it('retries a transient provider error (ETIMEDOUT) by rethrowing so BullMQ can retry, then succeeds on a subsequent attempt', async () => {
+    const transient = Object.assign(new Error('socket timed out'), {
+      code: 'ETIMEDOUT',
+    });
+    const { UnrecoverableError } = (await import('bullmq')) as typeof import('bullmq');
+
+    const makeJob = (attempt: number): Job<NotificationJobData> =>
+      ({
+        name: 'send-notification',
+        id: 'job-transient',
+        attemptsMade: attempt,
+        data: {
+          userId: 'user-t',
+          type: 'test',
+          title: 'Title',
+          message: 'Body',
+        },
+        opts: { attempts: 5 },
+      }) as unknown as Job<NotificationJobData>;
+
+    // First attempt: the provider throws. The processor must rethrow
+    // the ORIGINAL error (not an UnrecoverableError) so BullMQ consumes
+    // a retry slot. One mock-rejection covers one `process` call.
+    emailNotificationService.sendEmail.mockRejectedValueOnce(transient);
+    const firstAttempt = processor.process(makeJob(0));
+    await expect(firstAttempt).rejects.toThrow('socket timed out');
+    await expect(
+      Promise.reject(transient),
+    ).rejects.not.toBeInstanceOf(UnrecoverableError);
+
+    // Second attempt (simulating BullMQ's retry): the default resolved
+    // mock kicks in and the job completes cleanly.
+    await expect(processor.process(makeJob(1))).resolves.not.toThrow();
+    expect(emailNotificationService.sendEmail).toHaveBeenCalledTimes(2);
+  });
+
+  it('converts a permanent provider error (EAUTH) to UnrecoverableError to skip the retry budget', async () => {
+    const permanent = Object.assign(new Error('bad credentials'), {
+      code: 'EAUTH',
+    });
+    emailNotificationService.sendEmail.mockRejectedValue(permanent);
+
+    const job = {
+      name: 'send-notification',
+      id: 'job-permanent',
+      attemptsMade: 0,
+      data: {
+        userId: 'user-p',
+        type: 'test',
+        title: 'Title',
+        message: 'Body',
+      },
+      opts: { attempts: 5 },
+    } as unknown as Job<NotificationJobData>;
+
+    const { UnrecoverableError } = (await import('bullmq')) as typeof import('bullmq');
+    await expect(processor.process(job)).rejects.toBeInstanceOf(UnrecoverableError);
+    await expect(processor.process(job)).rejects.toThrow(/EAUTH/);
+    expect(appLogger.incrementCounter).toHaveBeenCalledWith(
+      'notification_queue_permanent_failure_total',
+      1,
+      expect.objectContaining({ queue: NOTIFICATION_QUEUE }),
+    );
+  });
+
+  it('keeps unknown-code provider errors retryable (default is "transient until proven permanent")', async () => {
+    const unknown = Object.assign(new Error('something else'), {
+      code: 'EWEIRD',
+    });
+    emailNotificationService.sendEmail.mockRejectedValue(unknown);
+
+    const job = {
+      name: 'send-notification',
+      id: 'job-unknown',
+      attemptsMade: 0,
+      data: {
+        userId: 'user-u',
+        type: 'test',
+        title: 'Title',
+        message: 'Body',
+      },
+      opts: { attempts: 5 },
+    } as unknown as Job<NotificationJobData>;
+
+    const { UnrecoverableError } = (await import('bullmq')) as typeof import('bullmq');
+    await expect(processor.process(job)).rejects.toThrow('something else');
+    await expect(processor.process(job)).rejects.not.toBeInstanceOf(UnrecoverableError);
+  });
+
+  it('on retry exhaustion for any error class, onFailed still routes to the DLQ', async () => {
+    const job = {
+      name: 'send-notification',
+      id: 'job-exhausted',
+      attemptsMade: 5,
+      data: {
+        userId: 'user-x',
+        type: 'test',
+        title: 'Title',
+        message: 'Body',
+      },
+      opts: { attempts: 5 },
+    } as unknown as Job<NotificationJobData>;
+
+    await processor.onFailed(
+      job,
+      Object.assign(new Error('timeout'), { code: 'ETIMEDOUT' }),
+    );
+    expect(dlqQueue.add).toHaveBeenCalledTimes(1);
   });
 });

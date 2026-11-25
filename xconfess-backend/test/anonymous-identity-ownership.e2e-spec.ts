@@ -160,7 +160,7 @@ describe('Anonymous Identity Ownership Boundaries (e2e)', () => {
           anonId: fixture.otherLinkedAnonId,
           targetUserId: fixture.otherUserId,
         })
-        .expect(400 || 403 || 409);
+        .expect(400);
 
       expect(res.body.message).toBeDefined();
     });
@@ -184,7 +184,7 @@ describe('Anonymous Identity Ownership Boundaries (e2e)', () => {
       const res = await request(app.getHttpServer())
         .get(`/confessions/my-anonymous/${fixture.otherLinkedAnonId}`)
         .set('Authorization', `Bearer ${authToken}`)
-        .expect(403 || 404);
+        .expect(403);
 
       expect(res.body.message).toBeDefined();
     });

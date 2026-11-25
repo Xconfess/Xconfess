@@ -160,9 +160,24 @@ export class StellarReconciliationWorker {
 
       // Check Stellar Horizon for existing transaction status
       if (anchor.stellarTxHash) {
-        const txValid = await this.stellarService.verifyTransaction(
-          anchor.stellarTxHash,
-        );
+        let txValid = false;
+        try {
+          txValid = await this.stellarService.verifyTransaction(
+            anchor.stellarTxHash,
+          );
+        } catch (error) {
+          if ((error as any)?.name === 'StellarRpcUnavailableException' || (error as any)?.code === 'SERVICE_UNAVAILABLE') {
+            this.logger.warn({
+              event: 'stellar_anchor_rpc_unavailable',
+              requestId,
+              confessionId: anchor.confessionId,
+              txHash: anchor.stellarTxHash,
+              message: 'Stellar RPC unavailable during reconciliation; will retry on next cycle',
+            });
+            return 'skipped';
+          }
+          throw error;
+        }
         if (txValid) {
           if (anchor.status === AnchorStatus.OBSERVED) {
             // A successful transaction alone does not prove *this* confession

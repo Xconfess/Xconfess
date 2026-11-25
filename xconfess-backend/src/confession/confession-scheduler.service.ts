@@ -1,8 +1,10 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, LessThanOrEqual, DataSource } from 'typeorm';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { AnonymousConfession } from './entities/confession.entity';
+import { CacheService } from '../cache/cache.service';
+import { ConfessionCacheKeys } from '../cache/cache-namespace';
 
 @Injectable()
 export class ConfessionSchedulerService {
@@ -12,10 +14,13 @@ export class ConfessionSchedulerService {
     @InjectRepository(AnonymousConfession)
     private confessionRepository: Repository<AnonymousConfession>,
     private readonly dataSource: DataSource,
+    @Optional() private readonly cacheService?: CacheService,
   ) {}
 
   @Cron(CronExpression.EVERY_MINUTE)
   async publishScheduledConfessions() {
+    const publishedIds: string[] = [];
+
     await this.dataSource.transaction(async (manager) => {
       const repo = manager.getRepository(AnonymousConfession);
       const now = new Date();
@@ -41,6 +46,7 @@ export class ConfessionSchedulerService {
             .execute();
 
           if (result.affected && result.affected > 0) {
+            publishedIds.push(confession.id);
             this.logger.log(
               `Published scheduled confession id=${confession.id} publishAt=${confession.publishAt?.toISOString()}`,
             );
@@ -57,6 +63,21 @@ export class ConfessionSchedulerService {
         }
       }
     });
+
+    await this.invalidatePublishedCache(publishedIds);
+  }
+
+  /**
+   * Publishing adds confessions to feeds, so cached listings and the single
+   * entries for those ids are stale. Runs after the transaction commits.
+   */
+  private async invalidatePublishedCache(publishedIds: string[]) {
+    if (!this.cacheService || publishedIds.length === 0) return;
+
+    for (const id of publishedIds) {
+      await this.cacheService.del(ConfessionCacheKeys.single(id));
+    }
+    await this.cacheService.delPattern(ConfessionCacheKeys.listPrefix);
   }
 
   async scheduleConfession(

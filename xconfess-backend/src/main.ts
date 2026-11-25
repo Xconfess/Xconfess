@@ -5,6 +5,7 @@ import { ConfigService } from '@nestjs/config';
 import { ThrottlerExceptionFilter } from './common/filters/throttler-exception.filter';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
+import { validationExceptionFactory } from './common/validation/validation-exception-factory';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import compression from 'compression';
 import helmet from 'helmet';
@@ -12,20 +13,29 @@ import { RequestIdMiddleware } from './middleware/request-id.middleware';
 import { WebSocketAdapter } from './websocket/websocket.adapter';
 import { AppLogger } from './logger/logger.service';
 import { configureRequestBodyParsing } from './common/request-body-limits';
+import { buildCorsOptions } from './config/cors.config';
 import { GracefulShutdownService } from './common/graceful-shutdown.service';
 import { Queue } from 'bullmq';
 import { getQueueToken } from '@nestjs/bullmq';
 import { NotificationProcessor } from './notifications/processors/notification.processor';
 import { ExportProcessor } from './data-export/export.processor';
+import { OperationalMetricsService } from './observability/operational-metrics.service';
+import { categorizeRoute } from './observability/metric-labels';
 
 import {
   cookieParserMiddleware,
   csrfMiddleware,
   csrfCookieSetter,
 } from './common/middleware/middleware';
+import { RedactingConsoleLogger } from './common/logging/redacting-console.logger';
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule, { bodyParser: false });
+  const app = await NestFactory.create(AppModule, {
+    bodyParser: false,
+    // Issue #2282: every Logger call is redacted (tokens, secrets, user text).
+    logger: new RedactingConsoleLogger(),
+  });
   const configService = app.get(ConfigService);
+  const operationalMetrics = app.get(OperationalMetricsService);
 
   // â”€â”€ 1. Request-ID must be first so all downstream code sees it â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const requestIdMiddleware = new RequestIdMiddleware();
@@ -56,17 +66,16 @@ async function bootstrap() {
     }),
   );
 
-  // â”€â”€ 3. CORS â€” one allowed origin derived from config â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  //    Both HTTP and the WebSocket adapter read FRONTEND_URL so there is a
-  //    single documented source of truth for allowed origins.
-  const frontendUrl =
-    configService.get<string>('FRONTEND_URL') || 'http://localhost:3000';
-
-  app.enableCors({
-    origin: frontendUrl,
-    credentials: true,
-    methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
-  });
+  // ── 3. CORS — explicit origin allowlist ───────────────────────────────────
+  //    `CORS_ALLOWED_ORIGINS` (comma-separated) wins over the single
+  //    `FRONTEND_URL` default. Wildcards are rejected at startup because
+  //    credentialed requests are enabled.
+  app.enableCors(
+    buildCorsOptions({
+      corsAllowedOrigins: configService.get<string>('CORS_ALLOWED_ORIGINS'),
+      frontendUrl: configService.get<string>('FRONTEND_URL'),
+    }),
+  );
 
   // â”€â”€ 4. WebSocket adapter â€” reads the same FRONTEND_URL â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   app.useWebSocketAdapter(new WebSocketAdapter(app, configService));
@@ -101,13 +110,16 @@ async function bootstrap() {
 
   app.use((req, res, next) => {
     const routeKey = `${req.method.toUpperCase()} ${req.path}`;
+    const routeFamily = categorizeRoute(req.method, req.path);
     if (
       req.path.startsWith('/api/webhooks/moderation') ||
       csrfExemptRoutes.has(routeKey)
     ) {
+      operationalMetrics.recordCsrfCheck(routeFamily, 'allowed');
       return next();
     }
     csrfMiddleware(req as any, res as any, (err) => {
+      operationalMetrics.recordCsrfCheck(routeFamily, err ? 'rejected' : 'allowed');
       if (err) return next(err);
       csrfCookieSetter(req as any, res as any, next);
     });
@@ -118,6 +130,11 @@ async function bootstrap() {
     new ValidationPipe({
       whitelist: true,
       transform: true,
+      // Issue #2125: standardise DTO validation failures across every
+      // controller. The factory emits a BadRequestException whose body
+      // the HttpExceptionFilter surfaces as the documented schema v1
+      // envelope with `details.fields` populated per failing property.
+      exceptionFactory: validationExceptionFactory,
     }),
   );
 

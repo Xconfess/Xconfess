@@ -41,6 +41,12 @@ import { GetUser } from '../auth/get-user.decorator';
 import { RequestUser } from '../auth/interfaces/jwt-payload.interface';
 import { StellarDiagnosticsService } from './services/stellar-diagnostics.service';
 import {
+  AUDIT_LOG_SORT_FIELDS,
+  AuditLogSortField,
+  validateSortDirection,
+  validateSortField,
+} from '../common/validation/sort-allowlist';
+import {
   IsString,
   IsEnum,
   IsOptional,
@@ -682,6 +688,13 @@ export class AdminController {
     @Query('limit') limit?: string,
     @Query('offset') offset?: string,
   ) {
+    const validatedSortBy = validateSortField<AuditLogSortField>(
+      sortBy,
+      AUDIT_LOG_SORT_FIELDS,
+      'createdAt',
+    );
+    const validatedSortOrder = validateSortDirection(sortOrder);
+
     const result = await this.auditLogService.findAll({
       userId: adminId,
       actor,
@@ -690,8 +703,8 @@ export class AdminController {
       entityId,
       requestId,
       search,
-      sortBy,
-      sortOrder,
+      sortBy: validatedSortBy,
+      sortOrder: validatedSortOrder,
       startDate: startDate ? new Date(startDate) : undefined,
       endDate: endDate ? new Date(endDate) : undefined,
       limit: parseInt(limit || '100', 10),

@@ -102,7 +102,7 @@ export function SearchResults({
     return (
       <div
         className={cn(
-          "luxury-panel flex flex-col items-center justify-center rounded-[28px] border border-dashed px-4 py-16",
+          "luxury-panel flex flex-col items-center justify-center rounded-xl border border-dashed px-4 py-16",
           className
         )}
         role="status"
@@ -121,7 +121,7 @@ export function SearchResults({
     return (
       <div
         className={cn(
-          "luxury-panel flex flex-col items-center justify-center rounded-[28px] border border-dashed px-4 py-16",
+          "luxury-panel flex flex-col items-center justify-center rounded-xl border border-dashed px-4 py-16",
           className
         )}
         role="status"
@@ -140,7 +140,7 @@ export function SearchResults({
             <button
               type="button"
               onClick={onRetry}
-              className="rounded-full bg-[linear-gradient(135deg,var(--primary),var(--primary-deep))] px-4 py-2 text-sm font-medium text-white shadow-[0_18px_40px_-22px_rgba(88,105,125,0.55)] transition-colors hover:brightness-105"
+              className="rounded-full bg-[linear-gradient(135deg,var(--primary),var(--primary-deep))] px-4 py-2 text-sm font-medium text-[var(--foreground)] shadow-[0_18px_40px_-22px_rgba(88,105,125,0.55)] transition-colors hover:brightness-105"
             >
               Retry search
             </button>
@@ -179,7 +179,7 @@ export function SearchResults({
     <div className={cn("space-y-4 relative pb-24", className)} role="region" aria-label="Search results">
       {statusMeta?.degraded && (
         <div
-          className="rounded-[22px] border border-[var(--accent-border)] bg-[var(--accent-soft)] px-4 py-3 text-sm text-[var(--foreground)]"
+          className="rounded-xl border border-[var(--accent-border)] bg-[var(--accent-soft)] px-4 py-3 text-sm text-[var(--foreground)]"
           role="status"
         >
           <p className="font-medium">
@@ -197,7 +197,7 @@ export function SearchResults({
               <button
                 type="button"
                 onClick={onRetry}
-                className="rounded-full bg-white/65 px-3 py-1.5 text-xs font-medium text-[var(--foreground)] transition-colors hover:bg-white"
+                className="rounded-full bg-[var(--surface-muted)] px-3 py-1.5 text-xs font-medium text-[var(--foreground)] transition-colors hover:bg-[var(--surface)]"
               >
                 Retry
               </button>
@@ -229,7 +229,7 @@ export function SearchResults({
                 type="checkbox"
                 checked={selectedIds.includes(c.id)}
                 onChange={() => handleToggleSelect(c.id)}
-                className="h-4 w-4 rounded-md border-zinc-700 bg-zinc-900 text-amber-500 accent-amber-500 focus:ring-0 cursor-pointer"
+                className="h-4 w-4 rounded-md border-[var(--border)] bg-[var(--surface)] text-[var(--warning)] accent-[var(--warning)] focus:ring-0 cursor-pointer"
                 title="Select confession for perspective comparison comparison"
               />
             </div>
@@ -242,14 +242,14 @@ export function SearchResults({
 
       {/* Floating comparison context action bar */}
       {selectedIds.length > 0 && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 w-[calc(100%-2rem)] max-w-xl bg-zinc-900 border border-zinc-800 rounded-2xl shadow-2xl p-4 flex items-center justify-between gap-4 animate-in fade-in slide-in-from-bottom-4 duration-300">
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 w-[calc(100%-2rem)] max-w-xl bg-[var(--surface)] border border-[var(--border)] rounded-2xl shadow-[var(--shadow-popover)] p-4 flex items-center justify-between gap-4 animate-in fade-in slide-in-from-bottom-4 duration-300">
           <div className="flex items-center gap-2.5">
-            <div className="p-2 rounded-xl bg-zinc-800 text-amber-400">
+            <div className="p-2 rounded-xl bg-[var(--surface-muted)] text-[var(--warning)]">
               <Scale className="h-5 w-5" />
             </div>
             <div>
-              <p className="text-sm font-semibold text-white">Compare Perspectives</p>
-              <p className="text-xs text-zinc-400">
+              <p className="text-sm font-semibold text-[var(--foreground)]">Compare Perspectives</p>
+              <p className="text-xs text-[var(--text-muted)]">
                 {selectedIds.length === 1
                   ? "Select 1 more confession to compare"
                   : "2 confessions queued up for side-by-side view"}
@@ -261,7 +261,7 @@ export function SearchResults({
             <button
               type="button"
               onClick={() => setSelectedIds([])}
-              className="p-2 text-zinc-500 hover:text-zinc-300 transition-colors rounded-lg hover:bg-zinc-800"
+              className="p-2 text-[var(--text-muted)] hover:text-[var(--secondary)] transition-colors rounded-lg hover:bg-[var(--surface-muted)]"
               title="Clear selection checklist queue"
             >
               <X className="h-4 w-4" />
@@ -271,10 +271,10 @@ export function SearchResults({
               disabled={selectedIds.length !== 2}
               onClick={navigateToComparison}
               className={cn(
-                "px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all duration-200 shadow-md",
+                "px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all duration-200",
                 selectedIds.length === 2
-                  ? "bg-amber-500 text-zinc-950 hover:bg-amber-400 cursor-pointer"
-                  : "bg-zinc-800 text-zinc-500 cursor-not-allowed border border-zinc-700/50"
+                  ? "bg-[var(--warning)] text-[var(--foreground)] hover:opacity-90 cursor-pointer"
+                  : "bg-[var(--surface-muted)] text-[var(--text-muted)] cursor-not-allowed border border-[var(--border)]"
               )}
             >
               <span>Compare</span>

@@ -4,6 +4,7 @@ import * as StellarSDK from '@stellar/stellar-sdk';
 import { StellarConfigService } from './stellar-config.service';
 import { ITransactionOptions } from './interfaces/stellar-config.interface';
 import { redactSecretStrings } from '../utils/redact-secrets';
+import { backOffOrFail, isRateLimitError } from './utils/rpc-rate-limit';
 
 @Injectable()
 export class TransactionBuilderService {
@@ -146,13 +147,45 @@ export class TransactionBuilderService {
 
     let lastError: unknown;
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      const server = this.stellarConfig.getServer();
+
+      // A timeout is ambiguous: Horizon may have accepted the transaction
+      // before the client lost the response. Reuse the signed transaction's
+      // stable hash to check acceptance before submitting it again.
+      if (attempt > 0 && typeof server.getTransaction === 'function') {
+        try {
+          const transactionHash = transaction.hash().toString('hex');
+          const accepted = await server.getTransaction(transactionHash);
+          if (accepted) {
+            this.logger.log(`Transaction already accepted: ${transactionHash}`);
+            return accepted;
+          }
+        } catch (lookupError: unknown) {
+          const status =
+            (lookupError as { response?: { status?: number }; status?: number })
+              .response?.status ?? (lookupError as { status?: number }).status;
+          if (status !== 404) {
+            this.logger.debug('Transaction acceptance lookup failed; retrying submission');
+          }
+        }
+      }
+
       try {
-        const server = this.stellarConfig.getServer();
         const result = await server.submitTransaction(transaction);
         this.logger.log(`Transaction submitted: ${result.hash}`);
         return result;
       } catch (error: unknown) {
         lastError = error;
+        if (isRateLimitError(error)) {
+          await backOffOrFail(
+            'submitTransaction',
+            error,
+            attempt,
+            this.stellarConfig.getConfig(),
+            this.logger,
+          );
+          continue;
+        }
         const message = error instanceof Error ? error.message : String(error);
         const withResponse = error as {
           response?: { data?: { extras?: { result_codes?: unknown } } };

@@ -1,0 +1,9 @@
+{
+  "status": "failed",
+  "stage": "migration-check",
+  "durationMs": 28500,
+  "timestamp": "2026-11-18T16:18:55.614Z",
+  "container": false,
+  "privateDataIncluded": false,
+  "reason": "migration metadata check failed"
+}

@@ -7,21 +7,25 @@ export interface FeedAnnouncementState {
   isFetching: boolean;
   isFetchingNextPage: boolean;
   isError: boolean;
-  errorMessage?: string;
+  resultCount?: number;
 }
 
-/**
- * Derives a single aria-live announcement string for an async feed, deduping
- * consecutive identical messages so screen readers aren't spammed on every
- * render (react-query re-renders far more often than the state actually
- * changes in a way worth announcing).
- */
+function countAnnouncement(count?: number): string {
+  if (typeof count !== "number" || !Number.isFinite(count)) {
+    return "Feed updated.";
+  }
+  const normalized = Math.max(0, Math.floor(count));
+  if (normalized === 0) return "No confessions found.";
+  if (normalized === 1) return "1 confession available.";
+  return `${normalized} confessions available.`;
+}
+
 export function useLiveAnnouncement({
   isLoading,
   isFetching,
   isFetchingNextPage,
   isError,
-  errorMessage,
+  resultCount,
 }: FeedAnnouncementState): string {
   const [message, setMessage] = useState("");
   const lastMessageRef = useRef("");
@@ -33,14 +37,13 @@ export function useLiveAnnouncement({
     if (isLoading) {
       next = "Loading feed...";
     } else if (isError) {
-      next = errorMessage ? `Unable to load feed: ${errorMessage}` : "Unable to load feed.";
+      next = "Unable to load feed.";
     } else if (isFetchingNextPage) {
       next = "Loading more confessions...";
     } else if (isFetching) {
       next = "Updating feed contents...";
     } else if (wasFetchingRef.current) {
-      // A background refresh just finished successfully.
-      next = "Feed updated.";
+      next = countAnnouncement(resultCount);
     }
 
     wasFetchingRef.current = isFetching || isFetchingNextPage;
@@ -49,11 +52,9 @@ export function useLiveAnnouncement({
       lastMessageRef.current = next;
       setMessage(next);
     } else if (!next && lastMessageRef.current) {
-      // Clear once the transition has been announced so the next identical
-      // state (e.g. "Updating feed contents..." again) re-announces.
       lastMessageRef.current = "";
     }
-  }, [isLoading, isFetching, isFetchingNextPage, isError, errorMessage]);
+  }, [isLoading, isFetching, isFetchingNextPage, isError, resultCount]);
 
   return message;
 }

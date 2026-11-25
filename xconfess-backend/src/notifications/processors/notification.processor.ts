@@ -1,14 +1,50 @@
 import { Processor, OnWorkerEvent, InjectQueue, WorkerHost } from '@nestjs/bullmq';
 import { Logger } from '@nestjs/common';
-import { Job, Queue } from 'bullmq';
+import { Job, JobsOptions, Queue, UnrecoverableError } from 'bullmq';
 import { createHash, randomUUID } from 'node:crypto';
+import type Redis from 'ioredis';
 import { EmailNotificationService } from '../services/email-notification.service';
 import { NotificationType } from '../entities/notification.entity';
 import { AppLogger } from '../../logger/logger.service';
-import { redactSecretStrings } from '../../utils/redact-secrets';
+
+/**
+ * Issue #2127: error codes that always fail the same way on retry
+ * (bad credentials, invalid recipient, malformed message). Jobs that
+ * throw one of these are moved straight to the DLQ without consuming
+ * the retry budget; every other error path stays retryable with the
+ * configured exponential backoff.
+ *
+ * The allowlist mirrors the classes already used by `onFailed` for log
+ * redaction, with the three nodemailer SMTP permanent-failure codes
+ * marked explicitly.
+ */
+const PERMANENT_ERROR_CODES = new Set<string>([
+  'EAUTH',
+  'EENVELOPE',
+  'EMESSAGE',
+]);
+
+function errorCodeOf(err: unknown): string | undefined {
+  if (err && typeof err === 'object' && 'code' in err) {
+    const code = (err as { code?: unknown }).code;
+    return typeof code === 'string' ? code : undefined;
+  }
+  return undefined;
+}
+
+function isPermanentDeliveryError(err: unknown): boolean {
+  const code = errorCodeOf(err);
+  return code !== undefined && PERMANENT_ERROR_CODES.has(code);
+}
 
 export const NOTIFICATION_QUEUE = 'notifications';
 export const NOTIFICATION_DLQ = 'notifications-dlq';
+export const NOTIFICATION_JOB_OPTIONS: JobsOptions = {
+  attempts: 5,
+  backoff: { type: 'exponential', delay: 2000 },
+  removeOnComplete: { count: 500 },
+  removeOnFail: false,
+};
 
 export interface NotificationJobData {
   userId: string;
@@ -67,17 +103,35 @@ export class NotificationProcessor extends WorkerHost {
       });
 
       const startedAt = Date.now();
-      if (idempotencyKey) {
-        const delivered = await this.deliverIdempotently(
-          idempotencyKey,
-          () => this.emailNotificationService.sendEmail(job.data),
-        );
-        if (!delivered) {
-          this.logger.log(`Skipping duplicate notification job ${job.id}`);
-          return;
+      try {
+        if (idempotencyKey) {
+          const delivered = await this.deliverIdempotently(
+            idempotencyKey,
+            () => this.emailNotificationService.sendEmail(job.data),
+          );
+          if (!delivered) {
+            this.logger.log(`Skipping duplicate notification job ${job.id}`);
+            return;
+          }
+        } else {
+          await this.emailNotificationService.sendEmail(job.data);
         }
-      } else {
-        await this.emailNotificationService.sendEmail(job.data);
+      } catch (err) {
+        // Issue #2127: convert nodemailer permanent-failure codes to
+        // UnrecoverableError so BullMQ skips the retry budget and routes
+        // the job straight to the DLQ. Transient errors (ETIMEDOUT,
+        // ECONNECTION, ECONNREFUSED, ESOCKET) fall through and are
+        // retried with the configured exponential backoff.
+        if (isPermanentDeliveryError(err)) {
+          this.appLogger.incrementCounter(
+            'notification_queue_permanent_failure_total',
+            1,
+            { queue: NOTIFICATION_QUEUE, jobName: job.name },
+          );
+          const code = errorCodeOf(err) ?? 'PERMANENT_FAILURE';
+          throw new UnrecoverableError(`Permanent delivery failure: ${code}`);
+        }
+        throw err;
       }
       this.appLogger.observeTimer(
         'notification_queue_processing_duration_ms',
@@ -105,9 +159,13 @@ export class NotificationProcessor extends WorkerHost {
 
     const maxAttempts = (job.opts as any)?.attempts ?? 1;
 
-    const safeError = redactSecretStrings(error.message)
-      .replace(/[\r\n\t]+/g, ' ')
-      .slice(0, 500);
+    // SMTP error text can contain credentials, recipients and private content.
+    // Persist only an allowlisted classification in logs and DLQ metadata.
+    const code = (error as Error & { code?: string }).code;
+    const safeError = code && [
+      'ETIMEDOUT', 'ECONNECTION', 'ECONNREFUSED', 'EAUTH',
+      'EENVELOPE', 'EMESSAGE', 'ESOCKET',
+    ].includes(code) ? code : 'DELIVERY_FAILED';
     this.logger.warn(
       `Job ${job.id} failed (attempt ${job.attemptsMade}/${maxAttempts}): ${safeError}`,
     );
@@ -143,7 +201,7 @@ export class NotificationProcessor extends WorkerHost {
             failedAt: new Date().toISOString(),
             attemptsMade: job.attemptsMade,
             lastError: safeError,
-            lastErrorClass: error.name || 'Error',
+            lastErrorClass: 'Error',
           },
         },
         {
@@ -176,7 +234,10 @@ export class NotificationProcessor extends WorkerHost {
     const digest = createHash('sha256').update(idempotencyKey).digest('hex');
     const deliveredKey = `notification:delivered:${digest}`;
     const lockKey = `notification:processing:${digest}`;
-    const redis = await this.notificationQueue.client;
+    // This queue uses BullMQ's ioredis adapter, which forwards native commands.
+    const redis = (await this.notificationQueue.client) as Awaited<
+      Queue['client']
+    > & Pick<Redis, 'set' | 'eval'>;
 
     if (await redis.get(deliveredKey)) return false;
 

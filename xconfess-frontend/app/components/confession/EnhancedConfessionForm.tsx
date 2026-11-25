@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import axios from "axios";
+import { useRouter } from "next/navigation";
 import {
   Card,
   CardContent,
@@ -28,9 +29,10 @@ import { Eye, EyeOff, Send, Loader2, LockKeyhole } from "lucide-react";
 import { cn } from "@/app/lib/utils/cn";
 import apiClient from "@/app/lib/api/client";
 import { useGlobalToast } from "@/app/components/common/Toast";
-import { clearPendingConfession, loadPendingConfession } from "@/app/lib/utils/pendingConfession";
+import { buildAuthRedirectUrl, clearPendingConfession, loadPendingConfession, savePendingConfession } from "@/app/lib/utils/pendingConfession";
 import { clearSessionDraft, loadSessionDraft, saveSessionDraft } from "@/app/lib/utils/sessionDraft";
 import { useAuth } from "@/app/lib/hooks/useAuth";
+import { InlineError } from "@/app/components/common/InlineError";
 
 
 interface EnhancedConfessionFormProps {
@@ -112,6 +114,7 @@ export const EnhancedConfessionForm: React.FC<EnhancedConfessionFormProps> = ({
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitSuccess, setSubmitSuccess] = useState(false);
   const { isAuthenticated, isLoading: isAuthLoading } = useAuth();
+  const router = useRouter();
 
   const submitSuccessTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
     null
@@ -239,6 +242,13 @@ export const EnhancedConfessionForm: React.FC<EnhancedConfessionFormProps> = ({
       return;
     }
 
+    if (isAuthLoading) return;
+    if (!isAuthenticated) {
+      savePendingConfession({ title, body, gender, enableStellarAnchor });
+      router.push(buildAuthRedirectUrl("/login"));
+      return;
+    }
+
     isSubmittingRef.current = true;
     setIsSubmitting(true);
 
@@ -341,21 +351,18 @@ export const EnhancedConfessionForm: React.FC<EnhancedConfessionFormProps> = ({
   return (
     <Card
       className={cn(
-        "overflow-hidden rounded-2xl border border-[var(--border)] bg-[linear-gradient(180deg,var(--surface-strong),var(--surface))] p-0 shadow-[0_30px_90px_-52px_rgba(0,0,0,0.72)]",
+        "overflow-hidden p-0",
         className
       )}
     >
-      <CardHeader className="border-b border-[var(--border)] px-6 pb-6 pt-7 sm:px-8">
-        <p className="eyebrow">Writing desk</p>
-        <CardTitle className="mt-3 text-[2rem] leading-tight sm:text-4xl">
-          Share your confession
-        </CardTitle>
-        <CardDescription className="max-w-2xl text-sm leading-7 sm:text-base">
-          Your story matters. Be honest, be real, be you.
+      <CardHeader className="border-b border-[var(--border)] px-5 py-4">
+        <CardTitle>Share your confession</CardTitle>
+        <CardDescription>
+          Nothing you write here is linked to your identity.
         </CardDescription>
       </CardHeader>
 
-      <CardContent className="px-6 py-5 sm:px-7 sm:py-6">
+      <CardContent className="px-5 py-5">
         <form onSubmit={handleSubmit} className="space-y-4" aria-label="Confession composition form">
           <div>
             <label
@@ -381,7 +388,7 @@ export const EnhancedConfessionForm: React.FC<EnhancedConfessionFormProps> = ({
             />
             <div className="mt-2 flex items-center justify-between">
               {errors.title ? (
-                <p id={TITLE_ERROR_ID} className="text-xs text-red-500" role="alert">
+                <p id={TITLE_ERROR_ID} className="text-xs text-[var(--danger)]" role="alert">
                   {errors.title}
                 </p>
               ) : (
@@ -401,7 +408,7 @@ export const EnhancedConfessionForm: React.FC<EnhancedConfessionFormProps> = ({
                 htmlFor="confession-body"
                 className="block text-sm font-medium text-[var(--foreground)]"
               >
-                Confession <span className="text-red-500" aria-hidden="true">*</span>
+                Confession <span className="text-[var(--danger)]" aria-hidden="true">*</span>
                 <span className="sr-only"> (required)</span>
               </label>
               <div className="flex items-center gap-2">
@@ -472,12 +479,12 @@ export const EnhancedConfessionForm: React.FC<EnhancedConfessionFormProps> = ({
                   placeholder="Share your thoughts, feelings, or experiences..."
                   aria-invalid={!!errors.body}
                   className={cn(
-                    "mt-3 flex min-h-[128px] w-full resize-y rounded-2xl border px-5 py-5 text-[15px] leading-8 text-[var(--foreground)] shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]",
-                    "bg-[linear-gradient(180deg,var(--surface-strong),var(--surface-muted))]",
-                    "placeholder:text-[color:rgba(169,160,149,0.7)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)]",
+                    "mt-3 flex min-h-[128px] w-full resize-y rounded-[var(--radius-control)] border px-3 py-2.5 text-[15px] leading-7 text-[var(--foreground)] transition-colors",
+                    "bg-[var(--surface-strong)]",
+                    "placeholder:text-[var(--text-muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]/40",
                     errors.body
-                      ? "border-red-500"
-                      : "border-[var(--border)] focus-visible:border-[var(--primary)]"
+                      ? "border-[var(--danger)]/30"
+                      : "border-[var(--border)] focus-visible:border-[var(--focus-ring)]"
                   )}
                   maxLength={5000}
                   aria-describedby={`${BODY_HINT_ID}${errors.body ? ` ${BODY_ERROR_ID}` : ""} body-counter`}
@@ -485,7 +492,7 @@ export const EnhancedConfessionForm: React.FC<EnhancedConfessionFormProps> = ({
                 />
                 <div className="mt-2 flex items-center justify-between">
                   {errors.body ? (
-                    <p id={BODY_ERROR_ID} className="text-xs text-red-500" role="alert">
+                    <p id={BODY_ERROR_ID} className="text-xs text-[var(--danger)]" role="alert">
                       {errors.body}
                     </p>
                   ) : (
@@ -535,9 +542,20 @@ export const EnhancedConfessionForm: React.FC<EnhancedConfessionFormProps> = ({
 
           <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-muted)] p-4">
                         {enableStellarAnchor && isEmbeddedWallet && (
-              <label className="mt-4 block text-sm text-[var(--secondary)]">
+              <label
+                htmlFor="confession-wallet-pin"
+                className="mt-4 block text-sm text-[var(--secondary)]"
+              >
                 Wallet PIN for local Stellar proof signing
-                <input type="password" inputMode="numeric" value={stellarWalletPin} onChange={(event) => setStellarWalletPin(event.target.value)} placeholder="Required to sign locally" aria-label="Wallet PIN for Stellar proof" className="mt-2 h-11 w-full rounded-xl border border-[var(--border)] bg-[var(--surface-muted)] px-3 text-sm text-[var(--foreground)]" />
+                <input
+                  id="confession-wallet-pin"
+                  type="password"
+                  inputMode="numeric"
+                  value={stellarWalletPin}
+                  onChange={(event) => setStellarWalletPin(event.target.value)}
+                  placeholder="Required to sign locally"
+                  className="mt-2 h-11 w-full rounded-xl border border-[var(--border)] bg-[var(--surface-muted)] px-3 text-sm text-[var(--foreground)]"
+                />
               </label>
             )}
 
@@ -548,23 +566,15 @@ export const EnhancedConfessionForm: React.FC<EnhancedConfessionFormProps> = ({
             />
           </div>
 
-          {submitError && (
-            <div
-              className="rounded-xl border border-red-500/25 bg-red-950/30 px-4 py-3"
-              role="alert"
-              aria-live="assertive"
-            >
-              <p className="text-sm text-red-200">{submitError}</p>
-            </div>
-          )}
+          <InlineError message={submitError} />
 
           {submitSuccess && (
             <div
-              className="rounded-xl border border-emerald-500/25 bg-emerald-950/30 px-4 py-3"
+              className="rounded-xl border border-[var(--success)]/25 bg-[var(--success)]/10 px-4 py-3"
               role="status"
               aria-live="polite"
             >
-              <p className="text-sm text-emerald-200">
+              <p className="text-sm text-[var(--success)]">
                 Confession submitted successfully!
               </p>
             </div>

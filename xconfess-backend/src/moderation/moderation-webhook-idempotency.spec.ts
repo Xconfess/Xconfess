@@ -19,12 +19,15 @@ import { AuditLogService } from '../audit-log/audit-log.service';
 import { AuditActionType } from '../audit-log/audit-log.entity';
 import { UnauthorizedException, BadRequestException } from '@nestjs/common';
 import * as crypto from 'crypto';
+import { ModerationWebhookEventStore } from './moderation-webhook-event.store';
+import { FakeModerationWebhookEventStore } from '../../test/utils/moderation-webhook-event-store.fake';
 
 describe('ModerationWebhookController - Idempotency and Signature Safety', () => {
   let controller: ModerationWebhookController;
   let confessionRepo: Repository<AnonymousConfession>;
   let moderationRepoService: ModerationRepositoryService;
   let auditLogService: { log: jest.Mock };
+  let eventStore: FakeModerationWebhookEventStore;
 
   const mockWebhookSecret = 'test-webhook-secret';
 
@@ -75,6 +78,7 @@ describe('ModerationWebhookController - Idempotency and Signature Safety', () =>
 
   beforeEach(async () => {
     auditLogService = { log: jest.fn().mockResolvedValue(undefined) };
+    eventStore = new FakeModerationWebhookEventStore();
 
     const module: TestingModule = await Test.createTestingModule({
       controllers: [ModerationWebhookController],
@@ -108,6 +112,10 @@ describe('ModerationWebhookController - Idempotency and Signature Safety', () =>
         {
           provide: AuditLogService,
           useValue: auditLogService,
+        },
+        {
+          provide: ModerationWebhookEventStore,
+          useValue: eventStore,
         },
       ],
     }).compile();
@@ -172,6 +180,59 @@ describe('ModerationWebhookController - Idempotency and Signature Safety', () =>
       );
     });
 
+    it('should reject truncated signatures without length-based short-circuiting', async () => {
+      const payload = buildPayload();
+      const validHeader = buildSignatureHeader(payload);
+      const timestamp = validHeader.split(',')[0];
+      // Only the first half of a real HMAC — must still be rejected.
+      const truncated = validHeader.split('v1=')[1].slice(0, 32);
+      const header = `${timestamp},v1=${truncated}`;
+
+      await expect(
+        controller.handleModerationResults(payload, header),
+      ).rejects.toThrow(UnauthorizedException);
+
+      expect(auditLogService.log).toHaveBeenCalledWith(
+        expect.objectContaining({
+          metadata: expect.objectContaining({ reason: 'invalid_signature' }),
+        }),
+      );
+    });
+
+    it('should reject oversized signatures', async () => {
+      const payload = buildPayload();
+      const timestamp = Math.floor(Date.now() / 1000).toString();
+      const header = `t=${timestamp},v1=${'a'.repeat(128)}`;
+
+      await expect(
+        controller.handleModerationResults(payload, header),
+      ).rejects.toThrow(UnauthorizedException);
+    });
+
+    it('should reject non-hex signatures of the correct length', async () => {
+      const payload = buildPayload();
+      const timestamp = Math.floor(Date.now() / 1000).toString();
+      const header = `t=${timestamp},v1=${'z'.repeat(64)}`;
+
+      await expect(
+        controller.handleModerationResults(payload, header),
+      ).rejects.toThrow(UnauthorizedException);
+    });
+
+    it('should reject signatures when the payload was tampered with', async () => {
+      const payload = buildPayload();
+      const header = buildSignatureHeader(payload);
+      const tamperedPayload = buildPayload({
+        eventId: payload.eventId,
+        confessionId: payload.confessionId,
+        moderationScore: 0.11,
+      });
+
+      await expect(
+        controller.handleModerationResults(tamperedPayload, header),
+      ).rejects.toThrow(UnauthorizedException);
+    });
+
     it('should reject signature computed without timestamp binding (forged)', async () => {
       const payload = buildPayload();
       // Attacker computes HMAC over payload only (old scheme) — should fail
@@ -231,7 +292,7 @@ describe('ModerationWebhookController - Idempotency and Signature Safety', () =>
               save: jest.fn().mockResolvedValue(mockConfession),
             }),
           };
-          return cb(manager);
+          return eventStore.runInTransaction(manager, cb);
         });
 
       jest.spyOn(moderationRepoService, 'syncWebhookResult').mockResolvedValue({
@@ -317,7 +378,7 @@ describe('ModerationWebhookController - Idempotency and Signature Safety', () =>
               save: jest.fn().mockResolvedValue(mockConfession),
             }),
           };
-          return cb(manager);
+          return eventStore.runInTransaction(manager, cb);
         });
 
       jest.spyOn(moderationRepoService, 'syncWebhookResult').mockResolvedValue({
@@ -367,7 +428,7 @@ describe('ModerationWebhookController - Idempotency and Signature Safety', () =>
               save: jest.fn().mockResolvedValue(mockConfession),
             }),
           };
-          return cb(manager);
+          return eventStore.runInTransaction(manager, cb);
         });
 
       jest.spyOn(moderationRepoService, 'syncWebhookResult').mockResolvedValue({
@@ -409,7 +470,7 @@ describe('ModerationWebhookController - Idempotency and Signature Safety', () =>
               save: jest.fn().mockResolvedValue(mockConfession),
             }),
           };
-          return cb(manager);
+          return eventStore.runInTransaction(manager, cb);
         });
 
       // First call - not idempotent
@@ -439,7 +500,7 @@ describe('ModerationWebhookController - Idempotency and Signature Safety', () =>
               save: jest.fn().mockResolvedValue(mockConfession),
             }),
           };
-          return cb(manager);
+          return eventStore.runInTransaction(manager, cb);
         });
 
       jest
@@ -505,7 +566,7 @@ describe('ModerationWebhookController - Idempotency and Signature Safety', () =>
               findOne: jest.fn().mockResolvedValue(null),
             }),
           };
-          return cb(manager);
+          return eventStore.runInTransaction(manager, cb);
         });
 
       const result = await controller.handleModerationResults(

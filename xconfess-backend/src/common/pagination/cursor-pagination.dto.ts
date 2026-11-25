@@ -1,7 +1,7 @@
 import { IsInt, IsOptional, Max, Min, IsString } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { PAGINATION } from './pagination.constants';
+import { PAGINATION, PAGINATION_MESSAGES } from './pagination.constants';
 import { IsValidCursor } from './cursor-validation.decorator';
 
 export class CursorPaginationDto {
@@ -24,12 +24,12 @@ export class CursorPaginationDto {
   })
   @IsOptional()
   @Type(() => Number)
-  @IsInt({ message: 'limit must be an integer.' })
+  @IsInt({ message: PAGINATION_MESSAGES.LIMIT_INTEGER })
   @Min(PAGINATION.MIN_LIMIT, {
-    message: `limit must be at least ${PAGINATION.MIN_LIMIT}.`,
+    message: PAGINATION_MESSAGES.LIMIT_MIN,
   })
   @Max(PAGINATION.MAX_LIMIT, {
-    message: `limit must not exceed ${PAGINATION.MAX_LIMIT}.`,
+    message: PAGINATION_MESSAGES.LIMIT_MAX,
   })
   limit?: number = PAGINATION.DEFAULT_LIMIT;
 }

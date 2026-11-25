@@ -14,6 +14,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { AnonymousUserService } from '../user/anonymous-user.service';
 import { AttachmentCleanupService } from './attachment-cleanup.service';
 import { AttachmentIntegrityService } from './attachment-integrity.service';
+import { AttachmentValidationService } from './attachment-validation.service';
 import { AttachmentRepository } from './repository/attachment.repository';
 import { AttachmentStatus } from './entities/attachment.entity';
 import { AttachmentResponseDto } from './dto/attachment-response.dto';
@@ -27,6 +28,7 @@ export class AttachmentController {
     private readonly cleanupService: AttachmentCleanupService,
     private readonly attachmentRepository: AttachmentRepository,
     private readonly integrityService: AttachmentIntegrityService,
+    private readonly validationService: AttachmentValidationService,
     private readonly anonymousUserService: AnonymousUserService,
   ) {}
 
@@ -38,6 +40,13 @@ export class AttachmentController {
   @ApiOperation({ summary: 'Create attachment record for upload' })
   @ApiResponse({ status: 201, description: 'Attachment record created' })
   async createAttachment(@Body() dto: CreateAttachmentDto, @Req() req: any) {
+    // Issue #2123: centralised attachment validation runs before any
+    // storage-adjacent record is touched. Rejections are raised as
+    // BadRequestException with a structured body that names the offending
+    // field and never includes the client-supplied objectKey, so storage
+    // layout cannot be probed through error leakage.
+    this.validationService.validateCreate(dto);
+
     // KNOWN LIMITATION (out of scope for #2019): anonymousUserId here
     // still falls back to a placeholder when not supplied on the DTO.
     // Wiring this to AnonymousUserService.getOrCreateForUserSession is

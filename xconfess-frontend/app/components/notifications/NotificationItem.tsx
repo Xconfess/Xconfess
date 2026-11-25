@@ -16,14 +16,14 @@ export function NotificationItem({
 }: NotificationItemProps) {
     return (
         <div
-            className={`p-3 sm:p-4 flex justify-between gap-2 sm:gap-3 ${notification.isRead ? "bg-white" : "bg-blue-50"
+            className={`p-3 sm:p-4 flex justify-between gap-2 sm:gap-3 ${notification.isRead ? "bg-[var(--surface)]" : "bg-[var(--accent-soft)]"
                 }`}
         >
             <div className="min-w-0 flex-1">
-                <p className="break-words text-sm font-medium text-gray-800">
+                <p className="break-words text-sm font-medium text-[var(--foreground)]">
                     {notification.title}
                 </p>
-                <p className="break-words text-xs text-gray-600">{notification.message}</p>
+                <p className="break-words text-xs text-[var(--secondary)]">{notification.message}</p>
             </div>
 
             <div className="flex shrink-0 items-center gap-2">
@@ -32,7 +32,7 @@ export function NotificationItem({
                         onClick={() => onMarkAsRead(notification.id)}
                         aria-label="Mark as read"
                     >
-                        <Check className="w-4 h-4 text-green-600" />
+                        <Check className="w-4 h-4 text-[var(--success)]" />
                     </button>
                 )}
 
@@ -40,7 +40,7 @@ export function NotificationItem({
                     onClick={() => onDelete(notification.id)}
                     aria-label="Delete notification"
                 >
-                    <Trash2 className="w-4 h-4 text-red-500" />
+                    <Trash2 className="w-4 h-4 text-[var(--danger)]" />
                 </button>
             </div>
         </div>

@@ -256,6 +256,30 @@ pub struct ContractUnpausedEvent {
 }
 ```
 
+#### PauseStateChanged (versioned, current)
+- **Topic**: `"pause_state_changed"`
+- **Data Format**: `"vec"`
+- **Version**: 2
+- **Purpose**: operational traceability — records who changed pause state, why,
+  and in what order via a monotonic `nonce`.
+
+```rust
+#[contractevent(topics = ["pause_state_changed"], data_format = "vec")]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PauseStateChangedEvent {
+    pub event_version: u32,   // 2
+    pub actor: Address,
+    pub reason: String,       // <= 128 characters
+    pub nonce: u64,           // monotonic across pause + unpause
+    pub paused: bool,
+    pub timestamp: u64,
+}
+```
+
+The older `PausedEvent` / `UnpausedEvent` (topics `paused` / `unpaused`) are
+frozen decode-only schemas. They are retained in `PUBLIC_EVENT_SCHEMA_FIXTURES`
+and the backend registry so historical events still parse.
+
 ### 6. Access Control Events
 
 #### AdminGranted

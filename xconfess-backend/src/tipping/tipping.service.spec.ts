@@ -19,6 +19,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { QueryFailedError } from 'typeorm';
+import { StellarRpcUnavailableException } from '../stellar/utils/rpc-rate-limit';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -97,6 +98,9 @@ function makeService(overrides: {
     stellarService,
     eventEmitter,
     auditLogService,
+    undefined,
+    undefined,
+    undefined,
   );
 
   return { svc, tipRepo, confessionRepo, stellarService, eventEmitter, auditLogService };

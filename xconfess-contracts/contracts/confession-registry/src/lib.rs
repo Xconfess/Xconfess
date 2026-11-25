@@ -19,6 +19,8 @@ mod access_control;
 mod emergency_pause;
 #[path = "../../error.rs"]
 mod error;
+#[path = "../../event_bounds.rs"]
+pub mod event_bounds;
 #[path = "../../events.rs"]
 pub mod events;
 #[path = "../../governance/mod.rs"]
@@ -220,8 +222,12 @@ impl ConfessionRegistry {
         governance::revoke(&env, actor, id)
     }
 
-    pub fn gov_execute(env: Env, executor: Address, id: u64) {
-        governance::execute(&env, executor, id)
+    pub fn set_proposal_lifetime(env: Env, caller: Address, lifetime_seconds: u64) {
+        governance::set_proposal_lifetime(&env, &caller, lifetime_seconds)
+    }
+
+    pub fn get_proposal(env: Env, id: u64) -> Option<governance::model::Proposal> {
+        governance::get_proposal(&env, id)
     }
 
     // ─── Create ───
@@ -596,6 +602,10 @@ impl ConfessionRegistry {
             .get::<_, u32>(&DataKey::SchemaVersion)
             .unwrap_or(SCHEMA_VERSION_INITIAL)
     }
+
+    pub fn gov_execute(env: Env, executor: Address, id: u64) {
+        governance::execute(&env, executor, id)
+    }
 }
 
 // ─── Tests ───
@@ -603,7 +613,7 @@ impl ConfessionRegistry {
 #[cfg(test)]
 mod test {
     use super::*;
-    use soroban_sdk::{testutils::Address as _, Address, BytesN, Env};
+    use soroban_sdk::{testutils::Address as _, testutils::Ledger as _, Address, BytesN, Env};
 
     fn setup() -> (Env, ConfessionRegistryClient<'static>, Address, Address) {
         let env = Env::default();
@@ -940,5 +950,30 @@ mod test {
 
         let hash = sample_hash(&env, MAX_AUTHOR_CONFESSIONS_PER_AUTHOR as u8);
         let _ = client.create_confession(&author, &hash, &9_999);
+    }
+
+    #[test]
+    fn governance_proposal_expires_and_cannot_be_replayed() {
+        let (env, client, admin, _author) = setup();
+        client.set_proposal_lifetime(&admin, &100u64);
+
+        let id = client.gov_propose(&admin, &governance::model::CriticalAction::Pause);
+        let proposal = client.get_proposal(&id).expect("proposal exists");
+        assert_eq!(proposal.expires_at, proposal.created_at + 100);
+
+        env.ledger().set_timestamp(proposal.expires_at);
+
+        assert!(client.try_gov_approve(&admin, &id).is_err());
+        assert!(client.try_gov_execute(&admin, &id).is_err());
+
+        let expired = client
+            .get_proposal(&id)
+            .expect("expired proposal remains immutable");
+        assert!(expired.expired);
+        assert!(!expired.executed);
+
+        // Replay of approval or execution after expiration remains rejected.
+        assert!(client.try_gov_approve(&admin, &id).is_err());
+        assert!(client.try_gov_execute(&admin, &id).is_err());
     }
 }

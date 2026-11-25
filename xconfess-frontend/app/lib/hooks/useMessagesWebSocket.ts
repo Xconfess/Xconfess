@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useWebSocket, MessageWebSocketEvents } from './useWebSocket';
+import { useWebSocket, useMessageWebSocket, MessageWebSocketEvents } from './useWebSocket';
 import { useAuth } from './useAuth';
 
 interface UseMessagesWebSocketOptions {
@@ -25,7 +25,7 @@ export function useMessagesWebSocket(options: UseMessagesWebSocketOptions = {}) 
     enabled = true,
   } = options;
 
-  const { user, isAuthenticated } = useAuth();
+  const { isAuthenticated } = useAuth();
   const [status, setStatus] = useState<ConnectionStatus>({
     state: 'disconnected',
     reconnectAttempts: 0,
@@ -37,13 +37,19 @@ export function useMessagesWebSocket(options: UseMessagesWebSocketOptions = {}) 
   ) => {
     switch (event) {
       case 'new_message':
-        onNewMessage?.(payload.threadId, payload.messageId, payload.preview);
+        if ('messageId' in payload && 'preview' in payload) {
+          onNewMessage?.(payload.threadId, payload.messageId, payload.preview);
+        }
         break;
       case 'new_reply':
-        onNewReply?.(payload.threadId, payload.messageId, payload.replyPreview);
+        if ('messageId' in payload && 'replyPreview' in payload) {
+          onNewReply?.(payload.threadId, payload.messageId, payload.replyPreview);
+        }
         break;
       case 'message_read':
-        onMessageRead?.(payload.threadId, payload.messageIds);
+        if ('messageIds' in payload) {
+          onMessageRead?.(payload.threadId, payload.messageIds);
+        }
         break;
       case 'thread_updated':
         onThreadUpdated?.(payload.threadId);
@@ -51,42 +57,34 @@ export function useMessagesWebSocket(options: UseMessagesWebSocketOptions = {}) 
     }
   }, [onNewMessage, onNewReply, onMessageRead, onThreadUpdated]);
 
-  const wsUrl = process.env.NEXT_PUBLIC_WS_URL || 
+  const wsUrl = process.env.NEXT_PUBLIC_WS_URL ||
     (process.env.NODE_ENV === 'development' ? 'ws://localhost:4000/socket.io' : 'wss://api.xconfess.com/socket.io');
 
-  const ws = useWebSocket({
-    url: `${wsUrl}/messages`,
-    onEvent: handleEvent,
-    onStateChange: (state) => setStatus(prev => ({ ...prev, state })),
-    reconnect: enabled && isAuthenticated,
-    maxReconnectAttempts: 10,
-    reconnectBaseDelay: 1000,
-    reconnectMaxDelay: 30000,
-    deduplicationWindowMs: 5 * 60 * 1000,
-    initialLastEventId: undefined, // Will be set after first connect
-    enabled: enabled && isAuthenticated,
-  });
+  // useMessageWebSocket maps server event types to our typed events via onMessage
+  const ws = useMessageWebSocket(
+    handleEvent,
+    {
+      url: `${wsUrl}/messages`,
+      onStateChange: useCallback((state: ConnectionStatus['state']) => {
+        setStatus(prev => ({ ...prev, state }));
+      }, []),
+      reconnect: enabled && isAuthenticated,
+      maxReconnectAttempts: 10,
+      reconnectBaseDelay: 1000,
+      reconnectMaxDelay: 30000,
+      deduplicationWindowMs: 5 * 60 * 1000,
+      enabled: enabled && isAuthenticated,
+    }
+  );
 
-  // Update reconnect attempts in status
+  // Sync reconnect attempts and lastEventId into status
   useEffect(() => {
     setStatus(prev => ({ ...prev, reconnectAttempts: ws.reconnectAttempts }));
   }, [ws.reconnectAttempts]);
 
-  // Update lastEventId in status
   useEffect(() => {
     setStatus(prev => ({ ...prev, lastEventId: ws.lastEventId }));
   }, [ws.lastEventId]);
-
-  // Handle connection state for UI visibility
-  useEffect(() => {
-    if (!enabled || !isAuthenticated) return;
-    
-    const handleStateChange = (state: ConnectionStatus['state']) => {
-      setStatus(prev => ({ ...prev, state }));
-    };
-    
-    // The onStateChange callback already handles this
-  }, [enabled, isAuthenticated]);
 
   return {
     ...ws,
@@ -108,7 +106,7 @@ export function useMessageReconciliation(
 ) {
   const { enabled = true } = options;
   const [pendingReconciliation, setPendingReconciliation] = useState(false);
-  const lastFetchRef = useRef<number>(0);
+  const [lastFetch, setLastFetch] = useState(0);
   const reconcilingRef = useRef(false);
 
   // Trigger reconciliation after reconnect
@@ -120,7 +118,7 @@ export function useMessageReconciliation(
     
     try {
       await fetchMessages();
-      lastFetchRef.current = Date.now();
+      setLastFetch(Date.now());
     } catch (error) {
       console.error('Message reconciliation failed:', error);
     } finally {
@@ -146,6 +144,6 @@ export function useMessageReconciliation(
     pendingReconciliation,
     onReconnect,
     reconcile,
-    lastFetch: lastFetchRef.current,
+    lastFetch,
   };
 }

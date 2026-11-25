@@ -11,54 +11,55 @@ import { RedisHealthIndicator } from './redis.health';
 import { SchemaReadinessHealthIndicator } from './schema-readiness.health';
 import { QueueHealthIndicator } from './queue.health';
 import { PostgresHealthIndicator } from './postgres.health';
+import { DependencyState } from './dependency-check';
 
-interface SubsystemStatus {
-  name: string;
-  status: 'up' | 'down' | 'degraded' | 'disabled';
+const DEPENDENCY_KEYS = ['database', 'redis', 'queues', 'schema'] as const;
+type DependencyKey = (typeof DEPENDENCY_KEYS)[number];
+
+export interface SubsystemStatus {
+  name: DependencyKey;
+  status: DependencyState;
 }
 
-function getNestedStatuses(detail: Record<string, unknown>): string[] {
-  return Object.values(detail)
-    .filter((value): value is { status?: string } =>
-      Boolean(value && typeof value === 'object' && 'status' in value),
-    )
-    .map((value) => value.status)
-    .filter((status): status is string => Boolean(status));
+type DetailMap = Record<string, Record<string, unknown> | undefined>;
+
+/**
+ * Read the standard `state` field (see dependency-check.ts). Falls back to the
+ * Terminus `status` for indicators that do not set it, and treats a missing
+ * entry as `down`.
+ */
+export function resolveDependencyState(
+  detail: Record<string, unknown> | undefined,
+  failed = false,
+): DependencyState {
+  if (!detail) return 'down';
+  const state = detail.state;
+  if (
+    state === 'up' ||
+    state === 'down' ||
+    state === 'degraded' ||
+    state === 'disabled'
+  ) {
+    return state;
+  }
+  if (failed) return 'down';
+  return detail.status === 'up' ? 'up' : 'down';
 }
 
-function buildSubsystemSummary(
-  result: HealthCheckResult,
-): SubsystemStatus[] {
-  const subsystems: SubsystemStatus[] = [];
+function buildSubsystemSummary(result: {
+  info?: DetailMap;
+  error?: DetailMap;
+  details?: DetailMap;
+}): SubsystemStatus[] {
   const info = result.info ?? {};
   const errors = result.error ?? {};
+  const details = result.details ?? {};
 
-  const keys = ['database', 'redis', 'queues', 'schema'];
-  for (const key of keys) {
-    const detail = info[key] ?? errors[key];
-    if (!detail) {
-      subsystems.push({ name: key, status: 'down' });
-      continue;
-    }
-
-    if (detail.mode === 'disabled') {
-      subsystems.push({ name: key, status: 'disabled' });
-      continue;
-    }
-
-    const nestedStatuses = getNestedStatuses(detail);
-    if (nestedStatuses.includes('down')) {
-      subsystems.push({ name: key, status: 'down' });
-    } else if (nestedStatuses.includes('degraded')) {
-      subsystems.push({ name: key, status: 'degraded' });
-    } else if (detail.status === 'up') {
-      subsystems.push({ name: key, status: 'up' });
-    } else {
-      subsystems.push({ name: key, status: 'down' });
-    }
-  }
-
-  return subsystems;
+  return DEPENDENCY_KEYS.map((name) => {
+    const failed = Boolean(errors[name]);
+    const detail = errors[name] ?? info[name] ?? details[name];
+    return { name, status: resolveDependencyState(detail, failed) };
+  });
 }
 
 @ApiTags('Health')
@@ -75,7 +76,9 @@ export class HealthController {
 
   /**
    * Liveness probe — is the process responsive?
-   * No external dependency checks. Safe to poll at high frequency.
+   * Deliberately touches no dependency (no indicator, no HealthCheckService),
+   * so a database or Redis outage never restarts healthy pods.
+   * Safe to poll at high frequency.
    */
   @Get('live')
   @Throttle({ default: { limit: 120, ttl: 60_000 } })
@@ -112,19 +115,7 @@ export class HealthController {
     description: 'One or more dependencies unavailable',
   })
   async readiness() {
-    const result = await this.health.check([
-      async () => this.db.isHealthy('database'),
-      async () => this.redis.isHealthy('redis'),
-      async () => this.queues.isHealthy('queues'),
-      async () => this.schemaReadiness.isHealthy('schema'),
-    ]);
-    const jobsEnabled =
-      this.configService?.get<string>('ENABLE_BACKGROUND_JOBS') === 'true';
-    return {
-      ...result,
-      backgroundJobMode: jobsEnabled ? 'enabled' : 'disabled',
-      subsystems: buildSubsystemSummary(result),
-    };
+    return this.buildReadinessBody(await this.runDependencyChecks());
   }
 
   /** Backward-compatible alias for GET /health/ready. */
@@ -140,19 +131,7 @@ export class HealthController {
   @ApiResponse({ status: 200, description: 'All checks passed' })
   @ApiResponse({ status: 503, description: 'One or more checks failed' })
   async check() {
-    const result = await this.health.check([
-      async () => this.db.isHealthy('database'),
-      async () => this.redis.isHealthy('redis'),
-      async () => this.queues.isHealthy('queues'),
-      async () => this.schemaReadiness.isHealthy('schema'),
-    ]);
-    const jobsEnabled =
-      this.configService?.get<string>('ENABLE_BACKGROUND_JOBS') === 'true';
-    return {
-      ...result,
-      backgroundJobMode: jobsEnabled ? 'enabled' : 'disabled',
-      subsystems: buildSubsystemSummary(result),
-    };
+    return this.buildReadinessBody(await this.runDependencyChecks());
   }
 
   /**
@@ -184,12 +163,7 @@ export class HealthController {
   })
   @ApiResponse({ status: 200, description: 'Health state returned' })
   async status() {
-    const result = await this.health.check([
-      async () => this.db.isHealthy('database'),
-      async () => this.redis.isHealthy('redis'),
-      async () => this.queues.isHealthy('queues'),
-      async () => this.schemaReadiness.isHealthy('schema'),
-    ]).catch((err) => {
+    const result = await this.runDependencyChecks().catch((err) => {
       // NestJS Terminus throws an HttpException whose .response body has:
       //   { status, error: { <failed> }, details: { <all> } }
       // We normalise both the success and failure shapes into a common
@@ -202,58 +176,83 @@ export class HealthController {
       };
     });
 
-    const details = result.details ?? {};
-    const errors = result.status === 'error' ? (result as any).errors ?? {} : {};
+    const details: DetailMap = result.details ?? {};
+    const errors: DetailMap =
+      result.status === 'error' ? ((result as any).errors ?? {}) : {};
 
-    // Determine the overall state
+    const states = Object.fromEntries(
+      DEPENDENCY_KEYS.map((name) => {
+        const detail = errors[name] ?? details[name];
+        return [
+          name,
+          detail ? resolveDependencyState(detail, Boolean(errors[name])) : 'unknown',
+        ];
+      }),
+    ) as Record<DependencyKey, DependencyState | 'unknown'>;
+
     let state: string;
-
-    const dbStatus = details['database']?.status ?? errors['database']?.status;
-    const schemaStatus = details['schema']?.status ?? errors['schema']?.status;
-    const redisStatus = details['redis']?.status ?? errors['redis']?.status;
-    const queuesStatus = details['queues']?.status ?? errors['queues']?.status;
-
-    // Critical: database or schema down → 'down'
-    if (dbStatus === 'down' || schemaStatus === 'down') {
+    if (states.database === 'down' || states.schema === 'down') {
+      // Critical dependency unavailable.
       state = 'down';
-    }
-    // Critical: database or schema errors → 'down'
-    else if (
-      (errors['database'] && errors['database'].status === 'down') ||
-      (errors['schema'] && errors['schema'].status === 'down')
-    ) {
-      state = 'down';
-    }
-    // Optional deps disabled → 'disabled'
-    else if (
-      redisStatus === 'up' &&
-      queuesStatus === 'up' &&
-      (details['redis']?.mode === 'disabled' || details['queues']?.mode === 'disabled')
-    ) {
-      state = 'disabled';
-    }
-    // Queue degraded but core deps OK → 'degraded'
-    else if (
-      queuesStatus === 'down' ||
-      queuesStatus === 'degraded' ||
-      redisStatus === 'down'
+    } else if (
+      states.redis === 'down' ||
+      states.queues === 'down' ||
+      states.redis === 'degraded' ||
+      states.queues === 'degraded' ||
+      states.database === 'degraded' ||
+      states.schema === 'degraded'
     ) {
       state = 'degraded';
-    }
-    // Everything healthy
-    else {
+    } else if (states.redis === 'disabled' || states.queues === 'disabled') {
+      // Optional deps intentionally off, core deps up.
+      state = 'disabled';
+    } else {
       state = 'ready';
     }
+
+    const checkOf = (name: DependencyKey) => {
+      const detail = errors[name] ?? details[name];
+      return {
+        status: states[name],
+        ...(typeof detail?.errorCode === 'string'
+          ? { errorCode: detail.errorCode }
+          : {}),
+      };
+    };
 
     return {
       state,
       timestamp: new Date().toISOString(),
       checks: {
-        database: { status: dbStatus ?? 'unknown' },
-        redis: { status: redisStatus ?? 'unknown', mode: details['redis']?.mode },
-        queues: { status: queuesStatus ?? 'unknown', mode: details['queues']?.mode },
-        schema: { status: schemaStatus ?? 'unknown' },
+        database: checkOf('database'),
+        redis: checkOf('redis'),
+        queues: checkOf('queues'),
+        schema: checkOf('schema'),
       },
+    };
+  }
+
+  /**
+   * Every dependency indicator bounds its own work with a timeout
+   * (HEALTH_<DEPENDENCY>_TIMEOUT_MS / HEALTH_CHECK_TIMEOUT_MS), so readiness
+   * always answers within that window even when a dependency hangs.
+   */
+  private runDependencyChecks(): Promise<HealthCheckResult> {
+    return this.health.check([
+      async () => this.db.isHealthy('database'),
+      async () => this.redis.isHealthy('redis'),
+      async () => this.queues.isHealthy('queues'),
+      async () => this.schemaReadiness.isHealthy('schema'),
+    ]);
+  }
+
+  private buildReadinessBody(result: HealthCheckResult) {
+    const jobsEnabled =
+      this.configService?.get<string>('ENABLE_BACKGROUND_JOBS') === 'true';
+    return {
+      ...result,
+      backgroundJobMode: jobsEnabled ? 'enabled' : 'disabled',
+      subsystems: buildSubsystemSummary(result),
     };
   }
 }

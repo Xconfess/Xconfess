@@ -8,6 +8,7 @@ This runbook provides step-by-step incident response procedures for four critica
 - **Notification DLQ Failures** — Dead letter queue buildup in notification pipeline
 - **Data Export Failures** — Export jobs failing or producing incomplete data
 - **Auth Incidents** — Session/auth service degradation or compromise
+- **Leaked Application Secrets** — See [Leaked Application Secrets Incident Response](incident-response-leaked-secrets.md) for full key rotation, session invalidation, and forensic review procedures.
 
 Each section defines symptoms, immediate actions, verification steps, and rollback procedures.
 
@@ -273,6 +274,9 @@ docker logs xconfess-backend --tail 1000 2>&1 | grep "LOGIN_FAILED" | \
 ```
 
 ### 5.4 Immediate Actions
+
+> [!NOTE]
+> For a full incident playbook on rotating compromised secrets (`JWT_SECRET`, `APP_SECRET`, `ENCRYPTION_MASTER_KEY_v*`, `STELLAR_SERVER_SECRET`, `DB_PASSWORD`), see [Leaked Application Secrets Incident Response](incident-response-leaked-secrets.md).
 
 ```bash
 # Step 1: If token compromise suspected, rotate signing keys

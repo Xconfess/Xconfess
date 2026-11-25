@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional, UnauthorizedException } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { ConfigService } from '@nestjs/config';
@@ -6,17 +6,21 @@ import { UserService } from '../user/user.service';
 import { UserRole } from '../user/entities/user.entity';
 import { JwtPayload, RequestUser } from './interfaces/jwt-payload.interface';
 import { STEP_UP_TOKEN_PURPOSE } from './step-up.service';
+import { SessionRevocationService } from './session-revocation.service';
+import { createJwtSecretProvider } from './jwt-secret-rotation';
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
   constructor(
     private configService: ConfigService,
     private userService: UserService,
+    @Optional()
+    private readonly sessionRevocationService?: SessionRevocationService,
   ) {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
-      secretOrKey: configService.get<string>('JWT_SECRET'),
+      secretOrKeyProvider: createJwtSecretProvider(configService),
     });
   }
 
@@ -34,6 +38,26 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
 
     if (!user) {
       throw new Error('User not found');
+    }
+
+    // #2235 — login already rejects deactivated accounts, but an existing
+    // session's JWT kept working against every other route until it
+    // expired, since this guard never re-checked the live account status.
+    if (!user.is_active) {
+      throw new UnauthorizedException('Account is deactivated');
+    }
+
+    if (this.sessionRevocationService) {
+      if (typeof payload.iat !== 'number') {
+        throw new Error('Invalid token');
+      }
+      const sessionValid = await this.sessionRevocationService.isSessionValid(
+        payload.sub,
+        payload.iat,
+      );
+      if (!sessionValid) {
+        throw new UnauthorizedException('Session revoked');
+      }
     }
 
     // Return canonical RequestUser shape

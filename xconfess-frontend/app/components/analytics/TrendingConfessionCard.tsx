@@ -39,47 +39,47 @@ export const TrendingConfessionCard = ({ confession, rank }: Props) => {
       });
 
   return (
-    <div className="bg-zinc-800 border border-zinc-700 rounded-xl p-5 hover:border-orange-500/50 transition-all">
+    <div className="bg-[var(--surface-muted)] border border-[var(--border)] rounded-xl p-5 hover:border-[var(--warning)]/50 transition-all">
       <div className="flex gap-4">
         {/* Rank Badge */}
-        <div className={`flex-shrink-0 w-12 h-12 rounded-lg bg-gradient-to-br ${getRankColor(rank)} flex items-center justify-center font-bold text-white text-lg`}>
+        <div className={`flex-shrink-0 w-12 h-12 rounded-lg bg-[var(--surface)] ${getRankColor(rank)} flex items-center justify-center font-semibold text-[var(--foreground)] text-lg`}>
           {getRankEmoji(rank)}
         </div>
 
         {/* Content */}
         <div className="flex-1 min-w-0">
-          <p className="text-white text-lg mb-3">{confession.content}</p>
+          <p className="text-[var(--foreground)] text-lg mb-3">{confession.content}</p>
 
           <div className="flex items-center gap-4 text-sm flex-wrap">
             {/* Flame indicators for top 3 */}
             {getFlameCount(rank) > 0 && (
-              <span className="flex items-center gap-0.5 text-orange-400">
+              <span className="flex items-center gap-0.5 text-[var(--warning)]">
                 {Array.from({ length: getFlameCount(rank) }).map((_, i) => (
-                  <Flame key={i} className="w-4 h-4 fill-orange-400" />
+                  <Flame key={i} className="w-4 h-4 fill-[var(--warning)]" />
                 ))}
               </span>
             )}
 
             {/* Reactions */}
             <div className="flex items-center gap-3">
-              <span className="flex items-center gap-1 text-blue-400">
+              <span className="flex items-center gap-1 text-[var(--primary-deep)]">
                 <ThumbsUp className="w-4 h-4" />
                 {confession.reactions.like}
               </span>
-              <span className="flex items-center gap-1 text-pink-400">
+              <span className="flex items-center gap-1 text-[var(--primary-deep)]">
                 <Heart className="w-4 h-4" />
                 {confession.reactions.love}
               </span>
             </div>
 
             {/* Total */}
-            <div className="flex items-center gap-1 text-purple-400 font-semibold">
+            <div className="flex items-center gap-1 text-[var(--primary-deep)] font-semibold">
               <TrendingUp className="w-4 h-4" />
               {confession.reactionCount} total
             </div>
 
             {/* Date */}
-            <span className="text-gray-500 ml-auto">
+            <span className="text-[var(--text-muted)] ml-auto">
               {formattedDate}
             </span>
           </div>

@@ -10,6 +10,7 @@ import { useAuth } from '@/app/lib/hooks/useAuth';
 import { isSafeAuthRedirect } from '@/app/lib/utils/auth-redirect';
 import { extractRequestId } from '@/app/lib/utils/errorHandler';
 import { RequestIdNotice } from '@/app/components/auth/RequestIdNotice';
+import { InlineError } from '@/app/components/common/InlineError';
 import {
   validateLoginForm,
   parseLoginForm,
@@ -18,6 +19,7 @@ import {
 } from '@/app/lib/utils/validation';
 
 const showDevMockAdminLogin =
+  process.env.NODE_ENV === 'development' &&
   process.env.NEXT_PUBLIC_ENABLE_DEV_MOCK_ADMIN_LOGIN === 'true';
 
 export default function LoginPage() {
@@ -86,40 +88,39 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="editorial-shell min-h-screen px-4 py-10">
-      <div className="mx-auto flex min-h-[calc(100vh-5rem)] w-full max-w-5xl items-center justify-center">
-        <div className="grid w-full gap-8 lg:grid-cols-[0.95fr_1.05fr] lg:items-center">
-          <div className="space-y-5">
-            <BrandLogo href={null} priority imageClassName="w-[168px] dark:hidden" />
-            <BrandLogo href={null} priority tone="light" imageClassName="hidden w-[168px] dark:block" />
-            <p className="eyebrow">Private access</p>
-            <h1 className="font-editorial text-5xl leading-[0.96] text-[var(--foreground)] sm:text-6xl">
-              Login
-            </h1>
-            <p className="max-w-md text-base leading-8 text-[var(--secondary)]">
-              Continue to your private account.
-            </p>
+    <div className="min-h-screen px-4 py-12 sm:py-20">
+      <div className="mx-auto w-full max-w-[420px]">
+        <div className="space-y-8">
+          <div className="flex justify-center">
+            <BrandLogo href={null} priority imageClassName="w-[132px] dark:hidden" />
+            <BrandLogo href={null} priority tone="light" imageClassName="hidden w-[132px] dark:block" />
           </div>
-
-          <div className="luxury-panel rounded-2xl p-7 sm:p-8">
-            <div className="space-y-3">
-              <p className="eyebrow">Account sign in</p>
-              <h2 className="font-editorial text-4xl text-[var(--foreground)]">
-                Sign in
-              </h2>
-              <p className="text-sm leading-7 text-[var(--secondary)]">
-                Sign in with your account credentials.
+          <div className="rounded-[var(--radius-panel)] border border-[var(--border)] bg-[var(--surface)] p-6 sm:p-8">
+            <div className="space-y-1.5">
+              <h1 className="text-xl font-semibold text-[var(--foreground)]">
+                Login
+              </h1>
+              <p className="text-sm leading-6 text-[var(--secondary)]">
+                Welcome back. Sign in to continue.
               </p>
             </div>
 
             {errors.email && (
-              <div className="mt-5 rounded-xl border border-red-500/25 bg-red-950/30 p-3 text-sm text-red-200">
+              <div
+                id="login-email-error"
+                role="alert"
+                className="mt-5 rounded-xl border border-[var(--danger)]/25 bg-[var(--danger)]/10 p-3 text-sm text-[var(--danger)]"
+              >
                 {errors.email}
               </div>
             )}
 
             {errors.password && !errors.email && (
-              <div className="mt-5 rounded-xl border border-red-500/25 bg-red-950/30 p-3 text-sm text-red-200">
+              <div
+                id="login-password-error"
+                role="alert"
+                className="mt-5 rounded-xl border border-[var(--danger)]/25 bg-[var(--danger)]/10 p-3 text-sm text-[var(--danger)]"
+              >
                 {errors.password}
               </div>
             )}
@@ -148,6 +149,9 @@ export default function LoginPage() {
                   }}
                   placeholder="you@example.com"
                   autoComplete="email"
+                  error={Boolean(errors.email)}
+                  aria-invalid={Boolean(errors.email)}
+                  aria-describedby={errors.email ? 'login-email-error' : undefined}
                 />
               </div>
 
@@ -170,6 +174,9 @@ export default function LoginPage() {
                   }}
                   placeholder="Enter your password"
                   autoComplete="current-password"
+                  error={Boolean(errors.password)}
+                  aria-invalid={Boolean(errors.password)}
+                  aria-describedby={errors.password && !errors.email ? 'login-password-error' : undefined}
                 />
               </div>
 

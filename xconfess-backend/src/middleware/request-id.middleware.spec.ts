@@ -10,16 +10,17 @@ describe('RequestIdMiddleware', () => {
     return { req, setHeader, next };
   };
 
-  it('preserves a bounded printable client request ID', () => {
-    const { req, setHeader, next } = run('client.trace-42');
-    expect(req.requestId).toBe('client.trace-42');
-    expect(setHeader).toHaveBeenCalledWith('x-request-id', 'client.trace-42');
+  it('preserves a validated UUID v4 request ID', () => {
+    const requestId = 'd9428888-122b-4f3f-a8a1-17f1b2d39455';
+    const { req, setHeader, next } = run(requestId);
+    expect(req.requestId).toBe(requestId);
+    expect(setHeader).toHaveBeenCalledWith('x-request-id', requestId);
     expect(next).toHaveBeenCalledTimes(1);
   });
 
-  it.each(['', 'bad\nid', 'x'.repeat(129), 'white space'])('replaces an unsafe request ID: %p', (header) => {
+  it.each([undefined, '', 'bad\nid', 'x'.repeat(129), 'white space', 'client.trace-42'])('replaces an unsafe request ID: %p', (header) => {
     const { req, setHeader } = run(header);
-    expect(req.requestId).toMatch(/^[0-9a-f-]{36}$/i);
+    expect(req.requestId).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i);
     expect(setHeader).toHaveBeenCalledWith('x-request-id', req.requestId);
   });
 });

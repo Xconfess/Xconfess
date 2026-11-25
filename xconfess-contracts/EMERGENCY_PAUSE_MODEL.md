@@ -12,7 +12,33 @@ The `emergency_pause` module is located at `xconfess-contracts/contracts/emergen
 - **Admin Functions**: `get_admin()`, `set_admin()`, `require_admin()`
 - **Event Emission**: `emit_paused()`, `emit_unpaused()`
 - **Error Handling**: Standard `PauseError` enum with stable error codes
-- **Storage**: Centralized `DataKey::Paused` boolean flag
+- **Storage**: Centralized `DataKey::Paused` boolean flag plus
+  `DataKey::PauseEventNonce` (monotonic audit counter)
+
+## Event traceability (V2)
+
+Every authorized pause/unpause publishes a single `PauseStateChangedEvent` on
+the dedicated `pause_state_changed` topic (field order: `event_version`,
+`actor`, `reason`, `nonce`, `paused`, `timestamp`). The `nonce` is stored in
+`DataKey::PauseEventNonce`, starts at 0, and increments once per state change —
+including rejected-free retries only when the transition actually succeeds.
+Consumers can use it to detect gaps or reordering in the audit stream.
+
+The legacy V1 events (`PausedEvent` / `UnpausedEvent` on `paused` / `unpaused`)
+are frozen decode-only schemas; they remain registered in the ABI fixtures and
+backend parser so historical events keep working. See
+`docs/contract-abi-reference.md` § "Public Event Schema Fixtures".
+
+> **Migration note for indexers:** new deployments emit only the V2
+> `pause_state_changed` stream. Consumers that previously watched `paused` /
+> `unpaused` must add a subscription to the new topic; the old topic entry
+> exists purely to keep replaying historical ledgers.
+
+The `reason` field is bounded to 128 characters
+(`MAX_PAUSE_REASON_LEN` in `emergency_pause/events.rs`). Oversized reasons are
+rejected with the stable `PauseError::ReasonTooLong` (code 5) **before** any
+state mutation or event serialisation, so an oversized payload cannot inflate
+resource usage.
 
 ## Supported Contracts
 

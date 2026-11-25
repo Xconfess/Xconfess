@@ -17,6 +17,7 @@ import { AnonymousUser } from "../user/entities/anonymous-user.entity";
 import { CreateCommentDto } from "./dto/create-comment.dto";
 import { EditCommentDto } from "./dto/edit-comment.dto";
 import { GetCommentsQueryDto } from "./dto/get-comments-query.dto";
+import { DeprecatedApi } from "../common/decorators/deprecated-api.decorator";
 
 interface RequestWithUser extends ExpressRequest {
   user?: any;
@@ -51,8 +52,16 @@ export class CommentController {
   /**
    * GET /confessions/:confessionId/comments
    * Returns threaded comments (top-level with nested replies).
+   * `?page=` is deprecated in favour of cursor pagination.
    */
   @Get()
+  @DeprecatedApi({
+    deprecatedAt: '2026-10-21',
+    sunsetAt: '2027-04-30',
+    successor: '/api/confessions/:confessionId/comments',
+    guidance: 'Use cursor pagination (?cursor=...&limit=...) instead of ?page=.',
+    legacyQueryParam: 'page',
+  })
   findByConfession(
     @Param("confessionId") confessionId: string,
     @Query() query: GetCommentsQueryDto,

@@ -192,6 +192,13 @@ const result = await contract.anchor_confession({
 // Returns: "anchored" or "exists"
 ```
 
+**Timestamp trust model (#2204):**
+- `timestamp` is an untrusted, client-supplied claim. It is stored as given, including `0` and `u64::MAX`.
+- The contract does not compare it with ledger time, require anchors to be ordered, or validate its units. Milliseconds and seconds are both accepted, so clients must agree on units out of band.
+- `anchor_height` in the event and in `ConfessionData` is always the ledger sequence at anchor time. The client timestamp cannot change it.
+- `last_anchor_timestamp()` reports the most recent successful write, not the maximum. A value of `0` is also the default, so use `verify_confession` (`Some(0)` vs `None`) as the existence check.
+- Enforced by `contracts/confession-anchor/tests/timestamp_policy.rs`.
+
 ---
 
 #### `verify_confession(env, hash) -> Option<u64>`
@@ -712,7 +719,9 @@ Soft-delete a confession (set status to Deleted).
 
 ### Overview
 
-The Anonymous Tipping contract enables sending tips to recipients without revealing the sender's identity. Supports optional settlement proof metadata for off-chain reconciliation.
+The Anonymous Tipping contract enables wallet holders to send tips to recipients and supports optional settlement proof metadata for off-chain reconciliation. Transactions are submitted from a Stellar wallet address, which may be publicly linkable to other on-chain activity.
+
+**Backend interface compatibility (#2205, #2211):** `contracts/anonymous-tipping/tests/interface_compat.rs` checks that the `abi.json` function list matches the backend surface, that typed client signatures match what the backend calls, and that each error the backend classifies is returned through the `try_` client. `contracts/anonymous-tipping/tests/error_code_registry.rs` checks the 6xxx codes against the registry table in `CONTRACT_ERROR_CODES.md`. The backend mirror of that table is checked by `xconfess-backend/src/stellar/utils/__tests__/contract-error-registry-parity.spec.ts`.
 
 ### Data Types
 
@@ -1249,6 +1258,9 @@ orders against this reference. Keep this section aligned with
 | `ConfessionEvent` | `confession` | `confess` | `single-value` | `event_version`, `confession_id`, `author`, `content_hash`, `nonce`, `timestamp`, `correlation_id` |
 | `ReactionEvent` | `reaction` | `react` | `single-value` | `event_version`, `confession_id`, `reactor`, `reaction_type`, `nonce`, `timestamp`, `correlation_id` |
 | `PauseChangedEvent` | `pause` | `tip_pause` | `single-value` | `actor`, `paused`, `reason`, `timestamp` |
+| `PausedEvent` | `pause` | `paused` | `single-value` | `reason` |
+| `UnpausedEvent` | `pause` | `unpaused` | `single-value` | `reason` |
+| `PauseStateChangedEvent` | `pause` | `pause_state_changed` | `vec` | `event_version`, `actor`, `reason`, `nonce`, `paused`, `timestamp` |
 | `ReportEvent` | `report` | `report` | `single-value` | `event_version`, `confession_id`, `reporter`, `reason`, `nonce`, `timestamp`, `correlation_id` |
 | `ReportSubmittedLedgerEvent` | `report` | `report` | `single-value` | `confession_id`, `actor`, `reason`, `event_version`, `nonce`, `timestamp` |
 | `RoleEvent` | `role` | `role` | `single-value` | `event_version`, `user`, `role`, `granted`, `nonce`, `timestamp`, `correlation_id` |

@@ -1,4 +1,5 @@
 import * as Joi from 'joi';
+import { findStellarNetworkConfigIssues } from './stellar-network.validation';
 
 const productionLike = Joi.valid('production', 'staging');
 const productionHexKey = Joi.string()
@@ -74,6 +75,27 @@ export const envValidationSchema = Joi.object({
     }),
   BACKEND_URL: Joi.string().uri().optional(),
   FRONTEND_URL: Joi.string().default('http://localhost:3000'),
+  // Comma-separated browser origins allowed to make credentialed requests.
+  // Wildcards are rejected: credentials plus "*" would let any site read
+  // authenticated responses.
+  CORS_ALLOWED_ORIGINS: Joi.string()
+    .optional()
+    .custom((value: string, helpers) => {
+      const origins = value
+        .split(',')
+        .map((origin) => origin.trim())
+        .filter(Boolean);
+
+      if (origins.includes('*')) {
+        return helpers.error('any.invalid');
+      }
+
+      return value;
+    }, 'CORS origin allowlist')
+    .messages({
+      'any.invalid':
+        'CORS_ALLOWED_ORIGINS must list explicit origins; "*" cannot be used because credentialed requests are enabled.',
+    }),
 
   // â”€â”€ Encryption â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   CONFESSION_ENCRYPTION_KEY: productionHexKey.required().messages({
@@ -204,8 +226,12 @@ export const envValidationSchema = Joi.object({
   RATE_LIMIT_GET_MAX: Joi.number().default(50),
   RATE_LIMIT_GET_WINDOW: Joi.number().default(60),
   NOTIFICATION_DEDUPE_TTL_SECONDS: Joi.number().default(60),
+  SEARCH_QUERY_TIMEOUT_MS: Joi.number().integer().min(100).max(60000).default(5000),
   ANALYTICS_ENABLED: Joi.string().valid('true', 'false').default('true'),
   ANALYTICS_RETENTION_DAYS: Joi.number().min(1).default(365),
+  // Keys the one-way pseudonyms stored in analytics_events.actor_id (Issue #2281).
+  // Optional: falls back to a key derived from JWT_SECRET.
+  ANALYTICS_ACTOR_PSEUDONYM_SECRET: Joi.string().min(32).optional(),
   TRACTION_CACHE_TTL_SECONDS: Joi.number().min(1).max(3600).default(60),
   TRACTION_EXCLUDED_USER_IDS: Joi.string()
     .allow('')
@@ -238,4 +264,42 @@ export const envValidationSchema = Joi.object({
 
   // â”€â”€ Redis queue health â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   REDIS_QUEUE_LATENCY_THRESHOLD_MS: Joi.number().default(250),
-}).options({ allowUnknown: true, abortEarly: false });
+
+  // ---- Comment module (Issue #2122) ----
+  // Maximum nesting depth for comment replies. A top-level comment has
+  // depth 0; its direct reply has depth 1, etc. The default of 1 keeps
+  // the historic "replies to replies are rejected" behaviour; raise it
+  // to allow deeper threads.
+  COMMENT_MAX_NESTING_DEPTH: Joi.number().integer().min(0).default(1),
+
+  // ---- Attachments (Issue #2123) ----
+  // Pre-storage metadata validation applied to POST /attachments. See
+  // src/attachment/attachment-validation.service.ts for the three checks
+  // (size ceiling, MIME allowlist, extension-vs-MIME consistency).
+  ATTACHMENT_MAX_SIZE_BYTES: Joi.number()
+    .integer()
+    .min(1)
+    .default(10 * 1024 * 1024),
+  ATTACHMENT_ALLOWED_MIME_TYPES: Joi.string()
+    .default('image/jpeg,image/png,image/webp,image/gif,application/pdf'),
+
+  // ---- Confession submission abuse throttle (Issue #2121) ----
+  // Window and ceiling for POST /confessions. Separate from the global
+  // THROTTLE_* envelope so an operator can tighten this path without
+  // narrowing the entire API. The underlying tracker is the in-memory
+  // ThrottlerGuard default (IP-keyed); the IP is not persisted or
+  // returned to clients.
+  CONFESSION_SUBMIT_TTL_MS: Joi.number().integer().min(1).default(60_000),
+  CONFESSION_SUBMIT_LIMIT: Joi.number().integer().min(1).default(10),
+})
+  // Cross-field Stellar contract/network consistency (Issue #2280).
+  .custom((value: Record<string, unknown>, helpers) => {
+    const issues = findStellarNetworkConfigIssues(value);
+    if (issues.length > 0) {
+      return helpers.message({
+        custom: `Stellar network configuration is invalid: ${issues.join(' ')}`,
+      });
+    }
+    return value;
+  })
+  .options({ allowUnknown: true, abortEarly: false });

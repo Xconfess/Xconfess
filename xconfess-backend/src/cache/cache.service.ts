@@ -40,20 +40,22 @@ export class CacheService {
       }
       return cached || null;
     } catch (error) {
-      this.logger.error(`Cache get error for key ${key}:`, error);
+      this.logger.warn('Cache read unavailable; using source data');
       return null;
     }
   }
 
   async set<T>(key: string, value: T, ttl?: number): Promise<void> {
     try {
-      await this.cacheManager.set(key, value, ttl);
+      await this.cacheManager.set(
+        key, value, ttl === undefined ? undefined : ttl * 1000,
+      );
       this.logger.debug(
         `Cache SET for key: ${key} (TTL: ${ttl || 'default'}s)`,
       );
       this.recordSet(key);
     } catch (error) {
-      this.logger.error(`Cache set error for key ${key}:`, error);
+      this.logger.warn('Cache write unavailable');
     }
   }
 
@@ -63,7 +65,7 @@ export class CacheService {
       this.logger.debug(`Cache DEL for key: ${key}`);
       this.recordDelete(key);
     } catch (error) {
-      this.logger.error(`Cache delete error for key ${key}:`, error);
+      this.logger.warn('Cache invalidation unavailable');
     }
   }
 
@@ -83,7 +85,7 @@ export class CacheService {
         }
       }
     } catch (error) {
-      this.logger.error(`Cache delete pattern error for ${pattern}:`, error);
+      this.logger.warn('Cache pattern invalidation unavailable');
     }
   }
 
@@ -133,10 +135,7 @@ export class CacheService {
       );
       return 0;
     } catch (error) {
-      this.logger.error(
-        `Cache invalidateSegment error for prefix "${prefix}" (reason="${reason}"):`,
-        error,
-      );
+      this.logger.warn('Cache segment invalidation unavailable');
       return 0;
     }
   }
@@ -151,7 +150,7 @@ export class CacheService {
       }
       this.logger.warn('Cache RESET: All keys deleted');
     } catch (error) {
-      this.logger.error('Cache reset error:', error);
+      this.logger.warn('Cache reset unavailable');
     }
   }
 

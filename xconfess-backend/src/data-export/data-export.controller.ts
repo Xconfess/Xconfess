@@ -5,9 +5,7 @@ import {
   Query,
   Res,
   UnauthorizedException,
-  BadRequestException,
   GoneException,
-  NotFoundException,
   Post,
   Req,
   UseGuards,
@@ -26,6 +24,63 @@ import { DataExportService } from './data-export.service';
 import { ConfigService } from '@nestjs/config';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
+/**
+ * Data Export Contributor Guide
+ *
+ * This controller exposes the GDPR data export API. The guide below
+ * documents the request lifecycle, local testing, cleanup expectations,
+ * and privacy-safe handling guidance for contributors.
+ *
+ * ### Request lifecycle
+ *
+ * 1. Request: `POST /data-export/request` creates an export record
+ *    for the authenticated user and enqueues an async job. The API returns
+ *    the export request id and initial status.
+ * 2. Queue: a background worker consumes the job, gathers the user's
+ *    data, builds the artifact(s), and updates the export record with
+ *    `completed` or `failed` status. Large exports may be split into
+ *    multiple chunks.
+ * 3. Poll: `GET /data-export/:id/status` and `GET /data-export/history`
+ *    let the client track job progress and retrieve prior exports.
+ * 4. Download: the client requests a signed link via
+ *    `POST /data-export/:id/redownload`, then calls
+ *    `GET /data-export/download/:id` with the signature, expiry, and
+ *    one-time token. The controller validates the link and streams the
+ *    artifact or returns chunk metadata.
+ * 5. Expiry: signed links and tokens expire; expired links return
+ *    `410 Gone` with a stable error code.
+ *
+ * ### Local testing
+ *
+ * - Start the backend and its dependencies (postgres, redis/queue).
+ * - Authenticate as a test user and call `POST /data-export/request`.
+ * - Wait for the worker to finish, then check `GET /data-export/:id/status`.
+ * - Request a redownload link and download the artifact to verify
+ *    contents and checksums.
+ * - Use the existing data-export unit tests as a reference for mocking
+ *    the queue and storage layers.
+ *
+ * ### Cleanup expectations
+ *
+ * - Export artifacts are temporary and must be deleted after their
+ *    retention window or once consumed by a one-time download.
+ * - The queue worker is responsible for removing partial artifacts and
+ *    marking failed jobs so they can be retried or purged.
+ * - Expired export records and their chunks must not be served and
+ *    should be removed by the cleanup job.
+ *
+ * ### Privacy-safe handling guidance
+ *
+ * - Only return data that belongs to the authenticated user.
+ * - Never log raw export contents, signed URLs, or one-time tokens; log
+ *    only export ids, statuses, and reason codes.
+ * - Use timing-safe comparisons for signature verification and treat
+ *    failed download attempts as security events.
+ * - Ensure artifacts are encrypted at rest and transmitted only over
+ *    HTTPS.
+ * - Respect data minimization: export only what the user requested and
+ *    what is required by the privacy policy.
+ */
 @ApiTags('Data Export')
 @Controller('data-export')
 export class DataExportController {
@@ -168,26 +223,54 @@ export class DataExportController {
 
     // 4. Fetch from Service
     if (chunkIndex !== undefined) {
-      const exportChunk = await this.exportService.getExportChunk(
-        id,
-        userId,
-        chunkIndex,
-      );
-      if (!exportChunk) throw new NotFoundException('Chunk not found.');
+      // getExportChunk verifies ownership (where: { id, userId }) and expiry
+      // before returning the chunk.  An expired or cross-account request both
+      // surface as NotFoundException so callers cannot distinguish the two
+      // (Issue #2157).
+      let exportChunk;
+      try {
+        exportChunk = await this.exportService.getExportChunk(
+          id,
+          userId,
+          chunkIndex,
+        );
+      } catch {
+        throw new GoneException({
+          statusCode: 410,
+          error: 'Gone',
+          message: 'Export not found, expired, or unauthorized.',
+          code: 'EXPORT_NOT_AVAILABLE',
+        });
+      }
+      if (!exportChunk) throw new GoneException({
+        statusCode: 410,
+        error: 'Gone',
+        message: 'Export not found, expired, or unauthorized.',
+        code: 'EXPORT_NOT_AVAILABLE',
+      });
 
       res.set({
         'Content-Type': 'application/zip',
-        'Content-Disposition': `attachment; filename="xconfess-data-${userId}-part${chunkIndex + 1}.zip"`,
+        'Content-Disposition': `attachment; filename="xconfess-data-part${chunkIndex + 1}.zip"`,
         'Content-Length': exportChunk.chunkSize,
         'X-Chunk-Checksum': exportChunk.checksum,
       });
       return res.send(exportChunk.fileData);
     }
 
+    // getExportFile verifies ownership (where: { id, userId }) and expiry.
     const exportReq = await this.exportService.getExportFile(id, userId);
 
+    // Unknown, expired, and other users' exports share the same response so
+    // this endpoint never reveals whether an export exists for a different user
+    // (Issue #2157).
     if (!exportReq || (!exportReq.fileData && !exportReq.isChunked)) {
-      throw new BadRequestException('File not found or expired.');
+      throw new GoneException({
+        statusCode: 410,
+        error: 'Gone',
+        message: 'Export not found, expired, or unauthorized.',
+        code: 'EXPORT_NOT_AVAILABLE',
+      });
     }
 
     if (exportReq.isChunked) {
@@ -206,13 +289,18 @@ export class DataExportController {
     }
 
     if (!exportReq.fileData) {
-      throw new BadRequestException('File not found or expired.');
+      throw new GoneException({
+        statusCode: 410,
+        error: 'Gone',
+        message: 'Export not found, expired, or unauthorized.',
+        code: 'EXPORT_NOT_AVAILABLE',
+      });
     }
 
-    // 5. Stream single file
+    // 5. Stream single file — omit userId from filename to avoid leaking it
     res.set({
       'Content-Type': 'application/zip',
-      'Content-Disposition': `attachment; filename="xconfess-data-${userId}.zip"`,
+      'Content-Disposition': `attachment; filename="xconfess-data.zip"`,
       'Content-Length': exportReq.fileData.length,
     });
 

@@ -145,9 +145,9 @@ def scan_file(file_path, repo_root):
                         else:
                             redacted_match = '***SECRET***'
 
-                        snippet = line.strip()
-                        if len(snippet) > 120:
-                            snippet = snippet[:117] + '...'
+                        # Never retain the source line: it can contain additional
+                        # credentials beyond the match that triggered this rule.
+                        snippet = '[REDACTED: source line omitted]'
 
                         findings.append({
                             'file': rel_path,

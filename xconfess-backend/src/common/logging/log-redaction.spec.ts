@@ -138,6 +138,32 @@ describe('Log Redaction', () => {
       redactLogPayload(input);
       expect(input.password).toBe('original');
     });
+
+    // #2234 — privacy regression coverage for representative auth,
+    // messaging, and error log shapes (not just field-level unit cases).
+    it('redacts a nested auth-flow error payload without losing diagnostics', () => {
+      const input = {
+        event: 'auth.login.failed',
+        statusCode: 401,
+        error: { code: 'INVALID_CREDENTIALS', accessToken: 'abc', user: { id: 'u1', password: 'hunter2' } },
+      };
+      const result: any = redactLogPayload(input);
+      expect(result.error.accessToken).toBe('[REDACTED]');
+      expect(result.error.user.password).toBe('[REDACTED]');
+      expect(result.error.code).toBe('INVALID_CREDENTIALS');
+      expect(result.statusCode).toBe(401);
+    });
+
+    it('redacts confession/message text and an attached token (#2282)', () => {
+      const input = {
+        event: 'message.sent',
+        message: { body: 'this is my private confession text', authToken: 'secretvalue' },
+      };
+      const result: any = redactLogPayload(input);
+      expect(result.message.body).toBe('[REDACTED:user-content,len=34]');
+      expect(result.message.authToken).toBe('[REDACTED]');
+      expect(JSON.stringify(result)).not.toContain('private confession');
+    });
   });
 
   describe('redactStringValue', () => {

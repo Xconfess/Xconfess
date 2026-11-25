@@ -9,6 +9,7 @@ import {
   Query,
   Req,
   UseGuards,
+  Headers,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { OwnershipGuard } from '../common/guards/ownership.guard';
@@ -18,6 +19,7 @@ import { CreateMessageDto, ReplyMessageDto } from './dto/message.dto';
 import { GetMessagesQueryDto } from './dto/get-messages-query.dto';
 import { RateLimitGuard } from '../auth/guard/rate-limit.guard';
 import { RateLimit } from '../auth/guard/rate-limit.decorator';
+import { DeprecatedApi } from '../common/decorators/deprecated-api.decorator';
 
 @Controller('messages')
 @UseGuards(JwtAuthGuard)
@@ -32,8 +34,12 @@ export class MessagesController {
   @Post()
   @UseGuards(RateLimitGuard)
   @RateLimit(10, 60, 3, 60)
-  async createMessage(@Body() dto: CreateMessageDto, @Req() req: any) {
-    return this.messagesService.create(dto, req.user);
+  async createMessage(
+    @Body() dto: CreateMessageDto,
+    @Req() req: any,
+    @Headers('idempotency-key') idempotencyKey?: string,
+  ) {
+    return this.messagesService.create(dto, req.user, idempotencyKey);
   }
 
   /**
@@ -68,8 +74,16 @@ export class MessagesController {
    * Verify the requester is a participant in the thread — not just authenticated.
    * Supports cursor-based pagination via `cursor`/`limit` query params so large
    * threads never return an unbounded history in a single response.
+   * `?page=` remains available but is deprecated in favour of cursors.
    */
   @Get('thread/:threadId')
+  @DeprecatedApi({
+    deprecatedAt: '2026-10-21',
+    sunsetAt: '2027-04-30',
+    successor: '/api/messages/thread/:threadId',
+    guidance: 'Use cursor pagination (?cursor=...&limit=...) instead of ?page=.',
+    legacyQueryParam: 'page',
+  })
   async getThread(
     @Param('threadId') threadId: string,
     @Query() query: GetMessagesQueryDto,

@@ -20,8 +20,23 @@ env:
   CI: true
 
 jobs:
+  malware-indicators:
+    name: Security / Malware indicators
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Validate detector fixtures
+        shell: pwsh
+        run: ./scripts/check-malware-indicators.ps1 -SelfTest
+      - name: Scan tracked files without installing dependencies
+        shell: pwsh
+        run: ./scripts/check-malware-indicators.ps1
+
   audit:
     name: Security / npm audit
+    needs: malware-indicators
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -31,16 +46,73 @@ jobs:
           cache: npm
           cache-dependency-path: package-lock.json
       - run: npm install --global npm@10.9.3
+      - name: Verify supported Node.js runtime
+        run: npm run setup:check
       - run: npm ci --include=optional --no-audit --no-fund
+      - run: npm run node:test
       - run: npm run audit:ci
+      - name: Validate package distribution policy fixtures
+        run: npm run packages:distribution:self-test
+      - name: Audit npm workspaces and Rust dependencies
+        run: npm run packages:distribution
 
   secret-scan:
     name: Security / Secret Scan
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
       - run: ./scripts/secret-scanning-preflight.sh --self-test
       - run: ./scripts/secret-scanning-preflight.sh
+      - name: Validate synthetic fixture policy
+        run: npm run fixtures:validate
+      - name: Run fixture privacy regression tests
+        run: npm run fixtures:test
+      - name: Self-test release artifact scanner
+        run: npm run artifacts:scan:self-test
+      - name: Scan committed Docker context and release metadata
+        run: npm run artifacts:scan
+
+  migration-smoke:
+    name: Database / migration smoke (PostgreSQL 16)
+    needs: [audit, secret-scan]
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: xconfess_migration_smoke
+          POSTGRES_USER: postgres
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d xconfess_migration_smoke"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      NODE_ENV: test
+      APP_ENV: ci
+      DB_HOST: localhost
+      DB_PORT: 5432
+      DB_READ_HOST: localhost
+      DB_READ_PORT: 5432
+      DB_USERNAME: postgres
+      DB_PASSWORD: unused
+      DB_NAME: xconfess_migration_smoke
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - run: npm install --global npm@10.9.3
+      - run: npm ci --include=optional --no-audit --no-fund
+      - run: npm run backend:migration:smoke
 
   apps:
     name: Apps / lint, typecheck, build
@@ -84,7 +156,9 @@ jobs:
       TYPEORM_MIGRATIONS_RUN: false
       JWT_SECRET: ci-jwt-secret-with-more-than-32-characters
       APP_SECRET: ci-app-secret-with-more-than-32-characters
-      CONFESSION_ENCRYPTION_KEY: 0000000000000000000000000000000000000000000000000000000000000000
+      # Synthetic test-only keys; production validation remains enabled.
+      CONFESSION_ENCRYPTION_KEY: '1111111111111111111111111111111111111111111111111111111111111111'
+      ENCRYPTION_MASTER_KEY_v1: '2222222222222222222222222222222222222222222222222222222222222222'
       ENABLE_BACKGROUND_JOBS: false
       REDIS_HOST: localhost
       REDIS_PORT: 6379
@@ -104,8 +178,53 @@ jobs:
           cache: npm
           cache-dependency-path: package-lock.json
       - run: npm install --global npm@10.9.3
+      - name: Verify supported Node.js runtime
+        run: npm run setup:check
       - run: npm ci --include=optional --no-audit --no-fund
+      - name: Wait for PostgreSQL and Redis health
+        run: npm run services:wait
+        env:
+          SERVICE_WAIT_TIMEOUT_MS: 60000
+      - name: Run API contract hardening tests
+        run: npm run backend:test:contracts
+      - name: Verify Redis outages, feed properties, message races and notification failures
+        run: npm run test:reliability --workspace=xconfess-backend
+      - run: npm run backend:test:critical-coverage
+      - run: npm run frontend:env:test
+      - name: Start backend for API contract drift check
+        shell: bash
+        run: |
+          npm run backend:build
+          npm run start:backend > backend-api-contract.log 2>&1 &
+          echo $! > backend-api-contract.pid
+      - name: Validate frontend proxies against backend OpenAPI
+        shell: bash
+        run: |
+          for attempt in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:5000/api/health/live >/dev/null; then
+              break
+            fi
+            if [ "$attempt" -eq 30 ]; then
+              cat backend-api-contract.log
+              exit 1
+            fi
+            sleep 2
+          done
+          curl --fail --silent http://127.0.0.1:5000/api/docs-json > openapi.json
+          npm run api:contract-drift -- --spec="$PWD/openapi.json"
+      - name: Generate normalized OpenAPI and compare against baseline
+        shell: bash
+        run: |
+          npm run api:contract:check -- \
+            --spec="$PWD/openapi.json" \
+            --output="$PWD/deployments/openapi.normalized.json" \
+            --report="$GITHUB_STEP_SUMMARY"
+          echo "Normalized spec: deployments/openapi.normalized.json" >> "$GITHUB_STEP_SUMMARY"
+      - run: npx playwright install --with-deps chromium
+      - run: npm run frontend:test:a11y
       - run: npm run ci:apps
+      - name: Scan built backend and frontend bundles for secrets
+        run: npm run artifacts:scan -- --path="$PWD"
 
   contracts:
     name: Contracts
@@ -116,10 +235,11 @@ jobs:
         working-directory: xconfess-contracts
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@master
         with:
+          toolchain: 1.86.0
           components: rustfmt, clippy
-          targets: wasm32-unknown-unknown
+          targets: wasm32v1-none
       - uses: swatinem/rust-cache@v2
         with:
           workspaces: xconfess-contracts
@@ -128,4 +248,24 @@ jobs:
       - run: cargo clippy --workspace --all-targets -- -D warnings
       - run: cargo test --workspace
       - name: Check contract ABI drift
-        run: bash scripts/check-abi-drift.sh
+        run: |
+          python3 scripts/test_extract_contract_functions.py
+          bash scripts/check-abi-drift.sh
+      - name: Check contract upgrade compatibility checklist
+        working-directory: ${{ github.workspace }}
+        run: npm run contracts:compatibility
+      - name: Test contract quality gates
+        working-directory: ${{ github.workspace }}
+        run: npm run contracts:quality-tests
+      - name: Rebuild WASM and verify release manifest
+        working-directory: .
+        run: bash scripts/contracts-release.sh check
+      - name: Test release manifest validation failures
+        working-directory: .
+        run: bash scripts/test-contract-release-metadata.sh
+      - name: Test critical-contract review delay gate
+        working-directory: ${{ github.workspace }}
+        run: npm run contract:review-delay:test
+      - name: Scan contract release artifacts for secrets
+        working-directory: ${{ github.workspace }}
+        run: npm run artifacts:scan -- --path="$PWD"

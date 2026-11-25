@@ -13,6 +13,7 @@ import { EmailService } from '../email/email.service';
 import { Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { EXPORT_QUEUE_NAME } from './data-export.constants';
+import { buildExportManifest } from './export-manifest';
 
 @Processor(EXPORT_QUEUE_NAME)
 export class ExportProcessor extends WorkerHost {
@@ -40,8 +41,14 @@ export class ExportProcessor extends WorkerHost {
     try {
       this.logger.log(`Starting chunked export for user ${userId}...`);
 
-      // Stamp processingAt and flip status to PROCESSING
+      // markExportProcessing is idempotent: if this job is already PROCESSING
+      // (e.g. a worker restart delivered the same job twice) it returns early
+      // so we never reset timestamps or re-enter a running job (Issue #2156).
       await this.dataExportService.markExportProcessing(requestId);
+
+      // Discard any partial chunks from a previous failed attempt before
+      // writing new ones so retried jobs always start from a clean slate (Issue #2156).
+      await this.dataExportService.cleanupPartialChunks(requestId);
 
       const data = await this.dataExportService.compileUserData(userId);
       const result = await this.generateChunkedZip(requestId, data);
@@ -74,6 +81,17 @@ export class ExportProcessor extends WorkerHost {
     } catch (error) {
       const message = error instanceof Error ? error.message : 'unknown error';
       this.logger.error(`Export ${requestId} failed: ${message}`);
+      // Clean up any partial chunks written before the failure so the next
+      // retry starts fresh (Issue #2156).
+      try {
+        await this.dataExportService.cleanupPartialChunks(requestId);
+      } catch (cleanupErr) {
+        const cleanupMsg =
+          cleanupErr instanceof Error ? cleanupErr.message : String(cleanupErr);
+        this.logger.warn(
+          `Failed to clean partial chunks for export ${requestId}: ${cleanupMsg}`,
+        );
+      }
       // Use the service helper so retryCount and lastFailureReason are persisted
       await this.dataExportService.markExportFailed(requestId, message);
     }
@@ -157,6 +175,7 @@ export class ExportProcessor extends WorkerHost {
 
       archive.pipe(chunkProcessor);
 
+      const files = ['complete_data.json'];
       archive.append(JSON.stringify(data, null, 2), {
         name: 'complete_data.json',
       });
@@ -165,7 +184,12 @@ export class ExportProcessor extends WorkerHost {
           data.confessions,
         );
         archive.append(csvContent, { name: 'confessions.csv' });
+        files.push('confessions.csv');
       }
+      archive.append(
+        JSON.stringify(buildExportManifest(data, files), null, 2),
+        { name: 'manifest.json' },
+      );
 
       archive.finalize();
     });

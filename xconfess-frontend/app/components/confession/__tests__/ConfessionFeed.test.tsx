@@ -201,13 +201,27 @@ describe("ConfessionFeed", () => {
       expect(liveRegion).toHaveTextContent("Updating feed contents...");
     });
 
-    it("announces an error via aria-live alongside the error state", () => {
-      mockFeedState({ data: undefined, error: new Error("Network Error") });
+    it("announces a safe generic error via aria-live alongside the error state", () => {
+      mockFeedState({
+        data: undefined,
+        error: new Error("Network Error with private backend detail"),
+      });
       const { container } = render(<ConfessionFeed />);
 
       expect(screen.getByTestId("error-state")).toBeInTheDocument();
       const liveRegion = container.querySelector('[aria-live="polite"]');
-      expect(liveRegion).toHaveTextContent(/unable to load feed/i);
+      expect(liveRegion).toHaveTextContent("Unable to load feed.");
+      expect(liveRegion).not.toHaveTextContent(/private backend detail/i);
+      expect(liveRegion).not.toHaveTextContent(/confession 1|confession 2/i);
+    });
+
+    it("announces result counts instead of reading confession posts", () => {
+      mockFeedState({ isFetching: true });
+      const { container } = render(<ConfessionFeed />);
+
+      const liveRegion = container.querySelector('[aria-live="polite"]');
+      expect(liveRegion).toHaveTextContent("Updating feed contents...");
+      expect(liveRegion).not.toHaveTextContent(/confession 1|confession 2/i);
     });
 
     it("does not announce anything when idle", () => {

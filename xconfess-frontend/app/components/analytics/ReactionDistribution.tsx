@@ -27,15 +27,15 @@ export const ReactionDistribution: React.FC<ReactionDistributionProps> = ({
 }) => {
     if (loading) {
         return (
-            <div role='status' aria-label='loading' className="bg-zinc-900/50 border border-zinc-800 rounded-2xl p-6 h-[400px] flex items-center justify-center animate-pulse">
-                <div className="w-48 h-48 bg-zinc-800/30 rounded-full" />
+            <div role='status' aria-label='loading' className="bg-[var(--surface)]/50 border border-[var(--border)] rounded-2xl p-6 h-[400px] flex items-center justify-center animate-pulse">
+                <div className="w-48 h-48 bg-[var(--surface-muted)]/30 rounded-full" />
             </div>
         );
     }
 
     return (
-        <div className="bg-zinc-900/50 border border-zinc-800 rounded-2xl p-6 h-[400px] flex flex-col">
-            <h3 className="text-xl font-bold text-white mb-6">Reaction Distribution</h3>
+        <div className="bg-[var(--surface)]/50 border border-[var(--border)] rounded-2xl p-6 h-[400px] flex flex-col">
+            <h3 className="text-xl font-semibold text-[var(--foreground)] mb-6">Reaction Distribution</h3>
 
             <div className="flex-1 w-full">
                 <ResponsiveContainer width="100%" height="100%">
@@ -65,7 +65,7 @@ export const ReactionDistribution: React.FC<ReactionDistributionProps> = ({
                         <Legend
                             verticalAlign="bottom"
                             height={36}
-                            formatter={(value) => <span className="text-zinc-400 text-sm ml-2">{value}</span>}
+                            formatter={(value) => <span className="text-[var(--text-muted)] text-sm ml-2">{value}</span>}
                         />
                     </PieChart>
                 </ResponsiveContainer>

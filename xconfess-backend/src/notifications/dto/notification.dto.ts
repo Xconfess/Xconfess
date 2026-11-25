@@ -8,6 +8,8 @@ import {
   Min,
   Max,
 } from 'class-validator';
+import { Transform } from 'class-transformer';
+import { PaginationDto } from '../../common/pagination';
 import { NotificationType } from '../entities/notification.entity';
 
 export class CreateNotificationDto {
@@ -93,19 +95,22 @@ export class UpdateNotificationPreferenceDto {
   timezone?: string;
 }
 
-export class NotificationQueryDto {
+/**
+ * Query params for GET /notifications.
+ *
+ * Extends the shared PaginationDto so the notification feed enforces exactly
+ * the same page/limit bounds as every other list endpoint (Issue #2117).
+ * The response shape (`{ notifications, total, unreadCount }`) is unchanged.
+ */
+export class NotificationQueryDto extends PaginationDto {
   @IsOptional()
-  @IsNumber()
-  @Min(1)
-  page?: number = 1;
-
-  @IsOptional()
-  @IsNumber()
-  @Min(1)
-  @Max(100)
-  limit?: number = 20;
-
-  @IsOptional()
-  @IsBoolean()
+  @Transform(({ value }) =>
+    value === true || value === 'true'
+      ? true
+      : value === false || value === 'false'
+        ? false
+        : value,
+  )
+  @IsBoolean({ message: 'unreadOnly must be a boolean.' })
   unreadOnly?: boolean = false;
 }

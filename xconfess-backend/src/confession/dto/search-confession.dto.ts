@@ -18,7 +18,10 @@ import {
 } from 'class-validator';
 import { Transform, Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { PAGINATION } from '../../common/pagination/pagination.constants';
+import {
+  PAGINATION,
+  PAGINATION_MESSAGES,
+} from '../../common/pagination/pagination.constants';
 
 export enum SortBy {
   REACTIONS = 'reactions',
@@ -28,10 +31,9 @@ export enum SortBy {
 }
 
 const SEARCH_QUERY_MAX_LENGTH = 120;
-const SEARCH_PAGE_MAX = 1000;
-// Allow Unicode letters/numbers + common separators/punctuation used in search.
+// Allow Unicode letters, numbers and combining marks (vowel signs, accents) + common separators/punctuation used in search.
 const SEARCH_QUERY_ALLOWED_CHARS =
-  /^[\p{L}\p{N}\p{Zs}.,!?'"@#$%&*()_\-:+/[\]{}]+$/u;
+  /^[\p{L}\p{M}\p{N}\p{Zs}.,!?'"@#$%&*()_\-:+/[\]{}]+$/u;
 
 export class SearchConfessionDto {
   @ApiProperty({
@@ -58,30 +60,30 @@ export class SearchConfessionDto {
   @ApiPropertyOptional({
     description: 'Page number for pagination',
     example: 1,
-    minimum: 1,
-    maximum: SEARCH_PAGE_MAX,
-    default: 1,
+    minimum: PAGINATION.MIN_PAGE,
+    maximum: PAGINATION.MAX_PAGE,
+    default: PAGINATION.DEFAULT_PAGE,
   })
   @IsOptional()
-  @Transform(({ value }) => parseInt(value))
-  @IsInt()
-  @Min(1)
-  @Max(SEARCH_PAGE_MAX)
-  page?: number = 1;
+  @Type(() => Number)
+  @IsInt({ message: PAGINATION_MESSAGES.PAGE_INTEGER })
+  @Min(PAGINATION.MIN_PAGE, { message: PAGINATION_MESSAGES.PAGE_MIN })
+  @Max(PAGINATION.MAX_PAGE, { message: PAGINATION_MESSAGES.PAGE_MAX })
+  page?: number = PAGINATION.DEFAULT_PAGE;
 
   @ApiPropertyOptional({
     description: 'Number of results per page',
     example: 10,
-    minimum: 1,
+    minimum: PAGINATION.MIN_LIMIT,
     maximum: PAGINATION.MAX_LIMIT,
-    default: 10,
+    default: PAGINATION.DEFAULT_LIMIT,
   })
   @IsOptional()
-  @Transform(({ value }) => parseInt(value))
-  @IsInt()
-  @Min(1)
-  @Max(PAGINATION.MAX_LIMIT)
-  limit?: number = 10;
+  @Type(() => Number)
+  @IsInt({ message: PAGINATION_MESSAGES.LIMIT_INTEGER })
+  @Min(PAGINATION.MIN_LIMIT, { message: PAGINATION_MESSAGES.LIMIT_MIN })
+  @Max(PAGINATION.MAX_LIMIT, { message: PAGINATION_MESSAGES.LIMIT_MAX })
+  limit?: number = PAGINATION.DEFAULT_LIMIT;
 
   // ===== NEW ADVANCED FILTERS =====
 

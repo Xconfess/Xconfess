@@ -1,19 +1,28 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useState, useCallback, useRef } from "react";
-import { Menu, Search, UserRound, WalletCards } from "lucide-react";
+import { Menu, Search, UserRound } from "lucide-react";
 import { ThemeToggle } from "../common/ThemeToggle";
 import { WalletButton } from "@/components/wallet/WalletButton";
 
 import { BrandLogo } from "@/app/components/brand/BrandLogo";
 import { NotificationBell } from "@/app/components/notifications/NotificationBell";
+import { cn } from "@/app/lib/utils/cn";
 import Sidebar from "./Sidebar";
 
-const navLinkClass =
-  "rounded-xl px-4 py-2.5 text-sm font-medium text-[var(--secondary)] transition-all duration-200 hover:bg-[var(--surface-muted)] hover:text-[var(--foreground)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--primary)]";
+const navItems = [
+  { href: "/", label: "Feed" },
+  { href: "/search", label: "Explore" },
+  { href: "/wallet", label: "Wallet" },
+];
+
+const iconButtonClass =
+  "flex h-9 w-9 items-center justify-center rounded-[var(--radius-control)] text-[var(--secondary)] transition-colors hover:bg-[var(--surface-muted)] hover:text-[var(--foreground)]";
 
 export default function Header() {
+  const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
 
@@ -31,48 +40,67 @@ export default function Header() {
     [mobileMenuOpen, closeMobileMenu],
   );
 
+  const isActive = (href: string) =>
+    href === "/" ? pathname === "/" : pathname?.startsWith(href);
+
   return (
     <>
       <header
         aria-label="Main navigation"
-        className="sticky top-0 z-30 border-b border-[var(--border)] bg-[var(--surface)] shadow-[0_18px_60px_-48px_rgba(0,0,0,0.8)] backdrop-blur-xl"
+        className="sticky top-0 z-30 border-b border-[var(--border)] bg-[var(--surface-overlay)] backdrop-blur-md"
         onKeyDown={handleNavKeyDown}
       >
-        <nav className="mx-auto max-w-7xl px-4 py-2.5 sm:px-6 sm:py-3.5 lg:px-8">
-          <div className="flex items-center justify-between gap-2 sm:gap-6">
-            <BrandLogo priority imageClassName="w-[112px] sm:w-[164px] dark:hidden" />
-            <BrandLogo priority tone="light" imageClassName="hidden w-[112px] sm:w-[164px] dark:block" />
+        <nav className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-4 px-4 sm:px-6">
+          <div className="flex items-center gap-8">
+            <BrandLogo priority imageClassName="w-[104px] sm:w-[120px] dark:hidden" />
+            <BrandLogo priority tone="light" imageClassName="hidden w-[104px] sm:w-[120px] dark:block" />
 
             <div className="hidden items-center gap-1 md:flex">
-              <Link href="/" className={navLinkClass}>Feed</Link>
-              <Link href="/search" className={navLinkClass}>Explore</Link>
-              <Link href="/#about" className={navLinkClass}>About</Link>
-              <Link href="/wallet" className={navLinkClass}><WalletCards className="mr-2 inline h-4 w-4" />Wallet</Link>
-              <span aria-hidden="true" className="mx-2 h-7 w-px bg-[var(--border)]" />
-              <WalletButton />
-              <Link href="/search" aria-label="Search" className="hidden h-10 w-10 items-center justify-center rounded-full text-[var(--secondary)] transition-colors hover:bg-[var(--surface-muted)] hover:text-[var(--foreground)] dark:flex"><Search className="h-4 w-4" /></Link>
-              <ThemeToggle />
-              <NotificationBell />
-              <Link href="/profile" aria-label="Profile" className="flex h-10 w-10 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--accent-soft)] text-[var(--primary-deep)] transition-colors hover:bg-[var(--surface-muted)]"><UserRound className="h-4 w-4" /></Link>
+              {navItems.map(({ href, label }) => (
+                <Link
+                  key={href}
+                  href={href}
+                  aria-current={isActive(href) ? "page" : undefined}
+                  className={cn(
+                    "rounded-[var(--radius-control)] px-3 py-1.5 text-sm transition-colors",
+                    isActive(href)
+                      ? "font-medium text-[var(--foreground)]"
+                      : "text-[var(--secondary)] hover:text-[var(--foreground)]",
+                  )}
+                >
+                  {label}
+                </Link>
+              ))}
             </div>
+          </div>
 
-            <div className="flex min-w-0 items-center gap-1.5 md:hidden">
-              <Link href="/wallet" className="flex min-h-[44px] items-center rounded-xl border border-[var(--border)] bg-[var(--surface-muted)] px-3 text-sm font-semibold text-[var(--foreground)]">Wallet</Link>
-              <WalletButton className="hidden" />
-              <ThemeToggle />
-              <NotificationBell />
-              <button
-                ref={menuButtonRef}
-                type="button"
-                className="-mr-2 flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl border border-[var(--border)] bg-[var(--surface-muted)] p-3 text-[var(--secondary)] transition-colors hover:bg-[var(--surface-strong)] hover:text-[var(--foreground)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--primary)]"
-                aria-label="Open menu"
-                aria-expanded={mobileMenuOpen}
-                aria-controls="mobile-navigation"
-                onClick={() => setMobileMenuOpen(true)}
-              >
-                <Menu aria-hidden="true" size={24} />
-              </button>
-            </div>
+          <div className="hidden items-center gap-1 md:flex">
+            <Link href="/search" aria-label="Search" className={iconButtonClass}>
+              <Search className="h-4 w-4" />
+            </Link>
+            <ThemeToggle />
+            <NotificationBell />
+            <span aria-hidden="true" className="mx-2 h-5 w-px bg-[var(--border)]" />
+            <WalletButton />
+            <Link href="/profile" aria-label="Profile" className={cn(iconButtonClass, "ml-1 rounded-full border border-[var(--border)]")}>
+              <UserRound className="h-4 w-4" />
+            </Link>
+          </div>
+
+          <div className="flex items-center gap-1 md:hidden">
+            <ThemeToggle />
+            <NotificationBell />
+            <button
+              ref={menuButtonRef}
+              type="button"
+              className={cn(iconButtonClass, "-mr-2 h-11 w-11")}
+              aria-label="Open menu"
+              aria-expanded={mobileMenuOpen}
+              aria-controls="mobile-navigation"
+              onClick={() => setMobileMenuOpen(true)}
+            >
+              <Menu aria-hidden="true" size={20} />
+            </button>
           </div>
         </nav>
       </header>

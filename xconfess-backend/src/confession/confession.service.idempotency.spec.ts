@@ -241,7 +241,7 @@ describe('ConfessionIdempotencyService', () => {
 
       expect(result.isReplay).toBe(false);
       expect(recordRepo.update).toHaveBeenCalledWith(
-        failedRow.id,
+        { id: failedRow.id, status: 'failed' },
         expect.objectContaining({ status: 'processing' }),
       );
     });

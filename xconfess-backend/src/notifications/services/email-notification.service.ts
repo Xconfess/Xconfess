@@ -24,6 +24,9 @@ export class EmailNotificationService {
       host: this.configService.get<string>('SMTP_HOST'),
       port: this.configService.get<number>('SMTP_PORT'),
       secure: this.configService.get<string>('SMTP_SECURE') === 'true',
+      connectionTimeout: 5000,
+      greetingTimeout: 5000,
+      socketTimeout: 10000,
       auth: {
         user: this.configService.get<string>('SMTP_USER'),
         pass: this.configService.get<string>('SMTP_PASS'),
@@ -95,11 +98,13 @@ export class EmailNotificationService {
 
       this.logger.log(`Email sent for notification ${notification.id}`);
     } catch (error) {
-      this.logger.error(
-        `Failed to send email for notification ${notification.id}:`,
-        error instanceof Error ? error.message : String(error),
-      );
-      throw error;
+      this.logger.error(`Email delivery failed for notification ${notification.id}`);
+      const code = (error as { code?: string })?.code;
+      const safeCode = code && [
+        'ETIMEDOUT', 'ECONNECTION', 'ECONNREFUSED', 'EAUTH',
+        'EENVELOPE', 'EMESSAGE', 'ESOCKET',
+      ].includes(code) ? code : 'DELIVERY_FAILED';
+      throw Object.assign(new Error('Email delivery failed'), { code: safeCode });
     }
   }
 

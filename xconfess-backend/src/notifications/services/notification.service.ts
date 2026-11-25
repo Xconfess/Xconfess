@@ -19,6 +19,8 @@ import {
 } from '../delivery-state';
 import { RequestContextStorage } from '../../common/request-context';
 import { createHash } from 'node:crypto';
+import { NotificationResponseDto } from '../dto/notification-response.dto';
+import { toNotificationResponse } from '../mappers/notification-response.mapper';
 
 interface ChannelPreferences {
   inApp?: boolean;
@@ -213,39 +215,41 @@ export class NotificationService {
     }
 
     const sourceKey = dto.sourceKey ?? this.buildSourceKey(dto);
-    if (sourceKey) {
-      const existing = await this.notificationRepository.findOne({
-        where: { sourceKey },
-      });
-      if (existing) {
-        this.appLogger.incrementCounter('notification_duplicate_suppressed_total', 1, {
-          notificationType: dto.type,
-        });
-        return existing;
-      }
-    }
-
-    const notification = this.notificationRepository.create({
-      ...dto,
-      sourceKey: sourceKey ?? undefined,
-    });
-    try {
-      await this.notificationRepository.save(notification);
-    } catch (error) {
-      if (sourceKey && this.isUniqueViolation(error)) {
-        const existing = await this.notificationRepository.findOne({
+    let notification = sourceKey
+      ? await this.notificationRepository.findOne({
           where: { sourceKey },
-        });
-        if (existing) {
-          this.appLogger.incrementCounter(
-            'notification_duplicate_suppressed_total',
-            1,
-            { notificationType: dto.type },
-          );
-          return existing;
+        })
+      : null;
+    if (notification) {
+      this.appLogger.incrementCounter('notification_duplicate_suppressed_total', 1, {
+        notificationType: dto.type,
+      });
+    } else {
+      notification = this.notificationRepository.create({
+        ...dto,
+        sourceKey: sourceKey ?? undefined,
+      });
+      try {
+        await this.notificationRepository.save(notification);
+      } catch (error) {
+        if (sourceKey && this.isUniqueViolation(error)) {
+          const existing = await this.notificationRepository.findOne({
+            where: { sourceKey },
+          });
+          if (existing) {
+            this.appLogger.incrementCounter(
+              'notification_duplicate_suppressed_total',
+              1,
+              { notificationType: dto.type },
+            );
+            notification = existing;
+          } else {
+            throw error;
+          }
+        } else {
+          throw error;
         }
       }
-      throw error;
     }
 
     // Queue for email notification if enabled and background jobs are active
@@ -427,7 +431,7 @@ export class NotificationService {
     userId: string,
     query: NotificationQueryDto,
   ): Promise<{
-    notifications: Notification[];
+    notifications: NotificationResponseDto[];
     total: number;
     unreadCount: number;
   }> {
@@ -453,13 +457,32 @@ export class NotificationService {
       where: { userId, isRead: false },
     });
 
-    return { notifications, total, unreadCount };
+    return {
+      notifications: notifications.map(toNotificationResponse),
+      total,
+      unreadCount,
+    };
+  }
+
+  async getNotificationById(
+    notificationId: string,
+    userId: string,
+  ): Promise<NotificationResponseDto> {
+    const notification = await this.notificationRepository.findOne({
+      where: { id: notificationId, userId },
+    });
+
+    if (!notification) {
+      throw new NotFoundException('Notification not found');
+    }
+
+    return toNotificationResponse(notification);
   }
 
   async markAsRead(
     notificationId: string,
     userId: string,
-  ): Promise<Notification> {
+  ): Promise<NotificationResponseDto> {
     const notification = await this.notificationRepository.findOne({
       where: { id: notificationId, userId },
     });
@@ -470,7 +493,8 @@ export class NotificationService {
 
     notification.isRead = true;
     notification.readAt = new Date();
-    return this.notificationRepository.save(notification);
+    const saved = await this.notificationRepository.save(notification);
+    return toNotificationResponse(saved);
   }
 
   async markAllAsRead(userId: string): Promise<void> {

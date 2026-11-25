@@ -1,6 +1,10 @@
-import { IsEnum, IsInt, IsOptional, Min } from 'class-validator';
-import { Transform } from 'class-transformer';
+import { IsEnum, IsInt, IsOptional, Max, Min } from 'class-validator';
+import { Type } from 'class-transformer';
 import { CursorPaginationDto } from '../../common/pagination/cursor-pagination.dto';
+import {
+  PAGINATION,
+  PAGINATION_MESSAGES,
+} from '../../common/pagination/pagination.constants';
 
 export enum SortOrder {
   TRENDING = 'trending',
@@ -16,9 +20,10 @@ export enum Gender {
 
 export class GetConfessionsDto extends CursorPaginationDto {
   @IsOptional()
-  @Transform(({ value }) => parseInt(value))
-  @IsInt()
-  @Min(1)
+  @Type(() => Number)
+  @IsInt({ message: PAGINATION_MESSAGES.PAGE_INTEGER })
+  @Min(PAGINATION.MIN_PAGE, { message: PAGINATION_MESSAGES.PAGE_MIN })
+  @Max(PAGINATION.MAX_PAGE, { message: PAGINATION_MESSAGES.PAGE_MAX })
   page?: number = 1;
 
   @IsOptional()

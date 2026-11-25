@@ -79,6 +79,27 @@ npm run test:e2e
 ## Environment Variables
 See `.env.example` for all required variables.
 
+## RPC Rate Limits
+
+Issue #2279. When Horizon or Soroban RPC throttles a call (HTTP 429), the backend backs off instead of retrying immediately (`utils/rpc-rate-limit.ts`). This applies to `getAccountBalance`, `verifyTransaction`, `verifyTransactionFull`, `verifyConfession` and `submitTransaction`.
+
+- **Retry hints are honored:** a `Retry-After` header (seconds or HTTP date) sets the wait before the next attempt.
+- **Without a hint:** exponential backoff, `STELLAR_RPC_RETRY_BASE_DELAY_MS * 2^attempt`.
+- **Bounded:** at most `STELLAR_RPC_MAX_RETRIES` retries, and no single wait longer than `STELLAR_RPC_RETRY_MAX_DELAY_MS`. If the provider asks for a longer wait, the call fails fast rather than blocking.
+- **Safe response:** when retrying stops, the API returns `503 Service Unavailable` with a `Retry-After` header:
+
+  ```json
+  {
+    "status": 503,
+    "code": "SERVICE_UNAVAILABLE",
+    "message": "Service temporarily unavailable. Please retry later.",
+    "retryAfter": 30
+  }
+  ```
+
+  The message is fixed. Provider responses, URLs, API keys and request data are never included. Logs record only the operation name, attempt count and delay.
+- A throttled call is never reported as a result. `verifyTransaction` no longer returns `false`, `verifyConfession` no longer returns `null`, and `getAccountBalance` no longer returns "not found". Callers get the 503 instead. Tip verification already treats this as retryable.
+
 ## Gotchas & Edge Cases
 - Testnet and mainnet configs must be set correctly
 - Contract parameter encoding must match Soroban contract ABI

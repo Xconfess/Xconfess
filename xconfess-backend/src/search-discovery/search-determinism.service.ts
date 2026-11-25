@@ -1,7 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { IsNull, Repository } from 'typeorm';
 import { AnonymousConfession } from '../confession/entities/confession.entity';
+import { resolveSearchSortExpression } from '../common/validation/sort-allowlist';
 
 @Injectable()
 export class SearchDeterminismService {
@@ -31,7 +32,7 @@ export class SearchDeterminismService {
   async initializeTiebreakers(): Promise<void> {
     const confessions = await this.confessionRepository.find({
       where: {
-        searchScoreTiebreaker: null,
+        searchScoreTiebreaker: IsNull(),
       },
     });
 
@@ -66,12 +67,14 @@ export class SearchDeterminismService {
     primarySort: string,
     useSecondaryTiebreaker: boolean = true,
   ): string {
+    const sortExpression = resolveSearchSortExpression(primarySort);
+
     if (!useSecondaryTiebreaker) {
-      return primarySort;
+      return sortExpression;
     }
 
     // When scores are equal, use tiebreaker (created_at + id hash)
-    return `${primarySort}, search_score_tiebreaker ASC, created_at DESC`;
+    return `${sortExpression}, search_score_tiebreaker ASC, created_at DESC`;
   }
 
   async getDeterministicResults(

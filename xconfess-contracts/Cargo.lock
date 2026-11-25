@@ -27,6 +27,7 @@ dependencies = [
 name = "anonymous-tipping"
 version = "1.0.0"
 dependencies = [
+ "proptest",
  "soroban-sdk",
 ]
 

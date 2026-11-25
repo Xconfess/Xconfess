@@ -60,9 +60,17 @@ describe('PostgresHealthIndicator', () => {
       const result = await indicator.isHealthy('database');
 
       expect(result.database.status).toBe('up');
-      expect(result.database.version).toBe('PostgreSQL 16.3');
-      expect(result.database.activeConnections).toBe(5);
-      expect(result.database.maxConnections).toBe(100);
+      expect(result.database).toMatchObject({
+        state: 'up',
+        dependency: 'database',
+        critical: true,
+        timeoutMs: 3000,
+        details: {
+          version: 'PostgreSQL 16.3',
+          activeConnections: 5,
+          maxConnections: 100,
+        },
+      });
       expect(typeof result.database.latencyMs).toBe('number');
     });
 
@@ -184,14 +192,14 @@ describe('PostgresHealthIndicator', () => {
   });
 
   describe('error detail structure', () => {
-    it('always includes status=down and error message in failure output', async () => {
+    it('always includes status=down and a secret-free error summary', async () => {
       dataSource = makeMockDataSource({
         queryError: new Error('unknown db error'),
       });
       const module: TestingModule = await buildModule(dataSource);
       indicator = module.get(PostgresHealthIndicator);
 
-      expect.assertions(3);
+      expect.assertions(5);
       try {
         await indicator.isHealthy('database');
       } catch (err) {
@@ -200,7 +208,9 @@ describe('PostgresHealthIndicator', () => {
           Record<string, unknown>
         >;
         expect(causes.database.status).toBe('down');
-        expect(causes.database.error).toBe('unknown db error');
+        expect(causes.database.state).toBe('down');
+        expect(causes.database.errorCode).toBe('UNKNOWN');
+        expect(JSON.stringify(causes)).not.toContain('unknown db error');
         expect(typeof causes.database.hint).toBe('string');
       }
     });

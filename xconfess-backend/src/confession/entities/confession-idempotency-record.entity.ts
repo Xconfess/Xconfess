@@ -18,10 +18,10 @@ export type IdempotencyStatus = 'processing' | 'completed' | 'failed';
  * Lifecycle:
  *   1. Row inserted with status='processing' before confession creation begins.
  *   2. After successful creation: status='completed', confession_id + response_body saved.
- *   3. On failure: status='failed'.
+ *   3. On failure: status='failed', allowing one atomic retry claimant.
  *
  * Concurrent requests for the same idempotency_key hit the UNIQUE constraint
- * and are handled via a PostgreSQL advisory lock in IdempotencyService.
+ * and are handled by the idempotency service's processing/replay flow.
  */
 @Entity('confession_idempotency_records')
 export class ConfessionIdempotencyRecord {

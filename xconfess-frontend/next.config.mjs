@@ -1,7 +1,9 @@
 import path from "path";
 import { fileURLToPath } from "url";
+import devAuthEnv from "./dev-auth-env.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+devAuthEnv.assertDevAuthDisabledInProduction(process.env);
 
 // ---------------------------------------------------------------------------
 // Security Headers

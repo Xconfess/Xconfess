@@ -113,6 +113,7 @@ describe('ConfessionService', () => {
             buildKey: jest.fn((...parts: string[]) => parts.join(':')),
             get: jest.fn().mockResolvedValue(null),
             set: jest.fn(),
+            del: jest.fn(),
             delPattern: jest.fn(),
           },
         },
@@ -317,6 +318,114 @@ describe('ConfessionService', () => {
     it('invalidateConfessionCache clears list keys but not single keys', async () => {
       (service as any).invalidateConfessionCache();
       expect(cacheServiceMock.delPattern).toHaveBeenCalledWith('confessions:');
+    });
+  });
+
+  describe('Cache invalidation on confession writes (#2168)', () => {
+    const CONFESSION_ID = 'conf-cache-1';
+    const SINGLE_KEY = `confession:${CONFESSION_ID}`;
+    const mockReq = { ip: '127.0.0.1', headers: {} } as any;
+
+    it('serves a cached confession, then evicts it and the listings after an edit', async () => {
+      cacheServiceMock.get.mockResolvedValueOnce({
+        id: CONFESSION_ID,
+        message: 'stale copy',
+      });
+
+      const hit = await service.getConfessionByIdWithViewCount(
+        CONFESSION_ID,
+        mockReq,
+      );
+      expect(hit).toEqual({ id: CONFESSION_ID, message: 'stale copy' });
+      expect(repo.findOne).not.toHaveBeenCalled();
+
+      repo.findOne
+        .mockResolvedValueOnce({ id: CONFESSION_ID, isDeleted: false } as any)
+        .mockResolvedValueOnce({
+          id: CONFESSION_ID,
+          message: encryptConfession(
+            'fresh copy',
+            '12345678901234567890123456789012',
+          ),
+        } as any);
+      repo.update.mockResolvedValue({ affected: 1 } as any);
+
+      await service.update(CONFESSION_ID, { gender: 'female' } as any);
+
+      expect(cacheServiceMock.del).toHaveBeenCalledWith(SINGLE_KEY);
+      expect(cacheServiceMock.delPattern).toHaveBeenCalledWith('confessions:');
+    });
+
+    it('evicts the cached entry when a confession is soft-deleted by an admin', async () => {
+      repo.findOne.mockResolvedValue({
+        id: CONFESSION_ID,
+        isDeleted: false,
+      } as any);
+      repo.update.mockResolvedValue({ affected: 1 } as any);
+
+      await service.remove(CONFESSION_ID, 'admin-1');
+
+      expect(cacheServiceMock.del).toHaveBeenCalledWith(SINGLE_KEY);
+      expect(cacheServiceMock.delPattern).toHaveBeenCalledWith('confessions:');
+    });
+
+    it('evicts the cached entry when a deleted confession is restored', async () => {
+      repo.findOne.mockResolvedValue({
+        id: CONFESSION_ID,
+        isDeleted: true,
+      } as any);
+      repo.update.mockResolvedValue({ affected: 1 } as any);
+
+      await service.restore(CONFESSION_ID);
+
+      expect(cacheServiceMock.del).toHaveBeenCalledWith(SINGLE_KEY);
+      expect(cacheServiceMock.delPattern).toHaveBeenCalledWith('confessions:');
+    });
+
+    it('evicts the cached entry when a moderation status changes', async () => {
+      repo.findOne.mockResolvedValue({
+        id: CONFESSION_ID,
+        moderationStatus: 'flagged',
+      } as any);
+      repo.save.mockResolvedValue({
+        id: CONFESSION_ID,
+        moderationStatus: 'rejected',
+      } as any);
+      (service as any).moderationRepoService.getLogsByConfession.mockResolvedValue(
+        [],
+      );
+
+      await service.updateModerationStatus(
+        CONFESSION_ID,
+        'rejected' as any,
+        'mod-1',
+      );
+
+      expect(cacheServiceMock.del).toHaveBeenCalledWith(SINGLE_KEY);
+      expect(cacheServiceMock.delPattern).toHaveBeenCalledWith('confessions:');
+    });
+
+    it('evicts the cached entry when the author soft-deletes a confession', async () => {
+      repo.findOne.mockResolvedValue({
+        id: CONFESSION_ID,
+        isDeleted: false,
+      } as any);
+      repo.update.mockResolvedValue({ affected: 1 } as any);
+
+      await service.deleteConfession(CONFESSION_ID, 'user-1');
+
+      expect(cacheServiceMock.del).toHaveBeenCalledWith(SINGLE_KEY);
+    });
+
+    it('does not evict anything when the confession is not found', async () => {
+      repo.findOne.mockResolvedValue(null);
+
+      await expect(
+        service.update(CONFESSION_ID, { gender: 'female' } as any),
+      ).rejects.toThrow('not found');
+
+      expect(cacheServiceMock.del).not.toHaveBeenCalled();
+      expect(cacheServiceMock.delPattern).not.toHaveBeenCalled();
     });
   });
 });
