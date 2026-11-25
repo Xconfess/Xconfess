@@ -71,23 +71,56 @@ export const FEED_TYPE_LABELS = [
 
 export const FEED_OUTCOME_LABELS = ['success', 'error'] as const;
 
+/** Discovery query routes. Never a raw path or search term. */
+export const SEARCH_ROUTE_LABELS = [
+  'search',
+  'fulltext_search',
+  'other',
+] as const;
+
+export const SEARCH_OUTCOME_LABELS = [
+  'success',
+  'timeout',
+  'cancelled',
+  'error',
+] as const;
+
+/** WebSocket admission outcomes (see WsConnectionLimiter). */
+export const WS_CONNECTION_EVENT_LABELS = [
+  'accepted',
+  'rejected_global',
+  'rejected_user',
+  'closed',
+] as const;
+
+export const WS_NAMESPACE_LABELS = ['notifications', 'other'] as const;
+
+/** Notification fanout queue events. */
+export const FANOUT_EVENT_LABELS = [
+  'enqueued',
+  'processed',
+  'failed',
+  'overflow',
+] as const;
+
 export const CSRF_STATUS_LABELS = ['allowed', 'rejected'] as const;
 
 /** Database connection pool role. Read replicas share the `replica` series. */
 export const DB_POOL_LABELS = ['primary', 'replica', 'other'] as const;
 
-export const DB_POOL_STATE_LABELS = [
-  'total',
-  'idle',
-  'active',
-  'max',
-] as const;
+export const DB_POOL_STATE_LABELS = ['total', 'idle', 'active', 'max'] as const;
 
 export type HttpMethodLabel = (typeof HTTP_METHOD_LABELS)[number];
 export type StatusClassLabel = (typeof STATUS_CLASS_LABELS)[number];
 export type RouteCategoryLabel = (typeof ROUTE_CATEGORY_LABELS)[number];
 export type FeedTypeLabel = (typeof FEED_TYPE_LABELS)[number];
 export type FeedOutcomeLabel = (typeof FEED_OUTCOME_LABELS)[number];
+export type SearchRouteLabel = (typeof SEARCH_ROUTE_LABELS)[number];
+export type SearchOutcomeLabel = (typeof SEARCH_OUTCOME_LABELS)[number];
+export type WsConnectionEventLabel =
+  (typeof WS_CONNECTION_EVENT_LABELS)[number];
+export type WsNamespaceLabel = (typeof WS_NAMESPACE_LABELS)[number];
+export type FanoutEventLabel = (typeof FANOUT_EVENT_LABELS)[number];
 export type CsrfStatusLabel = (typeof CSRF_STATUS_LABELS)[number];
 export type DbPoolLabel = (typeof DB_POOL_LABELS)[number];
 

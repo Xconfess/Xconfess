@@ -227,6 +227,12 @@ export const envValidationSchema = Joi.object({
   RATE_LIMIT_GET_WINDOW: Joi.number().default(60),
   NOTIFICATION_DEDUPE_TTL_SECONDS: Joi.number().default(60),
   SEARCH_QUERY_TIMEOUT_MS: Joi.number().integer().min(100).max(60000).default(5000),
+  // WebSocket admission limits (#2392)
+  WS_MAX_CONNECTIONS_GLOBAL: Joi.number().integer().min(1).default(5000),
+  WS_MAX_CONNECTIONS_PER_USER: Joi.number().integer().min(1).default(5),
+  // Notification fanout backpressure (#2393)
+  NOTIFICATION_FANOUT_CONCURRENCY: Joi.number().integer().min(1).default(10),
+  NOTIFICATION_FANOUT_MAX_QUEUE: Joi.number().integer().min(1).default(1000),
   ANALYTICS_ENABLED: Joi.string().valid('true', 'false').default('true'),
   ANALYTICS_RETENTION_DAYS: Joi.number().min(1).default(365),
   // Keys the one-way pseudonyms stored in analytics_events.actor_id (Issue #2281).

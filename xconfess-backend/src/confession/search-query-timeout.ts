@@ -29,3 +29,48 @@ export function isSearchQueryTimeoutError(err: unknown): boolean {
     (typeof message === 'string' && /statement timeout/i.test(message))
   );
 }
+
+export type SearchQueryOutcome = 'timeout' | 'cancelled' | 'error';
+
+/**
+ * Classify a failed search for metrics only. Looks at error codes, names and
+ * the driver's fixed phrases - never at the search term - and returns one of
+ * a closed set of values.
+ *
+ * - cancelled: the caller aborted (AbortError / ABORT_ERR) or Postgres
+ *   reported "canceling statement due to user request".
+ * - timeout:   statement_timeout, or the 408 SEARCH_TIMEOUT we already mapped.
+ * - error:     everything else.
+ */
+export function classifySearchQueryError(err: unknown): SearchQueryOutcome {
+  if (!err || typeof err !== 'object') return 'error';
+
+  const candidate = err as {
+    name?: unknown;
+    code?: unknown;
+    message?: unknown;
+    response?: { code?: unknown };
+    driverError?: { code?: unknown; message?: unknown };
+  };
+  const message =
+    typeof (candidate.message ?? candidate.driverError?.message) === 'string'
+      ? String(candidate.message ?? candidate.driverError?.message)
+      : '';
+
+  if (
+    candidate.name === 'AbortError' ||
+    candidate.code === 'ABORT_ERR' ||
+    /user request|query was cancell?ed/i.test(message)
+  ) {
+    return 'cancelled';
+  }
+
+  if (
+    candidate.response?.code === 'SEARCH_TIMEOUT' ||
+    isSearchQueryTimeoutError(err)
+  ) {
+    return 'timeout';
+  }
+
+  return 'error';
+}

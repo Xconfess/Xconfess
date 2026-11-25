@@ -64,6 +64,7 @@ import { IdempotencyScope } from './idempotency-scope';
 import { ErrorCode } from '../common/errors/error-codes';
 import {
   DEFAULT_SEARCH_QUERY_TIMEOUT_MS,
+  classifySearchQueryError,
   isSearchQueryTimeoutError,
   SEARCH_TIMEOUT_MESSAGE,
 } from './search-query-timeout';
@@ -106,6 +107,23 @@ export class ConfessionService {
   ): Promise<T> {
     return this.operationalMetrics
       ? this.operationalMetrics.observeFeedQuery(feedType, run)
+      : run();
+  }
+
+  /**
+   * Count and time a discovery search under fixed route/outcome labels.
+   * Neither the search term nor any result content is ever recorded.
+   */
+  private observeSearch<T>(
+    route: 'search' | 'fulltext_search',
+    run: () => Promise<T>,
+  ): Promise<T> {
+    return this.operationalMetrics
+      ? this.operationalMetrics.observeSearchQuery(
+          route,
+          run,
+          classifySearchQueryError,
+        )
       : run();
   }
 
@@ -694,7 +712,9 @@ export class ConfessionService {
   }
 
   async search(dto: SearchConfessionDto) {
-    return this.observeFeed('search', () => this.runSearch(dto));
+    return this.observeFeed('search', () =>
+      this.observeSearch('search', () => this.runSearch(dto)),
+    );
   }
 
   private getSearchQueryTimeoutMs(): number {
@@ -793,7 +813,7 @@ export class ConfessionService {
 
   async fullTextSearch(dto: SearchConfessionDto) {
     return this.observeFeed('fulltext_search', () =>
-      this.runFullTextSearch(dto),
+      this.observeSearch('fulltext_search', () => this.runFullTextSearch(dto)),
     );
   }
 
