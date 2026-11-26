@@ -14,7 +14,7 @@ members = [
 # Shared dependency versions. Member crates can reference these with
 # `soroban-sdk = { workspace = true }` so everyone stays on the same version.
 [workspace.dependencies]
-soroban-sdk = "23"
+soroban-sdk = "29"
 
 # Settings for `cargo build --release`, tuned for small WASM contract size
 # (smaller contracts are cheaper to deploy on Stellar).
